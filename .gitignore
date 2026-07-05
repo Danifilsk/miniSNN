@@ -1,0 +1,11 @@
+*.exe
+*.o
+*.obj
+*.out
+*.dll
+*.pdb
+*.ilk
+
+spikes.csv
+neuron*.csv
+test_*.csv
