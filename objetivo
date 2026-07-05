@@ -1,0 +1,3 @@
+fazer uma mini SNN (spike neural network) baseado em LIF (leaky integreate and fire) em C
+para compilar use: gcc main.c neuron.c network.c topology.c -o miniSNN.exe
+para executar use: .\miniSNN.exe
