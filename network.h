@@ -12,9 +12,14 @@ typedef struct
     // Lista de conexões de cada neurônio
     ConnectionList *connections;
 
-    double *syn_current;   // corrente usada neste passo
-    double *next_current;  // corrente produzida pelos spikes deste passo
+    double *syn_current;   // corrente sinaptica disponivel para o passo
+    // Corrente sináptica usada na atualização LIF do timestep atual
+    double *used_syn_current;
+    double *pending_current;  // correntes agendadas para timesteps futuros
     double *ext_current;   // corrente externa
+
+    int max_synaptic_delay;
+    int delay_cursor;
 
     // Spikes produzidos no passo atual
     int *spikes;
@@ -32,6 +37,28 @@ int network_init(Network *net, int size);
 
 // Executa um passo da simulação
 int network_update(Network *net);
+
+int network_connect(Network *net, int source, int target, double weight);
+
+int network_connect_delayed(
+    Network *net,
+    int source,
+    int target,
+    double weight,
+    int delay);
+
+int network_set_neuron_type(
+    Network *net,
+    int neuron_id,
+    NeuronType type);
+
+void network_clear_connections(Network *net);
+
+int network_set_external_current(Network *net, int neuron_id, double current);
+
+int network_add_external_current(Network *net, int neuron_id, double current);
+
+void network_clear_external_currents(Network *net);
 
 // Libera toda a memória
 void network_destroy(Network *net);

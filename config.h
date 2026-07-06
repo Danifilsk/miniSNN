@@ -11,6 +11,9 @@
 // Tempo suficiente para observar vários disparos
 #define T_MAX 1000
 
+// Semente fixa para testes reproduziveis da topologia aleatoria
+#define RANDOM_SEED 1
+
 //========================================
 // Modelo LIF
 //========================================
@@ -34,12 +37,14 @@
 
 // Não é usado neste teste, mas mantemos para evitar
 // alterações em outros arquivos.
-#define W        200.0
+#define W_EXC    200.0
+#define W_INH   -250.0
+#define W        W_EXC
 
 // Decaimento da corrente sináptica
 #define SYN_DECAY 0.95
 
 // Também não é usado por enquanto.
-#define DELAY    1
+#define MAX_SYNAPTIC_DELAY 8
 
 #endif

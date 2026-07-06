@@ -3,6 +3,12 @@
 
 #include "config.h"
 
+typedef enum
+{
+    NEURON_EXCITATORY = 0,
+    NEURON_INHIBITORY = 1
+} NeuronType;
+
 typedef struct
 {
     // Potencial de membrana
@@ -10,6 +16,8 @@ typedef struct
 
     // 1 = disparou neste passo
     int spike;
+
+    NeuronType type;
 
 } LIFNeuron;
 

@@ -6,6 +6,4 @@
 *.pdb
 *.ilk
 
-spikes.csv
-neuron*.csv
-test_*.csv
+*.csv

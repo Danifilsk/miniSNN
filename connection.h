@@ -9,6 +9,8 @@ typedef struct
     // Peso sináptico
     double weight;
 
+    int delay;
+
 } Connection;
 
 typedef struct

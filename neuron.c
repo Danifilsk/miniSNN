@@ -4,6 +4,7 @@ void lif_init(LIFNeuron *n)
 {
     n->V = V_REST;
     n->spike = 0;
+    n->type = NEURON_EXCITATORY;
 }
 
 int lif_update(LIFNeuron *n, double I)
