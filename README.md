@@ -67,11 +67,36 @@ Os resultados ficam em:
 results/scenarios/<run_name>/
 ```
 
+## miniSNN Studio
+
+Para abrir a interface grafica no Windows:
+
+```powershell
+mingw32-make studio
+```
+
+O executavel gerado fica em:
+
+```text
+build/minisnn_studio.exe
+```
+
+A interface permite criar, carregar, salvar e executar cenarios sem editar
+arquivos C.
+
+Para gerar graficos, o Studio procura Python automaticamente usando
+`MINISNN_PYTHON`, a instalacao local do Windows, `py.exe` ou `python.exe`.
+Antes de aceitar um interpretador, ele valida `pandas` e `matplotlib`. Se
+necessario, use o botao `Selecionar Python`; caso as bibliotecas estejam
+ausentes, o Studio pode instala-las com confirmacao do usuario. Evite Python de
+jogos, caches ou runtimes internos.
+
 ## Documentacao
 
 - `docs/MANUAL_DE_USO.md`: instalacao, compilacao, estrutura e fluxo basico.
 - `docs/GUIA_DE_EXPERIMENTOS.md`: como configurar, executar e interpretar os experimentos.
 - `docs/GUIA_DE_CENARIOS.md`: como executar simulacoes editando arquivos `.ini`.
+- `docs/GUIA_DO_STUDIO.md`: como usar a interface grafica inicial.
 - `API_REFERENCE.md`: referencia da API publica em `include/minisnn.h`.
 
 ## Compilacao manual com GCC (referencia)

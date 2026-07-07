@@ -49,4 +49,10 @@ int scenario_config_validate(
     char *error_message,
     size_t error_message_size);
 
+int scenario_config_save_file(
+    const char *filename,
+    const ScenarioConfig *config,
+    char *error_message,
+    size_t error_message_size);
+
 #endif

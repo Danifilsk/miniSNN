@@ -122,12 +122,15 @@ results/experiments/
 | `mingw32-make test-core` | Testa nucleo, topologias, estimulos e recorders | Validacao completa do nucleo |
 | `mingw32-make test-lif` | Testa o LIF basico | Total de spikes impresso |
 | `mingw32-make test-scenario` | Testa o parser de cenarios | `Scenario configuration validation OK` |
+| `mingw32-make test-runner` | Testa o executor de cenarios | `Scenario runner validation OK` |
 | `mingw32-make api-examples` | Executa os tres exemplos publicos | CSVs em `results/api/` |
 | `mingw32-make api-single` | Exemplo de um neuronio | `api_single_neuron.csv` |
 | `mingw32-make api-chain` | Exemplo de cadeia | `api_chain_spikes.csv` |
 | `mingw32-make api-exc-inh` | Exemplo EXC vs EXC/INH pela API | CSVs do alvo em `results/api/` |
 | `mingw32-make demo` | Executa demo interno | CSVs em `results/internal_demo/` |
 | `mingw32-make scenario` | Executa o cenario padrao | Resultados em `results/scenarios/<run_name>/` |
+| `mingw32-make studio-build` | Compila o miniSNN Studio | `build/minisnn_studio.exe` |
+| `mingw32-make studio` | Compila e abre o miniSNN Studio | Interface grafica para cenarios |
 | `mingw32-make ei-balance` | Experimento EXC vs EXC/INH | Resultados em `results/experiments/ei_balance/` |
 | `mingw32-make inhibition-fine` | Varredura fina de inibicao | CSV em `results/experiments/inhibition/` |
 | `mingw32-make inh-to-inh` | Compara com e sem INH -> INH | CSVs em `results/experiments/inh_to_inh/` |
@@ -190,6 +193,33 @@ mingw32-make scenario SCENARIO=configs/random_balanced.ini
 Use cenarios para mudar topologia, pesos, seed, numero de neuronios, duracao e
 entrada externa. Nao altere `src/` para testes normais de parametros.
 
+## miniSNN Studio
+
+O uso normal de cenarios tambem pode ser feito pelo Studio:
+
+```powershell
+mingw32-make studio
+```
+
+A interface permite criar um cenario novo, carregar um `.ini`, salvar ajustes,
+executar a simulacao, gerar graficos e abrir a pasta de resultados. A pasta
+`configs/` continua sendo o caminho recomendado para reproducao e uso avancado,
+pois os arquivos `.ini` deixam os parametros explicitos.
+
+Para gerar graficos, o Studio tenta localizar Python automaticamente nesta
+ordem: caminho escolhido na sessao, variavel `MINISNN_PYTHON`, instalacoes em
+`%LOCALAPPDATA%\Programs\Python\`, `%LOCALAPPDATA%\Python\`, MSYS2, `py.exe`
+no PATH e `python.exe` no PATH. Antes de usar um interpretador, o Studio testa
+se `pandas` e `matplotlib` estao disponiveis. Se nada valido for encontrado,
+use `Selecionar Python`; se faltarem bibliotecas, o Studio pode executar
+`pip install pandas matplotlib` com confirmacao do usuario. O terminal nao e
+necessario quando o Studio estiver configurado.
+
+O Studio ainda mostra apenas recursos ja implementados no motor de cenarios:
+topologias configuraveis, pesos EXC/INH, entrada externa constante, parametros
+LIF e CSVs/graficos. Ele nao adiciona plasticidade, recompensa, mundo externo
+ou topologia adaptativa.
+
 ## Resultados e sobrescrita
 
 Os programas abrem os CSVs em modo `"w"`. Ao executar novamente o mesmo
@@ -236,6 +266,10 @@ Instale as bibliotecas no Python usado pelos scripts:
 ```powershell
 & "C:\Users\danif\AppData\Local\Python\pythoncore-3.14-64\python.exe" -m pip install pandas matplotlib
 ```
+
+No Studio, voce tambem pode clicar em `Selecionar Python`. O interpretador
+escolhido sera validado antes de ser usado; Python de jogos, caches ou runtimes
+internos nao e recomendado.
 
 ### O script Python diz que um CSV esta ausente
 

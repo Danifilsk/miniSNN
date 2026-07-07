@@ -5,13 +5,14 @@ BUILD_DIR = build
 
 API_SOURCES = src/minisnn.c src/neuron.c src/network.c
 APP_SOURCES = app/scenario_config.c
+SCENARIO_RUNNER_SOURCES = app/scenario_config.c app/scenario_runner.c
 CORE_SOURCES = src/neuron.c src/network.c src/topology.c src/stimulus.c src/recorder.c
 EXPERIMENT_SOURCES = src/neuron.c src/network.c src/stimulus.c src/recorder.c
 SCENARIO ?= configs/random_balanced.ini
 
-.PHONY: all help clean test test-api test-core test-lif test-scenario \
+.PHONY: all help clean test test-api test-core test-lif test-scenario test-runner \
 	api-examples api-single api-chain api-exc-inh \
-	demo ei-balance inhibition-fine inh-to-inh sparse-ei scenario
+	demo ei-balance inhibition-fine inh-to-inh sparse-ei scenario studio-build studio
 
 all: test
 
@@ -22,9 +23,12 @@ help:
 	@echo   make test-core         - teste do nucleo/topologias/estimulos/recorders
 	@echo   make test-lif          - teste basico do LIF
 	@echo   make test-scenario     - teste do parser de cenarios
+	@echo   make test-runner       - teste do executor compartilhado de cenarios
 	@echo   make api-examples      - executa os exemplos publicos da API
 	@echo   make demo              - executa o demo interno
 	@echo   make scenario          - executa um cenario .ini com SCENARIO=configs/arquivo.ini
+	@echo   make studio-build      - compila a interface grafica miniSNN Studio
+	@echo   make studio            - compila e abre a interface grafica miniSNN Studio
 	@echo   make ei-balance        - executa o experimento EXC vs EXC/INH
 	@echo   make inhibition-fine   - executa a varredura fina de inibicao
 	@echo   make inh-to-inh        - executa a visualizacao INH para INH
@@ -46,6 +50,9 @@ $(BUILD_DIR)/test_LIF.exe: tests/test_LIF.c src/neuron.c src/neuron.h src/config
 $(BUILD_DIR)/test_scenario_config.exe: tests/test_scenario_config.c $(APP_SOURCES) app/scenario_config.h | $(BUILD_DIR)
 	$(CC) $(CFLAGS) tests/test_scenario_config.c $(APP_SOURCES) $(INCLUDES) -o $@
 
+$(BUILD_DIR)/test_scenario_runner.exe: tests/test_scenario_runner.c $(SCENARIO_RUNNER_SOURCES) $(API_SOURCES) app/scenario_runner.h app/scenario_config.h | $(BUILD_DIR)
+	$(CC) $(CFLAGS) tests/test_scenario_runner.c $(SCENARIO_RUNNER_SOURCES) $(API_SOURCES) $(INCLUDES) -o $@
+
 test-api: $(BUILD_DIR)/test_minisnn_api.exe
 	$(BUILD_DIR)/test_minisnn_api.exe
 
@@ -59,7 +66,10 @@ test-lif: $(BUILD_DIR)/test_LIF.exe
 test-scenario: $(BUILD_DIR)/test_scenario_config.exe
 	$(BUILD_DIR)/test_scenario_config.exe
 
-test: test-api test-core test-lif
+test-runner: $(BUILD_DIR)/test_scenario_runner.exe
+	$(BUILD_DIR)/test_scenario_runner.exe
+
+test: test-api test-core test-lif test-scenario test-runner
 
 $(BUILD_DIR)/example_api_single_neuron.exe: examples/api/example_api_single_neuron.c $(API_SOURCES) include/minisnn.h include/minisnn_types.h | $(BUILD_DIR)
 	$(CC) $(CFLAGS) examples/api/example_api_single_neuron.c $(API_SOURCES) $(INCLUDES) -o $@
@@ -87,11 +97,19 @@ $(BUILD_DIR)/demo_main.exe: examples/internal/demo_main.c $(CORE_SOURCES) | $(BU
 demo: $(BUILD_DIR)/demo_main.exe
 	$(BUILD_DIR)/demo_main.exe
 
-$(BUILD_DIR)/minisnn_runner.exe: app/minisnn_runner.c $(APP_SOURCES) $(API_SOURCES) include/minisnn.h include/minisnn_types.h app/scenario_config.h | $(BUILD_DIR)
-	$(CC) $(CFLAGS) app/minisnn_runner.c $(APP_SOURCES) $(API_SOURCES) $(INCLUDES) -o $@
+$(BUILD_DIR)/minisnn_runner.exe: app/minisnn_runner.c $(SCENARIO_RUNNER_SOURCES) $(API_SOURCES) include/minisnn.h include/minisnn_types.h app/scenario_config.h app/scenario_runner.h | $(BUILD_DIR)
+	$(CC) $(CFLAGS) app/minisnn_runner.c $(SCENARIO_RUNNER_SOURCES) $(API_SOURCES) $(INCLUDES) -o $@
 
 scenario: $(BUILD_DIR)/minisnn_runner.exe
 	$(BUILD_DIR)/minisnn_runner.exe $(SCENARIO)
+
+$(BUILD_DIR)/minisnn_studio.exe: app/minisnn_studio.c $(SCENARIO_RUNNER_SOURCES) $(API_SOURCES) include/minisnn.h include/minisnn_types.h app/scenario_config.h app/scenario_runner.h | $(BUILD_DIR)
+	$(CC) $(CFLAGS) app/minisnn_studio.c $(SCENARIO_RUNNER_SOURCES) $(API_SOURCES) $(INCLUDES) -o $@ -mwindows -lcomdlg32 -lshell32 -lgdi32 -luser32
+
+studio-build: $(BUILD_DIR)/minisnn_studio.exe
+
+studio: $(BUILD_DIR)/minisnn_studio.exe
+	$(BUILD_DIR)/minisnn_studio.exe
 
 $(BUILD_DIR)/example_ei_balance.exe: experiments/example_ei_balance.c $(EXPERIMENT_SOURCES) | $(BUILD_DIR)
 	$(CC) $(CFLAGS) experiments/example_ei_balance.c $(EXPERIMENT_SOURCES) $(INCLUDES) -o $@

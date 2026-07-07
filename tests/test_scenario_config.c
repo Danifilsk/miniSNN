@@ -4,10 +4,22 @@
 #include "scenario_config.h"
 
 #define TEMP_PATH "build/test_scenario_config_tmp.ini"
+#define TEMP_SAVE_PATH "build/test_scenario_config_saved.ini"
+
+static int double_close(double a, double b)
+{
+    double diff = a - b;
+
+    if (diff < 0.0)
+        diff = -diff;
+
+    return diff < 0.000000001;
+}
 
 static int fail(const char *message)
 {
     remove(TEMP_PATH);
+    remove(TEMP_SAVE_PATH);
     printf("FAIL: %s\n", message);
     return 0;
 }
@@ -160,6 +172,75 @@ static int check_valid_file_loads_correctly(void)
     return 1;
 }
 
+static int configs_match(
+    const ScenarioConfig *a,
+    const ScenarioConfig *b)
+{
+    return strcmp(a->run_name, b->run_name) == 0 &&
+           strcmp(a->topology, b->topology) == 0 &&
+           a->neurons == b->neurons &&
+           double_close(a->inhibitory_fraction, b->inhibitory_fraction) &&
+           double_close(a->connection_probability, b->connection_probability) &&
+           a->seed == b->seed &&
+           a->delay == b->delay &&
+           a->max_synaptic_delay == b->max_synaptic_delay &&
+           double_close(a->excitatory_weight, b->excitatory_weight) &&
+           double_close(a->inhibitory_weight, b->inhibitory_weight) &&
+           a->source_count == b->source_count &&
+           double_close(a->input_current, b->input_current) &&
+           a->steps == b->steps &&
+           double_close(a->dt, b->dt) &&
+           double_close(a->tau, b->tau) &&
+           double_close(a->v_rest, b->v_rest) &&
+           double_close(a->v_reset, b->v_reset) &&
+           double_close(a->v_threshold, b->v_threshold) &&
+           double_close(a->resistance, b->resistance) &&
+           double_close(a->synaptic_decay, b->synaptic_decay) &&
+           a->record_neuron == b->record_neuron;
+}
+
+static int check_save_and_reload(void)
+{
+    ScenarioConfig config;
+    ScenarioConfig loaded;
+    char error[256];
+
+    scenario_config_default(&config);
+    snprintf(config.run_name, sizeof(config.run_name), "saved_parser_demo");
+    snprintf(config.topology, sizeof(config.topology), "chain");
+    config.neurons = 5;
+    config.inhibitory_fraction = 0.0;
+    config.connection_probability = 1.0;
+    config.source_count = 1;
+    config.steps = 50;
+
+    if (!scenario_config_save_file(
+            TEMP_SAVE_PATH,
+            &config,
+            error,
+            sizeof(error)))
+    {
+        printf("Unexpected save error: %s\n", error);
+        return fail("could not save valid config");
+    }
+
+    if (!scenario_config_load_file(
+            TEMP_SAVE_PATH,
+            &loaded,
+            error,
+            sizeof(error)))
+    {
+        printf("Unexpected reload error: %s\n", error);
+        return fail("could not reload saved config");
+    }
+
+    if (!configs_match(&config, &loaded))
+        return fail("saved and reloaded configs differ");
+
+    remove(TEMP_SAVE_PATH);
+    return 1;
+}
+
 int main(void)
 {
     if (!check_default_config_is_valid())
@@ -230,6 +311,9 @@ int main(void)
     {
         return 1;
     }
+
+    if (!check_save_and_reload())
+        return 1;
 
     printf("Scenario configuration validation OK\n");
     return 0;

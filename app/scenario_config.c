@@ -700,3 +700,98 @@ int scenario_config_load_file(
     *out_config = config;
     return 1;
 }
+
+int scenario_config_save_file(
+    const char *filename,
+    const ScenarioConfig *config,
+    char *error_message,
+    size_t error_message_size)
+{
+    FILE *file;
+
+    if (filename == NULL || config == NULL)
+    {
+        set_error(error_message, error_message_size, "argumento nulo");
+        return 0;
+    }
+
+    if (!scenario_config_validate(config, error_message, error_message_size))
+        return 0;
+
+    file = fopen(filename, "w");
+
+    if (file == NULL)
+    {
+        set_error(error_message, error_message_size, "nao foi possivel abrir arquivo para escrita");
+        return 0;
+    }
+
+    if (fprintf(
+            file,
+            "[run]\n"
+            "run_name = %s\n"
+            "\n"
+            "[network]\n"
+            "topology = %s\n"
+            "neurons = %d\n"
+            "inhibitory_fraction = %.17g\n"
+            "connection_probability = %.17g\n"
+            "seed = %u\n"
+            "delay = %d\n"
+            "max_synaptic_delay = %d\n"
+            "\n"
+            "[weights]\n"
+            "excitatory_weight = %.17g\n"
+            "inhibitory_weight = %.17g\n"
+            "\n"
+            "[input]\n"
+            "source_count = %d\n"
+            "input_current = %.17g\n"
+            "\n"
+            "[simulation]\n"
+            "steps = %d\n"
+            "dt = %.17g\n"
+            "tau = %.17g\n"
+            "v_rest = %.17g\n"
+            "v_reset = %.17g\n"
+            "v_threshold = %.17g\n"
+            "resistance = %.17g\n"
+            "synaptic_decay = %.17g\n"
+            "\n"
+            "[recording]\n"
+            "record_neuron = %d\n",
+            config->run_name,
+            config->topology,
+            config->neurons,
+            config->inhibitory_fraction,
+            config->connection_probability,
+            config->seed,
+            config->delay,
+            config->max_synaptic_delay,
+            config->excitatory_weight,
+            config->inhibitory_weight,
+            config->source_count,
+            config->input_current,
+            config->steps,
+            config->dt,
+            config->tau,
+            config->v_rest,
+            config->v_reset,
+            config->v_threshold,
+            config->resistance,
+            config->synaptic_decay,
+            config->record_neuron) < 0)
+    {
+        fclose(file);
+        set_error(error_message, error_message_size, "erro ao escrever arquivo de cenario");
+        return 0;
+    }
+
+    if (fclose(file) != 0)
+    {
+        set_error(error_message, error_message_size, "erro ao fechar arquivo de cenario");
+        return 0;
+    }
+
+    return 1;
+}
