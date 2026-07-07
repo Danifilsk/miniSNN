@@ -1,0 +1,297 @@
+# MiniSNN API Reference
+
+Esta referencia descreve a API publica atual de `minisnn.h`.
+
+`MiniSNN` e um tipo opaco. O usuario cria, usa e destroi redes por funcoes
+publicas, sem acessar campos internos.
+
+Funcoes booleanas retornam `1` em sucesso e `0` em falha. `minisnn_step`
+retorna o numero de spikes no timestep, ou `-1` em erro.
+
+## MiniSNNConfig
+
+**Objetivo:** configurar uma instancia de rede no momento da criacao.
+
+**Campos:**
+
+- `neuron_count`: numero de neuronios.
+- `dt`: passo de tempo do LIF.
+- `tau`: constante de tempo.
+- `v_rest`: potencial de repouso.
+- `v_reset`: potencial de reset.
+- `v_threshold`: limiar de spike.
+- `resistance`: resistencia usada no LIF.
+- `synaptic_decay`: decaimento da corrente sinaptica.
+- `max_synaptic_delay`: maior delay sinaptico permitido.
+
+**Erros importantes:** configuracoes invalidas fazem
+`minisnn_create_with_config` retornar `NULL`.
+
+## minisnn_default_config
+
+```c
+MiniSNNConfig minisnn_default_config(void);
+```
+
+**Objetivo:** obter a configuracao padrao da biblioteca.
+
+**Parametros:** nenhum.
+
+**Retorno:** uma `MiniSNNConfig` preenchida com valores padrao.
+
+**Erros importantes:** nao retorna erro.
+
+## minisnn_create
+
+```c
+MiniSNN *minisnn_create(int neuron_count);
+```
+
+**Objetivo:** criar uma rede com configuracao padrao e tamanho escolhido.
+
+**Parametros:** `neuron_count`, numero de neuronios.
+
+**Retorno:** ponteiro para `MiniSNN`, ou `NULL` em falha.
+
+**Erros importantes:** retorna `NULL` se `neuron_count <= 0` ou se houver
+falha de alocacao/inicializacao.
+
+## minisnn_create_with_config
+
+```c
+MiniSNN *minisnn_create_with_config(const MiniSNNConfig *config);
+```
+
+**Objetivo:** criar uma rede com configuracao por instancia.
+
+**Parametros:** `config`, ponteiro para a configuracao desejada.
+
+**Retorno:** ponteiro para `MiniSNN`, ou `NULL` em falha.
+
+**Erros importantes:** retorna `NULL` se `config == NULL`, se algum parametro
+for invalido ou se houver falha de alocacao/inicializacao. A configuracao e
+copiada para a rede no momento da criacao.
+
+## minisnn_destroy
+
+```c
+void minisnn_destroy(MiniSNN **snn_ptr);
+```
+
+**Objetivo:** liberar uma rede.
+
+**Parametros:** `snn_ptr`, endereco do ponteiro para a rede.
+
+**Retorno:** nenhum.
+
+**Erros importantes:** e seguro chamar com `NULL`, com ponteiro ja nulo ou mais
+de uma vez. `minisnn_destroy(&brain)` libera a rede e define `brain` como
+`NULL`.
+
+## minisnn_neuron_count
+
+```c
+int minisnn_neuron_count(const MiniSNN *snn);
+```
+
+**Objetivo:** consultar o numero de neuronios.
+
+**Parametros:** `snn`, rede.
+
+**Retorno:** numero de neuronios, ou `0` se `snn == NULL`.
+
+**Erros importantes:** rede nula retorna `0`.
+
+## minisnn_current_step
+
+```c
+int minisnn_current_step(const MiniSNN *snn);
+```
+
+**Objetivo:** consultar o timestep atual.
+
+**Parametros:** `snn`, rede.
+
+**Retorno:** timestep atual, ou `-1` se `snn == NULL`.
+
+**Erros importantes:** rede nula retorna `-1`.
+
+## MiniSNNNeuronType
+
+```c
+typedef enum
+{
+    MINISNN_NEURON_EXCITATORY = 0,
+    MINISNN_NEURON_INHIBITORY = 1
+} MiniSNNNeuronType;
+```
+
+**Objetivo:** representar o tipo publico de neuronio usado pela API.
+
+**Valores:**
+
+- `MINISNN_NEURON_EXCITATORY`: neuronio excitatorio.
+- `MINISNN_NEURON_INHIBITORY`: neuronio inibitorio.
+
+## minisnn_set_neuron_type
+
+```c
+int minisnn_set_neuron_type(
+    MiniSNN *snn,
+    int neuron_id,
+    MiniSNNNeuronType type);
+```
+
+**Objetivo:** definir se um neuronio e excitatorio ou inibitorio.
+
+**Parametros:** `snn`, rede; `neuron_id`, indice do neuronio; `type`, tipo.
+
+**Retorno:** `1` em sucesso, `0` em falha.
+
+**Erros importantes:** falha com rede nula, indice invalido ou tipo invalido.
+
+## minisnn_connect
+
+```c
+int minisnn_connect(MiniSNN *snn, int source, int target, double weight);
+```
+
+**Objetivo:** criar uma conexao com delay padrao de 1 timestep.
+
+**Parametros:** `snn`, rede; `source`, origem; `target`, destino; `weight`,
+peso sinaptico.
+
+**Retorno:** `1` em sucesso, `0` em falha.
+
+**Erros importantes:** falha com rede nula, indices invalidos, auto-conexao,
+peso nao finito ou conexao duplicada.
+
+## minisnn_connect_delayed
+
+```c
+int minisnn_connect_delayed(
+    MiniSNN *snn,
+    int source,
+    int target,
+    double weight,
+    int delay);
+```
+
+**Objetivo:** criar uma conexao com delay especifico.
+
+**Parametros:** `snn`, rede; `source`, origem; `target`, destino; `weight`,
+peso; `delay`, atraso em timesteps.
+
+**Retorno:** `1` em sucesso, `0` em falha.
+
+**Erros importantes:** falha com rede nula, indices invalidos, auto-conexao,
+peso nao finito, delay fora do intervalo permitido ou conexao duplicada.
+
+## minisnn_set_input
+
+```c
+int minisnn_set_input(MiniSNN *snn, int neuron_id, double current);
+```
+
+**Objetivo:** substituir a corrente externa de um neuronio.
+
+**Parametros:** `snn`, rede; `neuron_id`, indice; `current`, corrente.
+
+**Retorno:** `1` em sucesso, `0` em falha.
+
+**Erros importantes:** falha com rede nula, indice invalido ou corrente nao
+finita.
+
+## minisnn_add_input
+
+```c
+int minisnn_add_input(MiniSNN *snn, int neuron_id, double current);
+```
+
+**Objetivo:** somar corrente externa a um neuronio.
+
+**Parametros:** `snn`, rede; `neuron_id`, indice; `current`, corrente a somar.
+
+**Retorno:** `1` em sucesso, `0` em falha.
+
+**Erros importantes:** falha com rede nula, indice invalido, corrente nao
+finita ou resultado nao finito.
+
+## minisnn_clear_inputs
+
+```c
+void minisnn_clear_inputs(MiniSNN *snn);
+```
+
+**Objetivo:** zerar todas as correntes externas.
+
+**Parametros:** `snn`, rede.
+
+**Retorno:** nenhum.
+
+**Erros importantes:** chamada com rede nula e segura e nao faz nada.
+
+## minisnn_step
+
+```c
+int minisnn_step(MiniSNN *snn);
+```
+
+**Objetivo:** executar um timestep da simulacao.
+
+**Parametros:** `snn`, rede.
+
+**Retorno:** numero de spikes no timestep, ou `-1` em erro.
+
+**Erros importantes:** retorna `-1` se a rede for nula ou invalida.
+
+## minisnn_get_spike
+
+```c
+int minisnn_get_spike(const MiniSNN *snn, int neuron_id, int *out_spike);
+```
+
+**Objetivo:** consultar se um neuronio disparou no timestep mais recente.
+
+**Parametros:** `snn`, rede; `neuron_id`, indice; `out_spike`, destino do valor.
+
+**Retorno:** `1` em sucesso, `0` em falha.
+
+**Erros importantes:** falha com rede nula, indice invalido ou `out_spike ==
+NULL`.
+
+## minisnn_get_voltage
+
+```c
+int minisnn_get_voltage(const MiniSNN *snn, int neuron_id, double *out_voltage);
+```
+
+**Objetivo:** consultar o potencial de membrana mais recente.
+
+**Parametros:** `snn`, rede; `neuron_id`, indice; `out_voltage`, destino do
+valor.
+
+**Retorno:** `1` em sucesso, `0` em falha.
+
+**Erros importantes:** falha com rede nula, indice invalido ou `out_voltage ==
+NULL`.
+
+## minisnn_get_synaptic_current
+
+```c
+int minisnn_get_synaptic_current(
+    const MiniSNN *snn,
+    int neuron_id,
+    double *out_current);
+```
+
+**Objetivo:** consultar a corrente sinaptica usada no timestep mais recente.
+
+**Parametros:** `snn`, rede; `neuron_id`, indice; `out_current`, destino do
+valor.
+
+**Retorno:** `1` em sucesso, `0` em falha.
+
+**Erros importantes:** falha com rede nula, indice invalido ou `out_current ==
+NULL`. A corrente retornada e a corrente efetivamente usada pelo LIF no
+timestep mais recente.

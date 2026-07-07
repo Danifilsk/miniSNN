@@ -1,0 +1,115 @@
+CC = gcc
+CFLAGS = -std=c11 -Wall -Wextra -pedantic -fanalyzer
+INCLUDES = -Iinclude -Isrc
+BUILD_DIR = build
+
+API_SOURCES = src/minisnn.c src/neuron.c src/network.c
+CORE_SOURCES = src/neuron.c src/network.c src/topology.c src/stimulus.c src/recorder.c
+EXPERIMENT_SOURCES = src/neuron.c src/network.c src/stimulus.c src/recorder.c
+
+.PHONY: all help clean test test-api test-core test-lif \
+	api-examples api-single api-chain api-exc-inh \
+	demo ei-balance inhibition-fine inh-to-inh sparse-ei
+
+all: test
+
+help:
+	@echo Comandos disponiveis:
+	@echo   make ou make test      - compila e executa todos os testes
+	@echo   make test-api          - teste da API publica
+	@echo   make test-core         - teste do nucleo/topologias/estimulos/recorders
+	@echo   make test-lif          - teste basico do LIF
+	@echo   make api-examples      - executa os exemplos publicos da API
+	@echo   make demo              - executa o demo interno
+	@echo   make ei-balance        - executa o experimento EXC vs EXC/INH
+	@echo   make inhibition-fine   - executa a varredura fina de inibicao
+	@echo   make inh-to-inh        - executa a visualizacao INH para INH
+	@echo   make sparse-ei         - executa a analise EXC/INH esparsa
+	@echo   make clean             - remove arquivos recriaveis de build e resultados locais
+
+$(BUILD_DIR):
+	@if not exist $(BUILD_DIR) mkdir $(BUILD_DIR)
+
+$(BUILD_DIR)/test_minisnn_api.exe: tests/test_minisnn_api.c $(API_SOURCES) include/minisnn.h include/minisnn_types.h | $(BUILD_DIR)
+	$(CC) $(CFLAGS) tests/test_minisnn_api.c $(API_SOURCES) $(INCLUDES) -o $@
+
+$(BUILD_DIR)/test_topology.exe: tests/test_topology.c $(CORE_SOURCES) | $(BUILD_DIR)
+	$(CC) $(CFLAGS) tests/test_topology.c $(CORE_SOURCES) $(INCLUDES) -o $@
+
+$(BUILD_DIR)/test_LIF.exe: tests/test_LIF.c src/neuron.c src/neuron.h src/config.h | $(BUILD_DIR)
+	$(CC) $(CFLAGS) tests/test_LIF.c src/neuron.c $(INCLUDES) -o $@
+
+test-api: $(BUILD_DIR)/test_minisnn_api.exe
+	$(BUILD_DIR)/test_minisnn_api.exe
+
+test-core: $(BUILD_DIR)/test_topology.exe
+	$(BUILD_DIR)/test_topology.exe
+
+test-lif: $(BUILD_DIR)/test_LIF.exe
+	$(BUILD_DIR)/test_LIF.exe
+	@if exist lif.csv del /Q lif.csv
+
+test: test-api test-core test-lif
+
+$(BUILD_DIR)/example_api_single_neuron.exe: examples/api/example_api_single_neuron.c $(API_SOURCES) include/minisnn.h include/minisnn_types.h | $(BUILD_DIR)
+	$(CC) $(CFLAGS) examples/api/example_api_single_neuron.c $(API_SOURCES) $(INCLUDES) -o $@
+
+$(BUILD_DIR)/example_api_chain.exe: examples/api/example_api_chain.c $(API_SOURCES) include/minisnn.h include/minisnn_types.h | $(BUILD_DIR)
+	$(CC) $(CFLAGS) examples/api/example_api_chain.c $(API_SOURCES) $(INCLUDES) -o $@
+
+$(BUILD_DIR)/example_api_exc_inh.exe: examples/api/example_api_exc_inh.c $(API_SOURCES) include/minisnn.h include/minisnn_types.h | $(BUILD_DIR)
+	$(CC) $(CFLAGS) examples/api/example_api_exc_inh.c $(API_SOURCES) $(INCLUDES) -o $@
+
+api-single: $(BUILD_DIR)/example_api_single_neuron.exe
+	$(BUILD_DIR)/example_api_single_neuron.exe
+
+api-chain: $(BUILD_DIR)/example_api_chain.exe
+	$(BUILD_DIR)/example_api_chain.exe
+
+api-exc-inh: $(BUILD_DIR)/example_api_exc_inh.exe
+	$(BUILD_DIR)/example_api_exc_inh.exe
+
+api-examples: api-single api-chain api-exc-inh
+
+$(BUILD_DIR)/demo_main.exe: examples/internal/demo_main.c $(CORE_SOURCES) | $(BUILD_DIR)
+	$(CC) $(CFLAGS) examples/internal/demo_main.c $(CORE_SOURCES) $(INCLUDES) -o $@
+
+demo: $(BUILD_DIR)/demo_main.exe
+	$(BUILD_DIR)/demo_main.exe
+
+$(BUILD_DIR)/example_ei_balance.exe: experiments/example_ei_balance.c $(EXPERIMENT_SOURCES) | $(BUILD_DIR)
+	$(CC) $(CFLAGS) experiments/example_ei_balance.c $(EXPERIMENT_SOURCES) $(INCLUDES) -o $@
+
+$(BUILD_DIR)/example_inhibition_fine_sweep.exe: experiments/example_inhibition_fine_sweep.c $(EXPERIMENT_SOURCES) | $(BUILD_DIR)
+	$(CC) $(CFLAGS) experiments/example_inhibition_fine_sweep.c $(EXPERIMENT_SOURCES) $(INCLUDES) -o $@
+
+$(BUILD_DIR)/example_inh_to_inh_visual.exe: experiments/example_inh_to_inh_visual.c $(EXPERIMENT_SOURCES) | $(BUILD_DIR)
+	$(CC) $(CFLAGS) experiments/example_inh_to_inh_visual.c $(EXPERIMENT_SOURCES) $(INCLUDES) -o $@
+
+$(BUILD_DIR)/example_sparse_ei_balance_analysis.exe: experiments/example_sparse_ei_balance_analysis.c $(EXPERIMENT_SOURCES) | $(BUILD_DIR)
+	$(CC) $(CFLAGS) experiments/example_sparse_ei_balance_analysis.c $(EXPERIMENT_SOURCES) $(INCLUDES) -o $@
+
+ei-balance: $(BUILD_DIR)/example_ei_balance.exe
+	$(BUILD_DIR)/example_ei_balance.exe
+
+inhibition-fine: $(BUILD_DIR)/example_inhibition_fine_sweep.exe
+	$(BUILD_DIR)/example_inhibition_fine_sweep.exe
+
+inh-to-inh: $(BUILD_DIR)/example_inh_to_inh_visual.exe
+	$(BUILD_DIR)/example_inh_to_inh_visual.exe
+
+sparse-ei: $(BUILD_DIR)/example_sparse_ei_balance_analysis.exe
+	$(BUILD_DIR)/example_sparse_ei_balance_analysis.exe
+
+clean:
+	@if exist $(BUILD_DIR)\*.exe del /Q $(BUILD_DIR)\*.exe
+	@if exist $(BUILD_DIR)\*.o del /Q $(BUILD_DIR)\*.o
+	@if exist $(BUILD_DIR)\*.obj del /Q $(BUILD_DIR)\*.obj
+	@if exist $(BUILD_DIR)\*.out del /Q $(BUILD_DIR)\*.out
+	@if exist $(BUILD_DIR)\*.dll del /Q $(BUILD_DIR)\*.dll
+	@if exist $(BUILD_DIR)\*.pdb del /Q $(BUILD_DIR)\*.pdb
+	@if exist $(BUILD_DIR)\*.ilk del /Q $(BUILD_DIR)\*.ilk
+	@if exist results\api\*.csv del /Q results\api\*.csv
+	@if exist results\api\*.png del /Q results\api\*.png
+	@if exist results\internal_demo\*.csv del /Q results\internal_demo\*.csv
+	@if exist results\internal_demo\*.png del /Q results\internal_demo\*.png

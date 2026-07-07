@@ -1,0 +1,9 @@
+arquitetura,probabilidade,execucoes,media_conexoes_exc_inh,media_conexoes_inh_exc,media_conexoes_inh_inh,media_spikes_exc_total,media_spikes_inh_total,media_spikes_exc_ultimos_100,media_spikes_inh_ultimos_100,media_timesteps_exc_ativos_ultimos_100,media_timesteps_inh_ativos_ultimos_100,casos_com_exc_ativos_ultimos_100,casos_com_inh_ativos_ultimos_100
+random_all_connections,0.25,10,17.20,15.30,3.50,6804.50,1711.60,1016.10,256.20,100.00,100.00,10,10
+random_all_connections,0.50,10,33.50,31.20,5.60,5704.60,1712.40,821.10,244.70,80.00,80.00,8,8
+random_all_connections,0.75,10,49.50,47.60,9.30,7138.00,2078.20,1055.60,304.90,80.00,80.20,8,9
+random_all_connections,1.00,10,64.00,64.00,12.00,11456.00,2864.00,1600.00,400.00,100.00,100.00,10,10
+random_no_inh_to_inh,0.25,10,17.20,15.30,0.00,4421.60,1763.10,661.50,258.20,87.70,82.00,10,9
+random_no_inh_to_inh,0.50,10,33.50,31.20,0.00,69.40,131.70,6.70,11.60,6.70,6.60,1,1
+random_no_inh_to_inh,0.75,10,49.50,47.60,0.00,15.70,50.90,0.00,0.00,0.00,0.00,0,0
+random_no_inh_to_inh,1.00,10,64.00,64.00,0.00,19.00,80.00,0.00,0.00,0.00,0.00,0,0

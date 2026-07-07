@@ -1,0 +1,7 @@
+peso_inibitorio,spikes_totais,pico_spikes,timesteps_ativos,media_spikes,primeiro_recrutamento,neuronios_ativos
+-250.00,14340,20,719,14.34,282,20
+-500.00,31,17,5,0.03,282,20
+-750.00,24,17,3,0.02,282,20
+-1000.00,27,17,4,0.03,282,20
+-1250.00,20,17,2,0.02,282,20
+-1500.00,20,17,2,0.02,282,20

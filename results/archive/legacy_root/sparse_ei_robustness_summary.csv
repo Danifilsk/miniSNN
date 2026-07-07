@@ -1,0 +1,9 @@
+arquitetura,probabilidade,execucoes,media_conexoes,media_spikes_totais,media_pico_spikes,media_timesteps_ativos,casos_sustentados,casos_com_sincronizacao_total
+random_all_connections,0.25,10,94.70,8516.10,14.10,703.80,10,0
+random_all_connections,0.50,10,186.70,7417.00,13.30,580.60,8,1
+random_all_connections,0.75,10,286.40,9216.20,16.10,576.00,9,4
+random_all_connections,1.00,10,380.00,14320.00,20.00,719.00,10,10
+random_no_inh_to_inh,0.25,10,91.20,6184.70,11.60,630.80,10,0
+random_no_inh_to_inh,0.50,10,181.10,201.10,5.30,101.60,1,0
+random_no_inh_to_inh,0.75,10,277.10,66.60,7.90,33.20,0,0
+random_no_inh_to_inh,1.00,10,368.00,99.00,17.00,21.00,0,0

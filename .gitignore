@@ -1,3 +1,5 @@
+# Build local
+/build/
 *.exe
 *.o
 *.obj
@@ -6,4 +8,17 @@
 *.pdb
 *.ilk
 
-*.csv
+# Python
+__pycache__/
+*.pyc
+
+# Dados temporarios de experimentos
+tmp_*.csv
+
+# Resultados reproduziveis dos exemplos publicos
+/results/api/*.csv
+/results/api/*.png
+
+# Resultados recriaveis do demo interno
+/results/internal_demo/*.csv
+/results/internal_demo/*.png

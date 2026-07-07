@@ -1,0 +1,7 @@
+arquitetura,peso_inibitorio,spikes_totais,pico_spikes,timesteps_ativos,ultimo_timestep_ativo,neuronios_ativos,primeiro_timestep_sincronizacao_total,primeiro_timestep_exc_sem_inh
+all_to_all,-375.00,159,17,17,301,20,-1,-1
+no_inh_to_inh,-375.00,99,17,21,351,20,-1,-1
+all_to_all,-400.00,14320,20,719,999,20,287,286
+no_inh_to_inh,-400.00,99,17,21,351,20,-1,-1
+all_to_all,-425.00,31,17,5,288,20,-1,-1
+no_inh_to_inh,-425.00,99,17,21,351,20,-1,-1

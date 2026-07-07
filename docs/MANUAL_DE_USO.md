@@ -1,0 +1,234 @@
+# Manual de Uso da miniSNN
+
+## O que e a miniSNN
+
+A miniSNN e uma biblioteca e simulador em C para redes neurais pulsadas
+simplificadas.
+
+Ela usa neuronios LIF, do ingles Leaky Integrate-and-Fire. O projeto tambem
+suporta conexoes excitadoras e inibidoras, delays sinapticos configuraveis e
+corrente sinaptica com decaimento.
+
+A miniSNN e um projeto exploratorio e educacional. Ela ajuda a testar ideias,
+observar regimes de atividade e estudar dinamicas simples de redes pulsadas.
+Ela nao e uma simulacao biologicamente completa do cerebro.
+
+## Requisitos no Windows
+
+Use os comandos a partir da raiz do projeto, onde ficam `Makefile`,
+`README.md`, `src/` e `include/`.
+
+Requisitos principais:
+
+- GCC via MSYS2/MinGW.
+- `mingw32-make`.
+- Python para scripts e graficos.
+- Bibliotecas Python `pandas` e `matplotlib`.
+
+Verifique o ambiente:
+
+```powershell
+gcc --version
+mingw32-make --version
+& "C:\Users\danif\AppData\Local\Python\pythoncore-3.14-64\python.exe" --version
+```
+
+Se as bibliotecas Python nao estiverem instaladas:
+
+```powershell
+& "C:\Users\danif\AppData\Local\Python\pythoncore-3.14-64\python.exe" -m pip install pandas matplotlib
+```
+
+No ambiente Windows atual do projeto, o comando disponivel e:
+
+```powershell
+mingw32-make
+```
+
+Use `make` somente se esse comando existir no seu PATH.
+
+## Estrutura de pastas
+
+```text
+include/                API publica
+src/                    nucleo interno
+tests/                  testes automatizados
+examples/api/           exemplos que usam apenas minisnn.h
+examples/internal/      demo usando estruturas internas
+experiments/            experimentos cientificos
+scripts/                scripts Python ativos
+scripts/legacy/         scripts antigos preservados
+results/api/            CSVs dos exemplos publicos
+results/internal_demo/  saida do demo interno
+results/experiments/    resultados cientificos
+results/archive/        resultados antigos preservados
+build/                  executaveis gerados localmente
+docs/                   manuais do projeto
+```
+
+Atencao:
+
+- Nao edite `build/`. Essa pasta contem executaveis recriaveis.
+- Nao use `results/archive/` como saida de experimentos novos. Ela e apenas
+  historica.
+
+## Primeiro fluxo seguro
+
+Se voce acabou de abrir o projeto e quer saber se tudo esta funcionando, rode:
+
+```powershell
+mingw32-make test
+mingw32-make api-examples
+mingw32-make ei-balance
+```
+
+O que cada comando faz:
+
+- `mingw32-make test` compila e executa os testes principais.
+- `mingw32-make api-examples` executa exemplos que usam somente a API publica.
+- `mingw32-make ei-balance` roda um experimento pequeno que compara excitacao
+  isolada com excitacao mais inibicao.
+
+Para limpar arquivos recriaveis:
+
+```powershell
+mingw32-make clean
+```
+
+Esse comando remove executaveis de `build/` e resultados recriaveis de:
+
+```text
+results/api/
+results/internal_demo/
+```
+
+Ele nao apaga:
+
+```text
+results/archive/
+results/experiments/
+```
+
+## Todos os comandos disponiveis
+
+| Comando | O que faz | Resultado esperado |
+| --- | --- | --- |
+| `mingw32-make` | Executa o alvo padrao | Equivale a `mingw32-make test` |
+| `mingw32-make help` | Mostra os comandos disponiveis | Lista curta de alvos |
+| `mingw32-make test` | Executa todos os testes | API, nucleo e LIF passam |
+| `mingw32-make test-api` | Testa a API publica | `MiniSNN public API validation OK` |
+| `mingw32-make test-core` | Testa nucleo, topologias, estimulos e recorders | Validacao completa do nucleo |
+| `mingw32-make test-lif` | Testa o LIF basico | Total de spikes impresso |
+| `mingw32-make api-examples` | Executa os tres exemplos publicos | CSVs em `results/api/` |
+| `mingw32-make api-single` | Exemplo de um neuronio | `api_single_neuron.csv` |
+| `mingw32-make api-chain` | Exemplo de cadeia | `api_chain_spikes.csv` |
+| `mingw32-make api-exc-inh` | Exemplo EXC vs EXC/INH pela API | CSVs do alvo em `results/api/` |
+| `mingw32-make demo` | Executa demo interno | CSVs em `results/internal_demo/` |
+| `mingw32-make ei-balance` | Experimento EXC vs EXC/INH | Resultados em `results/experiments/ei_balance/` |
+| `mingw32-make inhibition-fine` | Varredura fina de inibicao | CSV em `results/experiments/inhibition/` |
+| `mingw32-make inh-to-inh` | Compara com e sem INH -> INH | CSVs em `results/experiments/inh_to_inh/` |
+| `mingw32-make sparse-ei` | Analise EXC/INH em redes esparsas | CSVs em `results/experiments/sparse_ei/` |
+| `mingw32-make clean` | Limpa arquivos recriaveis | Remove build e saidas locais recriaveis |
+
+## API publica versus nucleo interno
+
+Para criar uma aplicacao nova, agente ou cerebro de peixe, prefira a API
+publica em:
+
+```text
+include/minisnn.h
+```
+
+Fluxo recomendado:
+
+1. Crie uma `MiniSNNConfig`.
+2. Ajuste `neuron_count` e parametros desejados.
+3. Crie a rede com `minisnn_create_with_config`.
+4. Aplique entradas com `minisnn_set_input` ou `minisnn_add_input`.
+5. Avance a simulacao com `minisnn_step`.
+6. Leia estado com `minisnn_get_spike`, `minisnn_get_voltage` e
+   `minisnn_get_synaptic_current`.
+
+Para criar experimentos cientificos atuais, use os arquivos em `experiments/`.
+Eles usam `src/network.h`, `src/recorder.h` e outras estruturas internas para
+ter mais controle sobre a simulacao.
+
+Evite misturar os dois estilos no mesmo programa sem necessidade. Para codigo
+novo de usuario, comece pela API publica.
+
+## Resultados e sobrescrita
+
+Os programas abrem os CSVs em modo `"w"`. Ao executar novamente o mesmo
+experimento, os arquivos de resultado daquele experimento sao substituidos.
+
+Receita segura antes de testar parametros novos:
+
+1. Execute o experimento padrao.
+2. Copie os CSVs ou PNGs importantes para uma pasta com nome descritivo dentro
+   de `results/experiments/`.
+3. Modifique um parametro.
+4. Execute novamente.
+5. Compare os resultados.
+
+Nao salve resultados novos em `results/archive/`. Essa pasta e apenas
+historica.
+
+## Problemas comuns
+
+### `mingw32-make` nao e reconhecido
+
+O MSYS2/MinGW pode nao estar instalado ou pode nao estar no PATH. Confirme:
+
+```powershell
+mingw32-make --version
+```
+
+Se falhar, instale ou abra um terminal com o ambiente MinGW correto.
+
+### `gcc` nao e reconhecido
+
+Confirme:
+
+```powershell
+gcc --version
+```
+
+Se falhar, instale GCC via MSYS2/MinGW ou ajuste o PATH.
+
+### Python nao encontra `pandas` ou `matplotlib`
+
+Instale as bibliotecas no Python usado pelos scripts:
+
+```powershell
+& "C:\Users\danif\AppData\Local\Python\pythoncore-3.14-64\python.exe" -m pip install pandas matplotlib
+```
+
+### O script Python diz que um CSV esta ausente
+
+Rode primeiro o experimento que gera os CSVs esperados. Por exemplo:
+
+```powershell
+mingw32-make ei-balance
+```
+
+Depois rode o script correspondente.
+
+### O experimento sobrescreveu um CSV anterior
+
+Isso e esperado: os arquivos sao abertos em modo `"w"`. Antes de alterar
+parametros, copie os resultados-base para uma pasta de comparacao.
+
+### `results/api` ou `results/internal_demo` esta vazio depois de `clean`
+
+Isso e esperado. `mingw32-make clean` remove resultados recriaveis dessas
+pastas. Rode novamente:
+
+```powershell
+mingw32-make api-examples
+mingw32-make demo
+```
+
+### O grafico abre e o terminal parece travado
+
+Os scripts Python usam `plt.show()`. Feche a janela do grafico para o terminal
+encerrar.
