@@ -22,3 +22,7 @@ tmp_*.csv
 # Resultados recriaveis do demo interno
 /results/internal_demo/*.csv
 /results/internal_demo/*.png
+
+# Resultados locais gerados pelo runner de cenarios
+/results/scenarios/*
+!/results/scenarios/.gitkeep

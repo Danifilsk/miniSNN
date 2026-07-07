@@ -30,9 +30,11 @@ examples/internal/         demo usando nucleo interno
 experiments/               experimentos cientificos em C
 scripts/                   scripts Python ativos
 scripts/legacy/            scripts antigos mantidos para referencia
+configs/                   cenarios configuraveis em formato INI
 results/api/               resultados dos exemplos publicos
 results/internal_demo/     saida do demo interno
 results/experiments/       resultados dos experimentos
+results/scenarios/         resultados locais dos cenarios
 ```
 
 ## Compilacao rapida com Makefile
@@ -51,10 +53,25 @@ mingw32-make ei-balance
 mingw32-make clean
 ```
 
+## Cenarios configuraveis
+
+Edite um arquivo em `configs/` e execute:
+
+```powershell
+mingw32-make scenario SCENARIO=configs/random_balanced.ini
+```
+
+Os resultados ficam em:
+
+```text
+results/scenarios/<run_name>/
+```
+
 ## Documentacao
 
 - `docs/MANUAL_DE_USO.md`: instalacao, compilacao, estrutura e fluxo basico.
 - `docs/GUIA_DE_EXPERIMENTOS.md`: como configurar, executar e interpretar os experimentos.
+- `docs/GUIA_DE_CENARIOS.md`: como executar simulacoes editando arquivos `.ini`.
 - `API_REFERENCE.md`: referencia da API publica em `include/minisnn.h`.
 
 ## Compilacao manual com GCC (referencia)

@@ -56,11 +56,13 @@ tests/                  testes automatizados
 examples/api/           exemplos que usam apenas minisnn.h
 examples/internal/      demo usando estruturas internas
 experiments/            experimentos cientificos
+configs/                cenarios configuraveis em formato INI
 scripts/                scripts Python ativos
 scripts/legacy/         scripts antigos preservados
 results/api/            CSVs dos exemplos publicos
 results/internal_demo/  saida do demo interno
 results/experiments/    resultados cientificos
+results/scenarios/      resultados locais dos cenarios
 results/archive/        resultados antigos preservados
 build/                  executaveis gerados localmente
 docs/                   manuais do projeto
@@ -119,11 +121,13 @@ results/experiments/
 | `mingw32-make test-api` | Testa a API publica | `MiniSNN public API validation OK` |
 | `mingw32-make test-core` | Testa nucleo, topologias, estimulos e recorders | Validacao completa do nucleo |
 | `mingw32-make test-lif` | Testa o LIF basico | Total de spikes impresso |
+| `mingw32-make test-scenario` | Testa o parser de cenarios | `Scenario configuration validation OK` |
 | `mingw32-make api-examples` | Executa os tres exemplos publicos | CSVs em `results/api/` |
 | `mingw32-make api-single` | Exemplo de um neuronio | `api_single_neuron.csv` |
 | `mingw32-make api-chain` | Exemplo de cadeia | `api_chain_spikes.csv` |
 | `mingw32-make api-exc-inh` | Exemplo EXC vs EXC/INH pela API | CSVs do alvo em `results/api/` |
 | `mingw32-make demo` | Executa demo interno | CSVs em `results/internal_demo/` |
+| `mingw32-make scenario` | Executa o cenario padrao | Resultados em `results/scenarios/<run_name>/` |
 | `mingw32-make ei-balance` | Experimento EXC vs EXC/INH | Resultados em `results/experiments/ei_balance/` |
 | `mingw32-make inhibition-fine` | Varredura fina de inibicao | CSV em `results/experiments/inhibition/` |
 | `mingw32-make inh-to-inh` | Compara com e sem INH -> INH | CSVs em `results/experiments/inh_to_inh/` |
@@ -155,6 +159,36 @@ ter mais controle sobre a simulacao.
 
 Evite misturar os dois estilos no mesmo programa sem necessidade. Para codigo
 novo de usuario, comece pela API publica.
+
+## Cenarios configuraveis
+
+Para testes normais de topologia e parametros principais, prefira editar um
+arquivo `.ini` em:
+
+```text
+configs/
+```
+
+O runner fica em:
+
+```text
+app/minisnn_runner.c
+```
+
+Ele executa os cenarios usando a API publica e grava resultados locais em:
+
+```text
+results/scenarios/
+```
+
+Exemplo:
+
+```powershell
+mingw32-make scenario SCENARIO=configs/random_balanced.ini
+```
+
+Use cenarios para mudar topologia, pesos, seed, numero de neuronios, duracao e
+entrada externa. Nao altere `src/` para testes normais de parametros.
 
 ## Resultados e sobrescrita
 
