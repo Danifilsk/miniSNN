@@ -78,13 +78,12 @@ Depois de uma simulacao, clique em `Gerar graficos`.
 O Studio procura Python automaticamente. A busca considera:
 
 ```text
-1. Python escolhido manualmente na sessao atual.
-2. Variavel de ambiente MINISNN_PYTHON.
-3. Instalacoes em %LOCALAPPDATA%\Programs\Python\*\python.exe.
-4. Instalacoes em %LOCALAPPDATA%\Python\*\python.exe.
-5. Python do MSYS2.
-6. py.exe no PATH.
-7. python.exe no PATH.
+1. Variavel de ambiente MINISNN_PYTHON.
+2. Instalacoes em %LOCALAPPDATA%\Programs\Python\*\python.exe.
+3. Instalacoes em %LOCALAPPDATA%\Python\*\python.exe.
+4. Python do MSYS2.
+5. py.exe no PATH.
+6. python.exe no PATH.
 ```
 
 Quando encontra um interpretador, o Studio testa primeiro:
@@ -104,13 +103,8 @@ mean_state.png
 raster.png
 ```
 
-Se o Studio nao encontrar Python valido, ele pede para voce escolher um
-`python.exe`. Use o botao `Selecionar Python` para trocar o interpretador a
-qualquer momento.
-
-Se o Python escolhido nao tiver `pandas` e `matplotlib`, ele sera rejeitado e
-nao sera salvo para a sessao. O Studio pode instalar as bibliotecas nesse
-interpretador, mas somente depois de confirmacao explicita.
+Se o Studio nao encontrar Python valido, ele mostra uma mensagem curta pedindo
+uma instalacao compativel com `pandas` e `matplotlib`.
 
 Evite usar Python de jogos, caches, runtimes internos ou pastas como Steam,
 WARNO e codex-runtimes. Quando o Studio estiver configurado, o terminal nao e

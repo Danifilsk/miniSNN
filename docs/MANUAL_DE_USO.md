@@ -207,13 +207,12 @@ executar a simulacao, gerar graficos e abrir a pasta de resultados. A pasta
 pois os arquivos `.ini` deixam os parametros explicitos.
 
 Para gerar graficos, o Studio tenta localizar Python automaticamente nesta
-ordem: caminho escolhido na sessao, variavel `MINISNN_PYTHON`, instalacoes em
+ordem: variavel `MINISNN_PYTHON`, instalacoes em
 `%LOCALAPPDATA%\Programs\Python\`, `%LOCALAPPDATA%\Python\`, MSYS2, `py.exe`
 no PATH e `python.exe` no PATH. Antes de usar um interpretador, o Studio testa
 se `pandas` e `matplotlib` estao disponiveis. Se nada valido for encontrado,
-use `Selecionar Python`; se faltarem bibliotecas, o Studio pode executar
-`pip install pandas matplotlib` com confirmacao do usuario. O terminal nao e
-necessario quando o Studio estiver configurado.
+ele mostra uma mensagem curta pedindo uma instalacao compativel. O terminal nao
+e necessario quando o Studio estiver configurado.
 
 O Studio ainda mostra apenas recursos ja implementados no motor de cenarios:
 topologias configuraveis, pesos EXC/INH, entrada externa constante, parametros
@@ -267,9 +266,8 @@ Instale as bibliotecas no Python usado pelos scripts:
 & "C:\Users\danif\AppData\Local\Python\pythoncore-3.14-64\python.exe" -m pip install pandas matplotlib
 ```
 
-No Studio, voce tambem pode clicar em `Selecionar Python`. O interpretador
-escolhido sera validado antes de ser usado; Python de jogos, caches ou runtimes
-internos nao e recomendado.
+O Studio valida automaticamente o interpretador antes de gerar graficos. Python
+de jogos, caches ou runtimes internos nao e recomendado.
 
 ### O script Python diz que um CSV esta ausente
 

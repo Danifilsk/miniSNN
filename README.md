@@ -86,9 +86,8 @@ arquivos C.
 
 Para gerar graficos, o Studio procura Python automaticamente usando
 `MINISNN_PYTHON`, a instalacao local do Windows, `py.exe` ou `python.exe`.
-Antes de aceitar um interpretador, ele valida `pandas` e `matplotlib`. Se
-necessario, use o botao `Selecionar Python`; caso as bibliotecas estejam
-ausentes, o Studio pode instala-las com confirmacao do usuario. Evite Python de
+Antes de aceitar um interpretador, ele valida `pandas` e `matplotlib`. A
+interface normal nao exige terminal; a deteccao e automatica. Evite Python de
 jogos, caches ou runtimes internos.
 
 ## Documentacao
