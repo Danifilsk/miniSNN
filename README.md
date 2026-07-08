@@ -88,6 +88,14 @@ individual pode ser gerado com:
 python scripts/plot_neuron.py results/scenarios/<run_name> <neuron_id>
 ```
 
+Para comparar duas ou mais execucoes:
+
+```powershell
+python scripts/compare_runs.py results/scenarios/random_demo results/scenarios/small_world_demo --out-name random_vs_small_world
+```
+
+As comparacoes ficam em `results/comparisons/<comparison_name>/`.
+
 ## miniSNN Studio
 
 Para abrir a interface grafica no Windows:
@@ -125,6 +133,7 @@ jogos, caches ou runtimes internos.
 - `docs/GUIA_DE_EXPERIMENTOS.md`: como configurar, executar e interpretar os experimentos.
 - `docs/GUIA_DE_CENARIOS.md`: como executar simulacoes editando arquivos `.ini`.
 - `docs/GUIA_DO_STUDIO.md`: como usar a interface grafica inicial.
+- `docs/GUIA_DE_METRICAS.md`: metricas geradas na comparacao de execucoes.
 - `API_REFERENCE.md`: referencia da API publica em `include/minisnn.h`.
 
 ## Compilacao manual com GCC (referencia)

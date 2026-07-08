@@ -1,6 +1,7 @@
 #include <windows.h>
 #include <commdlg.h>
 #include <shellapi.h>
+#include <shlobj.h>
 
 #include <errno.h>
 #include <ctype.h>
@@ -15,10 +16,10 @@
 #define APP_TITLE "miniSNN Studio"
 #define TEXT_BUFFER_SIZE 128
 #define STATUS_BUFFER_SIZE 1024
-#define PYTHON_COMMAND_BUFFER_SIZE 1200
-#define PYTHON_MESSAGE_BUFFER_SIZE 2200
+#define PYTHON_COMMAND_BUFFER_SIZE 2400
+#define PYTHON_MESSAGE_BUFFER_SIZE 6000
 #define STUDIO_FIELD_COUNT 21
-#define STUDIO_BUTTON_COUNT 9
+#define STUDIO_BUTTON_COUNT 11
 
 #define STUDIO_MIN_CLIENT_WIDTH 1320
 #define STUDIO_MIN_CLIENT_HEIGHT 760
@@ -85,6 +86,8 @@
 #define IDC_BTN_OPEN_NEURON_CSV 2008
 #define IDC_BTN_PLOT_NEURON 2009
 #define IDC_BTN_OPEN_NEURON_PNG 2010
+#define IDC_BTN_COMPARE_RUNS 2011
+#define IDC_BTN_OPEN_COMPARISON 2012
 
 #define IDC_STATUS 3001
 #define IDC_SUMMARY 3002
@@ -148,6 +151,8 @@ typedef struct
     ScenarioConfig current_config;
     ScenarioRunResult last_result;
     int has_result;
+    int has_comparison;
+    char last_comparison_dir[MAX_PATH];
 
     char project_root[MAX_PATH];
     char pixel_font_face[LF_FACESIZE];
@@ -1301,8 +1306,14 @@ static void update_summary(
 
 static void set_result_buttons_enabled(BOOL enabled)
 {
-    for (int i = 4; i < STUDIO_BUTTON_COUNT; i++)
+    for (int i = 4; i <= 8; i++)
         EnableWindow(g_app.buttons[i], enabled);
+}
+
+static void set_comparison_buttons_enabled(void)
+{
+    EnableWindow(g_app.buttons[9], TRUE);
+    EnableWindow(g_app.buttons[10], g_app.has_comparison ? TRUE : FALSE);
 }
 
 static void reset_to_default(void)
@@ -2013,6 +2024,270 @@ static void generate_neuron_graph(void)
         "GRAFICO DO NEURONIO GERADO: neuron_%d_detail.png",
         neuron_id);
     show_info("Grafico do neuronio gerado", status);
+    set_status(status);
+}
+
+static int select_folder(
+    const char *title,
+    char *out_path,
+    size_t out_path_size)
+{
+    BROWSEINFOA browse_info;
+    LPITEMIDLIST item_id;
+    char selected_path[MAX_PATH];
+
+    memset(&browse_info, 0, sizeof(browse_info));
+    browse_info.hwndOwner = g_app.window;
+    browse_info.lpszTitle = title;
+    browse_info.ulFlags = BIF_RETURNONLYFSDIRS | BIF_NEWDIALOGSTYLE;
+
+    item_id = SHBrowseForFolderA(&browse_info);
+    if (item_id == NULL)
+        return 0;
+
+    if (!SHGetPathFromIDListA(item_id, selected_path))
+    {
+        CoTaskMemFree(item_id);
+        return 0;
+    }
+
+    CoTaskMemFree(item_id);
+    return copy_path(out_path, out_path_size, selected_path);
+}
+
+static void make_comparison_name(
+    char *out_name,
+    size_t out_name_size)
+{
+    SYSTEMTIME now;
+
+    GetLocalTime(&now);
+    snprintf(
+        out_name,
+        out_name_size,
+        "studio_compare_%04d%02d%02d_%02d%02d%02d",
+        now.wYear,
+        now.wMonth,
+        now.wDay,
+        now.wHour,
+        now.wMinute,
+        now.wSecond);
+}
+
+static void open_comparison_results(void)
+{
+    HINSTANCE result;
+
+    if (!g_app.has_comparison)
+    {
+        show_error(
+            "Comparacao nao encontrada",
+            "Gere uma comparacao antes de abrir a pasta.");
+        return;
+    }
+
+    if (!directory_exists(g_app.last_comparison_dir))
+    {
+        show_error(
+            "Comparacao nao encontrada",
+            "A pasta da ultima comparacao nao existe mais.");
+        g_app.has_comparison = 0;
+        set_comparison_buttons_enabled();
+        return;
+    }
+
+    result = ShellExecuteA(
+        g_app.window,
+        "open",
+        g_app.last_comparison_dir,
+        NULL,
+        g_app.project_root,
+        SW_SHOWNORMAL);
+
+    if ((INT_PTR)result <= 32)
+    {
+        char message[PYTHON_MESSAGE_BUFFER_SIZE];
+        snprintf(
+            message,
+            sizeof(message),
+            "Nao foi possivel abrir a pasta da comparacao.\n\n"
+            "Caminho tentado:\n%s\n\n"
+            "Codigo retornado pelo ShellExecuteA: %ld",
+            g_app.last_comparison_dir,
+            (long)(INT_PTR)result);
+        show_error("Erro ao abrir comparacao", message);
+        return;
+    }
+
+    set_status("PASTA DA COMPARACAO ABERTA");
+}
+
+static void compare_runs_from_studio(void)
+{
+    STARTUPINFOA startup;
+    PROCESS_INFORMATION process;
+    char first_run[MAX_PATH];
+    char second_run[MAX_PATH];
+    char python_path[MAX_PATH];
+    char script_path[MAX_PATH];
+    char comparison_name[128];
+    char comparison_relative[MAX_PATH];
+    char comparison_path[MAX_PATH];
+    char command[PYTHON_COMMAND_BUFFER_SIZE];
+    char status[STATUS_BUFFER_SIZE];
+    char old_backend[TEXT_BUFFER_SIZE];
+    DWORD old_backend_length;
+    int had_old_backend = 0;
+    DWORD exit_code = 1;
+
+    if (!select_folder(
+            "Selecione a primeira pasta de execucao em results/scenarios",
+            first_run,
+            sizeof(first_run)))
+    {
+        set_status("SELECAO DE COMPARACAO CANCELADA");
+        return;
+    }
+
+    if (!select_folder(
+            "Selecione a segunda pasta de execucao em results/scenarios",
+            second_run,
+            sizeof(second_run)))
+    {
+        set_status("SELECAO DE COMPARACAO CANCELADA");
+        return;
+    }
+
+    if (!resolve_python_executable(python_path, sizeof(python_path)))
+    {
+        show_error(
+            "Python nao encontrado",
+            "Python valido nao encontrado.\n"
+            "Verifique se pandas e matplotlib estao instalados.");
+        set_status("PYTHON COMPATIVEL NAO ENCONTRADO");
+        return;
+    }
+
+    make_comparison_name(comparison_name, sizeof(comparison_name));
+
+    if (!project_path(script_path, sizeof(script_path), "scripts\\compare_runs.py") ||
+        snprintf(
+            comparison_relative,
+            sizeof(comparison_relative),
+            "results\\comparisons\\%s",
+            comparison_name) >= (int)sizeof(comparison_relative) ||
+        !project_path(comparison_path, sizeof(comparison_path), comparison_relative))
+    {
+        show_error(
+            "Erro ao comparar execucoes",
+            "Nao foi possivel montar caminhos para a comparacao.");
+        return;
+    }
+
+    snprintf(
+        command,
+        sizeof(command),
+        g_app.resolved_python_uses_py_launcher ?
+            "\"%s\" -3 \"%s\" \"%s\" \"%s\" --out-name \"%s\"" :
+            "\"%s\" \"%s\" \"%s\" \"%s\" --out-name \"%s\"",
+        python_path,
+        script_path,
+        first_run,
+        second_run,
+        comparison_name);
+
+    memset(&startup, 0, sizeof(startup));
+    memset(&process, 0, sizeof(process));
+    startup.cb = sizeof(startup);
+
+    snprintf(
+        status,
+        sizeof(status),
+        "COMPARANDO EXECUCOES COM %s",
+        python_path);
+    set_status(status);
+    UpdateWindow(g_app.window);
+
+    old_backend_length = GetEnvironmentVariableA(
+        "MPLBACKEND",
+        old_backend,
+        sizeof(old_backend));
+    had_old_backend = old_backend_length > 0 &&
+                      old_backend_length < sizeof(old_backend);
+    SetEnvironmentVariableA("MPLBACKEND", "Agg");
+
+    if (!CreateProcessA(
+            NULL,
+            command,
+            NULL,
+            NULL,
+            FALSE,
+            CREATE_NO_WINDOW,
+            NULL,
+            g_app.project_root,
+            &startup,
+            &process))
+    {
+        char message[PYTHON_MESSAGE_BUFFER_SIZE];
+
+        if (had_old_backend)
+            SetEnvironmentVariableA("MPLBACKEND", old_backend);
+        else
+            SetEnvironmentVariableA("MPLBACKEND", NULL);
+
+        snprintf(
+            message,
+            sizeof(message),
+            "Nao foi possivel executar Python.\n\nPython usado:\n%s\n\n"
+            "Script:\n%s\n\nTeste manual:\n%s",
+            python_path,
+            script_path,
+            command);
+        show_error("Erro ao comparar execucoes", message);
+        set_status("ERRO AO COMPARAR EXECUCOES");
+        return;
+    }
+
+    WaitForSingleObject(process.hProcess, INFINITE);
+    GetExitCodeProcess(process.hProcess, &exit_code);
+    CloseHandle(process.hProcess);
+    CloseHandle(process.hThread);
+
+    if (had_old_backend)
+        SetEnvironmentVariableA("MPLBACKEND", old_backend);
+    else
+        SetEnvironmentVariableA("MPLBACKEND", NULL);
+
+    if (exit_code != 0 || !directory_exists(comparison_path))
+    {
+        char message[PYTHON_MESSAGE_BUFFER_SIZE];
+        snprintf(
+            message,
+            sizeof(message),
+            "A comparacao terminou com erro.\n\n"
+            "Python usado:\n%s\n\n"
+            "Primeira execucao:\n%s\n\n"
+            "Segunda execucao:\n%s\n\n"
+            "Teste manual:\n%s",
+            python_path,
+            first_run,
+            second_run,
+            command);
+        show_error("Erro ao comparar execucoes", message);
+        set_status("ERRO AO COMPARAR EXECUCOES");
+        return;
+    }
+
+    copy_path(g_app.last_comparison_dir, sizeof(g_app.last_comparison_dir), comparison_path);
+    g_app.has_comparison = 1;
+    set_comparison_buttons_enabled();
+
+    snprintf(
+        status,
+        sizeof(status),
+        "COMPARACAO GERADA: %s",
+        comparison_relative);
+    show_info("Comparacao gerada", status);
     set_status(status);
 }
 
@@ -2730,16 +3005,18 @@ static void create_controls(HWND hwnd)
     g_app.buttons[6] = create_button(hwnd, "CSV NEURONIO", IDC_BTN_OPEN_NEURON_CSV, right_x, 116 + 3 * STUDIO_BUTTON_ROW_HEIGHT, STUDIO_BUTTON_WIDTH_LEFT, STUDIO_BUTTON_HEIGHT);
     g_app.buttons[7] = create_button(hwnd, "GRAFICO NEURONIO", IDC_BTN_PLOT_NEURON, right_x + STUDIO_BUTTON_WIDTH_LEFT + STUDIO_BUTTON_GAP, 116 + 3 * STUDIO_BUTTON_ROW_HEIGHT, STUDIO_BUTTON_WIDTH_RIGHT, STUDIO_BUTTON_HEIGHT);
     g_app.buttons[8] = create_button(hwnd, "ABRIR GRAFICO", IDC_BTN_OPEN_NEURON_PNG, right_x, 116 + 4 * STUDIO_BUTTON_ROW_HEIGHT, STUDIO_BUTTON_WIDTH_LEFT, STUDIO_BUTTON_HEIGHT);
-    g_app.status_label = create_static(hwnd, "PRONTO PARA EXECUTAR", right_x, 352, 340, 52, IDC_STATUS);
+    g_app.buttons[9] = create_button(hwnd, "COMPARAR EXECUCOES", IDC_BTN_COMPARE_RUNS, right_x, 116 + 5 * STUDIO_BUTTON_ROW_HEIGHT, 340, STUDIO_BUTTON_HEIGHT);
+    g_app.buttons[10] = create_button(hwnd, "ABRIR COMPARACAO", IDC_BTN_OPEN_COMPARISON, right_x, 116 + 6 * STUDIO_BUTTON_ROW_HEIGHT, 340, STUDIO_BUTTON_HEIGHT);
+    g_app.status_label = create_static(hwnd, "PRONTO PARA EXECUTAR", right_x, 444, 340, 52, IDC_STATUS);
     g_app.summary_box = CreateWindowExA(
         WS_EX_CLIENTEDGE,
         "EDIT",
         "",
         WS_CHILD | WS_VISIBLE | ES_MULTILINE | ES_READONLY | ES_AUTOVSCROLL | WS_VSCROLL,
         right_x,
-        412,
+        504,
         340,
-        273,
+        181,
         hwnd,
         (HMENU)(INT_PTR)IDC_SUMMARY,
         GetModuleHandleA(NULL),
@@ -2747,6 +3024,7 @@ static void create_controls(HWND hwnd)
     SendMessageA(g_app.summary_box, WM_SETFONT, (WPARAM)g_app.summary_font, TRUE);
 
     set_result_buttons_enabled(FALSE);
+    set_comparison_buttons_enabled();
 }
 
 static void layout_controls(HWND hwnd)
@@ -2763,14 +3041,14 @@ static void layout_controls(HWND hwnd)
     height = rect.bottom - rect.top;
     right_x = right_content_left(width);
     content_width = STUDIO_RIGHT_PANEL_WIDTH - 2 * STUDIO_RIGHT_CONTENT_PADDING;
-    summary_height = height - 432;
+    summary_height = height - 524;
 
     if (summary_height < 180)
         summary_height = 180;
 
     MoveWindow(g_app.execution_section_label, right_x, 92, content_width, 24, TRUE);
-    MoveWindow(g_app.status_label, right_x, 352, content_width, 52, TRUE);
-    MoveWindow(g_app.summary_box, right_x, 412, content_width, summary_height, TRUE);
+    MoveWindow(g_app.status_label, right_x, 444, content_width, 52, TRUE);
+    MoveWindow(g_app.summary_box, right_x, 504, content_width, summary_height, TRUE);
 
     MoveWindow(g_app.buttons[0], right_x, 116, STUDIO_BUTTON_WIDTH_LEFT, STUDIO_BUTTON_HEIGHT, TRUE);
     MoveWindow(g_app.buttons[1], right_x + STUDIO_BUTTON_WIDTH_LEFT + STUDIO_BUTTON_GAP, 116, STUDIO_BUTTON_WIDTH_RIGHT, STUDIO_BUTTON_HEIGHT, TRUE);
@@ -2781,6 +3059,8 @@ static void layout_controls(HWND hwnd)
     MoveWindow(g_app.buttons[6], right_x, 116 + 3 * STUDIO_BUTTON_ROW_HEIGHT, STUDIO_BUTTON_WIDTH_LEFT, STUDIO_BUTTON_HEIGHT, TRUE);
     MoveWindow(g_app.buttons[7], right_x + STUDIO_BUTTON_WIDTH_LEFT + STUDIO_BUTTON_GAP, 116 + 3 * STUDIO_BUTTON_ROW_HEIGHT, STUDIO_BUTTON_WIDTH_RIGHT, STUDIO_BUTTON_HEIGHT, TRUE);
     MoveWindow(g_app.buttons[8], right_x, 116 + 4 * STUDIO_BUTTON_ROW_HEIGHT, STUDIO_BUTTON_WIDTH_LEFT, STUDIO_BUTTON_HEIGHT, TRUE);
+    MoveWindow(g_app.buttons[9], right_x, 116 + 5 * STUDIO_BUTTON_ROW_HEIGHT, content_width, STUDIO_BUTTON_HEIGHT, TRUE);
+    MoveWindow(g_app.buttons[10], right_x, 116 + 6 * STUDIO_BUTTON_ROW_HEIGHT, content_width, STUDIO_BUTTON_HEIGHT, TRUE);
 
     InvalidateRect(hwnd, NULL, TRUE);
 }
@@ -2990,6 +3270,12 @@ static LRESULT CALLBACK window_proc(
                 return 0;
             case IDC_BTN_OPEN_NEURON_PNG:
                 open_neuron_plot();
+                return 0;
+            case IDC_BTN_COMPARE_RUNS:
+                compare_runs_from_studio();
+                return 0;
+            case IDC_BTN_OPEN_COMPARISON:
+                open_comparison_results();
                 return 0;
             case IDC_BTN_OPTIONS:
                 open_topology_options();

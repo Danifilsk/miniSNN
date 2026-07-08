@@ -351,3 +351,30 @@ results/scenarios/random_p050_seed1/
 
 Compare `summary.txt`, `population.csv`, `raster.csv` e os PNGs gerados por
 `scripts/plot_scenario.py`.
+
+## 12. Como comparar execucoes
+
+Depois de rodar dois ou mais cenarios, use:
+
+```powershell
+python scripts/compare_runs.py results/scenarios/random_demo results/scenarios/small_world_demo --out-name random_vs_small_world
+```
+
+Saida:
+
+```text
+results/comparisons/random_vs_small_world/
+```
+
+Arquivos gerados:
+
+- `comparison_summary.csv`: metricas por execucao.
+- `comparison_report.txt`: relatorio legivel com rankings e avisos.
+- `comparison_metrics.png`: comparacao de metricas principais.
+- `comparison_activity_overlay.png`: atividade populacional sobreposta.
+
+Veja tambem:
+
+```text
+docs/GUIA_DE_METRICAS.md
+```

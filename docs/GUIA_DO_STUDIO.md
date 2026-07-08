@@ -192,7 +192,34 @@ necessario para gerar graficos.
 Clique em `Abrir resultados` depois de rodar uma simulacao. A pasta da execucao
 sera aberta no Explorer.
 
-## 10. Como evitar sobrescrever uma execucao anterior
+## 10. Como comparar execucoes
+
+Clique em `COMPARAR EXECUCOES` para selecionar duas pastas existentes em:
+
+```text
+results/scenarios/
+```
+
+O Studio chama `scripts/compare_runs.py` usando o Python detectado
+automaticamente. A comparacao e salva em:
+
+```text
+results/comparisons/<comparison_name>/
+```
+
+Arquivos gerados:
+
+```text
+comparison_summary.csv
+comparison_report.txt
+comparison_metrics.png
+comparison_activity_overlay.png
+```
+
+Depois de gerar, clique em `ABRIR COMPARACAO` para abrir a pasta no Explorer.
+Se o usuario cancelar a selecao de pasta, o Studio apenas cancela a operacao.
+
+## 11. Como evitar sobrescrever uma execucao anterior
 
 Os resultados sao gravados em modo de escrita. Rodar novamente o mesmo
 `run_name` substitui os arquivos daquela pasta.
@@ -204,7 +231,7 @@ Para comparar testes:
 3. Gere os graficos.
 4. Compare as pastas em `results/scenarios/`.
 
-## 11. O que ainda nao existe no Studio
+## 12. O que ainda nao existe no Studio
 
 Esta etapa nao implementa peixe, mundo, plasticidade, recompensa, punicao,
 neuroevolucao ou topologia adaptativa.

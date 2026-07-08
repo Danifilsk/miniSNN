@@ -12,7 +12,7 @@ SCENARIO ?= configs/random_balanced.ini
 PYTHON ?= python
 
 .PHONY: all help clean test test-api test-core test-lif test-scenario test-runner \
-	test-plot-neuron \
+	test-plot-neuron test-compare-runs \
 	api-examples api-single api-chain api-exc-inh \
 	demo ei-balance inhibition-fine inh-to-inh sparse-ei scenario \
 	scenario-random scenario-small-world scenario-feedforward \
@@ -29,6 +29,7 @@ help:
 	@echo   make test-scenario     - teste do parser de cenarios
 	@echo   make test-runner       - teste do executor compartilhado de cenarios
 	@echo   make test-plot-neuron  - teste Python do grafico de neuronio
+	@echo   make test-compare-runs - teste Python da comparacao de execucoes
 	@echo   make api-examples      - executa os exemplos publicos da API
 	@echo   make demo              - executa o demo interno
 	@echo   make scenario          - executa um cenario .ini com SCENARIO=configs/arquivo.ini
@@ -80,6 +81,9 @@ test-runner: $(BUILD_DIR)/test_scenario_runner.exe
 test-plot-neuron: | $(BUILD_DIR)
 	$(PYTHON) tests/test_plot_neuron.py
 
+test-compare-runs: | $(BUILD_DIR)
+	$(PYTHON) tests/test_compare_runs.py
+
 test: test-api test-core test-lif test-scenario test-runner
 
 $(BUILD_DIR)/example_api_single_neuron.exe: examples/api/example_api_single_neuron.c $(API_SOURCES) include/minisnn.h include/minisnn_types.h | $(BUILD_DIR)
@@ -124,7 +128,7 @@ scenario-feedforward: $(BUILD_DIR)/minisnn_runner.exe
 	$(BUILD_DIR)/minisnn_runner.exe configs/feedforward.ini
 
 $(BUILD_DIR)/minisnn_studio.exe: app/minisnn_studio.c $(SCENARIO_RUNNER_SOURCES) $(API_SOURCES) include/minisnn.h include/minisnn_types.h app/scenario_config.h app/scenario_runner.h | $(BUILD_DIR)
-	$(CC) $(CFLAGS) app/minisnn_studio.c $(SCENARIO_RUNNER_SOURCES) $(API_SOURCES) $(INCLUDES) -o $@ -mwindows -lcomdlg32 -lshell32 -lgdi32 -luser32
+	$(CC) $(CFLAGS) app/minisnn_studio.c $(SCENARIO_RUNNER_SOURCES) $(API_SOURCES) $(INCLUDES) -o $@ -mwindows -lcomdlg32 -lshell32 -lgdi32 -luser32 -lole32
 
 studio-build: $(BUILD_DIR)/minisnn_studio.exe
 
@@ -170,3 +174,4 @@ clean:
 	@if exist results\scenarios for /D %%D in (results\scenarios\*) do rmdir /S /Q "%%D"
 	@if exist results\scenarios\*.csv del /Q results\scenarios\*.csv
 	@if exist results\scenarios\*.png del /Q results\scenarios\*.png
+	@if exist results\comparisons for /D %%D in (results\comparisons\*) do rmdir /S /Q "%%D"

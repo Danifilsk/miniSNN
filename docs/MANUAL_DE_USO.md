@@ -123,6 +123,7 @@ results/experiments/
 | `mingw32-make test-lif` | Testa o LIF basico | Total de spikes impresso |
 | `mingw32-make test-scenario` | Testa o parser de cenarios | `Scenario configuration validation OK` |
 | `mingw32-make test-runner` | Testa o executor de cenarios | `Scenario runner validation OK` |
+| `mingw32-make test-compare-runs` | Testa comparacao de execucoes | `Run comparison validation OK` |
 | `mingw32-make api-examples` | Executa os tres exemplos publicos | CSVs em `results/api/` |
 | `mingw32-make api-single` | Exemplo de um neuronio | `api_single_neuron.csv` |
 | `mingw32-make api-chain` | Exemplo de cadeia | `api_chain_spikes.csv` |
@@ -219,6 +220,21 @@ membrana, spikes, corrente externa e corrente sinaptica. Pelo terminal:
 ```powershell
 python scripts/plot_neuron.py results/scenarios/<run_name> <neuron_id>
 ```
+
+Para comparar duas execucoes pelo terminal:
+
+```powershell
+python scripts/compare_runs.py results/scenarios/random_demo results/scenarios/small_world_demo --out-name random_vs_small_world
+```
+
+Os resultados ficam em:
+
+```text
+results/comparisons/<comparison_name>/
+```
+
+O Studio tambem possui `COMPARAR EXECUCOES` e `ABRIR COMPARACAO` para gerar e
+abrir essa pasta sem digitar comandos.
 
 O botao `OPCOES`, ao lado da topologia, edita configuracoes menos frequentes:
 auto-conexao, conexoes `INH -> INH`, densidade, seed, delays, parametros

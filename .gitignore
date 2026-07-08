@@ -26,3 +26,7 @@ tmp_*.csv
 # Resultados locais gerados pelo runner de cenarios
 /results/scenarios/*
 !/results/scenarios/.gitkeep
+
+# Resultados locais gerados por comparacoes de cenarios
+/results/comparisons/*
+!/results/comparisons/.gitkeep
