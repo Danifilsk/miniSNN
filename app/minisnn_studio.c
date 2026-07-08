@@ -527,6 +527,25 @@ static int directory_exists(const char *path)
            (attributes & FILE_ATTRIBUTE_DIRECTORY) != 0;
 }
 
+static int copy_path(char *destination, size_t destination_size, const char *source);
+
+static int ensure_directory_exists(const char *path)
+{
+    if (path == NULL || path[0] == '\0')
+        return 0;
+
+    if (directory_exists(path))
+        return 1;
+
+    if (CreateDirectoryA(path, NULL))
+        return 1;
+
+    if (GetLastError() == ERROR_ALREADY_EXISTS)
+        return directory_exists(path);
+
+    return 0;
+}
+
 static int project_path(
     char *out_path,
     size_t out_path_size,
@@ -566,6 +585,26 @@ static int project_path(
     }
 
     return 1;
+}
+
+static int scenarios_directory_path(char *out_path, size_t out_path_size)
+{
+    char results_path[MAX_PATH];
+    char scenarios_path[MAX_PATH];
+
+    if (!project_path(results_path, sizeof(results_path), "results") ||
+        !project_path(scenarios_path, sizeof(scenarios_path), "results\\scenarios"))
+    {
+        return copy_path(out_path, out_path_size, g_app.project_root);
+    }
+
+    if (!ensure_directory_exists(results_path) ||
+        !ensure_directory_exists(scenarios_path))
+    {
+        return copy_path(out_path, out_path_size, g_app.project_root);
+    }
+
+    return copy_path(out_path, out_path_size, scenarios_path);
 }
 
 static int copy_path(
@@ -2027,8 +2066,25 @@ static void generate_neuron_graph(void)
     set_status(status);
 }
 
+static int CALLBACK browse_folder_callback(
+    HWND hwnd,
+    UINT message,
+    LPARAM lparam,
+    LPARAM data)
+{
+    (void)lparam;
+
+    if (message == BFFM_INITIALIZED && data != 0)
+    {
+        SendMessageA(hwnd, BFFM_SETSELECTIONA, TRUE, data);
+    }
+
+    return 0;
+}
+
 static int select_folder(
     const char *title,
+    const char *initial_path,
     char *out_path,
     size_t out_path_size)
 {
@@ -2040,6 +2096,11 @@ static int select_folder(
     browse_info.hwndOwner = g_app.window;
     browse_info.lpszTitle = title;
     browse_info.ulFlags = BIF_RETURNONLYFSDIRS | BIF_NEWDIALOGSTYLE;
+    if (initial_path != NULL && initial_path[0] != '\0' && directory_exists(initial_path))
+    {
+        browse_info.lpfn = browse_folder_callback;
+        browse_info.lParam = (LPARAM)initial_path;
+    }
 
     item_id = SHBrowseForFolderA(&browse_info);
     if (item_id == NULL)
@@ -2130,6 +2191,7 @@ static void compare_runs_from_studio(void)
     char second_run[MAX_PATH];
     char python_path[MAX_PATH];
     char script_path[MAX_PATH];
+    char scenarios_path[MAX_PATH];
     char comparison_name[128];
     char comparison_relative[MAX_PATH];
     char comparison_path[MAX_PATH];
@@ -2140,8 +2202,17 @@ static void compare_runs_from_studio(void)
     int had_old_backend = 0;
     DWORD exit_code = 1;
 
+    if (!scenarios_directory_path(scenarios_path, sizeof(scenarios_path)))
+    {
+        show_error(
+            "Erro ao comparar execucoes",
+            "Nao foi possivel localizar a pasta inicial de cenarios.");
+        return;
+    }
+
     if (!select_folder(
             "Selecione a primeira pasta de execucao em results/scenarios",
+            scenarios_path,
             first_run,
             sizeof(first_run)))
     {
@@ -2151,6 +2222,7 @@ static void compare_runs_from_studio(void)
 
     if (!select_folder(
             "Selecione a segunda pasta de execucao em results/scenarios",
+            scenarios_path,
             second_run,
             sizeof(second_run)))
     {
