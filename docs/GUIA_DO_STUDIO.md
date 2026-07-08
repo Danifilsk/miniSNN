@@ -118,6 +118,30 @@ neuron_<id>.csv
 O painel da direita mostra conexoes, spikes totais, spikes EXC/INH e timesteps
 ativos.
 
+O campo `Neuronio detalhado` define qual neuronio tera um CSV individual salvo
+como:
+
+```text
+results/scenarios/<run_name>/neuron_<id>.csv
+```
+
+Esse CSV contem:
+
+```text
+tempo,V,spike,corrente_externa,corrente_sinaptica
+```
+
+Use `CSV NEURONIO` para abrir esse arquivo depois da simulacao. Use `GRAFICO
+NEURONIO` para gerar:
+
+```text
+neuron_<id>_detail.png
+```
+
+O grafico mostra potencial de membrana, spikes, corrente externa e corrente
+sinaptica. Depois de gerar, use `ABRIR GRAFICO` para abrir o PNG no visualizador
+padrao do Windows.
+
 ## 8. Como gerar graficos
 
 Depois de uma simulacao, clique em `Gerar graficos`.
@@ -148,6 +172,12 @@ Os arquivos gerados sao:
 population_activity.png
 mean_state.png
 raster.png
+```
+
+Para gerar manualmente o grafico de um unico neuronio:
+
+```powershell
+python scripts/plot_neuron.py results/scenarios/<run_name> <neuron_id>
 ```
 
 Se o Studio nao encontrar Python valido, ele mostra uma mensagem curta pedindo

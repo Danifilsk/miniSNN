@@ -63,6 +63,34 @@ static int summary_contains_expected_data(void)
     return saw_run_name && saw_connections && saw_spikes;
 }
 
+static int neuron_csv_contains_expected_data(void)
+{
+    FILE *file = fopen(TEST_OUTPUT_DIR "/neuron_0.csv", "r");
+    char line[256];
+    int data_rows = 0;
+
+    if (file == NULL)
+        return 0;
+
+    if (fgets(line, sizeof(line), file) == NULL)
+    {
+        fclose(file);
+        return 0;
+    }
+
+    if (strcmp(line, "tempo,V,spike,corrente_externa,corrente_sinaptica\n") != 0)
+    {
+        fclose(file);
+        return 0;
+    }
+
+    while (fgets(line, sizeof(line), file) != NULL)
+        data_rows++;
+
+    fclose(file);
+    return data_rows > 0;
+}
+
 static void cleanup_extra_outputs(void)
 {
     system("if exist results\\scenarios\\test_scenario_runner_random rmdir /S /Q results\\scenarios\\test_scenario_runner_random");
@@ -233,6 +261,9 @@ int main(void)
 
     if (!summary_contains_expected_data())
         return fail("summary does not contain expected data");
+
+    if (!neuron_csv_contains_expected_data())
+        return fail("neuron CSV does not contain expected data");
 
     cleanup_extra_outputs();
 

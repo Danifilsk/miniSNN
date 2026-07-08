@@ -71,7 +71,7 @@ mostra erro com numero de linha.
 | `v_threshold` | Limiar de spike |
 | `resistance` | Resistencia do LIF |
 | `synaptic_decay` | Decaimento da corrente sinaptica |
-| `record_neuron` | Neuronio gravado em CSV individual |
+| `record_neuron` | Neuronio detalhado gravado em CSV individual |
 
 ## 4. Valores validos
 
@@ -282,6 +282,40 @@ O script cria na mesma pasta:
 population_activity.png
 mean_state.png
 raster.png
+```
+
+### Grafico de neuronio individual
+
+Todo cenario tambem grava o neuronio escolhido em `record_neuron`:
+
+```text
+results/scenarios/<run_name>/neuron_<id>.csv
+```
+
+O arquivo possui:
+
+```text
+tempo,V,spike,corrente_externa,corrente_sinaptica
+```
+
+Significado basico:
+
+- `tempo`: timestep da simulacao.
+- `V`: potencial de membrana do neuronio.
+- `spike`: 1 quando houve spike, 0 caso contrario.
+- `corrente_externa`: entrada externa aplicada naquele timestep.
+- `corrente_sinaptica`: corrente sinaptica usada no LIF naquele timestep.
+
+Para gerar o PNG individual:
+
+```powershell
+python scripts/plot_neuron.py results/scenarios/<run_name> <neuron_id>
+```
+
+Saida:
+
+```text
+neuron_<id>_detail.png
 ```
 
 ## 10. Aviso sobre sobrescrita

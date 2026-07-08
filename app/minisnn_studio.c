@@ -18,6 +18,7 @@
 #define PYTHON_COMMAND_BUFFER_SIZE 1200
 #define PYTHON_MESSAGE_BUFFER_SIZE 2200
 #define STUDIO_FIELD_COUNT 21
+#define STUDIO_BUTTON_COUNT 9
 
 #define STUDIO_MIN_CLIENT_WIDTH 1320
 #define STUDIO_MIN_CLIENT_HEIGHT 760
@@ -81,6 +82,9 @@
 #define IDC_BTN_PLOT 2005
 #define IDC_BTN_OPEN 2006
 #define IDC_BTN_OPTIONS 2007
+#define IDC_BTN_OPEN_NEURON_CSV 2008
+#define IDC_BTN_PLOT_NEURON 2009
+#define IDC_BTN_OPEN_NEURON_PNG 2010
 
 #define IDC_STATUS 3001
 #define IDC_SUMMARY 3002
@@ -139,7 +143,7 @@ typedef struct
     HWND status_label;
     HWND summary_box;
     HWND execution_section_label;
-    HWND buttons[6];
+    HWND buttons[STUDIO_BUTTON_COUNT];
 
     ScenarioConfig current_config;
     ScenarioRunResult last_result;
@@ -1231,7 +1235,7 @@ static int controls_to_config(
         !parse_double_field(IDC_INH_WEIGHT, "Peso inibitorio", &config->inhibitory_weight, error_message, error_message_size) ||
         !parse_int_field(IDC_SOURCE_COUNT, "Neuronios com entrada", &config->source_count, error_message, error_message_size) ||
         !parse_double_field(IDC_INPUT_CURRENT, "Corrente externa", &config->input_current, error_message, error_message_size) ||
-        !parse_int_field(IDC_RECORD_NEURON, "Neuronio gravado", &config->record_neuron, error_message, error_message_size) ||
+        !parse_int_field(IDC_RECORD_NEURON, "Neuronio detalhado", &config->record_neuron, error_message, error_message_size) ||
         !parse_int_field(IDC_STEPS, "Passos", &config->steps, error_message, error_message_size) ||
         !parse_double_field(IDC_DT, "dt", &config->dt, error_message, error_message_size) ||
         !parse_double_field(IDC_TAU, "tau", &config->tau, error_message, error_message_size) ||
@@ -1295,14 +1299,19 @@ static void update_summary(
     SetWindowTextA(summary_control(), text);
 }
 
+static void set_result_buttons_enabled(BOOL enabled)
+{
+    for (int i = 4; i < STUDIO_BUTTON_COUNT; i++)
+        EnableWindow(g_app.buttons[i], enabled);
+}
+
 static void reset_to_default(void)
 {
     scenario_config_default(&g_app.current_config);
     config_to_controls(&g_app.current_config);
     SetWindowTextA(summary_control(), "STATUS: PRONTO PARA EXECUTAR\r\n");
     g_app.has_result = 0;
-    EnableWindow(g_app.buttons[4], FALSE);
-    EnableWindow(g_app.buttons[5], FALSE);
+    set_result_buttons_enabled(FALSE);
     set_status("PRONTO PARA EXECUTAR");
 }
 
@@ -1349,8 +1358,7 @@ static void load_scenario_file(void)
     config_to_controls(&g_app.current_config);
     SetWindowTextA(summary_control(), "STATUS: PRONTO PARA EXECUTAR\r\n");
     g_app.has_result = 0;
-    EnableWindow(g_app.buttons[4], FALSE);
-    EnableWindow(g_app.buttons[5], FALSE);
+    set_result_buttons_enabled(FALSE);
 
     {
         char status[STATUS_BUFFER_SIZE];
@@ -1450,8 +1458,7 @@ static void run_scenario(void)
     g_app.has_result = 1;
 
     update_summary(&config, &result);
-    EnableWindow(g_app.buttons[4], TRUE);
-    EnableWindow(g_app.buttons[5], TRUE);
+    set_result_buttons_enabled(TRUE);
     set_status("SIMULACAO CONCLUIDA");
 }
 
@@ -1669,6 +1676,344 @@ static void open_results(void)
     }
 
     set_status("PASTA DE RESULTADOS ABERTA");
+}
+
+static int get_detailed_neuron_id(int *out_neuron_id)
+{
+    char error[256];
+
+    if (!parse_int_field(
+            IDC_RECORD_NEURON,
+            "Neuronio detalhado",
+            out_neuron_id,
+            error,
+            sizeof(error)))
+    {
+        show_error("Neuronio invalido", error);
+        return 0;
+    }
+
+    if (*out_neuron_id < 0)
+    {
+        show_error(
+            "Neuronio invalido",
+            "O ID do neuronio detalhado deve ser maior ou igual a zero.");
+        return 0;
+    }
+
+    return 1;
+}
+
+static int build_neuron_artifact_path(
+    char *out_path,
+    size_t out_path_size,
+    int neuron_id,
+    const char *suffix)
+{
+    char relative_path[MAX_PATH];
+    char filename[80];
+
+    if (snprintf(
+            filename,
+            sizeof(filename),
+            "neuron_%d%s",
+            neuron_id,
+            suffix) >= (int)sizeof(filename))
+    {
+        return 0;
+    }
+
+    if (snprintf(
+            relative_path,
+            sizeof(relative_path),
+            "%s\\%s",
+            g_app.last_result.output_directory,
+            filename) >= (int)sizeof(relative_path))
+    {
+        return 0;
+    }
+
+    return project_path(out_path, out_path_size, relative_path);
+}
+
+static void open_existing_file(
+    const char *path,
+    const char *title,
+    const char *missing_message,
+    const char *success_status)
+{
+    HINSTANCE result;
+
+    if (!file_exists(path))
+    {
+        char message[PYTHON_MESSAGE_BUFFER_SIZE];
+        snprintf(
+            message,
+            sizeof(message),
+            "%s\n\nCaminho tentado:\n%s",
+            missing_message,
+            path);
+        show_error(title, message);
+        return;
+    }
+
+    result = ShellExecuteA(
+        g_app.window,
+        "open",
+        path,
+        NULL,
+        g_app.project_root,
+        SW_SHOWNORMAL);
+
+    if ((INT_PTR)result <= 32)
+    {
+        char message[PYTHON_MESSAGE_BUFFER_SIZE];
+        snprintf(
+            message,
+            sizeof(message),
+            "Nao foi possivel abrir o arquivo.\n\n"
+            "Caminho tentado:\n%s\n\n"
+            "Codigo retornado pelo ShellExecuteA: %ld",
+            path,
+            (long)(INT_PTR)result);
+        show_error(title, message);
+        return;
+    }
+
+    set_status(success_status);
+}
+
+static void open_neuron_csv(void)
+{
+    char csv_path[MAX_PATH];
+    int neuron_id;
+
+    if (!g_app.has_result)
+    {
+        show_error(
+            "Sem resultados",
+            "Rode uma simulacao antes de abrir o CSV do neuronio.");
+        return;
+    }
+
+    if (!get_detailed_neuron_id(&neuron_id))
+        return;
+
+    if (!build_neuron_artifact_path(
+            csv_path,
+            sizeof(csv_path),
+            neuron_id,
+            ".csv"))
+    {
+        show_error(
+            "Erro ao abrir CSV",
+            "Nao foi possivel montar o caminho do CSV do neuronio.");
+        return;
+    }
+
+    open_existing_file(
+        csv_path,
+        "Arquivo do neuronio nao encontrado",
+        "Arquivo do neuronio nao encontrado.\n"
+        "Execute o cenario primeiro e verifique se o ID do neuronio detalhado e valido.",
+        "CSV DO NEURONIO ABERTO");
+}
+
+static void open_neuron_plot(void)
+{
+    char png_path[MAX_PATH];
+    int neuron_id;
+
+    if (!g_app.has_result)
+    {
+        show_error(
+            "Sem resultados",
+            "Rode uma simulacao antes de abrir o grafico do neuronio.");
+        return;
+    }
+
+    if (!get_detailed_neuron_id(&neuron_id))
+        return;
+
+    if (!build_neuron_artifact_path(
+            png_path,
+            sizeof(png_path),
+            neuron_id,
+            "_detail.png"))
+    {
+        show_error(
+            "Erro ao abrir grafico",
+            "Nao foi possivel montar o caminho do grafico do neuronio.");
+        return;
+    }
+
+    open_existing_file(
+        png_path,
+        "Grafico do neuronio nao encontrado",
+        "Grafico do neuronio nao encontrado.\n"
+        "Gere o grafico individual primeiro.",
+        "GRAFICO DO NEURONIO ABERTO");
+}
+
+static void generate_neuron_graph(void)
+{
+    STARTUPINFOA startup;
+    PROCESS_INFORMATION process;
+    char python_path[MAX_PATH];
+    char script_path[MAX_PATH];
+    char output_path[MAX_PATH];
+    char png_path[MAX_PATH];
+    char command[PYTHON_COMMAND_BUFFER_SIZE];
+    char status[STATUS_BUFFER_SIZE];
+    char old_backend[TEXT_BUFFER_SIZE];
+    char neuron_id_text[TEXT_BUFFER_SIZE];
+    DWORD old_backend_length;
+    int had_old_backend = 0;
+    DWORD exit_code = 1;
+    int neuron_id;
+
+    if (!g_app.has_result)
+    {
+        show_error(
+            "Sem resultados",
+            "Rode uma simulacao antes de gerar o grafico do neuronio.");
+        return;
+    }
+
+    if (!get_detailed_neuron_id(&neuron_id))
+        return;
+
+    snprintf(neuron_id_text, sizeof(neuron_id_text), "%d", neuron_id);
+
+    if (!resolve_python_executable(python_path, sizeof(python_path)))
+    {
+        show_error(
+            "Python nao encontrado",
+            "Nao foi encontrado um Python compativel com pandas e matplotlib.\n\n"
+            "Instale Python com pandas e matplotlib e abra o Studio novamente.");
+        set_status("PYTHON COMPATIVEL NAO ENCONTRADO");
+        return;
+    }
+
+    if (!project_path(script_path, sizeof(script_path), "scripts\\plot_neuron.py") ||
+        !project_path(output_path, sizeof(output_path), g_app.last_result.output_directory) ||
+        !build_neuron_artifact_path(
+            png_path,
+            sizeof(png_path),
+            neuron_id,
+            "_detail.png"))
+    {
+        show_error(
+            "Erro ao gerar grafico",
+            "Nao foi possivel montar caminhos absolutos para o grafico do neuronio.");
+        set_status("ERRO AO MONTAR CAMINHOS DO GRAFICO DO NEURONIO");
+        return;
+    }
+
+    snprintf(
+        command,
+        sizeof(command),
+        g_app.resolved_python_uses_py_launcher ?
+            "\"%s\" -3 \"%s\" \"%s\" \"%s\"" :
+            "\"%s\" \"%s\" \"%s\" \"%s\"",
+        python_path,
+        script_path,
+        output_path,
+        neuron_id_text);
+
+    memset(&startup, 0, sizeof(startup));
+    memset(&process, 0, sizeof(process));
+    startup.cb = sizeof(startup);
+
+    snprintf(
+        status,
+        sizeof(status),
+        "GERANDO GRAFICO DO NEURONIO %d",
+        neuron_id);
+    set_status(status);
+    UpdateWindow(g_app.window);
+
+    old_backend_length = GetEnvironmentVariableA(
+        "MPLBACKEND",
+        old_backend,
+        sizeof(old_backend));
+    had_old_backend = old_backend_length > 0 &&
+                      old_backend_length < sizeof(old_backend);
+    SetEnvironmentVariableA("MPLBACKEND", "Agg");
+
+    if (!CreateProcessA(
+            NULL,
+            command,
+            NULL,
+            NULL,
+            FALSE,
+            CREATE_NO_WINDOW,
+            NULL,
+            g_app.project_root,
+            &startup,
+            &process))
+    {
+        char message[PYTHON_MESSAGE_BUFFER_SIZE];
+
+        if (had_old_backend)
+            SetEnvironmentVariableA("MPLBACKEND", old_backend);
+        else
+            SetEnvironmentVariableA("MPLBACKEND", NULL);
+
+        snprintf(
+            message,
+            sizeof(message),
+            "Nao foi possivel executar Python.\n\nPython usado:\n%s\n\n"
+            "Script:\n%s\n\n"
+            "Pasta de resultados:\n%s\n\n"
+            "Teste manual:\n%s",
+            python_path,
+            script_path,
+            output_path,
+            command);
+        show_error("Erro ao gerar grafico do neuronio", message);
+        set_status("ERRO AO GERAR GRAFICO DO NEURONIO");
+        return;
+    }
+
+    WaitForSingleObject(process.hProcess, INFINITE);
+    GetExitCodeProcess(process.hProcess, &exit_code);
+    CloseHandle(process.hProcess);
+    CloseHandle(process.hThread);
+
+    if (had_old_backend)
+        SetEnvironmentVariableA("MPLBACKEND", old_backend);
+    else
+        SetEnvironmentVariableA("MPLBACKEND", NULL);
+
+    if (exit_code != 0 || !file_exists(png_path))
+    {
+        char message[PYTHON_MESSAGE_BUFFER_SIZE];
+        snprintf(
+            message,
+            sizeof(message),
+            "O script do grafico do neuronio terminou com erro.\n\n"
+            "Python usado:\n%s\n\n"
+            "Script:\n%s\n\n"
+            "Pasta de resultados:\n%s\n\n"
+            "Pandas e matplotlib podem estar ausentes, ou o CSV do neuronio pode nao existir.\n\n"
+            "Teste manual:\n%s",
+            python_path,
+            script_path,
+            output_path,
+            command);
+        show_error("Erro ao gerar grafico do neuronio", message);
+        set_status("ERRO AO GERAR GRAFICO DO NEURONIO");
+        return;
+    }
+
+    snprintf(
+        status,
+        sizeof(status),
+        "GRAFICO DO NEURONIO GERADO: neuron_%d_detail.png",
+        neuron_id);
+    show_info("Grafico do neuronio gerado", status);
+    set_status(status);
 }
 
 static HWND create_static(
@@ -2353,7 +2698,7 @@ static void create_controls(HWND hwnd)
     add_field(hwnd, IDC_INH_WEIGHT, "Peso inibitorio", x2, y + STUDIO_ROW_HEIGHT, label_w, control_w);
     add_field(hwnd, IDC_SOURCE_COUNT, "Neuronios com entrada", x2, y + 2 * STUDIO_ROW_HEIGHT, label_w, control_w);
     add_field(hwnd, IDC_INPUT_CURRENT, "Corrente externa", x2, y + 3 * STUDIO_ROW_HEIGHT, label_w, control_w);
-    add_field(hwnd, IDC_RECORD_NEURON, "Neuronio gravado", x2, y + 4 * STUDIO_ROW_HEIGHT, label_w, control_w);
+    add_field(hwnd, IDC_RECORD_NEURON, "Neuronio detalhado", x2, y + 4 * STUDIO_ROW_HEIGHT, label_w, control_w);
 
     section = create_static(hwnd, "[ PARAMETROS LIF ]", x2, y + 6 * STUDIO_ROW_HEIGHT, 280, 24, 0);
     SendMessageA(section, WM_SETFONT, (WPARAM)g_app.summary_font, TRUE);
@@ -2382,24 +2727,26 @@ static void create_controls(HWND hwnd)
     g_app.buttons[3] = create_button(hwnd, "RODAR SIMULACAO", IDC_BTN_RUN, right_x + STUDIO_BUTTON_WIDTH_LEFT + STUDIO_BUTTON_GAP, 116 + STUDIO_BUTTON_ROW_HEIGHT, STUDIO_BUTTON_WIDTH_RIGHT, STUDIO_BUTTON_HEIGHT);
     g_app.buttons[4] = create_button(hwnd, "GERAR GRAFICOS", IDC_BTN_PLOT, right_x, 116 + 2 * STUDIO_BUTTON_ROW_HEIGHT, STUDIO_BUTTON_WIDTH_LEFT, STUDIO_BUTTON_HEIGHT);
     g_app.buttons[5] = create_button(hwnd, "ABRIR RESULTADOS", IDC_BTN_OPEN, right_x + STUDIO_BUTTON_WIDTH_LEFT + STUDIO_BUTTON_GAP, 116 + 2 * STUDIO_BUTTON_ROW_HEIGHT, STUDIO_BUTTON_WIDTH_RIGHT, STUDIO_BUTTON_HEIGHT);
-    g_app.status_label = create_static(hwnd, "PRONTO PARA EXECUTAR", right_x, 276, 340, 58, IDC_STATUS);
+    g_app.buttons[6] = create_button(hwnd, "CSV NEURONIO", IDC_BTN_OPEN_NEURON_CSV, right_x, 116 + 3 * STUDIO_BUTTON_ROW_HEIGHT, STUDIO_BUTTON_WIDTH_LEFT, STUDIO_BUTTON_HEIGHT);
+    g_app.buttons[7] = create_button(hwnd, "GRAFICO NEURONIO", IDC_BTN_PLOT_NEURON, right_x + STUDIO_BUTTON_WIDTH_LEFT + STUDIO_BUTTON_GAP, 116 + 3 * STUDIO_BUTTON_ROW_HEIGHT, STUDIO_BUTTON_WIDTH_RIGHT, STUDIO_BUTTON_HEIGHT);
+    g_app.buttons[8] = create_button(hwnd, "ABRIR GRAFICO", IDC_BTN_OPEN_NEURON_PNG, right_x, 116 + 4 * STUDIO_BUTTON_ROW_HEIGHT, STUDIO_BUTTON_WIDTH_LEFT, STUDIO_BUTTON_HEIGHT);
+    g_app.status_label = create_static(hwnd, "PRONTO PARA EXECUTAR", right_x, 352, 340, 52, IDC_STATUS);
     g_app.summary_box = CreateWindowExA(
         WS_EX_CLIENTEDGE,
         "EDIT",
         "",
         WS_CHILD | WS_VISIBLE | ES_MULTILINE | ES_READONLY | ES_AUTOVSCROLL | WS_VSCROLL,
         right_x,
+        412,
         340,
-        340,
-        345,
+        273,
         hwnd,
         (HMENU)(INT_PTR)IDC_SUMMARY,
         GetModuleHandleA(NULL),
         NULL);
     SendMessageA(g_app.summary_box, WM_SETFONT, (WPARAM)g_app.summary_font, TRUE);
 
-    EnableWindow(g_app.buttons[4], FALSE);
-    EnableWindow(g_app.buttons[5], FALSE);
+    set_result_buttons_enabled(FALSE);
 }
 
 static void layout_controls(HWND hwnd)
@@ -2416,14 +2763,14 @@ static void layout_controls(HWND hwnd)
     height = rect.bottom - rect.top;
     right_x = right_content_left(width);
     content_width = STUDIO_RIGHT_PANEL_WIDTH - 2 * STUDIO_RIGHT_CONTENT_PADDING;
-    summary_height = height - 360;
+    summary_height = height - 432;
 
     if (summary_height < 180)
         summary_height = 180;
 
     MoveWindow(g_app.execution_section_label, right_x, 92, content_width, 24, TRUE);
-    MoveWindow(g_app.status_label, right_x, 276, content_width, 58, TRUE);
-    MoveWindow(g_app.summary_box, right_x, 340, content_width, summary_height, TRUE);
+    MoveWindow(g_app.status_label, right_x, 352, content_width, 52, TRUE);
+    MoveWindow(g_app.summary_box, right_x, 412, content_width, summary_height, TRUE);
 
     MoveWindow(g_app.buttons[0], right_x, 116, STUDIO_BUTTON_WIDTH_LEFT, STUDIO_BUTTON_HEIGHT, TRUE);
     MoveWindow(g_app.buttons[1], right_x + STUDIO_BUTTON_WIDTH_LEFT + STUDIO_BUTTON_GAP, 116, STUDIO_BUTTON_WIDTH_RIGHT, STUDIO_BUTTON_HEIGHT, TRUE);
@@ -2431,6 +2778,9 @@ static void layout_controls(HWND hwnd)
     MoveWindow(g_app.buttons[3], right_x + STUDIO_BUTTON_WIDTH_LEFT + STUDIO_BUTTON_GAP, 116 + STUDIO_BUTTON_ROW_HEIGHT, STUDIO_BUTTON_WIDTH_RIGHT, STUDIO_BUTTON_HEIGHT, TRUE);
     MoveWindow(g_app.buttons[4], right_x, 116 + 2 * STUDIO_BUTTON_ROW_HEIGHT, STUDIO_BUTTON_WIDTH_LEFT, STUDIO_BUTTON_HEIGHT, TRUE);
     MoveWindow(g_app.buttons[5], right_x + STUDIO_BUTTON_WIDTH_LEFT + STUDIO_BUTTON_GAP, 116 + 2 * STUDIO_BUTTON_ROW_HEIGHT, STUDIO_BUTTON_WIDTH_RIGHT, STUDIO_BUTTON_HEIGHT, TRUE);
+    MoveWindow(g_app.buttons[6], right_x, 116 + 3 * STUDIO_BUTTON_ROW_HEIGHT, STUDIO_BUTTON_WIDTH_LEFT, STUDIO_BUTTON_HEIGHT, TRUE);
+    MoveWindow(g_app.buttons[7], right_x + STUDIO_BUTTON_WIDTH_LEFT + STUDIO_BUTTON_GAP, 116 + 3 * STUDIO_BUTTON_ROW_HEIGHT, STUDIO_BUTTON_WIDTH_RIGHT, STUDIO_BUTTON_HEIGHT, TRUE);
+    MoveWindow(g_app.buttons[8], right_x, 116 + 4 * STUDIO_BUTTON_ROW_HEIGHT, STUDIO_BUTTON_WIDTH_LEFT, STUDIO_BUTTON_HEIGHT, TRUE);
 
     InvalidateRect(hwnd, NULL, TRUE);
 }
@@ -2631,6 +2981,15 @@ static LRESULT CALLBACK window_proc(
                 return 0;
             case IDC_BTN_OPEN:
                 open_results();
+                return 0;
+            case IDC_BTN_OPEN_NEURON_CSV:
+                open_neuron_csv();
+                return 0;
+            case IDC_BTN_PLOT_NEURON:
+                generate_neuron_graph();
+                return 0;
+            case IDC_BTN_OPEN_NEURON_PNG:
+                open_neuron_plot();
                 return 0;
             case IDC_BTN_OPTIONS:
                 open_topology_options();

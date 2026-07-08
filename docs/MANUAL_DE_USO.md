@@ -211,6 +211,15 @@ executar a simulacao, gerar graficos e abrir a pasta de resultados. A pasta
 `configs/` continua sendo o caminho recomendado para reproducao e uso avancado,
 pois os arquivos `.ini` deixam os parametros explicitos.
 
+O campo `Neuronio detalhado` escolhe o neuronio salvo em
+`results/scenarios/<run_name>/neuron_<id>.csv`. Depois de rodar a simulacao, o
+Studio pode abrir esse CSV e gerar `neuron_<id>_detail.png`, com potencial de
+membrana, spikes, corrente externa e corrente sinaptica. Pelo terminal:
+
+```powershell
+python scripts/plot_neuron.py results/scenarios/<run_name> <neuron_id>
+```
+
 O botao `OPCOES`, ao lado da topologia, edita configuracoes menos frequentes:
 auto-conexao, conexoes `INH -> INH`, densidade, seed, delays, parametros
 `small_world` e numero de camadas `feedforward`. O Studio desabilita campos que

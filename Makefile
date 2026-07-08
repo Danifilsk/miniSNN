@@ -9,8 +9,10 @@ SCENARIO_RUNNER_SOURCES = app/scenario_config.c app/scenario_runner.c
 CORE_SOURCES = src/neuron.c src/network.c src/topology.c src/stimulus.c src/recorder.c
 EXPERIMENT_SOURCES = src/neuron.c src/network.c src/stimulus.c src/recorder.c
 SCENARIO ?= configs/random_balanced.ini
+PYTHON ?= python
 
 .PHONY: all help clean test test-api test-core test-lif test-scenario test-runner \
+	test-plot-neuron \
 	api-examples api-single api-chain api-exc-inh \
 	demo ei-balance inhibition-fine inh-to-inh sparse-ei scenario \
 	scenario-random scenario-small-world scenario-feedforward \
@@ -26,6 +28,7 @@ help:
 	@echo   make test-lif          - teste basico do LIF
 	@echo   make test-scenario     - teste do parser de cenarios
 	@echo   make test-runner       - teste do executor compartilhado de cenarios
+	@echo   make test-plot-neuron  - teste Python do grafico de neuronio
 	@echo   make api-examples      - executa os exemplos publicos da API
 	@echo   make demo              - executa o demo interno
 	@echo   make scenario          - executa um cenario .ini com SCENARIO=configs/arquivo.ini
@@ -73,6 +76,9 @@ test-scenario: $(BUILD_DIR)/test_scenario_config.exe
 
 test-runner: $(BUILD_DIR)/test_scenario_runner.exe
 	$(BUILD_DIR)/test_scenario_runner.exe
+
+test-plot-neuron: | $(BUILD_DIR)
+	$(PYTHON) tests/test_plot_neuron.py
 
 test: test-api test-core test-lif test-scenario test-runner
 

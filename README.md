@@ -81,6 +81,13 @@ Os resultados ficam em:
 results/scenarios/<run_name>/
 ```
 
+Cada cenario tambem grava `neuron_<id>.csv` para o neuronio detalhado. O grafico
+individual pode ser gerado com:
+
+```powershell
+python scripts/plot_neuron.py results/scenarios/<run_name> <neuron_id>
+```
+
 ## miniSNN Studio
 
 Para abrir a interface grafica no Windows:
