@@ -1570,6 +1570,45 @@ static int check_network_connect_api(void)
     return 1;
 }
 
+static int check_network_self_connection_api(void)
+{
+    Network net;
+
+    if (!network_init(&net, 2))
+        return fail("network_init failed for self-connection test");
+
+    if (network_connect_delayed(&net, 0, 0, W, 1))
+    {
+        network_destroy(&net);
+        return fail("network_connect_delayed accepted self-connection");
+    }
+
+    if (!network_connect_delayed_ex(&net, 0, 0, W, 1, 1))
+    {
+        network_destroy(&net);
+        return fail("network_connect_delayed_ex rejected allowed self-connection");
+    }
+
+    if (net.connections[0].count != 1 ||
+        net.connections[0].list == NULL ||
+        net.connections[0].list[0].target != 0 ||
+        !same_double(net.connections[0].list[0].weight, W) ||
+        net.connections[0].list[0].delay != 1)
+    {
+        network_destroy(&net);
+        return fail("allowed self-connection was not stored correctly");
+    }
+
+    if (network_connect_delayed_ex(&net, 0, 0, W, 1, 1))
+    {
+        network_destroy(&net);
+        return fail("duplicate self-loop was accepted");
+    }
+
+    network_destroy(&net);
+    return 1;
+}
+
 static int check_synaptic_delay_timing(void)
 {
     const char *filename = "test_recorder_delay.csv";
@@ -2323,6 +2362,9 @@ int main(void)
         return 1;
 
     if (!check_network_connect_api())
+        return 1;
+
+    if (!check_network_self_connection_api())
         return 1;
 
     if (!check_synaptic_delay_timing())

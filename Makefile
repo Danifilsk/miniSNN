@@ -12,7 +12,9 @@ SCENARIO ?= configs/random_balanced.ini
 
 .PHONY: all help clean test test-api test-core test-lif test-scenario test-runner \
 	api-examples api-single api-chain api-exc-inh \
-	demo ei-balance inhibition-fine inh-to-inh sparse-ei scenario studio-build studio
+	demo ei-balance inhibition-fine inh-to-inh sparse-ei scenario \
+	scenario-random scenario-small-world scenario-feedforward \
+	studio-build studio
 
 all: test
 
@@ -27,6 +29,9 @@ help:
 	@echo   make api-examples      - executa os exemplos publicos da API
 	@echo   make demo              - executa o demo interno
 	@echo   make scenario          - executa um cenario .ini com SCENARIO=configs/arquivo.ini
+	@echo   make scenario-random   - executa configs/random.ini
+	@echo   make scenario-small-world - executa configs/small_world.ini
+	@echo   make scenario-feedforward - executa configs/feedforward.ini
 	@echo   make studio-build      - compila a interface grafica miniSNN Studio
 	@echo   make studio            - compila e abre a interface grafica miniSNN Studio
 	@echo   make ei-balance        - executa o experimento EXC vs EXC/INH
@@ -102,6 +107,15 @@ $(BUILD_DIR)/minisnn_runner.exe: app/minisnn_runner.c $(SCENARIO_RUNNER_SOURCES)
 
 scenario: $(BUILD_DIR)/minisnn_runner.exe
 	$(BUILD_DIR)/minisnn_runner.exe $(SCENARIO)
+
+scenario-random: $(BUILD_DIR)/minisnn_runner.exe
+	$(BUILD_DIR)/minisnn_runner.exe configs/random.ini
+
+scenario-small-world: $(BUILD_DIR)/minisnn_runner.exe
+	$(BUILD_DIR)/minisnn_runner.exe configs/small_world.ini
+
+scenario-feedforward: $(BUILD_DIR)/minisnn_runner.exe
+	$(BUILD_DIR)/minisnn_runner.exe configs/feedforward.ini
 
 $(BUILD_DIR)/minisnn_studio.exe: app/minisnn_studio.c $(SCENARIO_RUNNER_SOURCES) $(API_SOURCES) include/minisnn.h include/minisnn_types.h app/scenario_config.h app/scenario_runner.h | $(BUILD_DIR)
 	$(CC) $(CFLAGS) app/minisnn_studio.c $(SCENARIO_RUNNER_SOURCES) $(API_SOURCES) $(INCLUDES) -o $@ -mwindows -lcomdlg32 -lshell32 -lgdi32 -luser32

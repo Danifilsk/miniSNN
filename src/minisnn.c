@@ -129,10 +129,25 @@ int minisnn_connect(
     int target,
     double weight)
 {
+    return minisnn_connect_ex(snn, source, target, weight, 0);
+}
+
+int minisnn_connect_ex(
+    MiniSNN *snn,
+    int source,
+    int target,
+    double weight,
+    int allow_self_connection)
+{
     if (snn == NULL)
         return 0;
 
-    return network_connect(&snn->net, source, target, weight);
+    return network_connect_ex(
+        &snn->net,
+        source,
+        target,
+        weight,
+        allow_self_connection);
 }
 
 int minisnn_connect_delayed(
@@ -142,10 +157,33 @@ int minisnn_connect_delayed(
     double weight,
     int delay)
 {
+    return minisnn_connect_delayed_ex(
+        snn,
+        source,
+        target,
+        weight,
+        delay,
+        0);
+}
+
+int minisnn_connect_delayed_ex(
+    MiniSNN *snn,
+    int source,
+    int target,
+    double weight,
+    int delay,
+    int allow_self_connection)
+{
     if (snn == NULL)
         return 0;
 
-    return network_connect_delayed(&snn->net, source, target, weight, delay);
+    return network_connect_delayed_ex(
+        &snn->net,
+        source,
+        target,
+        weight,
+        delay,
+        allow_self_connection);
 }
 
 int minisnn_set_input(

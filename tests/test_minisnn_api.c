@@ -286,6 +286,53 @@ static int check_basic_network_api(void)
     return 1;
 }
 
+static int check_self_connection_api(void)
+{
+    MiniSNN *net = minisnn_create(2);
+
+    if (net == NULL)
+        return fail("minisnn_create failed for self-connection test");
+
+    if (minisnn_connect_delayed(net, 0, 0, TEST_WEIGHT, 1))
+    {
+        minisnn_destroy(&net);
+        return fail("connect_delayed accepted self-connection");
+    }
+
+    if (minisnn_connect_delayed_ex(net, 0, 0, TEST_WEIGHT, 1, 0))
+    {
+        minisnn_destroy(&net);
+        return fail("connect_delayed_ex accepted self-connection with allow=0");
+    }
+
+    if (!minisnn_connect_delayed_ex(net, 0, 0, TEST_WEIGHT, 1, 1))
+    {
+        minisnn_destroy(&net);
+        return fail("connect_delayed_ex rejected allowed self-connection");
+    }
+
+    if (minisnn_connect_delayed_ex(net, 0, 0, TEST_WEIGHT, 1, 1))
+    {
+        minisnn_destroy(&net);
+        return fail("duplicate self-connection was accepted");
+    }
+
+    if (minisnn_connect_delayed_ex(net, 2, 2, TEST_WEIGHT, 1, 1))
+    {
+        minisnn_destroy(&net);
+        return fail("self-connection with invalid index was accepted");
+    }
+
+    if (minisnn_connect_delayed_ex(net, 1, 1, TEST_WEIGHT, 0, 1))
+    {
+        minisnn_destroy(&net);
+        return fail("self-connection with invalid delay was accepted");
+    }
+
+    minisnn_destroy(&net);
+    return 1;
+}
+
 static int check_custom_config_delay_limit(void)
 {
     MiniSNNConfig config = minisnn_default_config();
@@ -432,6 +479,9 @@ int main(void)
         return 1;
 
     if (!check_basic_network_api())
+        return 1;
+
+    if (!check_self_connection_api())
         return 1;
 
     if (!check_custom_config_delay_limit())

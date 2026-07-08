@@ -129,6 +129,9 @@ results/experiments/
 | `mingw32-make api-exc-inh` | Exemplo EXC vs EXC/INH pela API | CSVs do alvo em `results/api/` |
 | `mingw32-make demo` | Executa demo interno | CSVs em `results/internal_demo/` |
 | `mingw32-make scenario` | Executa o cenario padrao | Resultados em `results/scenarios/<run_name>/` |
+| `mingw32-make scenario-random` | Executa `configs/random.ini` | Cenario aleatorio simples |
+| `mingw32-make scenario-small-world` | Executa `configs/small_world.ini` | Cenario small-world |
+| `mingw32-make scenario-feedforward` | Executa `configs/feedforward.ini` | Cenario em camadas |
 | `mingw32-make studio-build` | Compila o miniSNN Studio | `build/minisnn_studio.exe` |
 | `mingw32-make studio` | Compila e abre o miniSNN Studio | Interface grafica para cenarios |
 | `mingw32-make ei-balance` | Experimento EXC vs EXC/INH | Resultados em `results/experiments/ei_balance/` |
@@ -190,8 +193,10 @@ Exemplo:
 mingw32-make scenario SCENARIO=configs/random_balanced.ini
 ```
 
-Use cenarios para mudar topologia, pesos, seed, numero de neuronios, duracao e
-entrada externa. Nao altere `src/` para testes normais de parametros.
+Use cenarios para mudar topologia, pesos, seed, numero de neuronios, duracao,
+entrada externa e opcoes de conectividade. As topologias disponiveis sao:
+`chain`, `ring`, `all_to_all`, `random`, `random_balanced`, `small_world` e
+`feedforward`. Nao altere `src/` para testes normais de parametros.
 
 ## miniSNN Studio
 
@@ -205,6 +210,18 @@ A interface permite criar um cenario novo, carregar um `.ini`, salvar ajustes,
 executar a simulacao, gerar graficos e abrir a pasta de resultados. A pasta
 `configs/` continua sendo o caminho recomendado para reproducao e uso avancado,
 pois os arquivos `.ini` deixam os parametros explicitos.
+
+O botao `OPCOES`, ao lado da topologia, edita configuracoes menos frequentes:
+auto-conexao, conexoes `INH -> INH`, densidade, seed, delays, parametros
+`small_world` e numero de camadas `feedforward`. O Studio desabilita campos que
+nao se aplicam a topologia selecionada. Auto-conexoes reais podem ser ativadas
+em `all_to_all`, `random`, `random_balanced` e `small_world`; em `chain`,
+`ring` e `feedforward`, a opcao fica desabilitada.
+
+Na API publica, as chamadas antigas `minisnn_connect()` e
+`minisnn_connect_delayed()` continuam rejeitando auto-conexoes. Use
+`minisnn_connect_delayed_ex(..., allow_self_connection)` quando o experimento
+precisar permitir explicitamente `source == target`.
 
 Para gerar graficos, o Studio tenta localizar Python automaticamente nesta
 ordem: variavel `MINISNN_PYTHON`, instalacoes em

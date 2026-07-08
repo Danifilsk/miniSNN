@@ -43,6 +43,53 @@ Clique em `Carregar cenario` e escolha um arquivo em `configs/`. O Studio usa o
 mesmo parser do runner de terminal, entao chaves desconhecidas, duplicadas ou
 valores invalidos sao rejeitados.
 
+Topologias disponiveis no campo `Topologia`:
+
+```text
+chain
+ring
+all_to_all
+random
+random_balanced
+small_world
+feedforward
+```
+
+## 5.1. Como usar `OPCOES`
+
+O botao `OPCOES`, ao lado da topologia, abre uma janela com parametros menos
+usados:
+
+```text
+Permitir auto-conexao
+Permitir INH -> INH
+Densidade de conexao
+Seed
+Delay
+Delay maximo
+Small-world: vizinhos locais
+Small-world: probabilidade de reconexao
+Feedforward: numero de camadas
+```
+
+Campos que nao se aplicam a topologia atual ficam desabilitados. Regras:
+
+- `Densidade de conexao`: usada em `random`, `random_balanced` e `feedforward`.
+- `Seed`: usada em `random`, `random_balanced`, `small_world` e `feedforward`.
+- `Small-world`: usado somente em `small_world`.
+- `Feedforward`: usado somente em `feedforward`.
+- `Permitir auto-conexao`: habilitado em `all_to_all`, `random`,
+  `random_balanced` e `small_world`; desabilitado em `chain`, `ring` e
+  `feedforward`.
+- `Permitir INH -> INH`: so faz diferenca quando ha neuronios inibitorios.
+
+Quando um checkbox fica desabilitado, o valor e mantido no cenario, mas a
+interface mostra o texto em cinza para indicar que ele nao se aplica a
+topologia ou configuracao atual.
+
+Clique em `APLICAR` para validar e atualizar o cenario em tela. Clique em
+`CANCELAR` para fechar sem alterar.
+
 ## 6. Como salvar um cenario
 
 Clique em `Salvar cenario`. O Studio valida todos os campos e grava um `.ini`

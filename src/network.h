@@ -59,12 +59,27 @@ int network_update(Network *net);
 
 int network_connect(Network *net, int source, int target, double weight);
 
+int network_connect_ex(
+    Network *net,
+    int source,
+    int target,
+    double weight,
+    int allow_self_connection);
+
 int network_connect_delayed(
     Network *net,
     int source,
     int target,
     double weight,
     int delay);
+
+int network_connect_delayed_ex(
+    Network *net,
+    int source,
+    int target,
+    double weight,
+    int delay,
+    int allow_self_connection);
 
 int network_set_neuron_type(
     Network *net,

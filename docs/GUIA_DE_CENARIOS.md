@@ -50,10 +50,15 @@ mostra erro com numero de linha.
 | `topology` | Topologia da rede |
 | `neurons` | Numero total de neuronios |
 | `inhibitory_fraction` | Fracao de neuronios inibitorios |
-| `connection_probability` | Probabilidade de conexao em `random_balanced` |
+| `connection_probability` | Probabilidade de conexao em topologias probabilisticas |
 | `seed` | Semente deterministica da topologia aleatoria |
 | `delay` | Delay de cada conexao |
 | `max_synaptic_delay` | Maior delay permitido na rede |
+| `allow_self_connections` | Permite auto-conexoes em topologias aplicaveis |
+| `allow_inh_to_inh` | Permite conexoes de neuronios INH para neuronios INH |
+| `small_world_neighbors` | Numero par de vizinhos locais em `small_world` |
+| `small_world_rewire_probability` | Probabilidade de reconexao em `small_world` |
+| `feedforward_layers` | Numero de camadas em `feedforward` |
 | `excitatory_weight` | Peso de saida de neuronios EXC |
 | `inhibitory_weight` | Peso de saida de neuronios INH |
 | `source_count` | Quantos neuronios iniciais recebem entrada |
@@ -73,15 +78,24 @@ mostra erro com numero de linha.
 Regras principais:
 
 - `run_name`: 1 a 48 caracteres, usando apenas letras, numeros, `_` e `-`.
-- `topology`: `chain`, `ring`, `all_to_all` ou `random_balanced`.
+- `topology`: `chain`, `ring`, `all_to_all`, `random`, `random_balanced`,
+  `small_world` ou `feedforward`.
 - `neurons`: entre 1 e 1000.
 - `steps`: maior que zero.
 - `source_count`: entre 1 e `neurons`.
 - `record_neuron`: entre 0 e `neurons - 1`.
 - `inhibitory_fraction`: entre 0.0 e 1.0.
 - `connection_probability`: entre 0.0 e 1.0.
+- `allow_self_connections` e `allow_inh_to_inh`: `true` ou `false`.
+- `allow_self_connections` se aplica a `all_to_all`, `random`,
+  `random_balanced` e `small_world`. Em `chain`, `ring` e `feedforward`, nao ha
+  candidato natural de self-loop.
 - `delay`: entre 1 e `max_synaptic_delay`.
 - `max_synaptic_delay`: maior que zero.
+- `small_world_neighbors`: numero par maior que zero e menor que `neurons`,
+  usado em `small_world`.
+- `small_world_rewire_probability`: entre 0.0 e 1.0, usado em `small_world`.
+- `feedforward_layers`: entre 2 e `neurons`, usado em `feedforward`.
 - `excitatory_weight`: maior que zero.
 - `inhibitory_weight`: menor que zero.
 - `dt`, `tau`, `resistance` e `synaptic_decay`: positivos.
@@ -106,15 +120,35 @@ Cria uma cadeia fechada:
 
 ### `all_to_all`
 
-Cada neuronio conecta a todos os outros neuronios, sem auto-conexao.
+Cada neuronio conecta a todos os outros neuronios. Com
+`allow_self_connections = true`, tambem inclui `source == target`.
+
+### `random`
+
+Percorre todos os pares `source -> target` e cria uma conexao quando o gerador
+deterministico sorteia valor menor que `connection_probability`. Self-loops
+entram no sorteio somente com `allow_self_connections = true`.
 
 ### `random_balanced`
 
-Percorre todos os pares `source -> target`, sem auto-conexao, e cria a conexao
+Percorre todos os pares `source -> target` e cria a conexao
 quando o gerador deterministico sorteia valor menor que
-`connection_probability`.
+`connection_probability`. Self-loops entram no sorteio somente com
+`allow_self_connections = true`.
 
 A mesma `seed` e o mesmo arquivo produzem a mesma topologia no mesmo codigo.
+
+### `small_world`
+
+Cria uma vizinhanca local em anel usando `small_world_neighbors` e depois tenta
+reconectar alvos com probabilidade `small_world_rewire_probability`. As
+conexoes locais nao criam self-loop; durante a reconexao, `source == target` so
+pode ser escolhido com `allow_self_connections = true`.
+
+### `feedforward`
+
+Divide os neuronios em `feedforward_layers` camadas e cria conexoes apenas de
+uma camada para a proxima, usando `connection_probability`.
 
 ## 6. Como executar `chain.ini`
 
@@ -152,6 +186,14 @@ results/scenarios/random_balanced_demo/
 
 Esse e o cenario padrao do alvo `scenario`.
 
+### Atalhos de topologia
+
+```powershell
+mingw32-make scenario-random
+mingw32-make scenario-small-world
+mingw32-make scenario-feedforward
+```
+
 ## 8. Como mudar parametros sem editar C
 
 ### Mudar peso INH
@@ -165,11 +207,43 @@ inhibitory_weight = -500.0
 
 ### Mudar densidade
 
-Para `random_balanced`, edite:
+Para `random`, `random_balanced` e `feedforward`, edite:
 
 ```ini
 [network]
 connection_probability = 0.50
+```
+
+### Mudar conexoes INH -> INH
+
+```ini
+[connectivity]
+allow_inh_to_inh = false
+```
+
+### Permitir auto-conexoes
+
+```ini
+[connectivity]
+allow_self_connections = true
+```
+
+Essa opcao cria self-loops reais apenas em `all_to_all`, `random`,
+`random_balanced` e na etapa de reconexao de `small_world`.
+
+### Mudar small-world
+
+```ini
+[topology_options]
+small_world_neighbors = 6
+small_world_rewire_probability = 0.20
+```
+
+### Mudar feedforward
+
+```ini
+[topology_options]
+feedforward_layers = 4
 ```
 
 ### Mudar seed

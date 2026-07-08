@@ -8,6 +8,7 @@
 #include "minisnn.h"
 
 #define COMMAND_BUFFER_SIZE 640
+#define SCENARIO_MAX_NEURONS 1000
 
 static void set_error(
     char *error_message,
@@ -153,7 +154,7 @@ static int calculate_inhibitory_count(const ScenarioConfig *config)
     return count;
 }
 
-static int neuron_is_inhibitory(int neuron_id, int neurons, int inhibitory_count)
+static int neuron_id_is_inhibitory(int neuron_id, int neurons, int inhibitory_count)
 {
     return neuron_id >= neurons - inhibitory_count;
 }
@@ -163,7 +164,7 @@ static const char *type_name(
     int neurons,
     int inhibitory_count)
 {
-    return neuron_is_inhibitory(neuron_id, neurons, inhibitory_count) ?
+    return neuron_id_is_inhibitory(neuron_id, neurons, inhibitory_count) ?
         "INH" :
         "EXC";
 }
@@ -171,9 +172,9 @@ static const char *type_name(
 static double outgoing_weight(
     const ScenarioConfig *config,
     int source,
-    int inhibitory_count)
+    const int *neuron_is_inhibitory)
 {
-    if (neuron_is_inhibitory(source, config->neurons, inhibitory_count))
+    if (neuron_is_inhibitory[source])
         return config->inhibitory_weight;
 
     return config->excitatory_weight;
@@ -193,12 +194,18 @@ static double rng_next_unit(uint32_t *state)
 static int set_neuron_types(
     MiniSNN *snn,
     const ScenarioConfig *config,
-    int inhibitory_count)
+    int inhibitory_count,
+    int *neuron_is_inhibitory)
 {
     for (int i = 0; i < config->neurons; i++)
     {
+        neuron_is_inhibitory[i] = neuron_id_is_inhibitory(
+            i,
+            config->neurons,
+            inhibitory_count);
+
         MiniSNNNeuronType type =
-            neuron_is_inhibitory(i, config->neurons, inhibitory_count) ?
+            neuron_is_inhibitory[i] ?
             MINISNN_NEURON_INHIBITORY :
             MINISNN_NEURON_EXCITATORY;
 
@@ -209,18 +216,45 @@ static int set_neuron_types(
     return 1;
 }
 
+static int connection_is_allowed(
+    const ScenarioConfig *config,
+    const int *neuron_is_inhibitory,
+    int source,
+    int target)
+{
+    if (!config->allow_self_connections && source == target)
+        return 0;
+
+    if (!config->allow_inh_to_inh &&
+        neuron_is_inhibitory[source] &&
+        neuron_is_inhibitory[target])
+    {
+        return 0;
+    }
+
+    return 1;
+}
+
 static int connect_pair(
     MiniSNN *snn,
     const ScenarioConfig *config,
-    int inhibitory_count,
+    const int *neuron_is_inhibitory,
     int source,
     int target,
     int *connection_count)
 {
-    double weight = outgoing_weight(config, source, inhibitory_count);
+    double weight = outgoing_weight(config, source, neuron_is_inhibitory);
 
-    if (!minisnn_connect_delayed(snn, source, target, weight, config->delay))
+    if (!minisnn_connect_delayed_ex(
+            snn,
+            source,
+            target,
+            weight,
+            config->delay,
+            config->allow_self_connections))
+    {
         return 0;
+    }
 
     (*connection_count)++;
     return 1;
@@ -229,15 +263,24 @@ static int connect_pair(
 static int build_chain(
     MiniSNN *snn,
     const ScenarioConfig *config,
-    int inhibitory_count,
+    const int *neuron_is_inhibitory,
     int *connection_count)
 {
     for (int source = 0; source < config->neurons - 1; source++)
     {
+        if (!connection_is_allowed(
+                config,
+                neuron_is_inhibitory,
+                source,
+                source + 1))
+        {
+            continue;
+        }
+
         if (!connect_pair(
                 snn,
                 config,
-                inhibitory_count,
+                neuron_is_inhibitory,
                 source,
                 source + 1,
                 connection_count))
@@ -252,19 +295,28 @@ static int build_chain(
 static int build_ring(
     MiniSNN *snn,
     const ScenarioConfig *config,
-    int inhibitory_count,
+    const int *neuron_is_inhibitory,
     int *connection_count)
 {
     if (config->neurons == 1)
         return 1;
 
-    if (!build_chain(snn, config, inhibitory_count, connection_count))
+    if (!build_chain(snn, config, neuron_is_inhibitory, connection_count))
         return 0;
+
+    if (!connection_is_allowed(
+            config,
+            neuron_is_inhibitory,
+            config->neurons - 1,
+            0))
+    {
+        return 1;
+    }
 
     return connect_pair(
         snn,
         config,
-        inhibitory_count,
+        neuron_is_inhibitory,
         config->neurons - 1,
         0,
         connection_count);
@@ -273,20 +325,26 @@ static int build_ring(
 static int build_all_to_all(
     MiniSNN *snn,
     const ScenarioConfig *config,
-    int inhibitory_count,
+    const int *neuron_is_inhibitory,
     int *connection_count)
 {
     for (int source = 0; source < config->neurons; source++)
     {
         for (int target = 0; target < config->neurons; target++)
         {
-            if (source == target)
+            if (!connection_is_allowed(
+                    config,
+                    neuron_is_inhibitory,
+                    source,
+                    target))
+            {
                 continue;
+            }
 
             if (!connect_pair(
                     snn,
                     config,
-                    inhibitory_count,
+                    neuron_is_inhibitory,
                     source,
                     target,
                     connection_count))
@@ -299,10 +357,10 @@ static int build_all_to_all(
     return 1;
 }
 
-static int build_random_balanced(
+static int build_random_like(
     MiniSNN *snn,
     const ScenarioConfig *config,
-    int inhibitory_count,
+    const int *neuron_is_inhibitory,
     int *connection_count)
 {
     uint32_t state = config->seed;
@@ -314,15 +372,21 @@ static int build_random_balanced(
     {
         for (int target = 0; target < config->neurons; target++)
         {
-            if (source == target)
+            if (!connection_is_allowed(
+                    config,
+                    neuron_is_inhibitory,
+                    source,
+                    target))
+            {
                 continue;
+            }
 
             if (rng_next_unit(&state) < config->connection_probability)
             {
                 if (!connect_pair(
                         snn,
                         config,
-                        inhibitory_count,
+                        neuron_is_inhibitory,
                         source,
                         target,
                         connection_count))
@@ -336,28 +400,248 @@ static int build_random_balanced(
     return 1;
 }
 
+static int choose_rewired_target(
+    const ScenarioConfig *config,
+    const int *neuron_is_inhibitory,
+    const int *used_targets,
+    int source,
+    uint32_t *state,
+    int *out_target)
+{
+    int attempts = config->neurons * 4;
+
+    for (int i = 0; i < attempts; i++)
+    {
+        int target = (int)(rng_next_unit(state) * (double)config->neurons);
+
+        if (target >= config->neurons)
+            target = config->neurons - 1;
+
+        if (!used_targets[target] &&
+            connection_is_allowed(
+                config,
+                neuron_is_inhibitory,
+                source,
+                target))
+        {
+            *out_target = target;
+            return 1;
+        }
+    }
+
+    for (int target = 0; target < config->neurons; target++)
+    {
+        if (!used_targets[target] &&
+            connection_is_allowed(
+                config,
+                neuron_is_inhibitory,
+                source,
+                target))
+        {
+            *out_target = target;
+            return 1;
+        }
+    }
+
+    return 0;
+}
+
+static int build_small_world(
+    MiniSNN *snn,
+    const ScenarioConfig *config,
+    const int *neuron_is_inhibitory,
+    int *connection_count)
+{
+    uint32_t state = config->seed;
+    int half_neighbors = config->small_world_neighbors / 2;
+    int used_targets[SCENARIO_MAX_NEURONS];
+
+    if (state == 0U)
+        state = 1U;
+
+    for (int source = 0; source < config->neurons; source++)
+    {
+        for (int i = 0; i < config->neurons; i++)
+            used_targets[i] = 0;
+
+        for (int offset = 1; offset <= half_neighbors; offset++)
+        {
+            int local_targets[2];
+
+            local_targets[0] = (source + offset) % config->neurons;
+            local_targets[1] =
+                (source - offset + config->neurons) % config->neurons;
+
+            for (int side = 0; side < 2; side++)
+            {
+                int target = local_targets[side];
+
+                if (rng_next_unit(&state) <
+                    config->small_world_rewire_probability)
+                {
+                    if (!choose_rewired_target(
+                            config,
+                            neuron_is_inhibitory,
+                            used_targets,
+                            source,
+                            &state,
+                            &target))
+                    {
+                        continue;
+                    }
+                }
+
+                if (used_targets[target] ||
+                    !connection_is_allowed(
+                        config,
+                        neuron_is_inhibitory,
+                        source,
+                        target))
+                {
+                    continue;
+                }
+
+                if (!connect_pair(
+                        snn,
+                        config,
+                        neuron_is_inhibitory,
+                        source,
+                        target,
+                        connection_count))
+                {
+                    return 0;
+                }
+
+                used_targets[target] = 1;
+            }
+        }
+    }
+
+    return 1;
+}
+
+static int layer_start(
+    const ScenarioConfig *config,
+    int layer)
+{
+    int base_size = config->neurons / config->feedforward_layers;
+    int remainder = config->neurons % config->feedforward_layers;
+
+    return layer * base_size + (layer < remainder ? layer : remainder);
+}
+
+static int layer_size(
+    const ScenarioConfig *config,
+    int layer)
+{
+    int base_size = config->neurons / config->feedforward_layers;
+    int remainder = config->neurons % config->feedforward_layers;
+
+    return base_size + (layer < remainder ? 1 : 0);
+}
+
+static int build_feedforward(
+    MiniSNN *snn,
+    const ScenarioConfig *config,
+    const int *neuron_is_inhibitory,
+    int *connection_count)
+{
+    uint32_t state = config->seed;
+
+    if (state == 0U)
+        state = 1U;
+
+    for (int layer = 0; layer < config->feedforward_layers - 1; layer++)
+    {
+        int source_start = layer_start(config, layer);
+        int source_size = layer_size(config, layer);
+        int target_start = layer_start(config, layer + 1);
+        int target_size = layer_size(config, layer + 1);
+
+        for (int i = 0; i < source_size; i++)
+        {
+            int source = source_start + i;
+
+            for (int j = 0; j < target_size; j++)
+            {
+                int target = target_start + j;
+
+                if (!connection_is_allowed(
+                        config,
+                        neuron_is_inhibitory,
+                        source,
+                        target))
+                {
+                    continue;
+                }
+
+                if (rng_next_unit(&state) < config->connection_probability)
+                {
+                    if (!connect_pair(
+                            snn,
+                            config,
+                            neuron_is_inhibitory,
+                            source,
+                            target,
+                            connection_count))
+                    {
+                        return 0;
+                    }
+                }
+            }
+        }
+    }
+
+    return 1;
+}
+
 static int build_topology(
     MiniSNN *snn,
     const ScenarioConfig *config,
-    int inhibitory_count,
+    const int *neuron_is_inhibitory,
     int *connection_count)
 {
     *connection_count = 0;
 
     if (strcmp(config->topology, "chain") == 0)
-        return build_chain(snn, config, inhibitory_count, connection_count);
+        return build_chain(snn, config, neuron_is_inhibitory, connection_count);
 
     if (strcmp(config->topology, "ring") == 0)
-        return build_ring(snn, config, inhibitory_count, connection_count);
+        return build_ring(snn, config, neuron_is_inhibitory, connection_count);
 
     if (strcmp(config->topology, "all_to_all") == 0)
-        return build_all_to_all(snn, config, inhibitory_count, connection_count);
-
-    if (strcmp(config->topology, "random_balanced") == 0)
-        return build_random_balanced(
+        return build_all_to_all(
             snn,
             config,
-            inhibitory_count,
+            neuron_is_inhibitory,
+            connection_count);
+
+    if (strcmp(config->topology, "random") == 0)
+        return build_random_like(
+            snn,
+            config,
+            neuron_is_inhibitory,
+            connection_count);
+
+    if (strcmp(config->topology, "random_balanced") == 0)
+        return build_random_like(
+            snn,
+            config,
+            neuron_is_inhibitory,
+            connection_count);
+
+    if (strcmp(config->topology, "small_world") == 0)
+        return build_small_world(
+            snn,
+            config,
+            neuron_is_inhibitory,
+            connection_count);
+
+    if (strcmp(config->topology, "feedforward") == 0)
+        return build_feedforward(
+            snn,
+            config,
+            neuron_is_inhibitory,
             connection_count);
 
     return 0;
@@ -519,7 +803,7 @@ static int run_simulation(
             int spike;
             double voltage;
             double syn_current;
-            int is_inh = neuron_is_inhibitory(
+            int is_inh = neuron_id_is_inhibitory(
                 neuron_id,
                 config->neurons,
                 inhibitory_count);
@@ -628,6 +912,7 @@ int scenario_runner_execute(
     char raster_path[SCENARIO_OUTPUT_PATH_MAX];
     char neuron_path[SCENARIO_OUTPUT_PATH_MAX];
     char summary_path[SCENARIO_OUTPUT_PATH_MAX];
+    int neuron_is_inhibitory[SCENARIO_MAX_NEURONS];
 
     if (config == NULL || out_result == NULL)
     {
@@ -682,7 +967,11 @@ int scenario_runner_execute(
 
     result.inhibitory_count = calculate_inhibitory_count(config);
 
-    if (!set_neuron_types(snn, config, result.inhibitory_count))
+    if (!set_neuron_types(
+            snn,
+            config,
+            result.inhibitory_count,
+            neuron_is_inhibitory))
     {
         set_error(error_message, error_message_size, "erro ao definir tipos de neuronios");
         minisnn_destroy(&snn);
@@ -692,7 +981,7 @@ int scenario_runner_execute(
     if (!build_topology(
             snn,
             config,
-            result.inhibitory_count,
+            neuron_is_inhibitory,
             &result.connection_count))
     {
         set_error(error_message, error_message_size, "erro ao construir topologia");

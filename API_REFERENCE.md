@@ -166,6 +166,25 @@ peso sinaptico.
 **Erros importantes:** falha com rede nula, indices invalidos, auto-conexao,
 peso nao finito ou conexao duplicada.
 
+## minisnn_connect_ex
+
+```c
+int minisnn_connect_ex(
+    MiniSNN *snn,
+    int source,
+    int target,
+    double weight,
+    int allow_self_connection);
+```
+
+**Objetivo:** criar uma conexao com delay padrao de 1 timestep, permitindo
+auto-conexao apenas quando `allow_self_connection` for diferente de zero.
+
+**Retorno:** `1` em sucesso, `0` em falha.
+
+**Observacao:** `minisnn_connect()` continua rejeitando auto-conexoes. Use esta
+funcao somente quando o self-loop for uma escolha explicita do experimento.
+
 ## minisnn_connect_delayed
 
 ```c
@@ -186,6 +205,26 @@ peso; `delay`, atraso em timesteps.
 
 **Erros importantes:** falha com rede nula, indices invalidos, auto-conexao,
 peso nao finito, delay fora do intervalo permitido ou conexao duplicada.
+
+## minisnn_connect_delayed_ex
+
+```c
+int minisnn_connect_delayed_ex(
+    MiniSNN *snn,
+    int source,
+    int target,
+    double weight,
+    int delay,
+    int allow_self_connection);
+```
+
+**Objetivo:** criar uma conexao com delay especifico e controle explicito de
+auto-conexao.
+
+**Comportamento:** quando `allow_self_connection == 0`, e equivalente a
+`minisnn_connect_delayed()` e rejeita `source == target`. Quando
+`allow_self_connection != 0`, `source == target` pode ser aceito, mantendo as
+validacoes de indices, peso finito, delay valido e duplicatas.
 
 ## minisnn_set_input
 

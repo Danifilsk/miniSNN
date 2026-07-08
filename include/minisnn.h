@@ -51,12 +51,27 @@ int minisnn_connect(
     int target,
     double weight);
 
+int minisnn_connect_ex(
+    MiniSNN *snn,
+    int source,
+    int target,
+    double weight,
+    int allow_self_connection);
+
 int minisnn_connect_delayed(
     MiniSNN *snn,
     int source,
     int target,
     double weight,
     int delay);
+
+int minisnn_connect_delayed_ex(
+    MiniSNN *snn,
+    int source,
+    int target,
+    double weight,
+    int delay,
+    int allow_self_connection);
 
 /* Entrada externa */
 int minisnn_set_input(

@@ -61,6 +61,20 @@ Edite um arquivo em `configs/` e execute:
 mingw32-make scenario SCENARIO=configs/random_balanced.ini
 ```
 
+Topologias disponiveis nos cenarios:
+
+```text
+chain, ring, all_to_all, random, random_balanced, small_world, feedforward
+```
+
+Atalhos uteis:
+
+```powershell
+mingw32-make scenario-random
+mingw32-make scenario-small-world
+mingw32-make scenario-feedforward
+```
+
 Os resultados ficam em:
 
 ```text
@@ -82,7 +96,15 @@ build/minisnn_studio.exe
 ```
 
 A interface permite criar, carregar, salvar e executar cenarios sem editar
-arquivos C.
+arquivos C. O botao `OPCOES`, ao lado da topologia, abre as configuracoes de
+conectividade, seed, delays e opcoes especificas de `small_world` e
+`feedforward`. A opcao de auto-conexao funciona em topologias que consideram
+`source -> target` como candidato: `all_to_all`, `random`, `random_balanced` e
+`small_world`. Em `chain`, `ring` e `feedforward`, ela fica desabilitada.
+
+Na API publica, `minisnn_connect()` e `minisnn_connect_delayed()` preservam o
+comportamento antigo e rejeitam auto-conexoes. Para permitir `source == target`
+explicitamente, use `minisnn_connect_delayed_ex()`.
 
 Para gerar graficos, o Studio procura Python automaticamente usando
 `MINISNN_PYTHON`, a instalacao local do Windows, `py.exe` ou `python.exe`.

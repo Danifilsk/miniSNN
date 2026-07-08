@@ -56,6 +56,10 @@ static const char *valid_config_text(void)
         "delay = 1\n"
         "max_synaptic_delay = 8\n"
         "\n"
+        "[connectivity]\n"
+        "allow_self_connections = false\n"
+        "allow_inh_to_inh = true\n"
+        "\n"
         "[weights]\n"
         "excitatory_weight = 200.0\n"
         "inhibitory_weight = -400.0\n"
@@ -73,6 +77,11 @@ static const char *valid_config_text(void)
         "v_threshold = -50.0\n"
         "resistance = 1.0\n"
         "synaptic_decay = 0.95\n"
+        "\n"
+        "[topology_options]\n"
+        "small_world_neighbors = 4\n"
+        "small_world_rewire_probability = 0.10\n"
+        "feedforward_layers = 3\n"
         "\n"
         "[recording]\n"
         "record_neuron = 0\n";
@@ -169,6 +178,15 @@ static int check_valid_file_loads_correctly(void)
         return fail("numeric values were not loaded");
     }
 
+    if (config.allow_self_connections != 0 ||
+        config.allow_inh_to_inh != 1 ||
+        config.small_world_neighbors != 4 ||
+        config.feedforward_layers != 3 ||
+        !double_close(config.small_world_rewire_probability, 0.10))
+    {
+        return fail("new topology option values were not loaded");
+    }
+
     return 1;
 }
 
@@ -184,6 +202,8 @@ static int configs_match(
            a->seed == b->seed &&
            a->delay == b->delay &&
            a->max_synaptic_delay == b->max_synaptic_delay &&
+           a->allow_self_connections == b->allow_self_connections &&
+           a->allow_inh_to_inh == b->allow_inh_to_inh &&
            double_close(a->excitatory_weight, b->excitatory_weight) &&
            double_close(a->inhibitory_weight, b->inhibitory_weight) &&
            a->source_count == b->source_count &&
@@ -196,6 +216,11 @@ static int configs_match(
            double_close(a->v_threshold, b->v_threshold) &&
            double_close(a->resistance, b->resistance) &&
            double_close(a->synaptic_decay, b->synaptic_decay) &&
+           a->small_world_neighbors == b->small_world_neighbors &&
+           double_close(
+               a->small_world_rewire_probability,
+               b->small_world_rewire_probability) &&
+           a->feedforward_layers == b->feedforward_layers &&
            a->record_neuron == b->record_neuron;
 }
 
@@ -213,6 +238,11 @@ static int check_save_and_reload(void)
     config.connection_probability = 1.0;
     config.source_count = 1;
     config.steps = 50;
+    config.allow_self_connections = 1;
+    config.allow_inh_to_inh = 0;
+    config.small_world_neighbors = 2;
+    config.small_world_rewire_probability = 0.35;
+    config.feedforward_layers = 2;
 
     if (!scenario_config_save_file(
             TEMP_SAVE_PATH,
@@ -308,6 +338,27 @@ int main(void)
     if (!load_text_expect_failure(
             "seed = -1\n",
             "negative seed was accepted"))
+    {
+        return 1;
+    }
+
+    if (!load_text_expect_failure(
+            "topology = small_world\nneurons = 20\nsmall_world_neighbors = 3\n",
+            "odd small_world_neighbors was accepted"))
+    {
+        return 1;
+    }
+
+    if (!load_text_expect_failure(
+            "topology = small_world\nneurons = 20\nsmall_world_rewire_probability = 1.5\n",
+            "invalid small_world_rewire_probability was accepted"))
+    {
+        return 1;
+    }
+
+    if (!load_text_expect_failure(
+            "topology = feedforward\nneurons = 20\nfeedforward_layers = 1\n",
+            "too-small feedforward_layers was accepted"))
     {
         return 1;
     }

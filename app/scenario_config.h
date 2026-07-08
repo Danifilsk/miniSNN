@@ -18,6 +18,9 @@ typedef struct
     int delay;
     int max_synaptic_delay;
 
+    int allow_self_connections;
+    int allow_inh_to_inh;
+
     double excitatory_weight;
     double inhibitory_weight;
 
@@ -32,6 +35,10 @@ typedef struct
     double v_threshold;
     double resistance;
     double synaptic_decay;
+
+    int small_world_neighbors;
+    double small_world_rewire_probability;
+    int feedforward_layers;
 
     int record_neuron;
 } ScenarioConfig;

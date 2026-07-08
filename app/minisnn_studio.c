@@ -19,17 +19,18 @@
 #define PYTHON_MESSAGE_BUFFER_SIZE 2200
 #define STUDIO_FIELD_COUNT 21
 
-#define STUDIO_MIN_CLIENT_WIDTH 1180
+#define STUDIO_MIN_CLIENT_WIDTH 1320
 #define STUDIO_MIN_CLIENT_HEIGHT 760
 #define STUDIO_INITIAL_CLIENT_WIDTH STUDIO_MIN_CLIENT_WIDTH
 #define STUDIO_INITIAL_CLIENT_HEIGHT STUDIO_MIN_CLIENT_HEIGHT
 
 #define STUDIO_LEFT_X 28
-#define STUDIO_MIDDLE_X 445
+#define STUDIO_MIDDLE_X 570
 #define STUDIO_TOP_Y 120
 #define STUDIO_LABEL_WIDTH 220
 #define STUDIO_FIELD_WIDTH 130
 #define STUDIO_TOPOLOGY_FIELD_WIDTH 190
+#define STUDIO_TOPOLOGY_BUTTON_WIDTH 92
 #define STUDIO_ROW_HEIGHT 36
 #define STUDIO_LABEL_HEIGHT 24
 #define STUDIO_LABEL_OFFSET_Y 4
@@ -38,9 +39,9 @@
 #define STUDIO_PANEL_TOP 94
 #define STUDIO_PANEL_BOTTOM_MARGIN 24
 #define STUDIO_LEFT_PANEL_LEFT 18
-#define STUDIO_LEFT_PANEL_RIGHT 448
-#define STUDIO_MIDDLE_PANEL_LEFT 452
-#define STUDIO_MIDDLE_PANEL_RIGHT 800
+#define STUDIO_LEFT_PANEL_RIGHT 558
+#define STUDIO_MIDDLE_PANEL_LEFT 562
+#define STUDIO_MIDDLE_PANEL_RIGHT 930
 #define STUDIO_RIGHT_PANEL_WIDTH 360
 #define STUDIO_RIGHT_PANEL_MARGIN 18
 #define STUDIO_RIGHT_CONTENT_PADDING 10
@@ -79,9 +80,22 @@
 #define IDC_BTN_RUN 2004
 #define IDC_BTN_PLOT 2005
 #define IDC_BTN_OPEN 2006
+#define IDC_BTN_OPTIONS 2007
 
 #define IDC_STATUS 3001
 #define IDC_SUMMARY 3002
+
+#define IDC_OPT_ALLOW_SELF 4001
+#define IDC_OPT_ALLOW_INH_TO_INH 4002
+#define IDC_OPT_DENSITY 4003
+#define IDC_OPT_SEED 4004
+#define IDC_OPT_DELAY 4005
+#define IDC_OPT_MAX_DELAY 4006
+#define IDC_OPT_SMALL_NEIGHBORS 4007
+#define IDC_OPT_SMALL_REWIRE 4008
+#define IDC_OPT_FEEDFORWARD_LAYERS 4009
+#define IDC_OPT_APPLY 4010
+#define IDC_OPT_CANCEL 4011
 
 #define STUDIO_INIT_TIMER_ID 1
 
@@ -121,6 +135,7 @@ typedef struct
     int field_count;
 
     HWND topology_combo;
+    HWND topology_options_button;
     HWND status_label;
     HWND summary_box;
     HWND execution_section_label;
@@ -135,7 +150,33 @@ typedef struct
     int resolved_python_uses_py_launcher;
 } StudioState;
 
+typedef struct
+{
+    HWND window;
+    ScenarioConfig original_config;
+    ScenarioConfig working_config;
+    char topology[SCENARIO_TOPOLOGY_MAX];
+    int applied;
+
+    HWND allow_self_checkbox;
+    HWND allow_self_label;
+    HWND allow_inh_to_inh_checkbox;
+    HWND allow_inh_to_inh_label;
+    HWND density_edit;
+    HWND seed_edit;
+    HWND delay_edit;
+    HWND max_delay_edit;
+    HWND small_neighbors_edit;
+    HWND small_rewire_edit;
+    HWND feedforward_layers_edit;
+} TopologyOptionsDialog;
+
 static StudioState g_app;
+static TopologyOptionsDialog g_options;
+
+static void draw_button(const DRAWITEMSTRUCT *item);
+static LRESULT handle_color(HDC hdc, HWND hwnd);
+static LRESULT handle_edit_color(HDC hdc);
 
 static void set_status(const char *message)
 {
@@ -183,6 +224,39 @@ static void show_error(const char *title, const char *message)
 static void show_info(const char *title, const char *message)
 {
     MessageBoxA(g_app.window, message, title, MB_ICONINFORMATION | MB_OK);
+}
+
+static int topology_uses_density(const char *topology)
+{
+    return strcmp(topology, "random") == 0 ||
+           strcmp(topology, "random_balanced") == 0 ||
+           strcmp(topology, "feedforward") == 0;
+}
+
+static int topology_uses_seed(const char *topology)
+{
+    return strcmp(topology, "random") == 0 ||
+           strcmp(topology, "random_balanced") == 0 ||
+           strcmp(topology, "small_world") == 0 ||
+           strcmp(topology, "feedforward") == 0;
+}
+
+static int topology_can_allow_self_connections(const char *topology)
+{
+    return strcmp(topology, "all_to_all") == 0 ||
+           strcmp(topology, "random") == 0 ||
+           strcmp(topology, "random_balanced") == 0 ||
+           strcmp(topology, "small_world") == 0;
+}
+
+static int topology_uses_small_world_options(const char *topology)
+{
+    return strcmp(topology, "small_world") == 0;
+}
+
+static int topology_uses_feedforward_options(const char *topology)
+{
+    return strcmp(topology, "feedforward") == 0;
 }
 
 static void enable_dark_title_bar(HWND window)
@@ -1096,7 +1170,7 @@ static void update_density_enabled(void)
     GetWindowTextA(g_app.topology_combo, topology, sizeof(topology));
     EnableWindow(
         field_control(IDC_CONNECTION_PROBABILITY),
-        strcmp(topology, "random_balanced") == 0);
+        topology_uses_density(topology));
 }
 
 static void config_to_controls(const ScenarioConfig *config)
@@ -1135,7 +1209,7 @@ static int controls_to_config(
 {
     double inhibitory_percent;
 
-    scenario_config_default(config);
+    *config = g_app.current_config;
 
     GetWindowTextA(
         field_control(IDC_RUN_NAME),
@@ -1677,6 +1751,473 @@ static HWND create_button(
     return hwnd;
 }
 
+static HWND create_checkbox(
+    HWND parent,
+    const char *text,
+    int id,
+    int x,
+    int y,
+    int w,
+    int h)
+{
+    HWND hwnd = CreateWindowExA(
+        0,
+        "BUTTON",
+        text,
+        WS_CHILD | WS_VISIBLE | BS_AUTOCHECKBOX,
+        x,
+        y,
+        w,
+        h,
+        parent,
+        (HMENU)(INT_PTR)id,
+        GetModuleHandleA(NULL),
+        NULL);
+
+    SendMessageA(hwnd, WM_SETFONT, (WPARAM)g_app.normal_font, TRUE);
+    return hwnd;
+}
+
+static int parse_int_from_window(
+    HWND hwnd,
+    const char *field_name,
+    int *out_value,
+    char *error_message,
+    size_t error_message_size)
+{
+    char text[TEXT_BUFFER_SIZE];
+    char *end;
+    long value;
+
+    GetWindowTextA(hwnd, text, sizeof(text));
+
+    errno = 0;
+    value = strtol(text, &end, 10);
+
+    while (*end != '\0' && isspace((unsigned char)*end))
+        end++;
+
+    if (text == end || errno != 0 || *end != '\0' ||
+        value < -2147483647L - 1L || value > 2147483647L)
+    {
+        snprintf(error_message, error_message_size, "Campo invalido: %s.", field_name);
+        return 0;
+    }
+
+    *out_value = (int)value;
+    return 1;
+}
+
+static int parse_uint_from_window(
+    HWND hwnd,
+    const char *field_name,
+    unsigned int *out_value,
+    char *error_message,
+    size_t error_message_size)
+{
+    char text[TEXT_BUFFER_SIZE];
+    char *end;
+    char *start;
+    unsigned long value;
+
+    GetWindowTextA(hwnd, text, sizeof(text));
+
+    start = text;
+    while (*start != '\0' && isspace((unsigned char)*start))
+        start++;
+
+    if (*start == '-' || *start == '+')
+    {
+        snprintf(error_message, error_message_size, "Campo invalido: %s.", field_name);
+        return 0;
+    }
+
+    errno = 0;
+    value = strtoul(text, &end, 10);
+
+    while (*end != '\0' && isspace((unsigned char)*end))
+        end++;
+
+    if (text == end || errno != 0 || *end != '\0' || value > 4294967295UL)
+    {
+        snprintf(error_message, error_message_size, "Campo invalido: %s.", field_name);
+        return 0;
+    }
+
+    *out_value = (unsigned int)value;
+    return 1;
+}
+
+static int parse_double_from_window(
+    HWND hwnd,
+    const char *field_name,
+    double *out_value,
+    char *error_message,
+    size_t error_message_size)
+{
+    char text[TEXT_BUFFER_SIZE];
+    char *end;
+    double value;
+
+    GetWindowTextA(hwnd, text, sizeof(text));
+
+    errno = 0;
+    value = strtod(text, &end);
+
+    while (*end != '\0' && isspace((unsigned char)*end))
+        end++;
+
+    if (text == end || errno != 0 || *end != '\0' || !isfinite(value))
+    {
+        snprintf(error_message, error_message_size, "Campo invalido: %s.", field_name);
+        return 0;
+    }
+
+    *out_value = value;
+    return 1;
+}
+
+static void set_window_double(HWND hwnd, double value)
+{
+    char text[TEXT_BUFFER_SIZE];
+    format_double_for_field(text, sizeof(text), value);
+    SetWindowTextA(hwnd, text);
+}
+
+static void update_options_enabled(void)
+{
+    int density_enabled = topology_uses_density(g_options.topology);
+    int seed_enabled = topology_uses_seed(g_options.topology);
+    int small_world_enabled =
+        topology_uses_small_world_options(g_options.topology);
+    int feedforward_enabled =
+        topology_uses_feedforward_options(g_options.topology);
+    int self_enabled =
+        topology_can_allow_self_connections(g_options.topology);
+    int inh_enabled = g_options.working_config.inhibitory_fraction > 0.0;
+
+    EnableWindow(g_options.allow_self_checkbox, self_enabled);
+    EnableWindow(g_options.allow_self_label, self_enabled);
+    EnableWindow(g_options.allow_inh_to_inh_checkbox, inh_enabled);
+    EnableWindow(g_options.allow_inh_to_inh_label, inh_enabled);
+    EnableWindow(g_options.density_edit, density_enabled);
+    EnableWindow(g_options.seed_edit, seed_enabled);
+    EnableWindow(g_options.delay_edit, TRUE);
+    EnableWindow(g_options.max_delay_edit, TRUE);
+    EnableWindow(g_options.small_neighbors_edit, small_world_enabled);
+    EnableWindow(g_options.small_rewire_edit, small_world_enabled);
+    EnableWindow(g_options.feedforward_layers_edit, feedforward_enabled);
+}
+
+static void options_to_controls(void)
+{
+    char text[TEXT_BUFFER_SIZE];
+
+    SendMessageA(
+        g_options.allow_self_checkbox,
+        BM_SETCHECK,
+        g_options.working_config.allow_self_connections ? BST_CHECKED : BST_UNCHECKED,
+        0);
+    SendMessageA(
+        g_options.allow_inh_to_inh_checkbox,
+        BM_SETCHECK,
+        g_options.working_config.allow_inh_to_inh ? BST_CHECKED : BST_UNCHECKED,
+        0);
+
+    set_window_double(
+        g_options.density_edit,
+        g_options.working_config.connection_probability);
+    snprintf(text, sizeof(text), "%u", g_options.working_config.seed);
+    SetWindowTextA(g_options.seed_edit, text);
+    snprintf(text, sizeof(text), "%d", g_options.working_config.delay);
+    SetWindowTextA(g_options.delay_edit, text);
+    snprintf(text, sizeof(text), "%d", g_options.working_config.max_synaptic_delay);
+    SetWindowTextA(g_options.max_delay_edit, text);
+    snprintf(text, sizeof(text), "%d", g_options.working_config.small_world_neighbors);
+    SetWindowTextA(g_options.small_neighbors_edit, text);
+    set_window_double(
+        g_options.small_rewire_edit,
+        g_options.working_config.small_world_rewire_probability);
+    snprintf(text, sizeof(text), "%d", g_options.working_config.feedforward_layers);
+    SetWindowTextA(g_options.feedforward_layers_edit, text);
+
+    update_options_enabled();
+}
+
+static int apply_topology_options(void)
+{
+    ScenarioConfig candidate = g_options.working_config;
+    char error[256];
+
+    candidate.allow_self_connections =
+        SendMessageA(g_options.allow_self_checkbox, BM_GETCHECK, 0, 0) == BST_CHECKED;
+    candidate.allow_inh_to_inh =
+        SendMessageA(g_options.allow_inh_to_inh_checkbox, BM_GETCHECK, 0, 0) == BST_CHECKED;
+
+    if (!parse_double_from_window(
+            g_options.density_edit,
+            "Densidade de conexao",
+            &candidate.connection_probability,
+            error,
+            sizeof(error)) ||
+        !parse_uint_from_window(
+            g_options.seed_edit,
+            "Seed",
+            &candidate.seed,
+            error,
+            sizeof(error)) ||
+        !parse_int_from_window(
+            g_options.delay_edit,
+            "Delay",
+            &candidate.delay,
+            error,
+            sizeof(error)) ||
+        !parse_int_from_window(
+            g_options.max_delay_edit,
+            "Delay maximo",
+            &candidate.max_synaptic_delay,
+            error,
+            sizeof(error)) ||
+        !parse_int_from_window(
+            g_options.small_neighbors_edit,
+            "Small-world: vizinhos locais",
+            &candidate.small_world_neighbors,
+            error,
+            sizeof(error)) ||
+        !parse_double_from_window(
+            g_options.small_rewire_edit,
+            "Small-world: probabilidade de reconexao",
+            &candidate.small_world_rewire_probability,
+            error,
+            sizeof(error)) ||
+        !parse_int_from_window(
+            g_options.feedforward_layers_edit,
+            "Feedforward: numero de camadas",
+            &candidate.feedforward_layers,
+            error,
+            sizeof(error)))
+    {
+        show_error("Opcoes invalidas", error);
+        return 0;
+    }
+
+    if (!scenario_config_validate(&candidate, error, sizeof(error)))
+    {
+        show_error("Opcoes invalidas", error);
+        return 0;
+    }
+
+    g_app.current_config = candidate;
+    config_to_controls(&g_app.current_config);
+    set_status("OPCOES DE TOPOLOGIA ATUALIZADAS");
+    g_options.applied = 1;
+    DestroyWindow(g_options.window);
+    return 1;
+}
+
+static LRESULT CALLBACK topology_options_proc(
+    HWND hwnd,
+    UINT message,
+    WPARAM wparam,
+    LPARAM lparam)
+{
+    (void)lparam;
+
+    switch (message)
+    {
+    case WM_CREATE:
+        g_options.window = hwnd;
+
+        create_static(hwnd, "OPCOES DA TOPOLOGIA", 22, 18, 360, 24, 0);
+        g_options.allow_self_checkbox = create_checkbox(
+            hwnd,
+            "",
+            IDC_OPT_ALLOW_SELF,
+            24,
+            54,
+            24,
+            24);
+        g_options.allow_self_label = create_static(
+            hwnd,
+            "Permitir auto-conexao",
+            56,
+            56,
+            260,
+            24,
+            0);
+        g_options.allow_inh_to_inh_checkbox = create_checkbox(
+            hwnd,
+            "",
+            IDC_OPT_ALLOW_INH_TO_INH,
+            24,
+            84,
+            24,
+            24);
+        g_options.allow_inh_to_inh_label = create_static(
+            hwnd,
+            "Permitir INH -> INH",
+            56,
+            86,
+            260,
+            24,
+            0);
+
+        create_static(hwnd, "Densidade de conexao", 24, 128, 260, 24, 0);
+        g_options.density_edit = create_edit(hwnd, IDC_OPT_DENSITY, 300, 124, 140, 28);
+        create_static(hwnd, "Seed", 24, 164, 260, 24, 0);
+        g_options.seed_edit = create_edit(hwnd, IDC_OPT_SEED, 300, 160, 140, 28);
+        create_static(hwnd, "Delay", 24, 200, 260, 24, 0);
+        g_options.delay_edit = create_edit(hwnd, IDC_OPT_DELAY, 300, 196, 140, 28);
+        create_static(hwnd, "Delay maximo", 24, 236, 260, 24, 0);
+        g_options.max_delay_edit = create_edit(hwnd, IDC_OPT_MAX_DELAY, 300, 232, 140, 28);
+
+        create_static(hwnd, "Small-world: vizinhos locais", 24, 280, 260, 24, 0);
+        g_options.small_neighbors_edit = create_edit(hwnd, IDC_OPT_SMALL_NEIGHBORS, 300, 276, 140, 28);
+        create_static(hwnd, "Small-world: probabilidade de reconexao", 24, 316, 270, 24, 0);
+        g_options.small_rewire_edit = create_edit(hwnd, IDC_OPT_SMALL_REWIRE, 300, 312, 140, 28);
+        create_static(hwnd, "Feedforward: numero de camadas", 24, 352, 260, 24, 0);
+        g_options.feedforward_layers_edit = create_edit(hwnd, IDC_OPT_FEEDFORWARD_LAYERS, 300, 348, 140, 28);
+
+        create_button(hwnd, "APLICAR", IDC_OPT_APPLY, 110, 400, 130, 36);
+        create_button(hwnd, "CANCELAR", IDC_OPT_CANCEL, 260, 400, 130, 36);
+
+        options_to_controls();
+        enable_dark_title_bar(hwnd);
+        return 0;
+
+    case WM_COMMAND:
+        if (HIWORD(wparam) == BN_CLICKED)
+        {
+            if (LOWORD(wparam) == IDC_OPT_APPLY)
+            {
+                apply_topology_options();
+                return 0;
+            }
+
+            if (LOWORD(wparam) == IDC_OPT_CANCEL)
+            {
+                DestroyWindow(hwnd);
+                return 0;
+            }
+        }
+        break;
+
+    case WM_CTLCOLORSTATIC:
+        return handle_color((HDC)wparam, (HWND)lparam);
+
+    case WM_CTLCOLOREDIT:
+        return handle_edit_color((HDC)wparam);
+
+    case WM_DRAWITEM:
+        draw_button((const DRAWITEMSTRUCT *)lparam);
+        return TRUE;
+
+    case WM_ERASEBKGND:
+    {
+        RECT rect;
+        GetClientRect(hwnd, &rect);
+        FillRect((HDC)wparam, &rect, g_app.background_brush);
+        return 1;
+    }
+
+    case WM_CLOSE:
+        DestroyWindow(hwnd);
+        return 0;
+
+    case WM_DESTROY:
+        g_options.window = NULL;
+        return 0;
+
+    default:
+        break;
+    }
+
+    return DefWindowProcA(hwnd, message, wparam, lparam);
+}
+
+static int ensure_options_class_registered(void)
+{
+    static int registered = 0;
+    WNDCLASSA window_class;
+
+    if (registered)
+        return 1;
+
+    memset(&window_class, 0, sizeof(window_class));
+    window_class.lpfnWndProc = topology_options_proc;
+    window_class.hInstance = GetModuleHandleA(NULL);
+    window_class.lpszClassName = "MiniSNNTopologyOptionsWindow";
+    window_class.hCursor = LoadCursor(NULL, IDC_ARROW);
+    window_class.hbrBackground = g_app.background_brush;
+
+    if (!RegisterClassA(&window_class))
+        return 0;
+
+    registered = 1;
+    return 1;
+}
+
+static void open_topology_options(void)
+{
+    ScenarioConfig config;
+    char error[256];
+    HWND dialog;
+    MSG message;
+
+    if (!controls_to_config(&config, error, sizeof(error)))
+    {
+        show_error("Configuracao invalida", error);
+        return;
+    }
+
+    if (!ensure_options_class_registered())
+    {
+        show_error("Erro interno", "Nao foi possivel criar a janela de opcoes.");
+        return;
+    }
+
+    memset(&g_options, 0, sizeof(g_options));
+    g_options.original_config = config;
+    g_options.working_config = config;
+    snprintf(g_options.topology, sizeof(g_options.topology), "%s", config.topology);
+
+    dialog = CreateWindowExA(
+        WS_EX_DLGMODALFRAME,
+        "MiniSNNTopologyOptionsWindow",
+        "OPCOES DA TOPOLOGIA",
+        WS_POPUP | WS_CAPTION | WS_SYSMENU,
+        CW_USEDEFAULT,
+        CW_USEDEFAULT,
+        500,
+        490,
+        g_app.window,
+        NULL,
+        GetModuleHandleA(NULL),
+        NULL);
+
+    if (dialog == NULL)
+    {
+        show_error("Erro interno", "Nao foi possivel abrir a janela de opcoes.");
+        return;
+    }
+
+    EnableWindow(g_app.window, FALSE);
+    ShowWindow(dialog, SW_SHOW);
+    UpdateWindow(dialog);
+
+    while (g_options.window != NULL && GetMessageA(&message, NULL, 0, 0) > 0)
+    {
+        if (!IsDialogMessageA(dialog, &message))
+        {
+            TranslateMessage(&message);
+            DispatchMessageA(&message);
+        }
+    }
+
+    EnableWindow(g_app.window, TRUE);
+    SetActiveWindow(g_app.window);
+}
+
 static void add_field(
     HWND parent,
     int id,
@@ -1775,8 +2316,19 @@ static void create_controls(HWND hwnd)
     SendMessageA(g_app.topology_combo, CB_ADDSTRING, 0, (LPARAM)"chain");
     SendMessageA(g_app.topology_combo, CB_ADDSTRING, 0, (LPARAM)"ring");
     SendMessageA(g_app.topology_combo, CB_ADDSTRING, 0, (LPARAM)"all_to_all");
+    SendMessageA(g_app.topology_combo, CB_ADDSTRING, 0, (LPARAM)"random");
     SendMessageA(g_app.topology_combo, CB_ADDSTRING, 0, (LPARAM)"random_balanced");
+    SendMessageA(g_app.topology_combo, CB_ADDSTRING, 0, (LPARAM)"small_world");
+    SendMessageA(g_app.topology_combo, CB_ADDSTRING, 0, (LPARAM)"feedforward");
     SendMessageA(g_app.topology_combo, CB_SETDROPPEDWIDTH, (WPARAM)topology_w, 0);
+    g_app.topology_options_button = create_button(
+        hwnd,
+        "OPCOES",
+        IDC_BTN_OPTIONS,
+        x1 + label_w + topology_w + STUDIO_BUTTON_GAP,
+        y + STUDIO_ROW_HEIGHT - 1,
+        STUDIO_TOPOLOGY_BUTTON_WIDTH,
+        STUDIO_FIELD_HEIGHT + 2);
     g_app.fields[g_app.field_count].control_hwnd = g_app.topology_combo;
     g_app.field_count++;
 
@@ -1785,7 +2337,7 @@ static void create_controls(HWND hwnd)
     add_field(hwnd, IDC_CONNECTION_PROBABILITY, "Densidade de conexao", x1, y + 4 * STUDIO_ROW_HEIGHT, label_w, control_w);
     create_static(
         hwnd,
-        "Usada apenas em random_balanced.",
+        "Usada em random, random_balanced e feedforward.",
         x1,
         y + 5 * STUDIO_ROW_HEIGHT - 9,
         STUDIO_LEFT_PANEL_RIGHT - STUDIO_LEFT_PANEL_LEFT - 20,
@@ -1949,9 +2501,12 @@ static void draw_button(const DRAWITEMSTRUCT *item)
 
 static LRESULT handle_color(HDC hdc, HWND hwnd)
 {
-    (void)hwnd;
     SetBkColor(hdc, g_app.background_color);
-    SetTextColor(hdc, g_app.text_color);
+    SetTextColor(
+        hdc,
+        hwnd != NULL && !IsWindowEnabled(hwnd) ?
+        g_app.disabled_text_color :
+        g_app.text_color);
     return (LRESULT)g_app.background_brush;
 }
 
@@ -2076,6 +2631,9 @@ static LRESULT CALLBACK window_proc(
                 return 0;
             case IDC_BTN_OPEN:
                 open_results();
+                return 0;
+            case IDC_BTN_OPTIONS:
+                open_topology_options();
                 return 0;
             default:
                 break;

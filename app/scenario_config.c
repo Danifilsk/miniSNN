@@ -17,6 +17,8 @@ typedef enum
     FIELD_SEED,
     FIELD_DELAY,
     FIELD_MAX_SYNAPTIC_DELAY,
+    FIELD_ALLOW_SELF_CONNECTIONS,
+    FIELD_ALLOW_INH_TO_INH,
     FIELD_EXCITATORY_WEIGHT,
     FIELD_INHIBITORY_WEIGHT,
     FIELD_SOURCE_COUNT,
@@ -29,6 +31,9 @@ typedef enum
     FIELD_V_THRESHOLD,
     FIELD_RESISTANCE,
     FIELD_SYNAPTIC_DECAY,
+    FIELD_SMALL_WORLD_NEIGHBORS,
+    FIELD_SMALL_WORLD_REWIRE_PROBABILITY,
+    FIELD_FEEDFORWARD_LAYERS,
     FIELD_RECORD_NEURON,
     FIELD_COUNT
 } ScenarioField;
@@ -49,6 +54,8 @@ static const KeyMap KEY_MAP[] =
     {"seed", FIELD_SEED},
     {"delay", FIELD_DELAY},
     {"max_synaptic_delay", FIELD_MAX_SYNAPTIC_DELAY},
+    {"allow_self_connections", FIELD_ALLOW_SELF_CONNECTIONS},
+    {"allow_inh_to_inh", FIELD_ALLOW_INH_TO_INH},
     {"excitatory_weight", FIELD_EXCITATORY_WEIGHT},
     {"inhibitory_weight", FIELD_INHIBITORY_WEIGHT},
     {"source_count", FIELD_SOURCE_COUNT},
@@ -61,6 +68,9 @@ static const KeyMap KEY_MAP[] =
     {"v_threshold", FIELD_V_THRESHOLD},
     {"resistance", FIELD_RESISTANCE},
     {"synaptic_decay", FIELD_SYNAPTIC_DECAY},
+    {"small_world_neighbors", FIELD_SMALL_WORLD_NEIGHBORS},
+    {"small_world_rewire_probability", FIELD_SMALL_WORLD_REWIRE_PROBABILITY},
+    {"feedforward_layers", FIELD_FEEDFORWARD_LAYERS},
     {"record_neuron", FIELD_RECORD_NEURON}
 };
 
@@ -219,6 +229,43 @@ static int parse_double_value(const char *text, double *out_value)
     return 1;
 }
 
+static int text_equals_ignore_case(const char *a, const char *b)
+{
+    while (*a != '\0' && *b != '\0')
+    {
+        if (tolower((unsigned char)*a) != tolower((unsigned char)*b))
+            return 0;
+
+        a++;
+        b++;
+    }
+
+    return *a == '\0' && *b == '\0';
+}
+
+static int parse_bool_value(const char *text, int *out_value)
+{
+    if (text_equals_ignore_case(text, "true") ||
+        text_equals_ignore_case(text, "yes") ||
+        text_equals_ignore_case(text, "sim") ||
+        strcmp(text, "1") == 0)
+    {
+        *out_value = 1;
+        return 1;
+    }
+
+    if (text_equals_ignore_case(text, "false") ||
+        text_equals_ignore_case(text, "no") ||
+        text_equals_ignore_case(text, "nao") ||
+        strcmp(text, "0") == 0)
+    {
+        *out_value = 0;
+        return 1;
+    }
+
+    return 0;
+}
+
 static int copy_string_value(
     char *destination,
     size_t destination_size,
@@ -242,6 +289,7 @@ static int assign_value(
     size_t error_message_size)
 {
     int int_value;
+    int bool_value;
     unsigned int uint_value;
     double double_value;
 
@@ -290,11 +338,32 @@ static int assign_value(
         config->seed = uint_value;
         return 1;
 
+    case FIELD_ALLOW_SELF_CONNECTIONS:
+    case FIELD_ALLOW_INH_TO_INH:
+        if (!parse_bool_value(value, &bool_value))
+        {
+            set_line_error(
+                error_message,
+                error_message_size,
+                line_number,
+                "valor booleano invalido");
+            return 0;
+        }
+
+        if (field == FIELD_ALLOW_SELF_CONNECTIONS)
+            config->allow_self_connections = bool_value;
+        else
+            config->allow_inh_to_inh = bool_value;
+
+        return 1;
+
     case FIELD_NEURONS:
     case FIELD_DELAY:
     case FIELD_MAX_SYNAPTIC_DELAY:
     case FIELD_SOURCE_COUNT:
     case FIELD_STEPS:
+    case FIELD_SMALL_WORLD_NEIGHBORS:
+    case FIELD_FEEDFORWARD_LAYERS:
     case FIELD_RECORD_NEURON:
         if (!parse_int_value(value, &int_value))
         {
@@ -316,6 +385,10 @@ static int assign_value(
             config->source_count = int_value;
         else if (field == FIELD_STEPS)
             config->steps = int_value;
+        else if (field == FIELD_SMALL_WORLD_NEIGHBORS)
+            config->small_world_neighbors = int_value;
+        else if (field == FIELD_FEEDFORWARD_LAYERS)
+            config->feedforward_layers = int_value;
         else
             config->record_neuron = int_value;
 
@@ -333,6 +406,7 @@ static int assign_value(
     case FIELD_V_THRESHOLD:
     case FIELD_RESISTANCE:
     case FIELD_SYNAPTIC_DECAY:
+    case FIELD_SMALL_WORLD_REWIRE_PROBABILITY:
         if (!parse_double_value(value, &double_value))
         {
             set_line_error(
@@ -365,8 +439,10 @@ static int assign_value(
             config->v_threshold = double_value;
         else if (field == FIELD_RESISTANCE)
             config->resistance = double_value;
-        else
+        else if (field == FIELD_SYNAPTIC_DECAY)
             config->synaptic_decay = double_value;
+        else
+            config->small_world_rewire_probability = double_value;
 
         return 1;
 
@@ -387,7 +463,10 @@ static int topology_is_supported(const char *topology)
     return strcmp(topology, "chain") == 0 ||
            strcmp(topology, "ring") == 0 ||
            strcmp(topology, "all_to_all") == 0 ||
-           strcmp(topology, "random_balanced") == 0;
+           strcmp(topology, "random") == 0 ||
+           strcmp(topology, "random_balanced") == 0 ||
+           strcmp(topology, "small_world") == 0 ||
+           strcmp(topology, "feedforward") == 0;
 }
 
 static int run_name_is_valid(const char *run_name)
@@ -424,6 +503,8 @@ void scenario_config_default(ScenarioConfig *config)
     config->seed = 1U;
     config->delay = 1;
     config->max_synaptic_delay = 8;
+    config->allow_self_connections = 0;
+    config->allow_inh_to_inh = 1;
 
     config->excitatory_weight = 200.0;
     config->inhibitory_weight = -400.0;
@@ -439,6 +520,9 @@ void scenario_config_default(ScenarioConfig *config)
     config->v_threshold = -50.0;
     config->resistance = 1.0;
     config->synaptic_decay = 0.95;
+    config->small_world_neighbors = 4;
+    config->small_world_rewire_probability = 0.10;
+    config->feedforward_layers = 3;
 
     config->record_neuron = 0;
 }
@@ -516,6 +600,40 @@ int scenario_config_validate(
         return 0;
     }
 
+    if ((config->allow_self_connections != 0 &&
+         config->allow_self_connections != 1) ||
+        (config->allow_inh_to_inh != 0 &&
+         config->allow_inh_to_inh != 1))
+    {
+        set_error(error_message, error_message_size, "opcoes booleanas invalidas");
+        return 0;
+    }
+
+    if (strcmp(config->topology, "small_world") == 0 &&
+        (config->small_world_neighbors <= 0 ||
+         config->small_world_neighbors >= config->neurons ||
+         (config->small_world_neighbors % 2) != 0))
+    {
+        set_error(error_message, error_message_size, "small_world_neighbors invalido");
+        return 0;
+    }
+
+    if (strcmp(config->topology, "small_world") == 0 &&
+        (config->small_world_rewire_probability < 0.0 ||
+         config->small_world_rewire_probability > 1.0))
+    {
+        set_error(error_message, error_message_size, "small_world_rewire_probability invalido");
+        return 0;
+    }
+
+    if (strcmp(config->topology, "feedforward") == 0 &&
+        (config->feedforward_layers < 2 ||
+         config->feedforward_layers > config->neurons))
+    {
+        set_error(error_message, error_message_size, "feedforward_layers invalido");
+        return 0;
+    }
+
     if (config->excitatory_weight <= 0.0)
     {
         set_error(error_message, error_message_size, "excitatory_weight deve ser positivo");
@@ -546,7 +664,8 @@ int scenario_config_validate(
         !isfinite(config->v_reset) ||
         !isfinite(config->v_threshold) ||
         !isfinite(config->resistance) ||
-        !isfinite(config->synaptic_decay))
+        !isfinite(config->synaptic_decay) ||
+        !isfinite(config->small_world_rewire_probability))
     {
         set_error(error_message, error_message_size, "valores numericos devem ser finitos");
         return 0;
@@ -740,6 +859,10 @@ int scenario_config_save_file(
             "delay = %d\n"
             "max_synaptic_delay = %d\n"
             "\n"
+            "[connectivity]\n"
+            "allow_self_connections = %s\n"
+            "allow_inh_to_inh = %s\n"
+            "\n"
             "[weights]\n"
             "excitatory_weight = %.17g\n"
             "inhibitory_weight = %.17g\n"
@@ -758,6 +881,11 @@ int scenario_config_save_file(
             "resistance = %.17g\n"
             "synaptic_decay = %.17g\n"
             "\n"
+            "[topology_options]\n"
+            "small_world_neighbors = %d\n"
+            "small_world_rewire_probability = %.17g\n"
+            "feedforward_layers = %d\n"
+            "\n"
             "[recording]\n"
             "record_neuron = %d\n",
             config->run_name,
@@ -768,6 +896,8 @@ int scenario_config_save_file(
             config->seed,
             config->delay,
             config->max_synaptic_delay,
+            config->allow_self_connections ? "true" : "false",
+            config->allow_inh_to_inh ? "true" : "false",
             config->excitatory_weight,
             config->inhibitory_weight,
             config->source_count,
@@ -780,6 +910,9 @@ int scenario_config_save_file(
             config->v_threshold,
             config->resistance,
             config->synaptic_decay,
+            config->small_world_neighbors,
+            config->small_world_rewire_probability,
+            config->feedforward_layers,
             config->record_neuron) < 0)
     {
         fclose(file);

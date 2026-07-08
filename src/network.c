@@ -260,20 +260,23 @@ int network_update(Network *net)
     return total_spikes;
 }
 
-int network_connect(Network *net, int source, int target, double weight)
-{
-    return network_connect_delayed(net, source, target, weight, 1);
-}
-
-int network_connect_delayed(
+static int network_connect_delayed_impl(
     Network *net,
     int source,
     int target,
     double weight,
-    int delay)
+    int delay,
+    int allow_self_connection)
 {
-    if (net == NULL || net->connections == NULL || net->size <= 0)
+    int max_connections;
+
+    if (net == NULL ||
+        net->connections == NULL ||
+        net->size <= 0 ||
+        net->max_synaptic_delay <= 0)
+    {
         return 0;
+    }
 
     if (source < 0 || source >= net->size ||
         target < 0 || target >= net->size)
@@ -281,16 +284,20 @@ int network_connect_delayed(
         return 0;
     }
 
-    if (source == target || !isfinite(weight))
+    if (!allow_self_connection && source == target)
+        return 0;
+
+    if (!isfinite(weight))
         return 0;
 
     if (delay < 1 || delay > net->max_synaptic_delay)
         return 0;
 
     ConnectionList *connections = &net->connections[source];
+    max_connections = net->size;
 
     if (connections->count < 0 ||
-        connections->count >= net->size - 1)
+        connections->count >= max_connections)
     {
         return 0;
     }
@@ -320,6 +327,60 @@ int network_connect_delayed(
     connections->count = new_count;
 
     return 1;
+}
+
+int network_connect(Network *net, int source, int target, double weight)
+{
+    return network_connect_ex(net, source, target, weight, 0);
+}
+
+int network_connect_ex(
+    Network *net,
+    int source,
+    int target,
+    double weight,
+    int allow_self_connection)
+{
+    return network_connect_delayed_ex(
+        net,
+        source,
+        target,
+        weight,
+        1,
+        allow_self_connection);
+}
+
+int network_connect_delayed(
+    Network *net,
+    int source,
+    int target,
+    double weight,
+    int delay)
+{
+    return network_connect_delayed_ex(
+        net,
+        source,
+        target,
+        weight,
+        delay,
+        0);
+}
+
+int network_connect_delayed_ex(
+    Network *net,
+    int source,
+    int target,
+    double weight,
+    int delay,
+    int allow_self_connection)
+{
+    return network_connect_delayed_impl(
+        net,
+        source,
+        target,
+        weight,
+        delay,
+        allow_self_connection);
 }
 
 int network_set_neuron_type(
