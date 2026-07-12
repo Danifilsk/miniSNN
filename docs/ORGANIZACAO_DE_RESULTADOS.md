@@ -1,4 +1,6 @@
-# Organizacao de Resultados da miniSNN
+# Organização de resultados da miniSNN
+
+[Voltar ao índice da documentação](INDICE_DA_DOCUMENTACAO.md)
 
 Este guia explica onde a miniSNN grava resultados locais e como evitar
 sobrescrita acidental.

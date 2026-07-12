@@ -1,4 +1,9 @@
-# Guia de Diagnostico da miniSNN
+# Guia de diagnóstico da miniSNN
+
+[Voltar ao índice da documentação](INDICE_DA_DOCUMENTACAO.md)
+
+As contagens são métricas diretas; estatísticas são derivadas; regimes,
+sincronia aproximada e stability score são **HEURÍSTICOS**.
 
 ## 1. Niveis
 

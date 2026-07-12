@@ -1,4 +1,6 @@
-# Guia de Cenarios da miniSNN
+# Guia de cenários da miniSNN
+
+[Voltar ao índice da documentação](INDICE_DA_DOCUMENTACAO.md)
 
 ## 1. O que sao cenarios
 
@@ -46,7 +48,7 @@ mostra erro com numero de linha.
 
 | Chave | Descricao |
 | --- | --- |
-| `run_name` | Nome da execucao e da pasta em `results/scenarios/` |
+| `run_name` | Nome solicitado; a pasta efetiva usa `actual_run_name` |
 | `topology` | Topologia da rede |
 | `neurons` | Numero total de neuronios |
 | `inhibitory_fraction` | Fracao de neuronios inibitorios |
@@ -227,6 +229,26 @@ results/scenarios/index.csv
 No Studio, nome unico fica ativo automaticamente para evitar sobrescrita
 acidental.
 
+## 7.2. Diagnóstico
+
+A seção opcional `[diagnostics]` controla profundidade e amostragem:
+
+```ini
+[diagnostics]
+level = basic
+time_bin_steps = 10
+burst_z_threshold = 2.0
+min_burst_steps = 1
+isi_min_spikes = 4
+correlation_sample_size = 128
+neuron_sample_limit = 1000
+sample_stride = 1
+```
+
+`off` preserva o fluxo histórico; `basic` gera métricas essenciais; `full`
+adiciona análises mais caras e amostradas. Consulte o
+[Guia de diagnóstico](GUIA_DE_DIAGNOSTICO.md).
+
 ### Atalhos de topologia
 
 ```powershell
@@ -314,7 +336,7 @@ steps = 2000
 Depois de executar um cenario:
 
 ```powershell
-& "C:\Users\danif\AppData\Local\Python\pythoncore-3.14-64\python.exe" scripts/plot_scenario.py results/scenarios/random_balanced_demo
+python scripts/plot_scenario.py results/scenarios/random_balanced_demo
 ```
 
 O script cria na mesma pasta:
@@ -330,7 +352,7 @@ raster.png
 Todo cenario tambem grava o neuronio escolhido em `record_neuron`:
 
 ```text
-results/scenarios/<run_name>/neuron_<id>.csv
+results/scenarios/<actual_run_name>/neuron_<id>.csv
 ```
 
 O arquivo possui:
@@ -350,7 +372,7 @@ Significado basico:
 Para gerar o PNG individual:
 
 ```powershell
-python scripts/plot_neuron.py results/scenarios/<run_name> <neuron_id>
+python scripts/plot_neuron.py results/scenarios/<actual_run_name> <neuron_id>
 ```
 
 Saida:

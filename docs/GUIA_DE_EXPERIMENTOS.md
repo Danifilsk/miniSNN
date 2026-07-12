@@ -1,4 +1,9 @@
-# Guia de Experimentos da miniSNN
+# Guia de experimentos da miniSNN
+
+[Voltar ao índice da documentação](INDICE_DA_DOCUMENTACAO.md)
+
+Os programas desta pasta são **EXPERIMENTAIS**. Eles geram evidência
+reproduzível, mas não estabelecem causalidade biológica por si só.
 
 ## Regra principal
 
@@ -126,7 +131,7 @@ Execute:
 ```powershell
 mingw32-make inh-to-inh
 
-& "C:\Users\danif\AppData\Local\Python\pythoncore-3.14-64\python.exe" scripts/plot_inh_to_inh_comparison.py
+python scripts/plot_inh_to_inh_comparison.py
 ```
 
 Arquivos gerados:
@@ -193,7 +198,7 @@ Arquivos principais:
 Padrao de compilacao manual:
 
 ```powershell
-gcc -std=c11 -Wall -Wextra -pedantic -fanalyzer experiments/NOME_DO_ARQUIVO.c src/neuron.c src/network.c src/stimulus.c src/recorder.c -Iinclude -Isrc -o build/NOME_DO_EXECUTAVEL.exe
+gcc -std=c11 -Wall -Wextra -pedantic -fanalyzer experiments/example_inhibition_sweep.c src/neuron.c src/network.c src/stimulus.c src/recorder.c -Iinclude -Isrc -o build/example_inhibition_sweep.exe
 .\build\NOME_DO_EXECUTAVEL.exe
 ```
 
@@ -255,7 +260,7 @@ Esses arquivos possuem cabecalhos descritivos. Leia campos como
 Para o experimento EI balance:
 
 ```powershell
-& "C:\Users\danif\AppData\Local\Python\pythoncore-3.14-64\python.exe" scripts/plot_ei_balance.py
+python scripts/plot_ei_balance.py
 ```
 
 Esse script espera CSVs em `results/experiments/ei_balance/` e produz:
@@ -269,7 +274,7 @@ ei_compare_population_spikes.png
 Para a comparacao INH -> INH:
 
 ```powershell
-& "C:\Users\danif\AppData\Local\Python\pythoncore-3.14-64\python.exe" scripts/plot_inh_to_inh_comparison.py
+python scripts/plot_inh_to_inh_comparison.py
 ```
 
 Esse script espera CSVs em `results/experiments/inh_to_inh/` e produz:

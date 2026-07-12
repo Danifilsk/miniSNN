@@ -1,4 +1,14 @@
-# Guia de Metricas da miniSNN
+# Guia de métricas da miniSNN
+
+[Voltar ao índice da documentação](INDICE_DA_DOCUMENTACAO.md)
+
+## Natureza das métricas
+
+- **Diretas:** contagens e valores lidos dos CSVs, como spikes e tensão.
+- **Derivadas:** médias, variâncias, frações, Gini, entropia, ISI e Fano.
+- **Heurísticas:** classificação de regime, sincronia aproximada e stability score.
+
+Nenhuma métrica isolada mede “qualidade” da rede ou prova interpretação biológica.
 
 As definicoes canonicas, formulas e nomes com prefixos estao em
 `docs/GUIA_DE_DIAGNOSTICO.md`. `metrics.csv` e a fonte preferencial para runs
@@ -142,3 +152,17 @@ max_spikes_per_step / total_spikes
 
 Ela indica concentracao temporal dos spikes, mas nao substitui uma analise
 completa de sincronia neural.
+
+## Como interpretar sem prometer demais
+
+- `activity_total_spikes` alto indica muita atividade acumulada, não qualidade.
+- `activity_fraction` baixa indica atividade concentrada em poucos timesteps.
+- `silence_fraction` alta indica muitos passos sem spikes.
+- Gini alto sugere concentração em poucos neurônios.
+- Entropia normalizada alta sugere distribuição mais uniforme.
+- Fano relaciona variância e média sob a série ou janela utilizada.
+- `activity_synchrony_proxy` é concentração temporal aproximada.
+- `diagnostic_stability_score` é um índice interno heurístico, não medida universal.
+
+As classes de regime e seus thresholds estão no
+[Guia de diagnóstico](GUIA_DE_DIAGNOSTICO.md).

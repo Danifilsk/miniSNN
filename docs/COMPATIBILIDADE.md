@@ -1,0 +1,65 @@
+# Compatibilidade
+
+## Configs
+
+O parser começa com defaults e substitui apenas chaves presentes.
+
+- Configs antigas sem `[output]` continuam válidas: `auto_unique_run = false` e `history_enabled = true`.
+- Configs antigas sem `[diagnostics]` carregam `level = off`.
+- Um cenário novo criado pelo Studio parte de `level = basic`.
+- Seções são organizacionais; as chaves reconhecidas são validadas globalmente.
+- Chaves desconhecidas ou duplicadas geram erro com número da linha.
+
+Chaves acrescentadas ao formato atual:
+
+```ini
+[output]
+auto_unique_run = false
+history_enabled = true
+
+[diagnostics]
+level = off
+time_bin_steps = 10
+burst_z_threshold = 2.0
+min_burst_steps = 1
+isi_min_spikes = 4
+correlation_sample_size = 128
+neuron_sample_limit = 1000
+sample_stride = 1
+```
+
+Valores de `level`: `off`, `basic` e `full`.
+
+## Outputs
+
+- **Base histórica:** `summary.txt`, `population.csv`, `raster.csv`, `neuron_<id>.csv` e `config_used.ini`.
+- **Neurônio detalhado (A2):** gráfico individual opcional `neuron_<id>_detail.png`.
+- **Comparação (A3):** pasta em `results/comparisons/` com resumo, relatório e gráficos.
+- **Organização (A4):** `actual_run_name`, nomes únicos e arquivos `index.csv`.
+- **Diagnóstico (A5):** manifesto, `metrics.csv`, relatório e gráficos `diagnostics_*`.
+
+Runs antigas sem `metrics.csv` continuam comparáveis por fallback quando os CSVs
+necessários existem. Dados ausentes resultam em aviso ou `NA`, não em valores inventados.
+
+## API pública
+
+A API atual está em `include/minisnn.h` e usa o tipo opaco `MiniSNN`. As funções
+`minisnn_connect_ex()` e `minisnn_connect_delayed_ex()` acrescentam controle
+explícito de auto-conexão. As funções sem `_ex` continuam rejeitando self-loop.
+
+Não há ainda política de versionamento semântico formal. Mudanças futuras devem
+ser documentadas e funções públicas devem ser deprecadas antes de remoção.
+
+## Plataforma
+
+- O Studio é Win32.
+- O build principal é Windows/MSYS2 com GCC/MinGW e `mingw32-make`.
+- Scripts de análise usam Python; alguns exigem pandas e matplotlib.
+- O Core em C pode ser portável, mas outros sistemas não fazem parte da validação atual.
+
+## Resultados científicos
+
+Mudanças futuras na dinâmica, fórmulas, topologias ou semântica dos CSVs devem
+receber nota de compatibilidade e, quando necessário, identificação de nova
+versão. Resultados antigos devem manter config, seed, commit e manifesto sempre
+que disponíveis.

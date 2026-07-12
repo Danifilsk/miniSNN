@@ -1,6 +1,11 @@
-# MiniSNN API Reference
+# Referência da API pública miniSNN
 
-Esta referencia descreve a API publica atual de `minisnn.h`.
+[Voltar ao índice da documentação](docs/INDICE_DA_DOCUMENTACAO.md)
+
+**Status:** implementado. A fonte de verdade das assinaturas é
+`include/minisnn.h`; este documento foi conferido com o header atual no A6.
+
+Esta referência descreve a API pública atual de `minisnn.h`.
 
 `MiniSNN` e um tipo opaco. O usuario cria, usa e destroi redes por funcoes
 publicas, sem acessar campos internos.

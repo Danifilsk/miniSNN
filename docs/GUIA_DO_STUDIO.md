@@ -1,5 +1,7 @@
 # Guia do miniSNN Studio
 
+[Voltar ao índice da documentação](INDICE_DA_DOCUMENTACAO.md)
+
 ## 1. O que e o miniSNN Studio
 
 O miniSNN Studio e a primeira interface grafica da miniSNN para Windows. Ele
@@ -31,7 +33,7 @@ partir de `build/`.
 
 ## 4. Como criar um cenario novo
 
-Clique em `Novo padrao`. Os campos recebem uma configuracao pequena e segura:
+Clique em `NOVO PADRAO`. Os campos recebem uma configuração pequena e segura:
 rede `random_balanced`, 20 neuronios, 20% inibitorios, pesos EXC/INH e entrada
 nos primeiros neuronios.
 
@@ -39,7 +41,7 @@ Altere os campos desejados e rode a simulacao.
 
 ## 5. Como carregar um .ini existente
 
-Clique em `Carregar cenario` e escolha um arquivo em `configs/`. O Studio usa o
+Clique em `CARREGAR CENARIO` e escolha um arquivo em `configs/`. O Studio usa o
 mesmo parser do runner de terminal, entao chaves desconhecidas, duplicadas ou
 valores invalidos sao rejeitados.
 
@@ -92,14 +94,14 @@ Clique em `APLICAR` para validar e atualizar o cenario em tela. Clique em
 
 ## 6. Como salvar um cenario
 
-Clique em `Salvar cenario`. O Studio valida todos os campos e grava um `.ini`
+Clique em `SALVAR CENARIO`. O Studio valida todos os campos e grava um `.ini`
 compativel com `app/minisnn_runner.c`.
 
 Use nomes de execucao diferentes quando quiser preservar resultados antigos.
 
 ## 7. Como rodar uma simulacao
 
-Clique em `Rodar simulacao`. O Studio cria:
+Clique em `RODAR SIMULACAO`. O Studio cria:
 
 ```text
 results/scenarios/<actual_run_name>/
@@ -116,7 +118,11 @@ summary.txt
 population.csv
 raster.csv
 neuron_<id>.csv
+run_manifest.txt
 ```
+
+Com diagnóstico `basic` ou `full`, o runner também cria `metrics.csv`. Relatório
+e gráficos diagnósticos são produzidos por `GERAR DIAGNOSTICO`.
 
 O painel da direita mostra conexoes, spikes totais, spikes EXC/INH e timesteps
 ativos.
@@ -125,7 +131,7 @@ O campo `Neuronio detalhado` define qual neuronio tera um CSV individual salvo
 como:
 
 ```text
-results/scenarios/<run_name>/neuron_<id>.csv
+results/scenarios/<actual_run_name>/neuron_<id>.csv
 ```
 
 Esse CSV contem:
@@ -134,8 +140,8 @@ Esse CSV contem:
 tempo,V,spike,corrente_externa,corrente_sinaptica
 ```
 
-Use `CSV NEURONIO` para abrir esse arquivo depois da simulacao. Use `GRAFICO
-NEURONIO` para gerar:
+Use `CSV NEURONIO` para abrir esse arquivo depois da simulação. Use
+`GRAFICO NEURONIO` para gerar:
 
 ```text
 neuron_<id>_detail.png
@@ -147,7 +153,7 @@ padrao do Windows.
 
 ## 8. Como gerar graficos
 
-Depois de uma simulacao, clique em `Gerar graficos`.
+Depois de uma simulação, clique em `GERAR GRAFICOS`.
 
 O Studio procura Python automaticamente. A busca considera:
 
@@ -180,7 +186,7 @@ raster.png
 Para gerar manualmente o grafico de um unico neuronio:
 
 ```powershell
-python scripts/plot_neuron.py results/scenarios/<run_name> <neuron_id>
+python scripts/plot_neuron.py results/scenarios/<actual_run_name> <neuron_id>
 ```
 
 Se o Studio nao encontrar Python valido, ele mostra uma mensagem curta pedindo
@@ -234,8 +240,9 @@ Se o usuario cancelar a selecao de pasta, o Studio apenas cancela a operacao.
 
 ## 11. Como evitar sobrescrever uma execucao anterior
 
-Os resultados sao gravados em modo de escrita. Rodar novamente o mesmo
-`run_name` substitui os arquivos daquela pasta.
+Os resultados são gravados em modo de escrita. No runner de terminal, uma pasta
+pode ser reutilizada quando `auto_unique_run = false`. O Studio força nome único
+e preserva a pasta anterior.
 
 Para comparar testes:
 

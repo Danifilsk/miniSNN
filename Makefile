@@ -12,7 +12,7 @@ SCENARIO ?= configs/random_balanced.ini
 PYTHON ?= python
 
 .PHONY: all help clean test test-api test-core test-lif test-scenario test-runner \
-	test-plot-neuron test-compare-runs test-diagnostics \
+	test-plot-neuron test-compare-runs test-diagnostics test-docs \
 	api-examples api-single api-chain api-exc-inh \
 	demo ei-balance inhibition-fine inh-to-inh sparse-ei scenario \
 	scenario-random scenario-small-world scenario-feedforward \
@@ -31,6 +31,7 @@ help:
 	@echo   make test-plot-neuron  - teste Python do grafico de neuronio
 	@echo   make test-compare-runs - teste Python da comparacao de execucoes
 	@echo   make test-diagnostics  - teste Python dos diagnosticos basic/full
+	@echo   make test-docs         - valida links e referencias da documentacao
 	@echo   make api-examples      - executa os exemplos publicos da API
 	@echo   make demo              - executa o demo interno
 	@echo   make scenario          - executa um cenario .ini com SCENARIO=configs/arquivo.ini
@@ -87,6 +88,9 @@ test-compare-runs: | $(BUILD_DIR)
 
 test-diagnostics: | $(BUILD_DIR)
 	$(PYTHON) tests/test_analyze_run.py
+
+test-docs: | $(BUILD_DIR)
+	$(PYTHON) tests/test_docs.py
 
 test: test-api test-core test-lif test-scenario test-runner
 

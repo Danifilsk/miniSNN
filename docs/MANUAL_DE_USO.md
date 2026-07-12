@@ -1,4 +1,6 @@
-# Manual de Uso da miniSNN
+# Manual de uso da miniSNN
+
+[Voltar ao índice da documentação](INDICE_DA_DOCUMENTACAO.md)
 
 ## O que e a miniSNN
 
@@ -30,13 +32,13 @@ Verifique o ambiente:
 ```powershell
 gcc --version
 mingw32-make --version
-& "C:\Users\danif\AppData\Local\Python\pythoncore-3.14-64\python.exe" --version
+python --version
 ```
 
 Se as bibliotecas Python nao estiverem instaladas:
 
 ```powershell
-& "C:\Users\danif\AppData\Local\Python\pythoncore-3.14-64\python.exe" -m pip install pandas matplotlib
+python -m pip install pandas matplotlib
 ```
 
 No ambiente Windows atual do projeto, o comando disponivel e:
@@ -130,12 +132,13 @@ antes de limpar manualmente.
 | `mingw32-make test-runner` | Testa o executor de cenarios | `Scenario runner validation OK` |
 | `mingw32-make test-compare-runs` | Testa comparacao de execucoes | `Run comparison validation OK` |
 | `mingw32-make test-diagnostics` | Testa diagnosticos basic/full | `Run diagnostics validation OK` |
+| `mingw32-make test-docs` | Valida links e referências documentais | `Documentation validation OK` |
 | `mingw32-make api-examples` | Executa os tres exemplos publicos | CSVs em `results/api/` |
 | `mingw32-make api-single` | Exemplo de um neuronio | `api_single_neuron.csv` |
 | `mingw32-make api-chain` | Exemplo de cadeia | `api_chain_spikes.csv` |
 | `mingw32-make api-exc-inh` | Exemplo EXC vs EXC/INH pela API | CSVs do alvo em `results/api/` |
 | `mingw32-make demo` | Executa demo interno | CSVs em `results/internal_demo/` |
-| `mingw32-make scenario` | Executa o cenario padrao | Resultados em `results/scenarios/<run_name>/` |
+| `mingw32-make scenario` | Executa o cenario padrao | Resultados em `results/scenarios/<actual_run_name>/` |
 | `mingw32-make scenario-random` | Executa `configs/random.ini` | Cenario aleatorio simples |
 | `mingw32-make scenario-small-world` | Executa `configs/small_world.ini` | Cenario small-world |
 | `mingw32-make scenario-feedforward` | Executa `configs/feedforward.ini` | Cenario em camadas |
@@ -219,12 +222,12 @@ executar a simulacao, gerar graficos e abrir a pasta de resultados. A pasta
 pois os arquivos `.ini` deixam os parametros explicitos.
 
 O campo `Neuronio detalhado` escolhe o neuronio salvo em
-`results/scenarios/<run_name>/neuron_<id>.csv`. Depois de rodar a simulacao, o
+`results/scenarios/<actual_run_name>/neuron_<id>.csv`. Depois de rodar a simulacao, o
 Studio pode abrir esse CSV e gerar `neuron_<id>_detail.png`, com potencial de
 membrana, spikes, corrente externa e corrente sinaptica. Pelo terminal:
 
 ```powershell
-python scripts/plot_neuron.py results/scenarios/<run_name> <neuron_id>
+python scripts/plot_neuron.py results/scenarios/<actual_run_name> <neuron_id>
 ```
 
 Para comparar duas execucoes pelo terminal:
@@ -321,7 +324,7 @@ Se falhar, instale GCC via MSYS2/MinGW ou ajuste o PATH.
 Instale as bibliotecas no Python usado pelos scripts:
 
 ```powershell
-& "C:\Users\danif\AppData\Local\Python\pythoncore-3.14-64\python.exe" -m pip install pandas matplotlib
+python -m pip install pandas matplotlib
 ```
 
 O Studio valida automaticamente o interpretador antes de gerar graficos. Python
