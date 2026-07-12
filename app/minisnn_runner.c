@@ -1,4 +1,5 @@
 #include <stdio.h>
+#include <string.h>
 
 #include "scenario_config.h"
 #include "scenario_runner.h"
@@ -10,7 +11,10 @@ static void print_usage(const char *program_name)
     printf("- chain\n");
     printf("- ring\n");
     printf("- all_to_all\n");
+    printf("- random\n");
     printf("- random_balanced\n");
+    printf("- small_world\n");
+    printf("- feedforward\n");
 }
 
 static void print_summary(
@@ -19,6 +23,7 @@ static void print_summary(
 {
     printf("=== miniSNN scenario ===\n");
     printf("run_name: %s\n", config->run_name);
+    printf("actual_run_name: %s\n", result->actual_run_name);
     printf("topology: %s\n", config->topology);
     printf("neurons: %d\n", config->neurons);
     printf("inhibitory_count: %d\n", result->inhibitory_count);
@@ -31,6 +36,7 @@ static void print_summary(
     printf("spikes_inh: %d\n", result->spikes_inh);
     printf("first_active_step: %d\n", result->first_active_step);
     printf("last_active_step: %d\n", result->last_active_step);
+    printf("diagnostics_level: %s\n", config->diagnostics_level);
 }
 
 int main(int argc, char **argv)
@@ -55,8 +61,16 @@ int main(int argc, char **argv)
         return 1;
     }
 
-    printf("Aviso: executar novamente o run_name '%s' sobrescreve resultados anteriores.\n",
-           scenario.run_name);
+    if (scenario.auto_unique_run)
+    {
+        printf("Aviso: auto_unique_run ativo; se '%s' ja existir, uma pasta unica sera criada.\n",
+               scenario.run_name);
+    }
+    else
+    {
+        printf("Aviso: executar novamente o run_name '%s' sobrescreve resultados anteriores.\n",
+               scenario.run_name);
+    }
 
     if (!scenario_runner_execute(
             &scenario,
@@ -78,6 +92,10 @@ int main(int argc, char **argv)
     printf("- %s/neuron_%d.csv\n",
            result.output_directory,
            scenario.record_neuron);
+    printf("- %s/run_manifest.txt\n", result.output_directory);
+
+    if (strcmp(scenario.diagnostics_level, "off") != 0)
+        printf("- %s/metrics.csv\n", result.output_directory);
 
     return 0;
 }

@@ -35,6 +35,7 @@ results/api/               resultados dos exemplos publicos
 results/internal_demo/     saida do demo interno
 results/experiments/       resultados dos experimentos
 results/scenarios/         resultados locais dos cenarios
+results/comparisons/       comparacoes locais de execucoes
 ```
 
 ## Compilacao rapida com Makefile
@@ -81,6 +82,10 @@ Os resultados ficam em:
 results/scenarios/<run_name>/
 ```
 
+Quando `auto_unique_run = true`, o runner cria uma pasta unica se o `run_name`
+ja existir. O historico local de execucoes fica em
+`results/scenarios/index.csv`.
+
 Cada cenario tambem grava `neuron_<id>.csv` para o neuronio detalhado. O grafico
 individual pode ser gerado com:
 
@@ -94,7 +99,9 @@ Para comparar duas ou mais execucoes:
 python scripts/compare_runs.py results/scenarios/random_demo results/scenarios/small_world_demo --out-name random_vs_small_world
 ```
 
-As comparacoes ficam em `results/comparisons/<comparison_name>/`.
+As comparacoes ficam em `results/comparisons/<comparison_name>/`. Se o nome ja
+existir, `scripts/compare_runs.py` cria uma pasta unica por padrao e registra
+`results/comparisons/index.csv`.
 
 ## miniSNN Studio
 
@@ -117,6 +124,23 @@ conectividade, seed, delays e opcoes especificas de `small_world` e
 `source -> target` como candidato: `all_to_all`, `random`, `random_balanced` e
 `small_world`. Em `chain`, `ring` e `feedforward`, ela fica desabilitada.
 
+O Studio evita sobrescrita automaticamente ao rodar simulacoes. Use `ABRIR
+RESULTADOS` para abrir `results/`, `ABRIR ULTIMA` para abrir a pasta real da
+ultima execucao e `ABRIR HISTORICO` para abrir `results/scenarios/index.csv`.
+
+## Diagnostico da rede
+
+Os cenarios aceitam diagnostico `off`, `basic` ou `full`. Para analisar uma run:
+
+```powershell
+python scripts/analyze_run.py results/scenarios/random_demo --level basic
+python scripts/analyze_run.py results/scenarios/random_demo --level full
+```
+
+O resultado inclui `metrics.csv`, relatorio em portugues e graficos. Consulte
+[docs/GUIA_DE_DIAGNOSTICO.md](docs/GUIA_DE_DIAGNOSTICO.md) para formulas,
+thresholds, custo e limitacoes das heuristicas.
+
 Na API publica, `minisnn_connect()` e `minisnn_connect_delayed()` preservam o
 comportamento antigo e rejeitam auto-conexoes. Para permitir `source == target`
 explicitamente, use `minisnn_connect_delayed_ex()`.
@@ -134,6 +158,8 @@ jogos, caches ou runtimes internos.
 - `docs/GUIA_DE_CENARIOS.md`: como executar simulacoes editando arquivos `.ini`.
 - `docs/GUIA_DO_STUDIO.md`: como usar a interface grafica inicial.
 - `docs/GUIA_DE_METRICAS.md`: metricas geradas na comparacao de execucoes.
+- `docs/GUIA_DE_DIAGNOSTICO.md`: niveis, formulas, classificacao e limitacoes.
+- `docs/ORGANIZACAO_DE_RESULTADOS.md`: nomes unicos, historicos e limpeza segura.
 - `API_REFERENCE.md`: referencia da API publica em `include/minisnn.h`.
 
 ## Compilacao manual com GCC (referencia)

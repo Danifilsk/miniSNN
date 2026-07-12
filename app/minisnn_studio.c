@@ -19,7 +19,7 @@
 #define PYTHON_COMMAND_BUFFER_SIZE 2400
 #define PYTHON_MESSAGE_BUFFER_SIZE 6000
 #define STUDIO_FIELD_COUNT 21
-#define STUDIO_BUTTON_COUNT 11
+#define STUDIO_BUTTON_COUNT 16
 
 #define STUDIO_MIN_CLIENT_WIDTH 1320
 #define STUDIO_MIN_CLIENT_HEIGHT 760
@@ -75,6 +75,7 @@
 #define IDC_V_THRESHOLD 1019
 #define IDC_RESISTANCE 1020
 #define IDC_SYNAPTIC_DECAY 1021
+#define IDC_DIAGNOSTICS_LEVEL 1022
 
 #define IDC_BTN_NEW 2001
 #define IDC_BTN_LOAD 2002
@@ -88,6 +89,11 @@
 #define IDC_BTN_OPEN_NEURON_PNG 2010
 #define IDC_BTN_COMPARE_RUNS 2011
 #define IDC_BTN_OPEN_COMPARISON 2012
+#define IDC_BTN_OPEN_RESULTS_ROOT 2013
+#define IDC_BTN_OPEN_HISTORY 2014
+#define IDC_BTN_GENERATE_DIAGNOSTICS 2015
+#define IDC_BTN_OPEN_METRICS 2016
+#define IDC_BTN_OPEN_DIAGNOSTICS 2017
 
 #define IDC_STATUS 3001
 #define IDC_SUMMARY 3002
@@ -142,10 +148,12 @@ typedef struct
     int field_count;
 
     HWND topology_combo;
+    HWND diagnostics_combo;
     HWND topology_options_button;
     HWND status_label;
     HWND summary_box;
     HWND execution_section_label;
+    HWND diagnostics_label;
     HWND buttons[STUDIO_BUTTON_COUNT];
 
     ScenarioConfig current_config;
@@ -1246,6 +1254,11 @@ static void config_to_controls(const ScenarioConfig *config)
     set_edit_double(IDC_V_THRESHOLD, config->v_threshold);
     set_edit_double(IDC_RESISTANCE, config->resistance);
     set_edit_double(IDC_SYNAPTIC_DECAY, config->synaptic_decay);
+    SendMessageA(
+        g_app.diagnostics_combo,
+        CB_SELECTSTRING,
+        (WPARAM)-1,
+        (LPARAM)config->diagnostics_level);
 
     update_density_enabled();
 }
@@ -1268,6 +1281,11 @@ static int controls_to_config(
         g_app.topology_combo,
         config->topology,
         sizeof(config->topology));
+
+    GetWindowTextA(
+        g_app.diagnostics_combo,
+        config->diagnostics_level,
+        sizeof(config->diagnostics_level));
 
     if (!parse_int_field(IDC_NEURONS, "Neuronios", &config->neurons, error_message, error_message_size) ||
         !parse_double_field(IDC_INHIBITORY_PERCENT, "Proporcao inibitoria (%)", &inhibitory_percent, error_message, error_message_size) ||
@@ -1318,6 +1336,7 @@ static void update_summary(
         "STATUS: SIMULACAO CONCLUIDA\r\n"
         "\r\n"
         "Nome da execucao: %s\r\n"
+        "Pasta real: %s\r\n"
         "Topologia: %s\r\n"
         "Numero de neuronios: %d\r\n"
         "Numero de conexoes: %d\r\n"
@@ -1329,6 +1348,7 @@ static void update_summary(
         "Ultimo timestep ativo: %d\r\n"
         "Pasta de saida:\r\n%s\r\n",
         config->run_name,
+        result->actual_run_name,
         config->topology,
         config->neurons,
         result->connection_count,
@@ -1347,12 +1367,17 @@ static void set_result_buttons_enabled(BOOL enabled)
 {
     for (int i = 4; i <= 8; i++)
         EnableWindow(g_app.buttons[i], enabled);
+
+    for (int i = 13; i <= 15; i++)
+        EnableWindow(g_app.buttons[i], enabled);
 }
 
 static void set_comparison_buttons_enabled(void)
 {
     EnableWindow(g_app.buttons[9], TRUE);
-    EnableWindow(g_app.buttons[10], g_app.has_comparison ? TRUE : FALSE);
+    EnableWindow(g_app.buttons[10], TRUE);
+    EnableWindow(g_app.buttons[11], TRUE);
+    EnableWindow(g_app.buttons[12], g_app.has_comparison ? TRUE : FALSE);
 }
 
 static void reset_to_default(void)
@@ -1478,6 +1503,8 @@ static void run_scenario(void)
         show_error("Configuracao invalida", error);
         return;
     }
+
+    config.auto_unique_run = 1;
 
     set_status("SIMULACAO EM EXECUCAO...");
     UpdateWindow(g_app.window);
@@ -1668,14 +1695,96 @@ static void generate_graphs(void)
     set_status(status);
 }
 
-static void open_results(void)
+static void generate_diagnostics(void)
+{
+    char python_path[MAX_PATH];
+    char script_path[MAX_PATH];
+    char output_path[MAX_PATH];
+    char command[PYTHON_COMMAND_BUFFER_SIZE];
+    char message[PYTHON_MESSAGE_BUFFER_SIZE];
+    char status[STATUS_BUFFER_SIZE];
+    DWORD exit_code = 1;
+
+    if (!g_app.has_result)
+    {
+        show_error("Sem resultados", "Rode uma simulacao antes de gerar o diagnostico.");
+        return;
+    }
+
+    if (strcmp(g_app.current_config.diagnostics_level, "off") == 0)
+    {
+        show_error(
+            "Diagnostico desativado",
+            "O nivel de diagnostico esta OFF. Selecione BASIC ou FULL e rode o cenario novamente.");
+        set_status("DIAGNOSTICO OFF");
+        return;
+    }
+
+    if (!resolve_python_executable(python_path, sizeof(python_path)))
+    {
+        show_error(
+            "Python nao encontrado",
+            "Python com pandas e matplotlib e necessario para gerar o diagnostico.");
+        set_status("PYTHON COMPATIVEL NAO ENCONTRADO");
+        return;
+    }
+
+    if (!project_path(script_path, sizeof(script_path), "scripts\\analyze_run.py") ||
+        !project_path(output_path, sizeof(output_path), g_app.last_result.output_directory))
+    {
+        show_error("Erro interno", "Nao foi possivel montar os caminhos do diagnostico.");
+        return;
+    }
+
+    snprintf(
+        command,
+        sizeof(command),
+        g_app.resolved_python_uses_py_launcher ?
+            "\"%s\" -3 \"%s\" \"%s\" --level %s" :
+            "\"%s\" \"%s\" \"%s\" --level %s",
+        python_path,
+        script_path,
+        output_path,
+        g_app.current_config.diagnostics_level);
+
+    set_status("DIAGNOSTICO EM EXECUCAO...");
+    UpdateWindow(g_app.window);
+
+    if (!run_hidden_process(command, &exit_code) || exit_code != 0)
+    {
+        snprintf(
+            message,
+            sizeof(message),
+            "O analisador terminou com erro. Verifique pandas e matplotlib.\n\n"
+            "Python: %s\nComando: %s\nCodigo: %lu",
+            python_path,
+            command,
+            (unsigned long)exit_code);
+        show_error("Erro ao gerar diagnostico", message);
+        set_status("ERRO AO GERAR DIAGNOSTICO");
+        return;
+    }
+
+    snprintf(
+        status,
+        sizeof(status),
+        "DIAGNOSTICO %s GERADO. PYTHON: %s",
+        g_app.current_config.diagnostics_level,
+        python_path);
+    set_status(status);
+    show_info(
+        "Diagnostico gerado",
+        "Arquivos principais criados:\n- metrics.csv\n- metrics_report.txt\n- diagnostics_overview.png");
+}
+
+static void open_last_execution(void)
 {
     char output_path[MAX_PATH];
     HINSTANCE result;
 
     if (!g_app.has_result)
     {
-        show_error("Sem resultados", "Rode uma simulacao antes de abrir a pasta.");
+        show_error("Sem resultados", "Nenhuma execucao rodada ainda.");
         return;
     }
 
@@ -1725,7 +1834,122 @@ static void open_results(void)
         return;
     }
 
-    set_status("PASTA DE RESULTADOS ABERTA");
+    set_status("PASTA DA ULTIMA EXECUCAO ABERTA");
+}
+
+static void open_results_root(void)
+{
+    char results_path[MAX_PATH];
+    HINSTANCE result;
+
+    if (!project_path(results_path, sizeof(results_path), "results"))
+    {
+        show_error(
+            "Erro ao abrir resultados",
+            "Nao foi possivel montar o caminho da pasta results.");
+        return;
+    }
+
+    if (!ensure_directory_exists(results_path))
+    {
+        show_error(
+            "Erro ao abrir resultados",
+            "Nao foi possivel criar ou acessar a pasta results.");
+        return;
+    }
+
+    result = ShellExecuteA(
+        g_app.window,
+        "open",
+        results_path,
+        NULL,
+        g_app.project_root,
+        SW_SHOWNORMAL);
+
+    if ((INT_PTR)result <= 32)
+    {
+        char message[PYTHON_MESSAGE_BUFFER_SIZE];
+        snprintf(
+            message,
+            sizeof(message),
+            "Nao foi possivel abrir results.\n\n"
+            "Caminho tentado:\n%s\n\n"
+            "Codigo retornado pelo ShellExecuteA: %ld",
+            results_path,
+            (long)(INT_PTR)result);
+        show_error("Erro ao abrir resultados", message);
+        return;
+    }
+
+    set_status("PASTA RESULTS ABERTA");
+}
+
+static int ensure_scenario_history_file(char *history_path, size_t history_path_size)
+{
+    char scenarios_path[MAX_PATH];
+    FILE *file;
+
+    if (!scenarios_directory_path(scenarios_path, sizeof(scenarios_path)) ||
+        !project_path(history_path, history_path_size, "results\\scenarios\\index.csv"))
+    {
+        return 0;
+    }
+
+    if (file_exists(history_path))
+        return 1;
+
+    file = fopen(history_path, "w");
+    if (file == NULL)
+        return 0;
+
+    if (fprintf(
+            file,
+            "timestamp,run_name,actual_run_name,run_path,config_path,topology,num_neurons,steps,dt,seed,recorded_neuron,total_connections,total_spikes,first_active_step,last_active_step,status\n") < 0)
+    {
+        fclose(file);
+        return 0;
+    }
+
+    return fclose(file) == 0;
+}
+
+static void open_scenario_history(void)
+{
+    char history_path[MAX_PATH];
+    HINSTANCE result;
+
+    if (!ensure_scenario_history_file(history_path, sizeof(history_path)))
+    {
+        show_error(
+            "Historico indisponivel",
+            "Historico ainda nao existe e nao foi possivel cria-lo. Rode um cenario primeiro.");
+        return;
+    }
+
+    result = ShellExecuteA(
+        g_app.window,
+        "open",
+        history_path,
+        NULL,
+        g_app.project_root,
+        SW_SHOWNORMAL);
+
+    if ((INT_PTR)result <= 32)
+    {
+        char message[PYTHON_MESSAGE_BUFFER_SIZE];
+        snprintf(
+            message,
+            sizeof(message),
+            "Nao foi possivel abrir o historico.\n\n"
+            "Caminho tentado:\n%s\n\n"
+            "Codigo retornado pelo ShellExecuteA: %ld",
+            history_path,
+            (long)(INT_PTR)result);
+        show_error("Erro ao abrir historico", message);
+        return;
+    }
+
+    set_status("HISTORICO DE EXECUCOES ABERTO");
 }
 
 static int get_detailed_neuron_id(int *out_neuron_id)
@@ -1831,6 +2055,72 @@ static void open_existing_file(
     }
 
     set_status(success_status);
+}
+
+static int build_run_artifact_path(
+    char *out_path,
+    size_t out_path_size,
+    const char *filename)
+{
+    char relative_path[MAX_PATH];
+
+    if (snprintf(
+            relative_path,
+            sizeof(relative_path),
+            "%s\\%s",
+            g_app.last_result.output_directory,
+            filename) >= (int)sizeof(relative_path))
+    {
+        return 0;
+    }
+
+    return project_path(out_path, out_path_size, relative_path);
+}
+
+static void open_metrics(void)
+{
+    char path[MAX_PATH];
+
+    if (!g_app.has_result)
+    {
+        show_error("Sem resultados", "Rode uma simulacao antes de abrir as metricas.");
+        return;
+    }
+
+    if (!build_run_artifact_path(path, sizeof(path), "metrics.csv"))
+    {
+        show_error("Erro interno", "Nao foi possivel montar o caminho de metrics.csv.");
+        return;
+    }
+
+    open_existing_file(
+        path,
+        "Metricas nao encontradas",
+        "metrics.csv nao existe. Gere o diagnostico ou use nivel BASIC/FULL.",
+        "METRICAS ABERTAS");
+}
+
+static void open_diagnostics(void)
+{
+    char path[MAX_PATH];
+
+    if (!g_app.has_result)
+    {
+        show_error("Sem resultados", "Rode uma simulacao antes de abrir o diagnostico.");
+        return;
+    }
+
+    if (!build_run_artifact_path(path, sizeof(path), "diagnostics_overview.png"))
+    {
+        show_error("Erro interno", "Nao foi possivel montar o caminho do diagnostico.");
+        return;
+    }
+
+    open_existing_file(
+        path,
+        "Diagnostico nao encontrado",
+        "diagnostics_overview.png nao existe. Clique em GERAR DIAGNOSTICO.",
+        "DIAGNOSTICO ABERTO");
 }
 
 static void open_neuron_csv(void)
@@ -2126,13 +2416,14 @@ static void make_comparison_name(
     snprintf(
         out_name,
         out_name_size,
-        "studio_compare_%04d%02d%02d_%02d%02d%02d",
+        "studio_compare_%04d%02d%02d_%02d%02d%02d_%03d",
         now.wYear,
         now.wMonth,
         now.wDay,
         now.wHour,
         now.wMinute,
-        now.wSecond);
+        now.wSecond,
+        now.wMilliseconds);
 }
 
 static void open_comparison_results(void)
@@ -3063,32 +3354,63 @@ static void create_controls(HWND hwnd)
         "[ EXECUCAO E RESULTADOS ]",
         right_x,
         92,
-        340,
+        174,
         24,
         0);
     SendMessageA(g_app.execution_section_label, WM_SETFONT, (WPARAM)g_app.summary_font, TRUE);
+
+    g_app.diagnostics_label = create_static(
+        hwnd,
+        "DIAG:",
+        right_x + 178,
+        94,
+        54,
+        24,
+        0);
+    g_app.diagnostics_combo = CreateWindowExA(
+        0,
+        "COMBOBOX",
+        "",
+        WS_CHILD | WS_VISIBLE | CBS_DROPDOWNLIST | WS_VSCROLL,
+        right_x + 230,
+        90,
+        110,
+        120,
+        hwnd,
+        (HMENU)(INT_PTR)IDC_DIAGNOSTICS_LEVEL,
+        GetModuleHandleA(NULL),
+        NULL);
+    SendMessageA(g_app.diagnostics_combo, WM_SETFONT, (WPARAM)g_app.edit_font, TRUE);
+    SendMessageA(g_app.diagnostics_combo, CB_ADDSTRING, 0, (LPARAM)"off");
+    SendMessageA(g_app.diagnostics_combo, CB_ADDSTRING, 0, (LPARAM)"basic");
+    SendMessageA(g_app.diagnostics_combo, CB_ADDSTRING, 0, (LPARAM)"full");
 
     g_app.buttons[0] = create_button(hwnd, "NOVO PADRAO", IDC_BTN_NEW, right_x, 116, STUDIO_BUTTON_WIDTH_LEFT, STUDIO_BUTTON_HEIGHT);
     g_app.buttons[1] = create_button(hwnd, "CARREGAR CENARIO", IDC_BTN_LOAD, right_x + STUDIO_BUTTON_WIDTH_LEFT + STUDIO_BUTTON_GAP, 116, STUDIO_BUTTON_WIDTH_RIGHT, STUDIO_BUTTON_HEIGHT);
     g_app.buttons[2] = create_button(hwnd, "SALVAR CENARIO", IDC_BTN_SAVE, right_x, 116 + STUDIO_BUTTON_ROW_HEIGHT, STUDIO_BUTTON_WIDTH_LEFT, STUDIO_BUTTON_HEIGHT);
     g_app.buttons[3] = create_button(hwnd, "RODAR SIMULACAO", IDC_BTN_RUN, right_x + STUDIO_BUTTON_WIDTH_LEFT + STUDIO_BUTTON_GAP, 116 + STUDIO_BUTTON_ROW_HEIGHT, STUDIO_BUTTON_WIDTH_RIGHT, STUDIO_BUTTON_HEIGHT);
     g_app.buttons[4] = create_button(hwnd, "GERAR GRAFICOS", IDC_BTN_PLOT, right_x, 116 + 2 * STUDIO_BUTTON_ROW_HEIGHT, STUDIO_BUTTON_WIDTH_LEFT, STUDIO_BUTTON_HEIGHT);
-    g_app.buttons[5] = create_button(hwnd, "ABRIR RESULTADOS", IDC_BTN_OPEN, right_x + STUDIO_BUTTON_WIDTH_LEFT + STUDIO_BUTTON_GAP, 116 + 2 * STUDIO_BUTTON_ROW_HEIGHT, STUDIO_BUTTON_WIDTH_RIGHT, STUDIO_BUTTON_HEIGHT);
+    g_app.buttons[5] = create_button(hwnd, "ABRIR ULTIMA", IDC_BTN_OPEN, right_x + STUDIO_BUTTON_WIDTH_LEFT + STUDIO_BUTTON_GAP, 116 + 2 * STUDIO_BUTTON_ROW_HEIGHT, STUDIO_BUTTON_WIDTH_RIGHT, STUDIO_BUTTON_HEIGHT);
     g_app.buttons[6] = create_button(hwnd, "CSV NEURONIO", IDC_BTN_OPEN_NEURON_CSV, right_x, 116 + 3 * STUDIO_BUTTON_ROW_HEIGHT, STUDIO_BUTTON_WIDTH_LEFT, STUDIO_BUTTON_HEIGHT);
     g_app.buttons[7] = create_button(hwnd, "GRAFICO NEURONIO", IDC_BTN_PLOT_NEURON, right_x + STUDIO_BUTTON_WIDTH_LEFT + STUDIO_BUTTON_GAP, 116 + 3 * STUDIO_BUTTON_ROW_HEIGHT, STUDIO_BUTTON_WIDTH_RIGHT, STUDIO_BUTTON_HEIGHT);
     g_app.buttons[8] = create_button(hwnd, "ABRIR GRAFICO", IDC_BTN_OPEN_NEURON_PNG, right_x, 116 + 4 * STUDIO_BUTTON_ROW_HEIGHT, STUDIO_BUTTON_WIDTH_LEFT, STUDIO_BUTTON_HEIGHT);
-    g_app.buttons[9] = create_button(hwnd, "COMPARAR EXECUCOES", IDC_BTN_COMPARE_RUNS, right_x, 116 + 5 * STUDIO_BUTTON_ROW_HEIGHT, 340, STUDIO_BUTTON_HEIGHT);
-    g_app.buttons[10] = create_button(hwnd, "ABRIR COMPARACAO", IDC_BTN_OPEN_COMPARISON, right_x, 116 + 6 * STUDIO_BUTTON_ROW_HEIGHT, 340, STUDIO_BUTTON_HEIGHT);
-    g_app.status_label = create_static(hwnd, "PRONTO PARA EXECUTAR", right_x, 444, 340, 52, IDC_STATUS);
+    g_app.buttons[9] = create_button(hwnd, "ABRIR RESULTADOS", IDC_BTN_OPEN_RESULTS_ROOT, right_x, 116 + 5 * STUDIO_BUTTON_ROW_HEIGHT, STUDIO_BUTTON_WIDTH_LEFT, STUDIO_BUTTON_HEIGHT);
+    g_app.buttons[10] = create_button(hwnd, "ABRIR HISTORICO", IDC_BTN_OPEN_HISTORY, right_x + STUDIO_BUTTON_WIDTH_LEFT + STUDIO_BUTTON_GAP, 116 + 5 * STUDIO_BUTTON_ROW_HEIGHT, STUDIO_BUTTON_WIDTH_RIGHT, STUDIO_BUTTON_HEIGHT);
+    g_app.buttons[11] = create_button(hwnd, "COMPARAR EXECUCOES", IDC_BTN_COMPARE_RUNS, right_x, 116 + 6 * STUDIO_BUTTON_ROW_HEIGHT, 340, STUDIO_BUTTON_HEIGHT);
+    g_app.buttons[12] = create_button(hwnd, "ABRIR COMPARACAO", IDC_BTN_OPEN_COMPARISON, right_x, 116 + 7 * STUDIO_BUTTON_ROW_HEIGHT, 340, STUDIO_BUTTON_HEIGHT);
+    g_app.buttons[13] = create_button(hwnd, "GERAR DIAGNOSTICO", IDC_BTN_GENERATE_DIAGNOSTICS, right_x + STUDIO_BUTTON_WIDTH_LEFT + STUDIO_BUTTON_GAP, 116 + 4 * STUDIO_BUTTON_ROW_HEIGHT, STUDIO_BUTTON_WIDTH_RIGHT, STUDIO_BUTTON_HEIGHT);
+    g_app.buttons[14] = create_button(hwnd, "ABRIR METRICAS", IDC_BTN_OPEN_METRICS, right_x, 116 + 8 * STUDIO_BUTTON_ROW_HEIGHT, STUDIO_BUTTON_WIDTH_LEFT, STUDIO_BUTTON_HEIGHT);
+    g_app.buttons[15] = create_button(hwnd, "ABRIR DIAGNOSTICO", IDC_BTN_OPEN_DIAGNOSTICS, right_x + STUDIO_BUTTON_WIDTH_LEFT + STUDIO_BUTTON_GAP, 116 + 8 * STUDIO_BUTTON_ROW_HEIGHT, STUDIO_BUTTON_WIDTH_RIGHT, STUDIO_BUTTON_HEIGHT);
+    g_app.status_label = create_static(hwnd, "PRONTO PARA EXECUTAR", right_x, 536, 340, 42, IDC_STATUS);
     g_app.summary_box = CreateWindowExA(
         WS_EX_CLIENTEDGE,
         "EDIT",
         "",
         WS_CHILD | WS_VISIBLE | ES_MULTILINE | ES_READONLY | ES_AUTOVSCROLL | WS_VSCROLL,
         right_x,
-        504,
+        592,
         340,
-        181,
+        145,
         hwnd,
         (HMENU)(INT_PTR)IDC_SUMMARY,
         GetModuleHandleA(NULL),
@@ -3113,14 +3435,16 @@ static void layout_controls(HWND hwnd)
     height = rect.bottom - rect.top;
     right_x = right_content_left(width);
     content_width = STUDIO_RIGHT_PANEL_WIDTH - 2 * STUDIO_RIGHT_CONTENT_PADDING;
-    summary_height = height - 524;
+    summary_height = height - 612;
 
-    if (summary_height < 180)
-        summary_height = 180;
+    if (summary_height < 140)
+        summary_height = 140;
 
-    MoveWindow(g_app.execution_section_label, right_x, 92, content_width, 24, TRUE);
-    MoveWindow(g_app.status_label, right_x, 444, content_width, 52, TRUE);
-    MoveWindow(g_app.summary_box, right_x, 504, content_width, summary_height, TRUE);
+    MoveWindow(g_app.execution_section_label, right_x, 92, 174, 24, TRUE);
+    MoveWindow(g_app.diagnostics_label, right_x + 178, 94, 54, 24, TRUE);
+    MoveWindow(g_app.diagnostics_combo, right_x + 230, 90, 110, 120, TRUE);
+    MoveWindow(g_app.status_label, right_x, 536, content_width, 42, TRUE);
+    MoveWindow(g_app.summary_box, right_x, 592, content_width, summary_height, TRUE);
 
     MoveWindow(g_app.buttons[0], right_x, 116, STUDIO_BUTTON_WIDTH_LEFT, STUDIO_BUTTON_HEIGHT, TRUE);
     MoveWindow(g_app.buttons[1], right_x + STUDIO_BUTTON_WIDTH_LEFT + STUDIO_BUTTON_GAP, 116, STUDIO_BUTTON_WIDTH_RIGHT, STUDIO_BUTTON_HEIGHT, TRUE);
@@ -3131,8 +3455,13 @@ static void layout_controls(HWND hwnd)
     MoveWindow(g_app.buttons[6], right_x, 116 + 3 * STUDIO_BUTTON_ROW_HEIGHT, STUDIO_BUTTON_WIDTH_LEFT, STUDIO_BUTTON_HEIGHT, TRUE);
     MoveWindow(g_app.buttons[7], right_x + STUDIO_BUTTON_WIDTH_LEFT + STUDIO_BUTTON_GAP, 116 + 3 * STUDIO_BUTTON_ROW_HEIGHT, STUDIO_BUTTON_WIDTH_RIGHT, STUDIO_BUTTON_HEIGHT, TRUE);
     MoveWindow(g_app.buttons[8], right_x, 116 + 4 * STUDIO_BUTTON_ROW_HEIGHT, STUDIO_BUTTON_WIDTH_LEFT, STUDIO_BUTTON_HEIGHT, TRUE);
-    MoveWindow(g_app.buttons[9], right_x, 116 + 5 * STUDIO_BUTTON_ROW_HEIGHT, content_width, STUDIO_BUTTON_HEIGHT, TRUE);
-    MoveWindow(g_app.buttons[10], right_x, 116 + 6 * STUDIO_BUTTON_ROW_HEIGHT, content_width, STUDIO_BUTTON_HEIGHT, TRUE);
+    MoveWindow(g_app.buttons[9], right_x, 116 + 5 * STUDIO_BUTTON_ROW_HEIGHT, STUDIO_BUTTON_WIDTH_LEFT, STUDIO_BUTTON_HEIGHT, TRUE);
+    MoveWindow(g_app.buttons[10], right_x + STUDIO_BUTTON_WIDTH_LEFT + STUDIO_BUTTON_GAP, 116 + 5 * STUDIO_BUTTON_ROW_HEIGHT, STUDIO_BUTTON_WIDTH_RIGHT, STUDIO_BUTTON_HEIGHT, TRUE);
+    MoveWindow(g_app.buttons[11], right_x, 116 + 6 * STUDIO_BUTTON_ROW_HEIGHT, content_width, STUDIO_BUTTON_HEIGHT, TRUE);
+    MoveWindow(g_app.buttons[12], right_x, 116 + 7 * STUDIO_BUTTON_ROW_HEIGHT, content_width, STUDIO_BUTTON_HEIGHT, TRUE);
+    MoveWindow(g_app.buttons[13], right_x + STUDIO_BUTTON_WIDTH_LEFT + STUDIO_BUTTON_GAP, 116 + 4 * STUDIO_BUTTON_ROW_HEIGHT, STUDIO_BUTTON_WIDTH_RIGHT, STUDIO_BUTTON_HEIGHT, TRUE);
+    MoveWindow(g_app.buttons[14], right_x, 116 + 8 * STUDIO_BUTTON_ROW_HEIGHT, STUDIO_BUTTON_WIDTH_LEFT, STUDIO_BUTTON_HEIGHT, TRUE);
+    MoveWindow(g_app.buttons[15], right_x + STUDIO_BUTTON_WIDTH_LEFT + STUDIO_BUTTON_GAP, 116 + 8 * STUDIO_BUTTON_ROW_HEIGHT, STUDIO_BUTTON_WIDTH_RIGHT, STUDIO_BUTTON_HEIGHT, TRUE);
 
     InvalidateRect(hwnd, NULL, TRUE);
 }
@@ -3332,7 +3661,13 @@ static LRESULT CALLBACK window_proc(
                 generate_graphs();
                 return 0;
             case IDC_BTN_OPEN:
-                open_results();
+                open_last_execution();
+                return 0;
+            case IDC_BTN_OPEN_RESULTS_ROOT:
+                open_results_root();
+                return 0;
+            case IDC_BTN_OPEN_HISTORY:
+                open_scenario_history();
                 return 0;
             case IDC_BTN_OPEN_NEURON_CSV:
                 open_neuron_csv();
@@ -3348,6 +3683,15 @@ static LRESULT CALLBACK window_proc(
                 return 0;
             case IDC_BTN_OPEN_COMPARISON:
                 open_comparison_results();
+                return 0;
+            case IDC_BTN_GENERATE_DIAGNOSTICS:
+                generate_diagnostics();
+                return 0;
+            case IDC_BTN_OPEN_METRICS:
+                open_metrics();
+                return 0;
+            case IDC_BTN_OPEN_DIAGNOSTICS:
+                open_diagnostics();
                 return 0;
             case IDC_BTN_OPTIONS:
                 open_topology_options();

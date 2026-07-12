@@ -1,14 +1,36 @@
 #include "scenario_runner.h"
 
 #include <stdint.h>
+#include <math.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include <windows.h>
 
 #include "minisnn.h"
 
 #define COMMAND_BUFFER_SIZE 640
 #define SCENARIO_MAX_NEURONS 1000
+#define SCENARIO_HISTORY_PATH "results/scenarios/index.csv"
+#define MINISNN_VERSION "0.2"
+
+typedef struct
+{
+    int count;
+    int self_count;
+    int excitatory_count;
+    int inhibitory_count;
+    int indegree[SCENARIO_MAX_NEURONS];
+    int outdegree[SCENARIO_MAX_NEURONS];
+    double weight_sum;
+    double weight_square_sum;
+    double weight_min;
+    double weight_max;
+    double delay_sum;
+    double delay_square_sum;
+    int delay_min;
+    int delay_max;
+} ConnectivityStats;
 
 static void set_error(
     char *error_message,
@@ -38,22 +60,150 @@ static int make_directory_if_needed(const char *path)
     return system(command) == 0;
 }
 
-static int ensure_output_directory(const char *run_name, char *out_dir)
+static int directory_exists(const char *path)
 {
-    if (snprintf(
-            out_dir,
-            SCENARIO_OUTPUT_PATH_MAX,
-            "results/scenarios/%s",
-            run_name) >= SCENARIO_OUTPUT_PATH_MAX)
-    {
+    DWORD attributes = GetFileAttributesA(path);
+
+    return attributes != INVALID_FILE_ATTRIBUTES &&
+           (attributes & FILE_ATTRIBUTE_DIRECTORY) != 0;
+}
+
+static int file_exists(const char *path)
+{
+    DWORD attributes = GetFileAttributesA(path);
+
+    return attributes != INVALID_FILE_ATTRIBUTES &&
+           (attributes & FILE_ATTRIBUTE_DIRECTORY) == 0;
+}
+
+static void current_timestamp(char *out_timestamp, size_t out_timestamp_size)
+{
+    SYSTEMTIME now;
+
+    GetLocalTime(&now);
+    snprintf(
+        out_timestamp,
+        out_timestamp_size,
+        "%04d%02d%02d_%02d%02d%02d",
+        now.wYear,
+        now.wMonth,
+        now.wDay,
+        now.wHour,
+        now.wMinute,
+        now.wSecond);
+}
+
+static int make_output_name(
+    const char *run_name,
+    int auto_unique_run,
+    char *out_name,
+    size_t out_name_size)
+{
+    char timestamp[32];
+
+    if (snprintf(out_name, out_name_size, "%s", run_name) >= (int)out_name_size)
         return 0;
+
+    if (!auto_unique_run)
+        return 1;
+
+    {
+        char candidate_path[SCENARIO_OUTPUT_PATH_MAX];
+
+        if (snprintf(
+                candidate_path,
+                sizeof(candidate_path),
+                "results/scenarios/%s",
+                out_name) >= (int)sizeof(candidate_path))
+        {
+            return 0;
+        }
+
+        if (!directory_exists(candidate_path))
+            return 1;
     }
 
+    current_timestamp(timestamp, sizeof(timestamp));
+
+    for (int suffix = 0; suffix < 1000; suffix++)
+    {
+        char candidate[SCENARIO_ACTUAL_RUN_NAME_MAX];
+        char candidate_path[SCENARIO_OUTPUT_PATH_MAX];
+
+        if (suffix == 0)
+        {
+            if (snprintf(
+                    candidate,
+                    sizeof(candidate),
+                    "%s_%s",
+                    run_name,
+                    timestamp) >= (int)sizeof(candidate))
+            {
+                return 0;
+            }
+        }
+        else
+        {
+            if (snprintf(
+                    candidate,
+                    sizeof(candidate),
+                    "%s_%s_%d",
+                    run_name,
+                    timestamp,
+                    suffix + 1) >= (int)sizeof(candidate))
+            {
+                return 0;
+            }
+        }
+
+        if (snprintf(
+                candidate_path,
+                sizeof(candidate_path),
+                "results/scenarios/%s",
+                candidate) >= (int)sizeof(candidate_path))
+        {
+            return 0;
+        }
+
+        if (!directory_exists(candidate_path))
+        {
+            snprintf(out_name, out_name_size, "%s", candidate);
+            return 1;
+        }
+    }
+
+    return 0;
+}
+
+static int ensure_output_directory(
+    const ScenarioConfig *config,
+    char *out_dir,
+    char *actual_run_name,
+    size_t actual_run_name_size)
+{
     if (!make_directory_if_needed("results"))
         return 0;
 
     if (!make_directory_if_needed("results\\scenarios"))
         return 0;
+
+    if (!make_output_name(
+            config->run_name,
+            config->auto_unique_run,
+            actual_run_name,
+            actual_run_name_size))
+    {
+        return 0;
+    }
+
+    if (snprintf(
+            out_dir,
+            SCENARIO_OUTPUT_PATH_MAX,
+            "results/scenarios/%s",
+            actual_run_name) >= SCENARIO_OUTPUT_PATH_MAX)
+    {
+        return 0;
+    }
 
     return make_directory_if_needed(out_dir);
 }
@@ -241,7 +391,7 @@ static int connect_pair(
     const int *neuron_is_inhibitory,
     int source,
     int target,
-    int *connection_count)
+    ConnectivityStats *stats)
 {
     double weight = outgoing_weight(config, source, neuron_is_inhibitory);
 
@@ -256,7 +406,29 @@ static int connect_pair(
         return 0;
     }
 
-    (*connection_count)++;
+    stats->count++;
+    stats->indegree[target]++;
+    stats->outdegree[source]++;
+    stats->weight_sum += weight;
+    stats->weight_square_sum += weight * weight;
+    stats->delay_sum += (double)config->delay;
+    stats->delay_square_sum += (double)config->delay * (double)config->delay;
+
+    if (stats->count == 1 || weight < stats->weight_min)
+        stats->weight_min = weight;
+    if (stats->count == 1 || weight > stats->weight_max)
+        stats->weight_max = weight;
+    if (stats->count == 1 || config->delay < stats->delay_min)
+        stats->delay_min = config->delay;
+    if (stats->count == 1 || config->delay > stats->delay_max)
+        stats->delay_max = config->delay;
+
+    if (source == target)
+        stats->self_count++;
+    if (neuron_is_inhibitory[source])
+        stats->inhibitory_count++;
+    else
+        stats->excitatory_count++;
     return 1;
 }
 
@@ -264,7 +436,7 @@ static int build_chain(
     MiniSNN *snn,
     const ScenarioConfig *config,
     const int *neuron_is_inhibitory,
-    int *connection_count)
+    ConnectivityStats *stats)
 {
     for (int source = 0; source < config->neurons - 1; source++)
     {
@@ -283,7 +455,7 @@ static int build_chain(
                 neuron_is_inhibitory,
                 source,
                 source + 1,
-                connection_count))
+                stats))
         {
             return 0;
         }
@@ -296,12 +468,12 @@ static int build_ring(
     MiniSNN *snn,
     const ScenarioConfig *config,
     const int *neuron_is_inhibitory,
-    int *connection_count)
+    ConnectivityStats *stats)
 {
     if (config->neurons == 1)
         return 1;
 
-    if (!build_chain(snn, config, neuron_is_inhibitory, connection_count))
+    if (!build_chain(snn, config, neuron_is_inhibitory, stats))
         return 0;
 
     if (!connection_is_allowed(
@@ -319,14 +491,14 @@ static int build_ring(
         neuron_is_inhibitory,
         config->neurons - 1,
         0,
-        connection_count);
+        stats);
 }
 
 static int build_all_to_all(
     MiniSNN *snn,
     const ScenarioConfig *config,
     const int *neuron_is_inhibitory,
-    int *connection_count)
+    ConnectivityStats *stats)
 {
     for (int source = 0; source < config->neurons; source++)
     {
@@ -347,7 +519,7 @@ static int build_all_to_all(
                     neuron_is_inhibitory,
                     source,
                     target,
-                    connection_count))
+                stats))
             {
                 return 0;
             }
@@ -361,7 +533,7 @@ static int build_random_like(
     MiniSNN *snn,
     const ScenarioConfig *config,
     const int *neuron_is_inhibitory,
-    int *connection_count)
+    ConnectivityStats *stats)
 {
     uint32_t state = config->seed;
 
@@ -389,7 +561,7 @@ static int build_random_like(
                         neuron_is_inhibitory,
                         source,
                         target,
-                        connection_count))
+                        stats))
                 {
                     return 0;
                 }
@@ -450,7 +622,7 @@ static int build_small_world(
     MiniSNN *snn,
     const ScenarioConfig *config,
     const int *neuron_is_inhibitory,
-    int *connection_count)
+    ConnectivityStats *stats)
 {
     uint32_t state = config->seed;
     int half_neighbors = config->small_world_neighbors / 2;
@@ -507,7 +679,7 @@ static int build_small_world(
                         neuron_is_inhibitory,
                         source,
                         target,
-                        connection_count))
+                        stats))
                 {
                     return 0;
                 }
@@ -544,7 +716,7 @@ static int build_feedforward(
     MiniSNN *snn,
     const ScenarioConfig *config,
     const int *neuron_is_inhibitory,
-    int *connection_count)
+    ConnectivityStats *stats)
 {
     uint32_t state = config->seed;
 
@@ -583,7 +755,7 @@ static int build_feedforward(
                             neuron_is_inhibitory,
                             source,
                             target,
-                            connection_count))
+                            stats))
                     {
                         return 0;
                     }
@@ -599,50 +771,50 @@ static int build_topology(
     MiniSNN *snn,
     const ScenarioConfig *config,
     const int *neuron_is_inhibitory,
-    int *connection_count)
+    ConnectivityStats *stats)
 {
-    *connection_count = 0;
+    memset(stats, 0, sizeof(*stats));
 
     if (strcmp(config->topology, "chain") == 0)
-        return build_chain(snn, config, neuron_is_inhibitory, connection_count);
+        return build_chain(snn, config, neuron_is_inhibitory, stats);
 
     if (strcmp(config->topology, "ring") == 0)
-        return build_ring(snn, config, neuron_is_inhibitory, connection_count);
+        return build_ring(snn, config, neuron_is_inhibitory, stats);
 
     if (strcmp(config->topology, "all_to_all") == 0)
         return build_all_to_all(
             snn,
             config,
             neuron_is_inhibitory,
-            connection_count);
+            stats);
 
     if (strcmp(config->topology, "random") == 0)
         return build_random_like(
             snn,
             config,
             neuron_is_inhibitory,
-            connection_count);
+            stats);
 
     if (strcmp(config->topology, "random_balanced") == 0)
         return build_random_like(
             snn,
             config,
             neuron_is_inhibitory,
-            connection_count);
+            stats);
 
     if (strcmp(config->topology, "small_world") == 0)
         return build_small_world(
             snn,
             config,
             neuron_is_inhibitory,
-            connection_count);
+            stats);
 
     if (strcmp(config->topology, "feedforward") == 0)
         return build_feedforward(
             snn,
             config,
             neuron_is_inhibitory,
-            connection_count);
+            stats);
 
     return 0;
 }
@@ -727,6 +899,7 @@ static int write_summary(
     return fprintf(
                file,
                "run_name=%s\n"
+               "actual_run_name=%s\n"
                "topology=%s\n"
                "neurons=%d\n"
                "inhibitory_count=%d\n"
@@ -740,6 +913,7 @@ static int write_summary(
                "first_active_step=%d\n"
                "last_active_step=%d\n",
                config->run_name,
+               result->actual_run_name,
                config->topology,
                config->neurons,
                result->inhibitory_count,
@@ -752,6 +926,370 @@ static int write_summary(
                result->spikes_inh,
                result->first_active_step,
                result->last_active_step) >= 0;
+}
+
+static int append_scenario_history(
+    const ScenarioConfig *config,
+    const ScenarioRunResult *result,
+    const char *source_config_path,
+    const char *status)
+{
+    int needs_header = !file_exists(SCENARIO_HISTORY_PATH);
+    FILE *file = fopen(SCENARIO_HISTORY_PATH, "a");
+    char timestamp[32];
+
+    if (file == NULL)
+        return 0;
+
+    if (needs_header)
+    {
+        if (fprintf(
+                file,
+                "timestamp,run_name,actual_run_name,run_path,config_path,topology,num_neurons,steps,dt,seed,recorded_neuron,total_connections,total_spikes,first_active_step,last_active_step,status\n") < 0)
+        {
+            fclose(file);
+            return 0;
+        }
+    }
+
+    current_timestamp(timestamp, sizeof(timestamp));
+
+    if (fprintf(
+            file,
+            "%s,%s,%s,%s,%s,%s,%d,%d,%.12g,%u,%d,%d,%d,%d,%d,%s\n",
+            timestamp,
+            config->run_name,
+            result->actual_run_name,
+            result->output_directory,
+            source_config_path != NULL ? source_config_path : "NA",
+            config->topology,
+            config->neurons,
+            config->steps,
+            config->dt,
+            config->seed,
+            config->record_neuron,
+            result->connection_count,
+            result->spikes_total,
+            result->first_active_step,
+            result->last_active_step,
+            status) < 0)
+    {
+        fclose(file);
+        return 0;
+    }
+
+    return fclose(file) == 0;
+}
+
+static double nonnegative_sqrt(double value)
+{
+    return value > 0.0 ? sqrt(value) : 0.0;
+}
+
+static void degree_statistics(
+    const int *values,
+    int count,
+    double *mean,
+    int *minimum,
+    int *maximum,
+    double *stddev)
+{
+    double sum = 0.0;
+    double square_sum = 0.0;
+
+    *minimum = 0;
+    *maximum = 0;
+    *mean = 0.0;
+    *stddev = 0.0;
+
+    if (count <= 0)
+        return;
+
+    *minimum = values[0];
+    *maximum = values[0];
+
+    for (int i = 0; i < count; i++)
+    {
+        double value = (double)values[i];
+        sum += value;
+        square_sum += value * value;
+
+        if (values[i] < *minimum)
+            *minimum = values[i];
+        if (values[i] > *maximum)
+            *maximum = values[i];
+    }
+
+    *mean = sum / (double)count;
+    *stddev = nonnegative_sqrt(
+        square_sum / (double)count - (*mean * *mean));
+}
+
+static unsigned long long file_size_bytes(const char *path)
+{
+    WIN32_FILE_ATTRIBUTE_DATA data;
+    ULARGE_INTEGER size;
+
+    if (!GetFileAttributesExA(path, GetFileExInfoStandard, &data))
+        return 0ULL;
+
+    size.HighPart = data.nFileSizeHigh;
+    size.LowPart = data.nFileSizeLow;
+    return size.QuadPart;
+}
+
+static int write_basic_metrics(
+    const ScenarioConfig *config,
+    const ScenarioRunResult *result,
+    const ConnectivityStats *connectivity,
+    double simulation_seconds,
+    double wall_seconds,
+    const char *population_path,
+    const char *raster_path)
+{
+    char path[SCENARIO_OUTPUT_PATH_MAX];
+    char timestamp[32];
+    FILE *file;
+    double activity_fraction;
+    double silence_fraction;
+    double connection_density;
+    double weight_mean = 0.0;
+    double weight_std = 0.0;
+    double delay_mean = 0.0;
+    double delay_std = 0.0;
+    double indegree_mean;
+    double indegree_std;
+    double outdegree_mean;
+    double outdegree_std;
+    int indegree_min;
+    int indegree_max;
+    int outdegree_min;
+    int outdegree_max;
+    int possible_connections;
+    int has_late_activity;
+
+    if (!make_path(path, result->output_directory, "metrics.csv"))
+        return 0;
+
+    file = fopen(path, "w");
+    if (file == NULL)
+        return 0;
+
+    activity_fraction = (double)result->active_timesteps / (double)config->steps;
+    silence_fraction = 1.0 - activity_fraction;
+    possible_connections = config->allow_self_connections ?
+        config->neurons * config->neurons :
+        config->neurons * (config->neurons - 1);
+    connection_density = possible_connections > 0 ?
+        (double)connectivity->count / (double)possible_connections :
+        0.0;
+    has_late_activity = result->last_active_step >=
+        config->steps - (config->steps + 3) / 4;
+
+    if (connectivity->count > 0)
+    {
+        weight_mean = connectivity->weight_sum / (double)connectivity->count;
+        weight_std = nonnegative_sqrt(
+            connectivity->weight_square_sum / (double)connectivity->count -
+            weight_mean * weight_mean);
+        delay_mean = connectivity->delay_sum / (double)connectivity->count;
+        delay_std = nonnegative_sqrt(
+            connectivity->delay_square_sum / (double)connectivity->count -
+            delay_mean * delay_mean);
+    }
+
+    degree_statistics(
+        connectivity->indegree,
+        config->neurons,
+        &indegree_mean,
+        &indegree_min,
+        &indegree_max,
+        &indegree_std);
+    degree_statistics(
+        connectivity->outdegree,
+        config->neurons,
+        &outdegree_mean,
+        &outdegree_min,
+        &outdegree_max,
+        &outdegree_std);
+    current_timestamp(timestamp, sizeof(timestamp));
+
+    if (fprintf(
+            file,
+            "run_name,actual_run_name,run_path,timestamp,topology,network_num_neurons,run_steps,run_dt,run_simulation_duration,run_seed,run_recorded_neuron,diagnostics_level,network_total_connections,network_excitatory_neuron_count,network_inhibitory_neuron_count,activity_total_spikes,activity_mean_spikes_per_step,activity_min_spikes_per_step,activity_max_spikes_per_step,activity_active_timesteps,activity_silent_timesteps,activity_fraction,silence_fraction,activity_first_active_step,activity_last_active_step,activity_peak_step,activity_peak_value,activity_has_late_activity,neuron_mean_spikes,exc_total_spikes,inh_total_spikes,network_connection_density,network_self_connection_count,network_excitatory_connection_count,network_inhibitory_connection_count,network_weight_mean,network_weight_min,network_weight_max,network_weight_std,network_delay_mean,network_delay_min,network_delay_max,network_delay_std,network_indegree_mean,network_indegree_min,network_indegree_max,network_indegree_std,network_outdegree_mean,network_outdegree_min,network_outdegree_max,network_outdegree_std,performance_simulation_time_seconds,performance_wall_time_seconds,performance_steps_per_second,performance_neuron_updates_per_second,performance_spikes_per_second_processed,performance_population_csv_size_bytes,performance_raster_csv_size_bytes\n") < 0 ||
+        fprintf(
+            file,
+            "%s,%s,%s,%s,%s,%d,%d,%.12g,%.12g,%u,%d,%s,%d,%d,%d,%d,%.12g,%d,%d,%d,%d,%.12g,%.12g,%d,%d,%d,%d,%s,%.12g,%d,%d,%.12g,%d,%d,%d,%.12g,%.12g,%.12g,%.12g,%.12g,%d,%d,%.12g,%.12g,%d,%d,%.12g,%.12g,%d,%d,%.12g,%.12g,%.12g,%.12g,%.12g,%.12g,%llu,%llu\n",
+            config->run_name,
+            result->actual_run_name,
+            result->output_directory,
+            timestamp,
+            config->topology,
+            config->neurons,
+            config->steps,
+            config->dt,
+            config->steps * config->dt,
+            config->seed,
+            config->record_neuron,
+            config->diagnostics_level,
+            connectivity->count,
+            config->neurons - result->inhibitory_count,
+            result->inhibitory_count,
+            result->spikes_total,
+            (double)result->spikes_total / (double)config->steps,
+            result->min_activity_value,
+            result->peak_activity_value,
+            result->active_timesteps,
+            config->steps - result->active_timesteps,
+            activity_fraction,
+            silence_fraction,
+            result->first_active_step,
+            result->last_active_step,
+            result->peak_activity_step,
+            result->peak_activity_value,
+            has_late_activity ? "true" : "false",
+            (double)result->spikes_total / (double)config->neurons,
+            result->spikes_exc,
+            result->spikes_inh,
+            connection_density,
+            connectivity->self_count,
+            connectivity->excitatory_count,
+            connectivity->inhibitory_count,
+            weight_mean,
+            connectivity->count > 0 ? connectivity->weight_min : 0.0,
+            connectivity->count > 0 ? connectivity->weight_max : 0.0,
+            weight_std,
+            delay_mean,
+            connectivity->count > 0 ? connectivity->delay_min : 0,
+            connectivity->count > 0 ? connectivity->delay_max : 0,
+            delay_std,
+            indegree_mean,
+            indegree_min,
+            indegree_max,
+            indegree_std,
+            outdegree_mean,
+            outdegree_min,
+            outdegree_max,
+            outdegree_std,
+            simulation_seconds,
+            wall_seconds,
+            simulation_seconds > 0.0 ? config->steps / simulation_seconds : 0.0,
+            simulation_seconds > 0.0 ?
+                ((double)config->steps * config->neurons) / simulation_seconds : 0.0,
+            simulation_seconds > 0.0 ? result->spikes_total / simulation_seconds : 0.0,
+            file_size_bytes(population_path),
+            file_size_bytes(raster_path)) < 0)
+    {
+        fclose(file);
+        return 0;
+    }
+
+    return fclose(file) == 0;
+}
+
+static int write_run_manifest(
+    const ScenarioConfig *config,
+    const ScenarioRunResult *result,
+    const char *source_config_path,
+    int metrics_generated)
+{
+    char path[SCENARIO_OUTPUT_PATH_MAX];
+    char timestamp[32];
+    FILE *file;
+    char git_commit[96] = "NA";
+    char git_status[32] = "NA";
+    FILE *pipe;
+
+    if (!make_path(path, result->output_directory, "run_manifest.txt"))
+        return 0;
+
+    file = fopen(path, "w");
+    if (file == NULL)
+        return 0;
+
+    current_timestamp(timestamp, sizeof(timestamp));
+
+    pipe = _popen("git rev-parse --short HEAD 2>NUL", "r");
+    if (pipe != NULL)
+    {
+        if (fgets(git_commit, sizeof(git_commit), pipe) != NULL)
+        {
+            git_commit[strcspn(git_commit, "\r\n")] = '\0';
+            if (_pclose(pipe) != 0)
+                snprintf(git_commit, sizeof(git_commit), "NA");
+        }
+        else
+        {
+            _pclose(pipe);
+            snprintf(git_commit, sizeof(git_commit), "NA");
+        }
+    }
+
+    pipe = _popen("git status --porcelain 2>NUL", "r");
+    if (pipe != NULL)
+    {
+        char status_line[8];
+        int has_changes = fgets(status_line, sizeof(status_line), pipe) != NULL;
+        if (_pclose(pipe) == 0)
+            snprintf(git_status, sizeof(git_status), "%s", has_changes ? "dirty" : "clean");
+    }
+
+    if (fprintf(
+            file,
+            "miniSNN_version=%s\n"
+            "git_commit=%s\n"
+            "git_status=%s\n"
+            "timestamp=%s\n"
+            "operating_system=Windows\n"
+            "compiler=gcc\n"
+            "compiler_version=%s\n"
+            "architecture=%s\n"
+            "original_config=%s\n"
+            "effective_config=%s/config_used.ini\n"
+            "requested_run_name=%s\n"
+            "actual_run_name=%s\n"
+            "seed=%u\n"
+            "neural_model=LIF\n"
+            "num_neurons=%d\n"
+            "topology=%s\n"
+            "dt=%.12g\n"
+            "steps=%d\n"
+            "diagnostics_level=%s\n"
+            "python=NA\n"
+            "python_version=NA\n"
+            "pandas_version=NA\n"
+            "matplotlib_version=NA\n"
+            "files=config_used.ini;summary.txt;population.csv;raster.csv;neuron_%d.csv;run_manifest.txt%s\n",
+            MINISNN_VERSION,
+            git_commit,
+            git_status,
+            timestamp,
+            __VERSION__,
+#if defined(_WIN64)
+            "x86_64",
+#elif defined(_WIN32)
+            "x86",
+#else
+            "unknown",
+#endif
+            source_config_path != NULL ? source_config_path : "NA",
+            result->output_directory,
+            config->run_name,
+            result->actual_run_name,
+            config->seed,
+            config->neurons,
+            config->topology,
+            config->dt,
+            config->steps,
+            config->diagnostics_level,
+            config->record_neuron,
+            metrics_generated ? ";metrics.csv" : "") < 0)
+    {
+        fclose(file);
+        return 0;
+    }
+
+    return fclose(file) == 0;
 }
 
 static int run_simulation(
@@ -768,6 +1306,10 @@ static int run_simulation(
     result->spikes_inh = 0;
     result->first_active_step = -1;
     result->last_active_step = -1;
+    result->active_timesteps = 0;
+    result->peak_activity_step = -1;
+    result->peak_activity_value = 0;
+    result->min_activity_value = config->neurons;
 
     for (int step = 0; step < config->steps; step++)
     {
@@ -858,7 +1400,17 @@ static int run_simulation(
                 result->first_active_step = step;
 
             result->last_active_step = step;
+            result->active_timesteps++;
         }
+
+        if (spikes_total > result->peak_activity_value)
+        {
+            result->peak_activity_value = spikes_total;
+            result->peak_activity_step = step;
+        }
+
+        if (spikes_total < result->min_activity_value)
+            result->min_activity_value = spikes_total;
 
         result->spikes_total += spikes_total;
         result->spikes_exc += spikes_exc;
@@ -913,6 +1465,12 @@ int scenario_runner_execute(
     char neuron_path[SCENARIO_OUTPUT_PATH_MAX];
     char summary_path[SCENARIO_OUTPUT_PATH_MAX];
     int neuron_is_inhibitory[SCENARIO_MAX_NEURONS];
+    ConnectivityStats connectivity;
+    ULONGLONG wall_start;
+    ULONGLONG simulation_start;
+    double simulation_seconds;
+    double wall_seconds;
+    int metrics_generated = 0;
 
     if (config == NULL || out_result == NULL)
     {
@@ -921,11 +1479,19 @@ int scenario_runner_execute(
     }
 
     memset(&result, 0, sizeof(result));
+    memset(neuron_is_inhibitory, 0, sizeof(neuron_is_inhibitory));
+    memset(&connectivity, 0, sizeof(connectivity));
 
     if (!scenario_config_validate(config, error_message, error_message_size))
         return 0;
 
-    if (!ensure_output_directory(config->run_name, result.output_directory))
+    wall_start = GetTickCount64();
+
+    if (!ensure_output_directory(
+            config,
+            result.output_directory,
+            result.actual_run_name,
+            sizeof(result.actual_run_name)))
     {
         set_error(error_message, error_message_size, "erro ao criar diretorio de saida");
         return 0;
@@ -982,12 +1548,14 @@ int scenario_runner_execute(
             snn,
             config,
             neuron_is_inhibitory,
-            &result.connection_count))
+            &connectivity))
     {
         set_error(error_message, error_message_size, "erro ao construir topologia");
         minisnn_destroy(&snn);
         return 0;
     }
+
+    result.connection_count = connectivity.count;
 
     if (!open_output_files(
             config,
@@ -1010,6 +1578,8 @@ int scenario_runner_execute(
         return 0;
     }
 
+    simulation_start = GetTickCount64();
+
     if (!run_simulation(
             snn,
             config,
@@ -1028,6 +1598,9 @@ int scenario_runner_execute(
         return 0;
     }
 
+    simulation_seconds =
+        (double)(GetTickCount64() - simulation_start) / 1000.0;
+
     if (!write_summary(summary_file, config, &result))
     {
         set_error(error_message, error_message_size, "erro ao escrever summary.txt");
@@ -1044,6 +1617,43 @@ int scenario_runner_execute(
     close_file_if_open(neuron_file);
     close_file_if_open(summary_file);
     minisnn_destroy(&snn);
+
+    wall_seconds = (double)(GetTickCount64() - wall_start) / 1000.0;
+
+    if (strcmp(config->diagnostics_level, "off") != 0)
+    {
+        if (!write_basic_metrics(
+                config,
+                &result,
+                &connectivity,
+                simulation_seconds,
+                wall_seconds,
+                population_path,
+                raster_path))
+        {
+            set_error(error_message, error_message_size, "erro ao escrever metrics.csv");
+            return 0;
+        }
+
+        metrics_generated = 1;
+    }
+
+    if (!write_run_manifest(
+            config,
+            &result,
+            source_config_path,
+            metrics_generated))
+    {
+        set_error(error_message, error_message_size, "erro ao escrever run_manifest.txt");
+        return 0;
+    }
+
+    if (config->history_enabled &&
+        !append_scenario_history(config, &result, source_config_path, "OK"))
+    {
+        set_error(error_message, error_message_size, "erro ao atualizar historico de cenarios");
+        return 0;
+    }
 
     *out_result = result;
     return 1;

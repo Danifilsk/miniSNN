@@ -12,7 +12,7 @@ SCENARIO ?= configs/random_balanced.ini
 PYTHON ?= python
 
 .PHONY: all help clean test test-api test-core test-lif test-scenario test-runner \
-	test-plot-neuron test-compare-runs \
+	test-plot-neuron test-compare-runs test-diagnostics \
 	api-examples api-single api-chain api-exc-inh \
 	demo ei-balance inhibition-fine inh-to-inh sparse-ei scenario \
 	scenario-random scenario-small-world scenario-feedforward \
@@ -30,6 +30,7 @@ help:
 	@echo   make test-runner       - teste do executor compartilhado de cenarios
 	@echo   make test-plot-neuron  - teste Python do grafico de neuronio
 	@echo   make test-compare-runs - teste Python da comparacao de execucoes
+	@echo   make test-diagnostics  - teste Python dos diagnosticos basic/full
 	@echo   make api-examples      - executa os exemplos publicos da API
 	@echo   make demo              - executa o demo interno
 	@echo   make scenario          - executa um cenario .ini com SCENARIO=configs/arquivo.ini
@@ -83,6 +84,9 @@ test-plot-neuron: | $(BUILD_DIR)
 
 test-compare-runs: | $(BUILD_DIR)
 	$(PYTHON) tests/test_compare_runs.py
+
+test-diagnostics: | $(BUILD_DIR)
+	$(PYTHON) tests/test_analyze_run.py
 
 test: test-api test-core test-lif test-scenario test-runner
 
@@ -175,3 +179,4 @@ clean:
 	@if exist results\scenarios\*.csv del /Q results\scenarios\*.csv
 	@if exist results\scenarios\*.png del /Q results\scenarios\*.png
 	@if exist results\comparisons for /D %%D in (results\comparisons\*) do rmdir /S /Q "%%D"
+	@if exist results\comparisons\*.csv del /Q results\comparisons\*.csv

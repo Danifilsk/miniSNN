@@ -5,6 +5,7 @@
 
 #define SCENARIO_RUN_NAME_MAX 48
 #define SCENARIO_TOPOLOGY_MAX 32
+#define SCENARIO_DIAGNOSTICS_LEVEL_MAX 8
 
 typedef struct
 {
@@ -41,6 +42,18 @@ typedef struct
     int feedforward_layers;
 
     int record_neuron;
+
+    int auto_unique_run;
+    int history_enabled;
+
+    char diagnostics_level[SCENARIO_DIAGNOSTICS_LEVEL_MAX];
+    int time_bin_steps;
+    double burst_z_threshold;
+    int min_burst_steps;
+    int isi_min_spikes;
+    int correlation_sample_size;
+    int neuron_sample_limit;
+    int sample_stride;
 } ScenarioConfig;
 
 void scenario_config_default(ScenarioConfig *config);

@@ -63,6 +63,7 @@ results/api/            CSVs dos exemplos publicos
 results/internal_demo/  saida do demo interno
 results/experiments/    resultados cientificos
 results/scenarios/      resultados locais dos cenarios
+results/comparisons/    comparacoes locais de execucoes
 results/archive/        resultados antigos preservados
 build/                  executaveis gerados localmente
 docs/                   manuais do projeto
@@ -111,6 +112,10 @@ results/archive/
 results/experiments/
 ```
 
+Resultados locais de cenarios e comparacoes tambem sao recriaveis, mas podem
+conter analises importantes. Consulte `docs/ORGANIZACAO_DE_RESULTADOS.md`
+antes de limpar manualmente.
+
 ## Todos os comandos disponiveis
 
 | Comando | O que faz | Resultado esperado |
@@ -124,6 +129,7 @@ results/experiments/
 | `mingw32-make test-scenario` | Testa o parser de cenarios | `Scenario configuration validation OK` |
 | `mingw32-make test-runner` | Testa o executor de cenarios | `Scenario runner validation OK` |
 | `mingw32-make test-compare-runs` | Testa comparacao de execucoes | `Run comparison validation OK` |
+| `mingw32-make test-diagnostics` | Testa diagnosticos basic/full | `Run diagnostics validation OK` |
 | `mingw32-make api-examples` | Executa os tres exemplos publicos | CSVs em `results/api/` |
 | `mingw32-make api-single` | Exemplo de um neuronio | `api_single_neuron.csv` |
 | `mingw32-make api-chain` | Exemplo de cadeia | `api_chain_spikes.csv` |
@@ -236,6 +242,11 @@ results/comparisons/<comparison_name>/
 O Studio tambem possui `COMPARAR EXECUCOES` e `ABRIR COMPARACAO` para gerar e
 abrir essa pasta sem digitar comandos.
 
+O Studio evita sobrescrita automaticamente. Ao rodar duas vezes o mesmo
+`run_name`, a segunda saida recebe timestamp. Use `ABRIR RESULTADOS` para abrir
+`results/`, `ABRIR ULTIMA` para abrir a pasta real mais recente e `ABRIR
+HISTORICO` para abrir `results/scenarios/index.csv`.
+
 O botao `OPCOES`, ao lado da topologia, edita configuracoes menos frequentes:
 auto-conexao, conexoes `INH -> INH`, densidade, seed, delays, parametros
 `small_world` e numero de camadas `feedforward`. O Studio desabilita campos que
@@ -262,6 +273,11 @@ LIF e CSVs/graficos. Ele nao adiciona plasticidade, recompensa, mundo externo
 ou topologia adaptativa.
 
 ## Resultados e sobrescrita
+
+Cada execucao gera `run_manifest.txt`. Com diagnostico `basic` ou `full`, o
+runner tambem gera `metrics.csv`; `scripts/analyze_run.py` completa as metricas,
+o relatorio e os graficos. O guia detalhado esta em
+`docs/GUIA_DE_DIAGNOSTICO.md`.
 
 Os programas abrem os CSVs em modo `"w"`. Ao executar novamente o mesmo
 experimento, os arquivos de resultado daquele experimento sao substituidos.

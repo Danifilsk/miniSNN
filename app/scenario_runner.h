@@ -6,6 +6,7 @@
 #include "scenario_config.h"
 
 #define SCENARIO_OUTPUT_PATH_MAX 512
+#define SCENARIO_ACTUAL_RUN_NAME_MAX 128
 
 typedef struct
 {
@@ -18,8 +19,13 @@ typedef struct
 
     int first_active_step;
     int last_active_step;
+    int active_timesteps;
+    int peak_activity_step;
+    int peak_activity_value;
+    int min_activity_value;
 
     char output_directory[SCENARIO_OUTPUT_PATH_MAX];
+    char actual_run_name[SCENARIO_ACTUAL_RUN_NAME_MAX];
 } ScenarioRunResult;
 
 int scenario_runner_execute(

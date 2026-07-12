@@ -102,8 +102,11 @@ Use nomes de execucao diferentes quando quiser preservar resultados antigos.
 Clique em `Rodar simulacao`. O Studio cria:
 
 ```text
-results/scenarios/<run_name>/
+results/scenarios/<actual_run_name>/
 ```
+
+O Studio sempre evita sobrescrita. Se `run_name` ja existir, a nova execucao
+recebe uma pasta com timestamp, e o painel mostra a pasta real usada.
 
 E grava:
 
@@ -187,10 +190,17 @@ Evite usar Python de jogos, caches, runtimes internos ou pastas como Steam,
 WARNO e codex-runtimes. Quando o Studio estiver configurado, o terminal nao e
 necessario para gerar graficos.
 
-## 9. Como abrir resultados
+## 9. Como abrir resultados e historico
 
-Clique em `Abrir resultados` depois de rodar uma simulacao. A pasta da execucao
-sera aberta no Explorer.
+Use:
+
+- `ABRIR RESULTADOS`: abre a pasta `results/`.
+- `ABRIR ULTIMA`: abre a pasta real da ultima execucao rodada.
+- `ABRIR HISTORICO`: abre `results/scenarios/index.csv`.
+
+Se nenhuma simulacao foi rodada ainda, `ABRIR ULTIMA` mostra uma mensagem
+amigavel. Se o historico ainda nao existir, o Studio cria o arquivo com
+cabecalho e abre em seguida.
 
 ## 10. Como comparar execucoes
 
@@ -206,6 +216,9 @@ automaticamente. A comparacao e salva em:
 ```text
 results/comparisons/<comparison_name>/
 ```
+
+Se o nome de comparacao ja existir, o script cria uma pasta unica por padrao e
+registra `results/comparisons/index.csv`.
 
 Arquivos gerados:
 
@@ -231,7 +244,14 @@ Para comparar testes:
 3. Gere os graficos.
 4. Compare as pastas em `results/scenarios/`.
 
-## 12. O que ainda nao existe no Studio
+## 12. Diagnostico
+
+O seletor `DIAG` oferece `OFF`, `BASIC` e `FULL`. Novos cenarios usam `BASIC`.
+Depois de uma execucao, `GERAR DIAGNOSTICO` chama `scripts/analyze_run.py` com o
+Python detectado. `ABRIR METRICAS` abre `metrics.csv` e `ABRIR DIAGNOSTICO` abre
+`diagnostics_overview.png`. Em `OFF`, nenhuma analise pesada e executada.
+
+## 13. O que ainda nao existe no Studio
 
 Esta etapa nao implementa peixe, mundo, plasticidade, recompensa, punicao,
 neuroevolucao ou topologia adaptativa.

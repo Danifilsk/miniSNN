@@ -84,7 +84,21 @@ static const char *valid_config_text(void)
         "feedforward_layers = 3\n"
         "\n"
         "[recording]\n"
-        "record_neuron = 0\n";
+        "record_neuron = 0\n"
+        "\n"
+        "[output]\n"
+        "auto_unique_run = true\n"
+        "history_enabled = true\n"
+        "\n"
+        "[diagnostics]\n"
+        "level = full\n"
+        "time_bin_steps = 20\n"
+        "burst_z_threshold = 2.5\n"
+        "min_burst_steps = 2\n"
+        "isi_min_spikes = 5\n"
+        "correlation_sample_size = 64\n"
+        "neuron_sample_limit = 500\n"
+        "sample_stride = 2\n";
 }
 
 static int load_text_expect_success(const char *content, ScenarioConfig *config)
@@ -187,6 +201,21 @@ static int check_valid_file_loads_correctly(void)
         return fail("new topology option values were not loaded");
     }
 
+    if (config.auto_unique_run != 1 || config.history_enabled != 1)
+        return fail("output option values were not loaded");
+
+    if (strcmp(config.diagnostics_level, "full") != 0 ||
+        config.time_bin_steps != 20 ||
+        !double_close(config.burst_z_threshold, 2.5) ||
+        config.min_burst_steps != 2 ||
+        config.isi_min_spikes != 5 ||
+        config.correlation_sample_size != 64 ||
+        config.neuron_sample_limit != 500 ||
+        config.sample_stride != 2)
+    {
+        return fail("diagnostic values were not loaded");
+    }
+
     return 1;
 }
 
@@ -221,7 +250,17 @@ static int configs_match(
                a->small_world_rewire_probability,
                b->small_world_rewire_probability) &&
            a->feedforward_layers == b->feedforward_layers &&
-           a->record_neuron == b->record_neuron;
+           a->record_neuron == b->record_neuron &&
+           a->auto_unique_run == b->auto_unique_run &&
+           a->history_enabled == b->history_enabled &&
+           strcmp(a->diagnostics_level, b->diagnostics_level) == 0 &&
+           a->time_bin_steps == b->time_bin_steps &&
+           double_close(a->burst_z_threshold, b->burst_z_threshold) &&
+           a->min_burst_steps == b->min_burst_steps &&
+           a->isi_min_spikes == b->isi_min_spikes &&
+           a->correlation_sample_size == b->correlation_sample_size &&
+           a->neuron_sample_limit == b->neuron_sample_limit &&
+           a->sample_stride == b->sample_stride;
 }
 
 static int check_save_and_reload(void)
@@ -243,6 +282,9 @@ static int check_save_and_reload(void)
     config.small_world_neighbors = 2;
     config.small_world_rewire_probability = 0.35;
     config.feedforward_layers = 2;
+    config.auto_unique_run = 1;
+    config.history_enabled = 0;
+    snprintf(config.diagnostics_level, sizeof(config.diagnostics_level), "full");
 
     if (!scenario_config_save_file(
             TEMP_SAVE_PATH,
@@ -273,6 +315,8 @@ static int check_save_and_reload(void)
 
 int main(void)
 {
+    ScenarioConfig legacy_config;
+
     if (!check_default_config_is_valid())
         return 1;
 
@@ -361,6 +405,37 @@ int main(void)
             "too-small feedforward_layers was accepted"))
     {
         return 1;
+    }
+
+    if (!load_text_expect_failure(
+            "auto_unique_run = talvez\n",
+            "invalid auto_unique_run was accepted"))
+    {
+        return 1;
+    }
+
+    if (!load_text_expect_failure(
+            "level = expensive\n",
+            "invalid diagnostics level was accepted") ||
+        !load_text_expect_failure(
+            "time_bin_steps = 0\n",
+            "invalid time_bin_steps was accepted") ||
+        !load_text_expect_failure(
+            "correlation_sample_size = 0\n",
+            "invalid correlation_sample_size was accepted") ||
+        !load_text_expect_failure(
+            "neuron_sample_limit = 0\n",
+            "invalid neuron_sample_limit was accepted"))
+    {
+        return 1;
+    }
+
+    if (!load_text_expect_success(
+            "run_name = legacy_demo\ntopology = chain\nneurons = 2\nsource_count = 1\nrecord_neuron = 0\n",
+            &legacy_config) ||
+        strcmp(legacy_config.diagnostics_level, "off") != 0)
+    {
+        return fail("legacy config did not default diagnostics to off");
     }
 
     if (!check_save_and_reload())

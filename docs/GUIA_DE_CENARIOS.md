@@ -72,6 +72,19 @@ mostra erro com numero de linha.
 | `resistance` | Resistencia do LIF |
 | `synaptic_decay` | Decaimento da corrente sinaptica |
 | `record_neuron` | Neuronio detalhado gravado em CSV individual |
+| `auto_unique_run` | Evita sobrescrever uma pasta existente de `run_name` |
+| `history_enabled` | Registra execucoes em `results/scenarios/index.csv` |
+| `level` | Diagnostico `off`, `basic` ou `full` |
+| `time_bin_steps` | Tamanho das janelas do modo full |
+| `burst_z_threshold` | Multiplicador do desvio para detectar bursts |
+| `min_burst_steps` | Duracao minima de burst |
+| `isi_min_spikes` | Minimo de spikes para ISI |
+| `correlation_sample_size` | Limite de neuronios na correlacao |
+| `neuron_sample_limit` | Limite da amostra de neuronios |
+| `sample_stride` | Passo deterministico da amostra |
+
+Configs antigas sem `[diagnostics]` usam `off`. Arquivos salvos pelo Studio
+registram a secao, e o padrao de um novo cenario e `basic`.
 
 ## 4. Valores validos
 
@@ -99,6 +112,7 @@ Regras principais:
 - `excitatory_weight`: maior que zero.
 - `inhibitory_weight`: menor que zero.
 - `dt`, `tau`, `resistance` e `synaptic_decay`: positivos.
+- `auto_unique_run` e `history_enabled`: `true` ou `false`.
 
 ## 5. Topologias suportadas
 
@@ -185,6 +199,33 @@ results/scenarios/random_balanced_demo/
 ```
 
 Esse e o cenario padrao do alvo `scenario`.
+
+## 7.1. Saida e historico
+
+A secao opcional `[output]` controla organizacao dos resultados:
+
+```ini
+[output]
+auto_unique_run = false
+history_enabled = true
+```
+
+Com `auto_unique_run = false`, o runner usa exatamente `run_name`, preservando
+o comportamento antigo. Com `auto_unique_run = true`, se a pasta ja existir, a
+saida real vira algo como:
+
+```text
+results/scenarios/random_demo_20260708_153012/
+```
+
+Cada execucao concluida com `history_enabled = true` adiciona uma linha em:
+
+```text
+results/scenarios/index.csv
+```
+
+No Studio, nome unico fica ativo automaticamente para evitar sobrescrita
+acidental.
 
 ### Atalhos de topologia
 
@@ -366,12 +407,18 @@ Saida:
 results/comparisons/random_vs_small_world/
 ```
 
+Se a pasta de comparacao ja existir, o script cria uma pasta unica com
+timestamp. Use `--overwrite` somente quando quiser reutilizar explicitamente a
+pasta existente.
+
 Arquivos gerados:
 
 - `comparison_summary.csv`: metricas por execucao.
 - `comparison_report.txt`: relatorio legivel com rankings e avisos.
 - `comparison_metrics.png`: comparacao de metricas principais.
 - `comparison_activity_overlay.png`: atividade populacional sobreposta.
+
+O historico local de comparacoes fica em `results/comparisons/index.csv`.
 
 Veja tambem:
 

@@ -35,6 +35,16 @@ typedef enum
     FIELD_SMALL_WORLD_REWIRE_PROBABILITY,
     FIELD_FEEDFORWARD_LAYERS,
     FIELD_RECORD_NEURON,
+    FIELD_AUTO_UNIQUE_RUN,
+    FIELD_HISTORY_ENABLED,
+    FIELD_DIAGNOSTICS_LEVEL,
+    FIELD_TIME_BIN_STEPS,
+    FIELD_BURST_Z_THRESHOLD,
+    FIELD_MIN_BURST_STEPS,
+    FIELD_ISI_MIN_SPIKES,
+    FIELD_CORRELATION_SAMPLE_SIZE,
+    FIELD_NEURON_SAMPLE_LIMIT,
+    FIELD_SAMPLE_STRIDE,
     FIELD_COUNT
 } ScenarioField;
 
@@ -71,7 +81,17 @@ static const KeyMap KEY_MAP[] =
     {"small_world_neighbors", FIELD_SMALL_WORLD_NEIGHBORS},
     {"small_world_rewire_probability", FIELD_SMALL_WORLD_REWIRE_PROBABILITY},
     {"feedforward_layers", FIELD_FEEDFORWARD_LAYERS},
-    {"record_neuron", FIELD_RECORD_NEURON}
+    {"record_neuron", FIELD_RECORD_NEURON},
+    {"auto_unique_run", FIELD_AUTO_UNIQUE_RUN},
+    {"history_enabled", FIELD_HISTORY_ENABLED},
+    {"level", FIELD_DIAGNOSTICS_LEVEL},
+    {"time_bin_steps", FIELD_TIME_BIN_STEPS},
+    {"burst_z_threshold", FIELD_BURST_Z_THRESHOLD},
+    {"min_burst_steps", FIELD_MIN_BURST_STEPS},
+    {"isi_min_spikes", FIELD_ISI_MIN_SPIKES},
+    {"correlation_sample_size", FIELD_CORRELATION_SAMPLE_SIZE},
+    {"neuron_sample_limit", FIELD_NEURON_SAMPLE_LIMIT},
+    {"sample_stride", FIELD_SAMPLE_STRIDE}
 };
 
 static void set_error(
@@ -325,6 +345,21 @@ static int assign_value(
         }
         return 1;
 
+    case FIELD_DIAGNOSTICS_LEVEL:
+        if (!copy_string_value(
+                config->diagnostics_level,
+                sizeof(config->diagnostics_level),
+                value))
+        {
+            set_line_error(
+                error_message,
+                error_message_size,
+                line_number,
+                "level de diagnostico muito longo");
+            return 0;
+        }
+        return 1;
+
     case FIELD_SEED:
         if (!parse_uint_value(value, &uint_value))
         {
@@ -340,6 +375,8 @@ static int assign_value(
 
     case FIELD_ALLOW_SELF_CONNECTIONS:
     case FIELD_ALLOW_INH_TO_INH:
+    case FIELD_AUTO_UNIQUE_RUN:
+    case FIELD_HISTORY_ENABLED:
         if (!parse_bool_value(value, &bool_value))
         {
             set_line_error(
@@ -352,8 +389,12 @@ static int assign_value(
 
         if (field == FIELD_ALLOW_SELF_CONNECTIONS)
             config->allow_self_connections = bool_value;
-        else
+        else if (field == FIELD_ALLOW_INH_TO_INH)
             config->allow_inh_to_inh = bool_value;
+        else if (field == FIELD_AUTO_UNIQUE_RUN)
+            config->auto_unique_run = bool_value;
+        else
+            config->history_enabled = bool_value;
 
         return 1;
 
@@ -365,6 +406,12 @@ static int assign_value(
     case FIELD_SMALL_WORLD_NEIGHBORS:
     case FIELD_FEEDFORWARD_LAYERS:
     case FIELD_RECORD_NEURON:
+    case FIELD_TIME_BIN_STEPS:
+    case FIELD_MIN_BURST_STEPS:
+    case FIELD_ISI_MIN_SPIKES:
+    case FIELD_CORRELATION_SAMPLE_SIZE:
+    case FIELD_NEURON_SAMPLE_LIMIT:
+    case FIELD_SAMPLE_STRIDE:
         if (!parse_int_value(value, &int_value))
         {
             set_line_error(
@@ -389,6 +436,18 @@ static int assign_value(
             config->small_world_neighbors = int_value;
         else if (field == FIELD_FEEDFORWARD_LAYERS)
             config->feedforward_layers = int_value;
+        else if (field == FIELD_TIME_BIN_STEPS)
+            config->time_bin_steps = int_value;
+        else if (field == FIELD_MIN_BURST_STEPS)
+            config->min_burst_steps = int_value;
+        else if (field == FIELD_ISI_MIN_SPIKES)
+            config->isi_min_spikes = int_value;
+        else if (field == FIELD_CORRELATION_SAMPLE_SIZE)
+            config->correlation_sample_size = int_value;
+        else if (field == FIELD_NEURON_SAMPLE_LIMIT)
+            config->neuron_sample_limit = int_value;
+        else if (field == FIELD_SAMPLE_STRIDE)
+            config->sample_stride = int_value;
         else
             config->record_neuron = int_value;
 
@@ -407,6 +466,7 @@ static int assign_value(
     case FIELD_RESISTANCE:
     case FIELD_SYNAPTIC_DECAY:
     case FIELD_SMALL_WORLD_REWIRE_PROBABILITY:
+    case FIELD_BURST_Z_THRESHOLD:
         if (!parse_double_value(value, &double_value))
         {
             set_line_error(
@@ -441,6 +501,8 @@ static int assign_value(
             config->resistance = double_value;
         else if (field == FIELD_SYNAPTIC_DECAY)
             config->synaptic_decay = double_value;
+        else if (field == FIELD_BURST_Z_THRESHOLD)
+            config->burst_z_threshold = double_value;
         else
             config->small_world_rewire_probability = double_value;
 
@@ -525,6 +587,17 @@ void scenario_config_default(ScenarioConfig *config)
     config->feedforward_layers = 3;
 
     config->record_neuron = 0;
+    config->auto_unique_run = 0;
+    config->history_enabled = 1;
+
+    snprintf(config->diagnostics_level, sizeof(config->diagnostics_level), "basic");
+    config->time_bin_steps = 10;
+    config->burst_z_threshold = 2.0;
+    config->min_burst_steps = 1;
+    config->isi_min_spikes = 4;
+    config->correlation_sample_size = 128;
+    config->neuron_sample_limit = 1000;
+    config->sample_stride = 1;
 }
 
 int scenario_config_validate(
@@ -547,6 +620,27 @@ int scenario_config_validate(
     if (!topology_is_supported(config->topology))
     {
         set_error(error_message, error_message_size, "topologia invalida");
+        return 0;
+    }
+
+    if (strcmp(config->diagnostics_level, "off") != 0 &&
+        strcmp(config->diagnostics_level, "basic") != 0 &&
+        strcmp(config->diagnostics_level, "full") != 0)
+    {
+        set_error(error_message, error_message_size, "diagnostics level invalido");
+        return 0;
+    }
+
+    if (config->time_bin_steps <= 0 ||
+        config->min_burst_steps <= 0 ||
+        config->isi_min_spikes <= 0 ||
+        config->correlation_sample_size <= 0 ||
+        config->neuron_sample_limit <= 0 ||
+        config->sample_stride <= 0 ||
+        !isfinite(config->burst_z_threshold) ||
+        config->burst_z_threshold < 0.0)
+    {
+        set_error(error_message, error_message_size, "parametros de diagnostico invalidos");
         return 0;
     }
 
@@ -603,7 +697,11 @@ int scenario_config_validate(
     if ((config->allow_self_connections != 0 &&
          config->allow_self_connections != 1) ||
         (config->allow_inh_to_inh != 0 &&
-         config->allow_inh_to_inh != 1))
+         config->allow_inh_to_inh != 1) ||
+        (config->auto_unique_run != 0 &&
+         config->auto_unique_run != 1) ||
+        (config->history_enabled != 0 &&
+         config->history_enabled != 1))
     {
         set_error(error_message, error_message_size, "opcoes booleanas invalidas");
         return 0;
@@ -693,6 +791,7 @@ int scenario_config_load_file(
     }
 
     scenario_config_default(&config);
+    snprintf(config.diagnostics_level, sizeof(config.diagnostics_level), "off");
 
     file = fopen(filename, "r");
 
@@ -887,7 +986,21 @@ int scenario_config_save_file(
             "feedforward_layers = %d\n"
             "\n"
             "[recording]\n"
-            "record_neuron = %d\n",
+            "record_neuron = %d\n"
+            "\n"
+            "[output]\n"
+            "auto_unique_run = %s\n"
+            "history_enabled = %s\n"
+            "\n"
+            "[diagnostics]\n"
+            "level = %s\n"
+            "time_bin_steps = %d\n"
+            "burst_z_threshold = %.17g\n"
+            "min_burst_steps = %d\n"
+            "isi_min_spikes = %d\n"
+            "correlation_sample_size = %d\n"
+            "neuron_sample_limit = %d\n"
+            "sample_stride = %d\n",
             config->run_name,
             config->topology,
             config->neurons,
@@ -913,7 +1026,17 @@ int scenario_config_save_file(
             config->small_world_neighbors,
             config->small_world_rewire_probability,
             config->feedforward_layers,
-            config->record_neuron) < 0)
+            config->record_neuron,
+            config->auto_unique_run ? "true" : "false",
+            config->history_enabled ? "true" : "false",
+            config->diagnostics_level,
+            config->time_bin_steps,
+            config->burst_z_threshold,
+            config->min_burst_steps,
+            config->isi_min_spikes,
+            config->correlation_sample_size,
+            config->neuron_sample_limit,
+            config->sample_stride) < 0)
     {
         fclose(file);
         set_error(error_message, error_message_size, "erro ao escrever arquivo de cenario");

@@ -4,9 +4,12 @@ from configparser import ConfigParser
 from datetime import datetime
 from pathlib import Path
 import argparse
+import csv
 import math
 import re
 import sys
+
+from metrics_common import basic_metrics as shared_basic_metrics
 
 try:
     import matplotlib.pyplot as plt
@@ -43,6 +46,71 @@ def sanitize_name(name: str) -> str:
 
 def automatic_comparison_name() -> str:
     return datetime.now().strftime("comparison_%Y%m%d_%H%M%S")
+
+
+def timestamp_name() -> str:
+    return datetime.now().strftime("%Y%m%d_%H%M%S")
+
+
+def unique_output_dir(output_root: Path, comparison_name: str, overwrite: bool) -> Path:
+    output_dir = output_root / comparison_name
+
+    if overwrite or not output_dir.exists():
+        return output_dir
+
+    timestamp = timestamp_name()
+
+    for suffix in range(1000):
+        if suffix == 0:
+            candidate = output_root / f"{comparison_name}_{timestamp}"
+        else:
+            candidate = output_root / f"{comparison_name}_{timestamp}_{suffix + 1}"
+
+        if not candidate.exists():
+            return candidate
+
+    raise RuntimeError("nao foi possivel criar nome unico para comparacao")
+
+
+def append_comparison_index(
+    output_root: Path,
+    comparison_name: str,
+    output_dir: Path,
+    run_paths: list[Path],
+    run_names: list[str],
+    status: str,
+) -> None:
+    output_root.mkdir(parents=True, exist_ok=True)
+    index_path = output_root / "index.csv"
+    needs_header = not index_path.exists()
+
+    with index_path.open("a", encoding="utf-8", newline="") as file:
+        writer = csv.writer(file)
+
+        if needs_header:
+            writer.writerow(
+                [
+                    "timestamp",
+                    "comparison_name",
+                    "comparison_path",
+                    "run_count",
+                    "run_names",
+                    "run_paths",
+                    "status",
+                ]
+            )
+
+        writer.writerow(
+            [
+                datetime.now().strftime("%Y%m%d_%H%M%S"),
+                comparison_name,
+                str(output_dir),
+                len(run_paths),
+                ";".join(run_names),
+                ";".join(str(path) for path in run_paths),
+                status,
+            ]
+        )
 
 
 def find_column(data: pd.DataFrame, aliases: tuple[str, ...]) -> str | None:
@@ -484,36 +552,60 @@ def analyze_run(run_path: Path) -> tuple[dict[str, object] | None, pd.DataFrame 
     if population is None or spike_column is None or time_column is None:
         return None, None, warnings
 
-    summary = parse_summary(run_path, warnings)
-    config = parse_config(run_path, warnings)
-    metadata = infer_basic_metadata(run_path, summary, config, len(population))
-    num_neurons = metadata.get("num_neurons")
-    num_neurons_int = num_neurons if isinstance(num_neurons, int) else None
-    inhibitory_count = to_int(summary.get("inhibitory_count"))
+    metrics_path = run_path / "metrics.csv"
+    stored: dict[str, object] = {}
+    if metrics_path.exists():
+        try:
+            stored = pd.read_csv(metrics_path).iloc[0].to_dict()
+        except Exception as error:
+            warnings.append(f"{run_path}: metrics.csv invalido ({error}); usando fallback.")
 
-    if inhibitory_count is None and num_neurons_int is not None:
-        inhibitory_fraction = to_float(config_get(config, "network", "inhibitory_fraction"))
-        if inhibitory_fraction is not None:
-            inhibitory_count = int(num_neurons_int * inhibitory_fraction + 0.5)
-
-    metrics = metadata
-    metrics.update(
-        compute_population_metrics(
-            population,
-            spike_column,
-            time_column,
-            num_neurons_int,
+    if stored and "diagnostic_regime" in stored and "activity_total_spikes" in stored:
+        metrics = {key: value for key, value in stored.items() if pd.notna(value)}
+        metrics["metrics_source"] = "metrics.csv"
+    else:
+        derived, context = shared_basic_metrics(run_path, level="basic", keep_events=False)
+        warnings.extend(str(item) for item in context["warnings"])
+        metrics = derived
+        metrics.update({key: value for key, value in stored.items() if pd.notna(value)})
+        metrics["metrics_source"] = (
+            "metrics.csv (campos ausentes derivados)" if stored else "derivadas de CSVs antigos"
         )
-    )
-    metrics.update(
-        compute_raster_metrics(
-            run_path,
-            num_neurons_int,
-            inhibitory_count,
-            warnings,
-        )
-    )
-
+    aliases = {
+        "num_neurons": "network_num_neurons",
+        "steps": "run_steps",
+        "dt": "run_dt",
+        "duration": "run_simulation_duration",
+        "seed": "run_seed",
+        "recorded_neuron": "run_recorded_neuron",
+        "total_connections": "network_total_connections",
+        "total_spikes": "activity_total_spikes",
+        "mean_spikes_per_step": "activity_mean_spikes_per_step",
+        "max_spikes_per_step": "activity_max_spikes_per_step",
+        "min_spikes_per_step": "activity_min_spikes_per_step",
+        "std_spikes_per_step": "activity_std_spikes_per_step",
+        "active_timesteps": "activity_active_timesteps",
+        "silent_timesteps": "activity_silent_timesteps",
+        "first_active_step": "activity_first_active_step",
+        "last_active_step": "activity_last_active_step",
+        "peak_activity_step": "activity_peak_step",
+        "peak_activity_value": "activity_peak_value",
+        "has_late_activity": "activity_has_late_activity",
+        "activity_span": "activity_span",
+        "longest_silence_streak": "activity_longest_silence_streak",
+        "longest_activity_streak": "activity_longest_activity_streak",
+        "population_fano_factor": "activity_population_fano_factor",
+        "population_cv": "activity_population_cv",
+        "synchrony_proxy": "activity_synchrony_proxy",
+        "active_neuron_count": "neuron_active_count",
+        "inactive_neuron_count": "neuron_inactive_count",
+        "active_neuron_fraction": "neuron_active_fraction",
+        "dead_neuron_fraction": "neuron_dead_fraction",
+        "spike_gini_approx": "neuron_spike_gini",
+        "stability_score": "diagnostic_stability_score",
+    }
+    for old_name, canonical_name in aliases.items():
+        metrics[old_name] = metrics.get(canonical_name)
     metrics["warnings"] = " | ".join(warnings) if warnings else ""
     return metrics, population[[time_column, spike_column]].rename(
         columns={time_column: "tempo", spike_column: "spikes_total"}
@@ -568,6 +660,7 @@ def write_report(
             f"estabilidade={format_value(row.get('stability_score'))}, "
             f"sincronia_proxy={format_value(row.get('synchrony_proxy'))}"
         )
+        lines.append(f"  origem: {row.get('metrics_source', 'NA')}")
 
     def ranking(metric: str, title: str, ascending: bool = False) -> None:
         lines.append("")
@@ -667,6 +760,7 @@ def compare_runs(
     run_paths: list[str | Path],
     out_name: str | None = None,
     output_root: str | Path | None = None,
+    overwrite: bool = False,
 ) -> Path | None:
     if len(run_paths) < 2:
         print("Erro: informe pelo menos duas pastas de execucao para comparar.")
@@ -674,12 +768,17 @@ def compare_runs(
 
     comparison_name = sanitize_name(out_name) if out_name else automatic_comparison_name()
     output_root_path = Path(output_root) if output_root is not None else DEFAULT_OUTPUT_ROOT
-    output_dir = output_root_path / comparison_name
-    output_dir.mkdir(parents=True, exist_ok=True)
+    try:
+        output_dir = unique_output_dir(output_root_path, comparison_name, overwrite)
+    except RuntimeError as error:
+        print(f"Erro: {error}")
+        return None
 
     rows: list[dict[str, object]] = []
     all_warnings: list[str] = []
     activity_by_run: dict[str, pd.DataFrame] = {}
+    valid_run_paths: list[Path] = []
+    valid_run_names: list[str] = []
 
     for raw_path in run_paths:
         run_path = Path(raw_path)
@@ -692,6 +791,8 @@ def compare_runs(
         run_name = str(metrics["run_name"])
         rows.append(metrics)
         activity_by_run[run_name] = activity
+        valid_run_paths.append(run_path)
+        valid_run_names.append(run_name)
 
     if len(rows) < 2:
         print("Erro: menos de duas execucoes validas puderam ser comparadas.")
@@ -700,12 +801,23 @@ def compare_runs(
         return None
 
     summary = pd.DataFrame(rows)
+    output_dir.mkdir(parents=True, exist_ok=overwrite)
     summary_path = output_dir / "comparison_summary.csv"
     summary.to_csv(summary_path, index=False)
     report_path = write_report(output_dir, summary, all_warnings)
     metrics_plot = plot_comparison_metrics(output_dir, summary)
     overlay_plot = plot_activity_overlay(output_dir, activity_by_run)
 
+    append_comparison_index(
+        output_root_path,
+        output_dir.name,
+        output_dir,
+        valid_run_paths,
+        valid_run_names,
+        "OK",
+    )
+
+    print(f"Comparacao solicitada: {comparison_name}")
     print(f"Comparacao gerada em: {output_dir}")
     print(f"Resumo CSV: {summary_path}")
     print(f"Relatorio: {report_path}")
@@ -721,9 +833,14 @@ def main() -> int:
     )
     parser.add_argument("run_dirs", nargs="+", help="Pastas em results/scenarios/<run_name>")
     parser.add_argument("--out-name", help="Nome da pasta em results/comparisons/")
+    parser.add_argument(
+        "--overwrite",
+        action="store_true",
+        help="Permite reutilizar a pasta de saida quando ela ja existe.",
+    )
     args = parser.parse_args()
 
-    output_dir = compare_runs(args.run_dirs, args.out_name)
+    output_dir = compare_runs(args.run_dirs, args.out_name, overwrite=args.overwrite)
     return 0 if output_dir is not None else 1
 
 

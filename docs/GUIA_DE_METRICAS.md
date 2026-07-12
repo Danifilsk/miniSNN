@@ -1,5 +1,15 @@
 # Guia de Metricas da miniSNN
 
+As definicoes canonicas, formulas e nomes com prefixos estao em
+`docs/GUIA_DE_DIAGNOSTICO.md`. `metrics.csv` e a fonte preferencial para runs
+novas; a comparacao mantem fallback para runs antigas.
+
+Geracao manual:
+
+```powershell
+python scripts/analyze_run.py results/scenarios/random_demo --level basic
+```
+
 Este guia resume as metricas geradas por:
 
 ```powershell
@@ -12,6 +22,16 @@ Os resultados ficam em:
 results/comparisons/<comparison_name>/
 ```
 
+Se a pasta ja existir, o comparador cria uma pasta unica com timestamp por
+padrao. Use `--overwrite` apenas quando quiser reutilizar explicitamente uma
+pasta existente.
+
+Cada comparacao concluida registra uma linha em:
+
+```text
+results/comparisons/index.csv
+```
+
 Arquivos principais:
 
 - `comparison_summary.csv`: uma linha por execucao, com metricas numericas.
@@ -21,59 +41,48 @@ Arquivos principais:
 
 ## Metricas principais
 
-`total_spikes`: soma de todos os spikes da execucao.
+Os nomes canonicos em runs novas sao:
 
-`mean_spikes_per_step`: media de spikes por timestep.
+- `activity_total_spikes`: soma de todos os spikes.
+- `activity_mean_spikes_per_step`: media por timestep.
+- `activity_max_spikes_per_step`: maior atividade em um timestep.
+- `activity_fraction` e `silence_fraction`: fracoes ativa e silenciosa.
+- `activity_active_timesteps` e `activity_silent_timesteps`: contagens.
+- `activity_first_active_step` e `activity_last_active_step`: limites observados.
+- `activity_has_late_activity`: atividade no ultimo quarto.
+- `activity_span`: intervalo inclusivo entre primeira e ultima atividade.
 
-`max_spikes_per_step`: maior numero de spikes observado em um timestep.
-
-`activity_fraction`: fracao de timesteps com pelo menos um spike.
-
-`silence_fraction`: fracao de timesteps sem spikes.
-
-`active_timesteps`: quantidade de timesteps ativos.
-
-`silent_timesteps`: quantidade de timesteps silenciosos.
-
-`first_active_step` e `last_active_step`: primeira e ultima atividade observada.
-
-`has_late_activity`: indica se houve atividade no ultimo quarto da simulacao.
-
-`activity_span`: distancia entre primeiro e ultimo timestep ativo.
+`comparison_summary.csv` tambem expoe aliases historicos, como `total_spikes` e
+`last_active_step`, para preservar consumidores antigos.
 
 ## Silencio, rajadas e estabilidade
 
-`longest_silence_streak`: maior sequencia de timesteps sem spikes.
+`activity_longest_silence_streak`: maior sequencia sem spikes.
 
-`longest_activity_streak`: maior sequencia de timesteps com spikes.
+`activity_longest_activity_streak`: maior sequencia com spikes.
 
 `burst_threshold_used`: limiar usado para classificar rajadas:
 
 ```text
-max(3, media_de_spikes + 2 * desvio_padrao)
+max(1, media_de_spikes + burst_z_threshold * desvio_padrao)
 ```
 
-`burst_count`: numero de timesteps acima desse limiar.
+`burst_count`: numero de grupos consecutivos acima do limiar que respeitam
+`min_burst_steps`.
 
 `burst_fraction`: fracao da simulacao classificada como rajada.
 
-`explosion_score`: aproximacao de atividade explosiva:
-
-```text
-max_spikes_per_step / num_neurons
-```
-
-`stability_score`: heuristica entre 0 e 1. Penaliza silencio extremo, rajadas e
-picos populacionais muito altos. Nao e uma verdade biologica absoluta; serve
-como diagnostico rapido para comparar execucoes.
+`diagnostic_stability_score`: media dos componentes de atividade, ausencia de
+explosao, persistencia e distribuicao. A formula completa esta em
+`GUIA_DE_DIAGNOSTICO.md`. E uma heuristica, nao uma verdade biologica.
 
 ## Atividade temporal
 
 A simulacao e dividida em tres partes:
 
-- `early_activity_mean` e `early_activity_fraction`
-- `middle_activity_mean` e `middle_activity_fraction`
-- `late_activity_mean` e `late_activity_fraction`
+- `activity_early_mean` e `activity_early_fraction`
+- `activity_middle_mean` e `activity_middle_fraction`
+- `activity_late_mean` e `activity_late_fraction`
 
 Essas metricas ajudam a ver se a rede morre, cresce, estabiliza ou volta a
 ficar ativa no fim.
@@ -82,27 +91,24 @@ ficar ativa no fim.
 
 Quando `raster.csv` esta disponivel:
 
-`active_neuron_count`: neuronios que dispararam ao menos uma vez.
+`neuron_active_count`: neuronios que dispararam ao menos uma vez.
 
-`inactive_neuron_count`: neuronios sem spikes.
+`neuron_inactive_count`: neuronios sem spikes.
 
-`active_neuron_fraction`: fracao de neuronios ativos.
+`neuron_active_fraction`: fracao de neuronios ativos.
 
-`dead_neuron_fraction`: fracao de neuronios silenciosos.
+`neuron_dead_fraction`: fracao de neuronios silenciosos nesta execucao.
 
-`mean_spikes_per_neuron`: media de spikes por neuronio, incluindo silenciosos.
+`neuron_mean_spikes`: media de spikes por neuronio, incluindo silenciosos.
 
-`mean_spikes_per_active_neuron`: media considerando apenas neuronios ativos.
-
-`most_active_neuron` e `least_active_neuron`: indices dos neuronios com maior e
-menor contagem de spikes.
+`neuron_most_active` e `neuron_least_active_active`: indices dos extremos.
 
 ## Concentracao de spikes
 
-`spike_concentration_top_10_percent`: fracao dos spikes produzida pelos 10% de
+`neuron_top_10_percent_spike_share`: fracao dos spikes produzida pelos 10% de
 neuronios mais ativos.
 
-`spike_gini_approx`: medida aproximada de desigualdade da atividade por
+`neuron_spike_gini`: medida de desigualdade da atividade por
 neuronio. Valores maiores sugerem que poucos neuronios concentram muitos
 spikes.
 
@@ -111,24 +117,24 @@ spikes.
 Quando for possivel inferir tipos de neuronios por `config_used.ini`,
 `summary.txt` ou `raster.csv`, o comparador calcula:
 
-- `excitatory_neuron_count`
-- `inhibitory_neuron_count`
-- `excitatory_total_spikes`
-- `inhibitory_total_spikes`
-- `excitatory_mean_spikes`
-- `inhibitory_mean_spikes`
-- `exc_inh_spike_ratio`
+- `network_excitatory_neuron_count`
+- `network_inhibitory_neuron_count`
+- `exc_total_spikes`
+- `inh_total_spikes`
+- `exc_mean_spikes_per_neuron`
+- `inh_mean_spikes_per_neuron`
+- `exc_inh_total_spike_ratio`
 
 Se a inferencia nao for segura, os campos ficam vazios/`NA`.
 
 ## Sincronia aproximada
 
-`population_fano_factor`: variancia da atividade populacional dividida pela
+`activity_population_fano_factor`: variancia da atividade populacional dividida pela
 media. Valores altos sugerem atividade mais irregular.
 
-`population_cv`: desvio padrao dividido pela media.
+`activity_population_cv`: desvio padrao dividido pela media.
 
-`synchrony_proxy`: aproximacao simples:
+`activity_synchrony_proxy`: aproximacao simples:
 
 ```text
 max_spikes_per_step / total_spikes
