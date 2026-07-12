@@ -11,13 +11,15 @@ O roadmap indica ordem de trabalho, não promessa de prazo.
 - [x] A4 — nomes únicos, organização e históricos.
 - [x] A5 — métricas ampliadas e diagnóstico `off/basic/full`.
 - [x] A6 — consolidação documental e validação de referências.
+- [x] Bloco B — auditoria numérica, estrutural, robustez, regressão e benchmark.
 
 ## Próximo
 
-- [ ] **Bloco B — validação científica e engenharia de robustez.**
+- [ ] Revisão humana do checklist do Studio.
+- [ ] Revisão de release da **Core v0.2 - Essential Lab** para E0.
 
-O Bloco B deve aprofundar testes numéricos do LIF, determinismo, topologias pelo
-runner/Studio, fórmulas de métricas, sanitizers e regressões.
+A parte automática do Bloco B foi concluída. ASan/UBSan permanece pendente em
+toolchain compatível.
 
 ## Ordem oficial posterior
 
@@ -33,7 +35,8 @@ Bloco A
 -> expansão completa do Worlds
 ```
 
-`Core v0.2`, E0 e Worlds mínimo são marcos planejados, não releases existentes.
+`Core v0.2` é candidata à revisão humana; E0 e Worlds mínimo ainda são marcos
+planejados, não releases existentes.
 
 ## Planejado — Bloco C
 

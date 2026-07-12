@@ -41,6 +41,11 @@ Valores de `level`: `off`, `basic` e `full`.
 Runs antigas sem `metrics.csv` continuam comparáveis por fallback quando os CSVs
 necessários existem. Dados ausentes resultam em aviso ou `NA`, não em valores inventados.
 
+Na v0.2, `summary.txt` recebeu assinatura e contagens por classe de conexão sem
+remover chaves antigas. `NaN`/infinito em colunas obrigatórias agora gera erro ou
+descarte explícito, em vez de contaminar métricas. Histórico sem o cabeçalho
+esperado é recusado e não recebe novas linhas silenciosamente.
+
 ## API pública
 
 A API atual está em `include/minisnn.h` e usa o tipo opaco `MiniSNN`. As funções
@@ -63,3 +68,6 @@ Mudanças futuras na dinâmica, fórmulas, topologias ou semântica dos CSVs dev
 receber nota de compatibilidade e, quando necessário, identificação de nova
 versão. Resultados antigos devem manter config, seed, commit e manifesto sempre
 que disponíveis.
+
+Os totais `random_demo = 6757` e `small_world_demo = 15045` foram preservados na
+auditoria da Core v0.2.

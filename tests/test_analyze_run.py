@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from pathlib import Path
 import csv
+import math
 import shutil
 import sys
 
@@ -63,6 +64,13 @@ def check(condition: bool, message: str) -> None:
         raise AssertionError(message)
 
 
+def close(actual: object, expected: float, message: str) -> None:
+    if actual is None or not math.isclose(
+        float(actual), expected, rel_tol=1.0e-12, abs_tol=1.0e-12
+    ):
+        raise AssertionError(f"{message}: expected {expected}, got {actual}")
+
+
 def main() -> int:
     shutil.rmtree(TEMP_ROOT, ignore_errors=True)
     TEMP_ROOT.mkdir(parents=True)
@@ -70,9 +78,12 @@ def main() -> int:
         silent = write_run("silent", [[] for _ in range(20)])
         metrics = analyze(silent, "basic")
         check(metrics["activity_total_spikes"] == 0, "silent total")
+        check(metrics["activity_active_timesteps"] == 0, "silent active timesteps")
+        check(metrics["activity_silent_timesteps"] == 20, "silent timesteps")
         check(metrics["activity_fraction"] == 0, "silent activity fraction")
         check(metrics["silence_fraction"] == 1, "silent silence fraction")
         check(metrics["diagnostic_regime"] == "silent", "silent regime")
+        check(metrics["diagnostic_stability_score"] == 0, "silent stability")
 
         sustained_events = []
         for step in range(20):
@@ -82,7 +93,76 @@ def main() -> int:
             sustained_events.append(events)
         sustained = write_run("sustained", sustained_events)
         sustained_metrics = analyze(sustained, "full")
+        check(sustained_metrics["activity_total_spikes"] == 30, "sustained total")
+        close(sustained_metrics["activity_mean_spikes_per_step"], 1.5, "sustained mean")
+        close(sustained_metrics["activity_median_spikes_per_step"], 1.5, "sustained median")
+        close(sustained_metrics["activity_min_spikes_per_step"], 1.0, "sustained minimum")
+        close(sustained_metrics["activity_max_spikes_per_step"], 2.0, "sustained maximum")
+        close(sustained_metrics["activity_variance_spikes_per_step"], 0.25, "sustained variance")
+        close(sustained_metrics["activity_std_spikes_per_step"], 0.5, "sustained std")
+        check(sustained_metrics["activity_first_active_step"] == 0, "first activity")
+        check(sustained_metrics["activity_last_active_step"] == 19, "last activity")
+        check(sustained_metrics["activity_early_total_spikes"] == 9, "early total")
+        check(sustained_metrics["activity_middle_total_spikes"] == 11, "middle total")
+        check(sustained_metrics["activity_late_total_spikes"] == 10, "late total")
+        check(sustained_metrics["activity_last_quarter_total_spikes"] == 7, "quarter total")
+        close(sustained_metrics["activity_population_cv"], 1.0 / 3.0, "population CV")
+        close(sustained_metrics["activity_population_fano_factor"], 1.0 / 6.0, "Fano")
         check(sustained_metrics["activity_has_late_activity"], "sustained late activity")
+        check(sustained_metrics["diagnostic_regime"] == "sustained", "sustained regime")
+
+        expected_counts = [7, 7, 6, 10]
+        close(sustained_metrics["neuron_mean_spikes"], 7.5, "neuron mean")
+        close(sustained_metrics["neuron_median_spikes"], 7.0, "neuron median")
+        close(sustained_metrics["neuron_std_spikes"], 1.5, "neuron std")
+        check(sustained_metrics["neuron_min_spikes"] == 6, "neuron minimum")
+        check(sustained_metrics["neuron_max_spikes"] == 10, "neuron maximum")
+        check(sustained_metrics["neuron_most_active"] == 3, "most active neuron")
+        close(sustained_metrics["neuron_spike_gini"], 0.1, "neuron Gini")
+        close(sustained_metrics["neuron_top_10_percent_spike_share"], 1.0 / 3.0, "top 10 share")
+        probabilities = [value / 30.0 for value in expected_counts]
+        expected_entropy = -sum(value * math.log2(value) for value in probabilities)
+        close(sustained_metrics["neuron_spike_entropy"], expected_entropy, "spike entropy")
+        close(
+            sustained_metrics["neuron_normalized_spike_entropy"],
+            expected_entropy / 2.0,
+            "normalized spike entropy",
+        )
+
+        check(sustained_metrics["exc_total_spikes"] == 20, "EXC total")
+        check(sustained_metrics["inh_total_spikes"] == 10, "INH total")
+        close(sustained_metrics["exc_mean_spikes_per_neuron"], 20.0 / 3.0, "EXC mean")
+        close(sustained_metrics["inh_mean_spikes_per_neuron"], 10.0, "INH mean")
+        close(sustained_metrics["exc_inh_total_spike_ratio"], 2.0, "EXC/INH total ratio")
+        close(sustained_metrics["exc_inh_rate_ratio"], 2.0 / 3.0, "EXC/INH rate ratio")
+
+        check(sustained_metrics["neuron_detailed_spike_count"] == 7, "detailed count")
+        check(sustained_metrics["neuron_detailed_first_spike"] == 0, "detailed first")
+        check(sustained_metrics["neuron_detailed_last_spike"] == 18, "detailed last")
+        close(sustained_metrics["neuron_detailed_mean_isi"], 3.0, "detailed ISI")
+        for key, expected in (
+            ("voltage_mean", -64.0),
+            ("voltage_median", -64.0),
+            ("voltage_min", -64.0),
+            ("voltage_max", -64.0),
+            ("voltage_std", 0.0),
+            ("current_external_mean", 20.0),
+            ("current_external_std", 0.0),
+            ("current_synaptic_mean", 0.0),
+            ("current_synaptic_std", 0.0),
+            ("current_positive_synaptic_fraction", 0.0),
+            ("current_negative_synaptic_fraction", 0.0),
+        ):
+            close(sustained_metrics[key], expected, key)
+
+        isi_values = [3.0] * 17 + [2.0] * 9
+        isi_mean = sum(isi_values) / len(isi_values)
+        isi_variance = sum((value - isi_mean) ** 2 for value in isi_values) / len(isi_values)
+        check(sustained_metrics["isi_neurons_with_valid_isi"] == 4, "valid ISI neurons")
+        close(sustained_metrics["isi_mean"], isi_mean, "ISI mean")
+        close(sustained_metrics["isi_median"], 3.0, "ISI median")
+        close(sustained_metrics["isi_std"], math.sqrt(isi_variance), "ISI std")
+        close(sustained_metrics["isi_mean_cv"], 0.0, "ISI mean CV")
         check((sustained / "metrics_neurons.csv").exists(), "full neuron metrics")
         check((sustained / "metrics_windows.csv").exists(), "full window metrics")
         check((sustained / "diagnostics_isi.png").exists(), "full ISI plot")
@@ -92,19 +172,30 @@ def main() -> int:
         burst_events[9] = list(burst_events[8])
         burst = write_run("burst", burst_events)
         burst_metrics = analyze(burst, "basic")
-        check(burst_metrics["burst_count"] >= 1, "burst not detected")
+        check(burst_metrics["burst_count"] == 1, "burst count")
+        check(burst_metrics["burst_timesteps"] == 2, "burst duration")
+        check(burst_metrics["burst_total_spikes"] == 8, "burst size")
+        close(burst_metrics["burst_fraction"], 0.1, "burst fraction")
+        close(burst_metrics["burst_spike_share"], 1.0, "burst share")
 
         dominant_events = [[(0, "EXC")] for _ in range(20)]
         dominant_events[0].extend([(1, "EXC"), (2, "EXC"), (3, "INH")])
         dominant = write_run("dominant", dominant_events)
         dominant_metrics = analyze(dominant, "basic")
         check(dominant_metrics["neuron_most_active"] == 0, "dominant neuron")
-        check(dominant_metrics["neuron_top_10_percent_spike_share"] > 0.5, "dominant share")
+        close(dominant_metrics["neuron_top_10_percent_spike_share"], 20.0 / 23.0, "dominant share")
+        close(dominant_metrics["neuron_spike_gini"], 57.0 / 92.0, "dominant Gini")
+        close(dominant_metrics["neuron_dead_fraction"], 0.0, "dominant dead fraction")
 
         ei = write_run("ei", [[(0, "EXC"), (3, "INH")] for _ in range(10)])
         ei_metrics = analyze(ei, "basic")
         check(ei_metrics["exc_total_spikes"] == 10, "EXC count")
         check(ei_metrics["inh_total_spikes"] == 10, "INH count")
+        close(ei_metrics["exc_mean_spikes_per_neuron"], 10.0 / 3.0, "EXC group mean")
+        close(ei_metrics["inh_mean_spikes_per_neuron"], 10.0, "INH group mean")
+        close(ei_metrics["exc_active_fraction"], 1.0 / 3.0, "EXC active fraction")
+        close(ei_metrics["inh_active_fraction"], 1.0, "INH active fraction")
+        close(ei_metrics["exc_inh_total_spike_ratio"], 1.0, "EXC/INH ratio")
 
         incomplete = write_run("incomplete", [[(0, "EXC")]], complete=False)
         analyze(incomplete, "basic")

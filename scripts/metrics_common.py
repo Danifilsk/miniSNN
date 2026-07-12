@@ -57,10 +57,13 @@ def cfg(parser: ConfigParser, section: str, key: str, default: object = None) ->
 
 def diagnostics_parameters(parser: ConfigParser, level: str | None = None) -> dict[str, object]:
     selected = (level or str(cfg(parser, "diagnostics", "level", "off"))).lower()
+    burst_z_threshold = finite_number(
+        cfg(parser, "diagnostics", "burst_z_threshold", 2.0)
+    )
     return {
         "level": selected,
         "time_bin_steps": integer(cfg(parser, "diagnostics", "time_bin_steps", 10)) or 10,
-        "burst_z_threshold": finite_number(cfg(parser, "diagnostics", "burst_z_threshold", 2.0)) or 2.0,
+        "burst_z_threshold": 2.0 if burst_z_threshold is None else burst_z_threshold,
         "min_burst_steps": integer(cfg(parser, "diagnostics", "min_burst_steps", 1)) or 1,
         "isi_min_spikes": integer(cfg(parser, "diagnostics", "isi_min_spikes", 4)) or 4,
         "correlation_sample_size": integer(cfg(parser, "diagnostics", "correlation_sample_size", 128)) or 128,
@@ -206,6 +209,64 @@ def stability(metrics: dict[str, object]) -> dict[str, float]:
     }
 
 
+def sampled_correlation_metrics(
+    events: pd.DataFrame | None,
+    num_neurons: int,
+    steps: int,
+    bin_size: int,
+    sample_size: int,
+    neuron_limit: int,
+    sample_stride: int,
+    seed: int,
+) -> tuple[dict[str, object], np.ndarray, np.ndarray | None, list[int]]:
+    values = np.array([], dtype=float)
+    matrix_result: np.ndarray | None = None
+    sampled_ids: list[int] = []
+
+    if events is not None and steps > 0 and num_neurons > 1:
+        eligible = list(range(0, num_neurons, sample_stride))[:neuron_limit]
+        count = min(sample_size, len(eligible))
+
+        if count >= 2:
+            rng = np.random.default_rng(seed)
+            sampled_ids = sorted(
+                rng.choice(eligible, size=count, replace=False).tolist()
+            )
+            bins = max(1, int(math.ceil(steps / bin_size)))
+            matrix = np.zeros((count, bins), dtype=float)
+            index_by_id = {
+                neuron_id: index for index, neuron_id in enumerate(sampled_ids)
+            }
+            selected = events[events["neuronio"].isin(sampled_ids)]
+
+            for row in selected.itertuples(index=False):
+                matrix[
+                    index_by_id[int(row.neuronio)],
+                    min(bins - 1, int(row.tempo) // bin_size),
+                ] += 1.0
+
+            varying = np.std(matrix, axis=1) > 0
+            matrix = matrix[varying]
+
+            if matrix.shape[0] >= 2:
+                matrix_result = np.corrcoef(matrix)
+                values = matrix_result[
+                    np.triu_indices(matrix_result.shape[0], 1)
+                ]
+
+    metrics = {
+        "correlation_sampled_neurons": len(sampled_ids),
+        "correlation_mean_pairwise": float(values.mean()) if values.size else None,
+        "correlation_median_pairwise": float(np.median(values)) if values.size else None,
+        "correlation_std_pairwise": float(values.std()) if values.size else None,
+        "correlation_max_pairwise": float(values.max()) if values.size else None,
+        "correlation_min_pairwise": float(values.min()) if values.size else None,
+        "correlation_positive_fraction": float(np.mean(values > 0)) if values.size else None,
+        "correlation_negative_fraction": float(np.mean(values < 0)) if values.size else None,
+    }
+    return metrics, values, matrix_result, sampled_ids
+
+
 def read_population(run_path: Path, warnings: list[str]) -> pd.DataFrame | None:
     path = run_path / "population.csv"
     if not path.exists():
@@ -224,6 +285,10 @@ def read_population(run_path: Path, warnings: list[str]) -> pd.DataFrame | None:
         if column in data:
             data[column] = pd.to_numeric(data[column], errors="coerce")
     data = data.dropna(subset=["tempo", "spikes_total"])
+    finite = np.isfinite(data["tempo"]) & np.isfinite(data["spikes_total"])
+    if not bool(finite.all()):
+        warnings.append("population.csv possui NaN ou infinito; linhas invalidas foram ignoradas.")
+        data = data.loc[finite].copy()
     return data
 
 
@@ -248,6 +313,9 @@ def read_raster_counts(
             chunk["tempo"] = pd.to_numeric(chunk["tempo"], errors="coerce")
             chunk["neuronio"] = pd.to_numeric(chunk["neuronio"], errors="coerce")
             chunk = chunk.dropna(subset=["tempo", "neuronio"])
+            chunk = chunk[
+                np.isfinite(chunk["tempo"]) & np.isfinite(chunk["neuronio"])
+            ]
             chunk["tempo"] = chunk["tempo"].astype(int)
             chunk["neuronio"] = chunk["neuronio"].astype(int)
             valid = chunk[(chunk["neuronio"] >= 0) & (chunk["neuronio"] < num_neurons)]
@@ -436,6 +504,7 @@ def basic_metrics(run_path: Path, level: str | None = None, keep_events: bool = 
                 if column in detailed:
                     detailed[column] = pd.to_numeric(detailed[column], errors="coerce")
             spike_times = detailed.loc[detailed.get("spike", 0) == 1, "tempo"].dropna().to_numpy()
+            spike_times = spike_times[np.isfinite(spike_times)]
             isi = np.diff(spike_times)
             metrics.update({
                 "neuron_detailed_spike_count": int(spike_times.size),
@@ -446,6 +515,7 @@ def basic_metrics(run_path: Path, level: str | None = None, keep_events: bool = 
             for source, prefix in (("V", "voltage"), ("corrente_externa", "current_external"), ("corrente_sinaptica", "current_synaptic")):
                 if source in detailed:
                     values = detailed[source].dropna().to_numpy(dtype=float)
+                    values = values[np.isfinite(values)]
                     metrics.update({
                         f"{prefix}_mean": float(values.mean()) if values.size else NA,
                         f"{prefix}_median": float(np.median(values)) if values.size else NA,
@@ -454,11 +524,13 @@ def basic_metrics(run_path: Path, level: str | None = None, keep_events: bool = 
                         f"{prefix}_std": float(values.std()) if values.size else NA,
                     })
             syn = detailed.get("corrente_sinaptica", pd.Series(dtype=float)).dropna().to_numpy(dtype=float)
+            syn = syn[np.isfinite(syn)]
             metrics["current_positive_synaptic_fraction"] = float(np.mean(syn > 0)) if syn.size else NA
             metrics["current_negative_synaptic_fraction"] = float(np.mean(syn < 0)) if syn.size else NA
             threshold = finite_number(cfg(config, "simulation", "v_threshold", NA))
             if threshold is not None and "V" in detailed:
                 voltage = detailed["V"].dropna().to_numpy(dtype=float)
+                voltage = voltage[np.isfinite(voltage)]
                 metrics["voltage_time_near_threshold_fraction"] = float(np.mean(np.abs(voltage - threshold) <= 1.0)) if voltage.size else NA
         except Exception as error:
             warnings.append(f"CSV do neuronio detalhado invalido: {error}")
@@ -481,4 +553,3 @@ def basic_metrics(run_path: Path, level: str | None = None, keep_events: bool = 
 
 def write_metrics(path: Path, metrics: dict[str, object]) -> None:
     pd.DataFrame([metrics]).to_csv(path, index=False, na_rep="NA", quoting=csv.QUOTE_MINIMAL)
-

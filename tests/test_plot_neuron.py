@@ -36,6 +36,11 @@ def main() -> int:
             print("FAIL: neuron detail plot was not generated")
             return 1
 
+        repeated_output = generate_neuron_plot(temp_dir, 0)
+        if repeated_output != output_path or not output_path.exists():
+            print("FAIL: existing neuron plot was not replaced safely")
+            return 1
+
         print("Neuron plot validation OK")
         return 0
     finally:

@@ -10,8 +10,9 @@ CORE_SOURCES = src/neuron.c src/network.c src/topology.c src/stimulus.c src/reco
 EXPERIMENT_SOURCES = src/neuron.c src/network.c src/stimulus.c src/recorder.c
 SCENARIO ?= configs/random_balanced.ini
 PYTHON ?= python
+ANALYZER_CFLAGS = -std=c11 -Wall -Wextra -pedantic -fanalyzer -Wformat=2 -Wshadow -Wnull-dereference
 
-.PHONY: all help clean test test-api test-core test-lif test-scenario test-runner \
+.PHONY: all help clean test test-api test-core test-lif test-scenario test-runner test-runner-topologies test-reproducibility test-regression test-memory test-long test-analyzer test-sanitize benchmark-v02 check-v02 \
 	test-plot-neuron test-compare-runs test-diagnostics test-docs \
 	api-examples api-single api-chain api-exc-inh \
 	demo ei-balance inhibition-fine inh-to-inh sparse-ei scenario \
@@ -25,9 +26,18 @@ help:
 	@echo   make ou make test      - compila e executa todos os testes
 	@echo   make test-api          - teste da API publica
 	@echo   make test-core         - teste do nucleo/topologias/estimulos/recorders
-	@echo   make test-lif          - teste basico do LIF
+	@echo   make test-lif          - validacao numerica do LIF discreto
 	@echo   make test-scenario     - teste do parser de cenarios
 	@echo   make test-runner       - teste do executor compartilhado de cenarios
+	@echo   make test-runner-topologies - validacao estrutural das topologias do runner
+	@echo   make test-reproducibility - determinismo de topologia e CSVs por seed
+	@echo   make test-regression    - golden pequeno e resultados historicos conhecidos
+	@echo   make test-memory       - estresse finito de ciclo de vida, conexoes e delays
+	@echo   make test-long         - 50000 passos com verificacao de estado finito
+	@echo   make test-analyzer     - recompila a suite com fanalyzer e warnings adicionais
+	@echo   make test-sanitize     - executa ASan/UBSan ou informa suporte ausente
+	@echo   make benchmark-v02     - benchmark local controlado do Core v0.2
+	@echo   make check-v02         - verifica prontidao automatica sem alterar Git
 	@echo   make test-plot-neuron  - teste Python do grafico de neuronio
 	@echo   make test-compare-runs - teste Python da comparacao de execucoes
 	@echo   make test-diagnostics  - teste Python dos diagnosticos basic/full
@@ -64,6 +74,21 @@ $(BUILD_DIR)/test_scenario_config.exe: tests/test_scenario_config.c $(APP_SOURCE
 $(BUILD_DIR)/test_scenario_runner.exe: tests/test_scenario_runner.c $(SCENARIO_RUNNER_SOURCES) $(API_SOURCES) app/scenario_runner.h app/scenario_config.h | $(BUILD_DIR)
 	$(CC) $(CFLAGS) tests/test_scenario_runner.c $(SCENARIO_RUNNER_SOURCES) $(API_SOURCES) $(INCLUDES) -o $@
 
+$(BUILD_DIR)/test_runner_topologies.exe: tests/test_runner_topologies.c $(SCENARIO_RUNNER_SOURCES) $(API_SOURCES) app/scenario_runner.h app/scenario_config.h | $(BUILD_DIR)
+	$(CC) $(CFLAGS) tests/test_runner_topologies.c $(SCENARIO_RUNNER_SOURCES) $(API_SOURCES) $(INCLUDES) -o $@
+
+$(BUILD_DIR)/test_reproducibility.exe: tests/test_reproducibility.c $(SCENARIO_RUNNER_SOURCES) $(API_SOURCES) app/scenario_runner.h app/scenario_config.h | $(BUILD_DIR)
+	$(CC) $(CFLAGS) tests/test_reproducibility.c $(SCENARIO_RUNNER_SOURCES) $(API_SOURCES) $(INCLUDES) -o $@
+
+$(BUILD_DIR)/test_memory_stress.exe: tests/test_memory_stress.c $(API_SOURCES) | $(BUILD_DIR)
+	$(CC) $(CFLAGS) tests/test_memory_stress.c $(API_SOURCES) $(INCLUDES) -o $@
+
+$(BUILD_DIR)/test_long_run.exe: tests/test_long_run.c $(API_SOURCES) | $(BUILD_DIR)
+	$(CC) $(CFLAGS) tests/test_long_run.c $(API_SOURCES) $(INCLUDES) -o $@
+
+$(BUILD_DIR)/benchmark_core.exe: tests/benchmark_core.c $(API_SOURCES) | $(BUILD_DIR)
+	$(CC) $(CFLAGS) tests/benchmark_core.c $(API_SOURCES) $(INCLUDES) -o $@
+
 test-api: $(BUILD_DIR)/test_minisnn_api.exe
 	$(BUILD_DIR)/test_minisnn_api.exe
 
@@ -80,6 +105,33 @@ test-scenario: $(BUILD_DIR)/test_scenario_config.exe
 test-runner: $(BUILD_DIR)/test_scenario_runner.exe
 	$(BUILD_DIR)/test_scenario_runner.exe
 
+test-runner-topologies: $(BUILD_DIR)/test_runner_topologies.exe
+	$(BUILD_DIR)/test_runner_topologies.exe
+
+test-reproducibility: $(BUILD_DIR)/test_reproducibility.exe
+	$(BUILD_DIR)/test_reproducibility.exe
+
+test-regression: $(BUILD_DIR)/minisnn_runner.exe | $(BUILD_DIR)
+	$(PYTHON) tests/test_regression_baseline.py
+
+test-memory: $(BUILD_DIR)/test_memory_stress.exe
+	$(BUILD_DIR)/test_memory_stress.exe
+
+test-long: $(BUILD_DIR)/test_long_run.exe
+	$(BUILD_DIR)/test_long_run.exe
+
+test-analyzer:
+	$(MAKE) -B test CFLAGS="$(ANALYZER_CFLAGS)"
+
+test-sanitize: | $(BUILD_DIR)
+	$(PYTHON) scripts/run_sanitizers.py
+
+benchmark-v02: $(BUILD_DIR)/benchmark_core.exe $(BUILD_DIR)/minisnn_runner.exe | $(BUILD_DIR)
+	$(PYTHON) scripts/run_benchmarks.py
+
+check-v02: | $(BUILD_DIR)
+	$(PYTHON) scripts/check_release_v02.py
+
 test-plot-neuron: | $(BUILD_DIR)
 	$(PYTHON) tests/test_plot_neuron.py
 
@@ -87,12 +139,14 @@ test-compare-runs: | $(BUILD_DIR)
 	$(PYTHON) tests/test_compare_runs.py
 
 test-diagnostics: | $(BUILD_DIR)
+	$(PYTHON) tests/test_metrics_common.py
 	$(PYTHON) tests/test_analyze_run.py
+	$(PYTHON) tests/test_script_robustness.py
 
 test-docs: | $(BUILD_DIR)
 	$(PYTHON) tests/test_docs.py
 
-test: test-api test-core test-lif test-scenario test-runner
+test: test-api test-core test-lif test-scenario test-runner test-runner-topologies test-reproducibility test-memory
 
 $(BUILD_DIR)/example_api_single_neuron.exe: examples/api/example_api_single_neuron.c $(API_SOURCES) include/minisnn.h include/minisnn_types.h | $(BUILD_DIR)
 	$(CC) $(CFLAGS) examples/api/example_api_single_neuron.c $(API_SOURCES) $(INCLUDES) -o $@
@@ -184,3 +238,5 @@ clean:
 	@if exist results\scenarios\*.png del /Q results\scenarios\*.png
 	@if exist results\comparisons for /D %%D in (results\comparisons\*) do rmdir /S /Q "%%D"
 	@if exist results\comparisons\*.csv del /Q results\comparisons\*.csv
+	@if exist results\benchmarks\*.csv del /Q results\benchmarks\*.csv
+	@if exist results\benchmarks\*.txt del /Q results\benchmarks\*.txt

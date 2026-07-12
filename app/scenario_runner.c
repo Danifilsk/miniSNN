@@ -12,7 +12,11 @@
 #define COMMAND_BUFFER_SIZE 640
 #define SCENARIO_MAX_NEURONS 1000
 #define SCENARIO_HISTORY_PATH "results/scenarios/index.csv"
+#define SCENARIO_HISTORY_HEADER \
+    "timestamp,run_name,actual_run_name,run_path,config_path,topology,num_neurons,steps,dt,seed,recorded_neuron,total_connections,total_spikes,first_active_step,last_active_step,status\n"
 #define MINISNN_VERSION "0.2"
+#define TOPOLOGY_HASH_OFFSET 1469598103934665603ULL
+#define TOPOLOGY_HASH_PRIME 1099511628211ULL
 
 typedef struct
 {
@@ -20,6 +24,11 @@ typedef struct
     int self_count;
     int excitatory_count;
     int inhibitory_count;
+    int excitatory_to_excitatory_count;
+    int excitatory_to_inhibitory_count;
+    int inhibitory_to_excitatory_count;
+    int inhibitory_to_inhibitory_count;
+    unsigned long long topology_signature;
     int indegree[SCENARIO_MAX_NEURONS];
     int outdegree[SCENARIO_MAX_NEURONS];
     double weight_sum;
@@ -31,6 +40,38 @@ typedef struct
     int delay_min;
     int delay_max;
 } ConnectivityStats;
+
+static void topology_hash_value(
+    unsigned long long *hash,
+    unsigned long long value)
+{
+    for (int byte_index = 0; byte_index < 8; byte_index++)
+    {
+        unsigned char byte = (unsigned char)((value >> (byte_index * 8)) & 0xffULL);
+        *hash ^= (unsigned long long)byte;
+        *hash *= TOPOLOGY_HASH_PRIME;
+    }
+}
+
+static void topology_hash_connection(
+    ConnectivityStats *stats,
+    int source,
+    int target,
+    double weight,
+    int delay,
+    int source_is_inhibitory)
+{
+    unsigned long long weight_bits = 0ULL;
+
+    memcpy(&weight_bits, &weight, sizeof(weight_bits));
+    topology_hash_value(&stats->topology_signature, (unsigned long long)source);
+    topology_hash_value(&stats->topology_signature, (unsigned long long)target);
+    topology_hash_value(&stats->topology_signature, weight_bits);
+    topology_hash_value(&stats->topology_signature, (unsigned long long)delay);
+    topology_hash_value(
+        &stats->topology_signature,
+        (unsigned long long)source_is_inhibitory);
+}
 
 static void set_error(
     char *error_message,
@@ -429,6 +470,30 @@ static int connect_pair(
         stats->inhibitory_count++;
     else
         stats->excitatory_count++;
+
+    if (neuron_is_inhibitory[source])
+    {
+        if (neuron_is_inhibitory[target])
+            stats->inhibitory_to_inhibitory_count++;
+        else
+            stats->inhibitory_to_excitatory_count++;
+    }
+    else if (neuron_is_inhibitory[target])
+    {
+        stats->excitatory_to_inhibitory_count++;
+    }
+    else
+    {
+        stats->excitatory_to_excitatory_count++;
+    }
+
+    topology_hash_connection(
+        stats,
+        source,
+        target,
+        weight,
+        config->delay,
+        neuron_is_inhibitory[source]);
     return 1;
 }
 
@@ -774,6 +839,7 @@ static int build_topology(
     ConnectivityStats *stats)
 {
     memset(stats, 0, sizeof(*stats));
+    stats->topology_signature = TOPOLOGY_HASH_OFFSET;
 
     if (strcmp(config->topology, "chain") == 0)
         return build_chain(snn, config, neuron_is_inhibitory, stats);
@@ -904,6 +970,12 @@ static int write_summary(
                "neurons=%d\n"
                "inhibitory_count=%d\n"
                "connection_count=%d\n"
+               "self_connection_count=%d\n"
+               "excitatory_to_excitatory_count=%d\n"
+               "excitatory_to_inhibitory_count=%d\n"
+               "inhibitory_to_excitatory_count=%d\n"
+               "inhibitory_to_inhibitory_count=%d\n"
+               "topology_signature=%016llx\n"
                "steps=%d\n"
                "input_current=%.6f\n"
                "source_count=%d\n"
@@ -918,6 +990,12 @@ static int write_summary(
                config->neurons,
                result->inhibitory_count,
                result->connection_count,
+               result->self_connection_count,
+               result->excitatory_to_excitatory_count,
+               result->excitatory_to_inhibitory_count,
+               result->inhibitory_to_excitatory_count,
+               result->inhibitory_to_inhibitory_count,
+               result->topology_signature,
                config->steps,
                config->input_current,
                config->source_count,
@@ -935,8 +1013,28 @@ static int append_scenario_history(
     const char *status)
 {
     int needs_header = !file_exists(SCENARIO_HISTORY_PATH);
-    FILE *file = fopen(SCENARIO_HISTORY_PATH, "a");
+    FILE *file;
     char timestamp[32];
+
+    if (!needs_header)
+    {
+        char header[512];
+
+        file = fopen(SCENARIO_HISTORY_PATH, "r");
+        if (file == NULL)
+            return 0;
+
+        if (fgets(header, sizeof(header), file) == NULL ||
+            strcmp(header, SCENARIO_HISTORY_HEADER) != 0)
+        {
+            fclose(file);
+            return 0;
+        }
+
+        fclose(file);
+    }
+
+    file = fopen(SCENARIO_HISTORY_PATH, "a");
 
     if (file == NULL)
         return 0;
@@ -945,7 +1043,7 @@ static int append_scenario_history(
     {
         if (fprintf(
                 file,
-                "timestamp,run_name,actual_run_name,run_path,config_path,topology,num_neurons,steps,dt,seed,recorded_neuron,total_connections,total_spikes,first_active_step,last_active_step,status\n") < 0)
+                SCENARIO_HISTORY_HEADER) < 0)
         {
             fclose(file);
             return 0;
@@ -1556,6 +1654,16 @@ int scenario_runner_execute(
     }
 
     result.connection_count = connectivity.count;
+    result.self_connection_count = connectivity.self_count;
+    result.excitatory_to_excitatory_count =
+        connectivity.excitatory_to_excitatory_count;
+    result.excitatory_to_inhibitory_count =
+        connectivity.excitatory_to_inhibitory_count;
+    result.inhibitory_to_excitatory_count =
+        connectivity.inhibitory_to_excitatory_count;
+    result.inhibitory_to_inhibitory_count =
+        connectivity.inhibitory_to_inhibitory_count;
+    result.topology_signature = connectivity.topology_signature;
 
     if (!open_output_files(
             config,

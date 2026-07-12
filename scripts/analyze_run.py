@@ -17,7 +17,13 @@ except ModuleNotFoundError as error:
     print(f"Erro: dependencia ausente: {error.name}. Instale pandas e matplotlib.")
     raise SystemExit(1)
 
-from metrics_common import basic_metrics, finite_number, integer, write_metrics
+from metrics_common import (
+    basic_metrics,
+    finite_number,
+    integer,
+    sampled_correlation_metrics,
+    write_metrics,
+)
 
 
 def value(metrics: dict[str, object], key: str) -> str:
@@ -246,37 +252,19 @@ def full_analysis(run_path: Path, metrics: dict[str, object], context: dict[str,
     pd.DataFrame(windows).to_csv(windows_path, index=False, na_rep="NA")
     outputs.append(windows_path)
 
-    correlation_values = np.array([], dtype=float)
-    correlation_matrix: np.ndarray | None = None
-    sampled_ids: list[int] = []
-    if events is not None and steps > 0 and counts.size > 1:
-        eligible = list(range(0, len(counts), int(params["sample_stride"])))[: int(params["neuron_sample_limit"])]
-        sample_count = min(int(params["correlation_sample_size"]), len(eligible))
-        if sample_count >= 2:
-            seed = integer(metrics.get("run_seed")) or 0
-            rng = np.random.default_rng(seed)
-            sampled_ids = sorted(rng.choice(eligible, size=sample_count, replace=False).tolist())
-            bins = max(1, int(math.ceil(steps / bin_size)))
-            matrix = np.zeros((sample_count, bins), dtype=float)
-            index_by_id = {neuron_id: index for index, neuron_id in enumerate(sampled_ids)}
-            selected = events[events["neuronio"].isin(sampled_ids)]
-            for row in selected.itertuples(index=False):
-                matrix[index_by_id[int(row.neuronio)], min(bins - 1, int(row.tempo) // bin_size)] += 1.0
-            varying = np.std(matrix, axis=1) > 0
-            matrix = matrix[varying]
-            if matrix.shape[0] >= 2:
-                correlation_matrix = np.corrcoef(matrix)
-                correlation_values = correlation_matrix[np.triu_indices(correlation_matrix.shape[0], 1)]
-    metrics.update({
-        "correlation_sampled_neurons": len(sampled_ids),
-        "correlation_mean_pairwise": float(correlation_values.mean()) if correlation_values.size else None,
-        "correlation_median_pairwise": float(np.median(correlation_values)) if correlation_values.size else None,
-        "correlation_std_pairwise": float(correlation_values.std()) if correlation_values.size else None,
-        "correlation_max_pairwise": float(correlation_values.max()) if correlation_values.size else None,
-        "correlation_min_pairwise": float(correlation_values.min()) if correlation_values.size else None,
-        "correlation_positive_fraction": float(np.mean(correlation_values > 0)) if correlation_values.size else None,
-        "correlation_negative_fraction": float(np.mean(correlation_values < 0)) if correlation_values.size else None,
-    })
+    correlation_metrics, correlation_values, correlation_matrix, sampled_ids = (
+        sampled_correlation_metrics(
+            events,
+            len(counts),
+            steps,
+            bin_size,
+            int(params["correlation_sample_size"]),
+            int(params["neuron_sample_limit"]),
+            int(params["sample_stride"]),
+            integer(metrics.get("run_seed")) or 0,
+        )
+    )
+    metrics.update(correlation_metrics)
 
     if population is not None:
         output = run_path / "diagnostics_activity.png"
@@ -330,6 +318,9 @@ def analyze(run_directory: str | Path, level: str) -> dict[str, object]:
         raise ValueError(f"pasta de execucao inexistente: {run_path}")
     started = time.perf_counter()
     metrics, context = basic_metrics(run_path, level=level, keep_events=level == "full")
+    population = context.get("population")
+    if population is None or population.empty:
+        raise ValueError("population.csv ausente, vazio ou sem dados validos")
     outputs: list[Path] = []
     notes: list[str] = []
     if level == "off":

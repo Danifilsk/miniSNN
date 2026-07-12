@@ -1,5 +1,6 @@
 from pathlib import Path
 import csv
+import math
 import os
 import shutil
 import sys
@@ -10,6 +11,11 @@ PROJECT_ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(PROJECT_ROOT / "scripts"))
 
 from compare_runs import compare_runs  # noqa: E402
+
+
+def close(actual: str, expected: float, message: str) -> None:
+    if not math.isclose(float(actual), expected, rel_tol=1.0e-12, abs_tol=1.0e-12):
+        raise AssertionError(f"{message}: expected {expected}, got {actual}")
 
 
 def write_population(path: Path, values: list[int]) -> None:
@@ -177,6 +183,32 @@ def main() -> int:
         if "derivadas" not in sources.get("run_b", ""):
             print("FAIL: legacy run did not use derived fallback")
             return 1
+
+        by_name = {row["run_name"]: row for row in rows}
+        stored = by_name["run_a"]
+        derived = by_name["run_b"]
+        close(stored["total_spikes"], 7.0, "stored total")
+        close(stored["activity_fraction"], 0.6, "stored activity fraction")
+        close(stored["silence_fraction"], 0.4, "stored silence fraction")
+        close(stored["last_active_step"], 4.0, "stored last active step")
+        close(stored["synchrony_proxy"], 0.5, "stored synchrony")
+        close(stored["spike_gini_approx"], 0.2, "stored Gini")
+        close(stored["stability_score"], 0.7, "stored stability")
+        if stored["diagnostic_regime"] != "sustained":
+            print("FAIL: stored diagnostic regime changed")
+            return 1
+
+        close(derived["total_spikes"], 5.0, "derived total")
+        close(derived["mean_spikes_per_step"], 1.0, "derived mean")
+        close(derived["max_spikes_per_step"], 1.0, "derived maximum")
+        close(derived["std_spikes_per_step"], 0.0, "derived standard deviation")
+        close(derived["active_timesteps"], 5.0, "derived active timesteps")
+        close(derived["silent_timesteps"], 0.0, "derived silent timesteps")
+        close(derived["activity_fraction"], 1.0, "derived activity fraction")
+        close(derived["silence_fraction"], 0.0, "derived silence fraction")
+        close(derived["first_active_step"], 0.0, "derived first active step")
+        close(derived["last_active_step"], 4.0, "derived last active step")
+        close(derived["synchrony_proxy"], 0.2, "derived synchrony")
 
         second_output_dir = compare_runs(
             [run_a, run_b],

@@ -12,6 +12,12 @@ typedef struct
 {
     int inhibitory_count;
     int connection_count;
+    int self_connection_count;
+    int excitatory_to_excitatory_count;
+    int excitatory_to_inhibitory_count;
+    int inhibitory_to_excitatory_count;
+    int inhibitory_to_inhibitory_count;
+    unsigned long long topology_signature;
 
     int spikes_total;
     int spikes_exc;

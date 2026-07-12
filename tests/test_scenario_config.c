@@ -316,12 +316,33 @@ static int check_save_and_reload(void)
 int main(void)
 {
     ScenarioConfig legacy_config;
+    ScenarioConfig empty_config;
+    char error[256];
 
     if (!check_default_config_is_valid())
         return 1;
 
     if (!check_valid_file_loads_correctly())
         return 1;
+
+    if (scenario_config_load_file(
+            "build/file_that_does_not_exist.ini",
+            &empty_config,
+            error,
+            sizeof(error)))
+    {
+        return fail("missing file was accepted");
+    }
+
+    if (!load_text_expect_success("", &empty_config))
+        return fail("empty file did not use valid defaults");
+
+    if (!load_text_expect_success(
+            "run_name = sectionless\ntopology = chain\nneurons = 2\nsource_count = 1\nrecord_neuron = 0\n",
+            &empty_config))
+    {
+        return fail("sectionless compatible config was rejected");
+    }
 
     if (!load_text_expect_failure(
             "topology = bad_topology\n",
@@ -380,6 +401,32 @@ int main(void)
     }
 
     if (!load_text_expect_failure(
+            "run_name = invalid:name\n",
+            "Windows-invalid run_name was accepted") ||
+        !load_text_expect_failure(
+            "run_name = \n",
+            "empty run_name was accepted"))
+    {
+        return 1;
+    }
+
+    if (!load_text_expect_failure(
+            "dt = NaN\n",
+            "NaN was accepted") ||
+        !load_text_expect_failure(
+            "tau = inf\n",
+            "positive infinity was accepted") ||
+        !load_text_expect_failure(
+            "input_current = -inf\n",
+            "negative infinity was accepted") ||
+        !load_text_expect_failure(
+            "connection_probability = 1.1\n",
+            "out-of-range probability was accepted"))
+    {
+        return 1;
+    }
+
+    if (!load_text_expect_failure(
             "seed = -1\n",
             "negative seed was accepted"))
     {
@@ -410,6 +457,13 @@ int main(void)
     if (!load_text_expect_failure(
             "auto_unique_run = talvez\n",
             "invalid auto_unique_run was accepted"))
+    {
+        return 1;
+    }
+
+    if (!load_text_expect_failure(
+            "history_enabled = talvez\n",
+            "invalid history_enabled was accepted"))
     {
         return 1;
     }

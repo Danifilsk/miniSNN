@@ -1,4 +1,5 @@
 from pathlib import Path
+import math
 import sys
 
 try:
@@ -44,6 +45,18 @@ def read_csv(path: Path, columns: set[str]) -> pd.DataFrame | None:
         return None
 
     if not require_columns(data, columns, path):
+        return None
+
+    numeric_columns = columns - {"tipo"}
+    try:
+        for column in numeric_columns:
+            data[column] = pd.to_numeric(data[column])
+    except Exception as error:
+        print(f"Erro: {path} possui valores nao numericos: {error}")
+        return None
+
+    if any(not data[column].map(math.isfinite).all() for column in numeric_columns):
+        print(f"Erro: {path} possui valores NaN ou infinitos.")
         return None
 
     return data
@@ -121,6 +134,10 @@ def main() -> int:
     raster = read_csv(raster_path, RASTER_COLUMNS)
 
     if population is None or raster is None:
+        return 1
+
+    if population.empty:
+        print(f"Erro: {population_path} nao possui linhas de dados.")
         return 1
 
     outputs = [

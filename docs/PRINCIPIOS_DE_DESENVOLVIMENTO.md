@@ -37,17 +37,21 @@ Nem toda feature possui hoje todos esses níveis.
 |---|---|
 | `test_minisnn_api` | Criação, destruição, entradas, conexões e consultas públicas. |
 | `test_topology` | Núcleo interno, topologias, estímulos, recorders e casos de memória analisáveis pelo compilador. |
-| `test_LIF` | Execução básica e quantidade observada de spikes; é smoke test, não prova matemática completa. |
+| `test_LIF` | Fórmula discreta independente, trajetória, limiar, reset, spike exato e entrada negativa. |
 | `test_scenario_config` | Parser, defaults, rejeições e compatibilidade de configs antigas. |
 | `test_scenario_runner` | Topologias pelo runner, arquivos, histórico, nome único e diagnóstico básico/off. |
 | `test_plot_neuron` | Geração do gráfico individual a partir de CSV sintético. |
 | `test_compare_runs` | Comparação, fallback legado, métricas armazenadas e nomes únicos. |
-| `test_analyze_run` | Silêncio, atividade sustentada, burst, dominância, EXC/INH e arquivo incompleto. |
+| `test_analyze_run` | Valores exatos de atividade, burst, distribuição, EXC/INH, ISI e neurônio detalhado. |
+| `test_metrics_common` | Gini, entropia, burst, correlação, estabilidade e regimes. |
+| `test_runner_topologies` | Estrutura exata das sete topologias do runner/Studio. |
+| `test_reproducibility` | Determinismo por seed de estrutura, CSVs e dinâmica. |
+| `test_regression_baseline` | Golden pequeno e resultados históricos. |
+| `test_memory_stress` / `test_long` | Ciclo de vida, rede densa, delays e execução longa. |
 | `test_docs` | Links, referências, alvos, chaves e navegação documental. |
 
-O Bloco B deverá aprofundar validação numérica do LIF, topologias pelo caminho
-real do runner/Studio, determinismo por seed, valores matemáticos das métricas,
-sanitizers, robustez e regressão.
+O escopo e as lacunas atuais estão em [Cobertura de testes](COBERTURA_DE_TESTES.md).
+Sanitizers não foram executados neste MinGW por ausência dos runtimes.
 
 ## Observabilidade
 

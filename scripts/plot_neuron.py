@@ -1,4 +1,5 @@
 from pathlib import Path
+import math
 import sys
 
 try:
@@ -67,7 +68,7 @@ def read_neuron_csv(path: Path) -> pd.DataFrame | None:
         return None
 
     try:
-        return data[
+        numeric = data[
             [
                 "tempo",
                 "V",
@@ -76,6 +77,10 @@ def read_neuron_csv(path: Path) -> pd.DataFrame | None:
                 "corrente_sinaptica",
             ]
         ].apply(pd.to_numeric)
+        if not bool(numeric.apply(lambda column: column.map(math.isfinite)).all().all()):
+            print(f"Erro: {path} possui valores NaN ou infinitos.")
+            return None
+        return numeric
     except Exception as error:
         print(f"Erro: {path} possui valores nao numericos: {error}")
         return None

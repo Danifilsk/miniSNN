@@ -37,6 +37,10 @@ CENTRAL_DOCUMENTS = (
     "docs/GUIA_DE_DIAGNOSTICO.md",
     "docs/ORGANIZACAO_DE_RESULTADOS.md",
     "docs/MANUAL_DE_USO.md",
+    "docs/AUDITORIA_DO_CORE_V02.md",
+    "docs/COBERTURA_DE_TESTES.md",
+    "docs/BENCHMARKS_V02.md",
+    "docs/CHECKLIST_DE_VALIDACAO_DO_STUDIO.md",
 )
 
 IMPORTANT_FILES = (
@@ -64,6 +68,10 @@ IMPORTANT_FILES = (
     "tests/test_compare_runs.py",
     "tests/test_analyze_run.py",
     "tests/test_docs.py",
+    "tests/test_metrics_common.py",
+    "tests/test_runner_topologies.c",
+    "tests/test_reproducibility.c",
+    "tests/test_regression_baseline.py",
 )
 
 REQUIRED_TARGETS = (
@@ -75,6 +83,14 @@ REQUIRED_TARGETS = (
     "studio-build",
     "scenario-random",
     "scenario-small-world",
+    "test-runner-topologies",
+    "test-reproducibility",
+    "test-regression",
+    "test-analyzer",
+    "test-sanitize",
+    "test-long",
+    "benchmark-v02",
+    "check-v02",
 )
 
 IMPORTANT_KEYS = (

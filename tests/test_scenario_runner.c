@@ -14,6 +14,8 @@
 #define TEST_ALL_TO_ALL_SELF_RUN_NAME "test_scenario_runner_all_to_all_self"
 #define TEST_RANDOM_SELF_RUN_NAME "test_scenario_runner_random_self"
 #define TEST_UNIQUE_RUN_NAME "test_scenario_runner_unique"
+#define TEST_COLLISION_RUN_NAME "test_scenario_runner_file_collision"
+#define TEST_CORRUPT_HISTORY_RUN_NAME "test_scenario_runner_corrupt_history"
 
 static int fail(const char *message)
 {
@@ -25,6 +27,8 @@ static int fail(const char *message)
     system("if exist results\\scenarios\\test_scenario_runner_all_to_all_self rmdir /S /Q results\\scenarios\\test_scenario_runner_all_to_all_self");
     system("if exist results\\scenarios\\test_scenario_runner_random_self rmdir /S /Q results\\scenarios\\test_scenario_runner_random_self");
     system("for /D %D in (results\\scenarios\\test_scenario_runner_unique*) do @rmdir /S /Q \"%D\"");
+    remove("results/scenarios/test_scenario_runner_file_collision");
+    system("if exist results\\scenarios\\test_scenario_runner_corrupt_history rmdir /S /Q results\\scenarios\\test_scenario_runner_corrupt_history");
     printf("FAIL: %s\n", message);
     return 0;
 }
@@ -361,6 +365,75 @@ cleanup:
     return ok;
 }
 
+static int check_filesystem_failures(void)
+{
+    ScenarioConfig config;
+    ScenarioRunResult result;
+    char error[256];
+    FILE *file;
+    int ok = 1;
+
+    remove("results/scenarios/test_scenario_runner_file_collision");
+    file = fopen("results/scenarios/test_scenario_runner_file_collision", "w");
+    if (file == NULL)
+        return 0;
+    fputs("not a directory\n", file);
+    fclose(file);
+
+    scenario_config_default(&config);
+    snprintf(config.run_name, sizeof(config.run_name), TEST_COLLISION_RUN_NAME);
+    snprintf(config.topology, sizeof(config.topology), "chain");
+    config.neurons = 2;
+    config.inhibitory_fraction = 0.0;
+    config.source_count = 1;
+    config.steps = 2;
+    config.record_neuron = 0;
+    config.history_enabled = 0;
+
+    if (scenario_runner_execute(&config, NULL, &result, error, sizeof(error)))
+        ok = 0;
+    remove("results/scenarios/test_scenario_runner_file_collision");
+    return ok;
+}
+
+static int check_corrupt_history_is_rejected(void)
+{
+    ScenarioConfig config;
+    ScenarioRunResult result;
+    char error[256];
+    FILE *file;
+    int ok = 1;
+
+    system("if exist build\\test_corrupt_history_backup.csv del /Q build\\test_corrupt_history_backup.csv");
+    system("if exist results\\scenarios\\index.csv move /Y results\\scenarios\\index.csv build\\test_corrupt_history_backup.csv >NUL");
+    file = fopen("results/scenarios/index.csv", "w");
+    if (file == NULL)
+        return 0;
+    fputs("corrupted history without expected header\n", file);
+    fclose(file);
+
+    scenario_config_default(&config);
+    snprintf(config.run_name, sizeof(config.run_name), TEST_CORRUPT_HISTORY_RUN_NAME);
+    snprintf(config.topology, sizeof(config.topology), "chain");
+    config.neurons = 2;
+    config.inhibitory_fraction = 0.0;
+    config.source_count = 1;
+    config.steps = 2;
+    config.record_neuron = 0;
+    config.history_enabled = 1;
+
+    if (scenario_runner_execute(&config, NULL, &result, error, sizeof(error)) ||
+        strstr(error, "historico") == NULL)
+    {
+        ok = 0;
+    }
+
+    system("if exist results\\scenarios\\test_scenario_runner_corrupt_history rmdir /S /Q results\\scenarios\\test_scenario_runner_corrupt_history");
+    remove("results/scenarios/index.csv");
+    system("if exist build\\test_corrupt_history_backup.csv move /Y build\\test_corrupt_history_backup.csv results\\scenarios\\index.csv >NUL");
+    return ok;
+}
+
 int main(void)
 {
     ScenarioConfig config;
@@ -461,6 +534,12 @@ int main(void)
 
     if (!check_diagnostics_modes())
         return fail("diagnostics off/basic or silent execution failed");
+
+    if (!check_filesystem_failures())
+        return fail("filesystem collision was not handled safely");
+
+    if (!check_corrupt_history_is_rejected())
+        return fail("corrupt history was not rejected safely");
 
     system("if exist results\\scenarios\\test_scenario_runner_temp rmdir /S /Q results\\scenarios\\test_scenario_runner_temp");
     printf("Scenario runner validation OK\n");

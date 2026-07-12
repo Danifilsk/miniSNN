@@ -30,6 +30,10 @@ implementados, experimentais e planejados.
 - [Princípios de desenvolvimento](PRINCIPIOS_DE_DESENVOLVIMENTO.md) — lei da miniSNN, testes e linguagem científica.
 - [Compatibilidade](COMPATIBILIDADE.md) — configs antigas, outputs, API e plataforma.
 - [Matriz de rastreabilidade](MATRIZ_DE_RASTREABILIDADE.md) — feature, implementação, teste e evidência.
+- [Auditoria do Core v0.2](AUDITORIA_DO_CORE_V02.md) — evidências, bugs, limites e estado da fundação.
+- [Cobertura de testes](COBERTURA_DE_TESTES.md) — classificação e lacunas reais da suíte.
+- [Benchmarks v0.2](BENCHMARKS_V02.md) — medições locais reproduzíveis e limites.
+- [Checklist do Studio](CHECKLIST_DE_VALIDACAO_DO_STUDIO.md) — validação manual separada da automação.
 - [Roadmap](ROADMAP.md) — implementado, próximo e planejado, sem prazos garantidos.
 
 ## Status dos documentos

@@ -30,3 +30,7 @@ tmp_*.csv
 # Resultados locais gerados por comparacoes de cenarios
 /results/comparisons/*
 !/results/comparisons/.gitkeep
+
+# Resultados locais de benchmark (recriaveis)
+/results/benchmarks/*
+!/results/benchmarks/.gitkeep

@@ -5,7 +5,7 @@ comparação de redes neurais pulsadas baseadas atualmente em um modelo LIF
 simplificado.
 
 O projeto é um protótipo funcional de laboratório experimental, com suíte
-automatizada inicial e auditoria científica aprofundada planejada. Ele não é um
+automatizada numérica, estrutural, de integração e regressão. Ele não é um
 modelo biologicamente completo do cérebro nem uma plataforma cientificamente
 validada.
 
@@ -19,8 +19,9 @@ Studio Win32, CSVs, gráficos, comparação, histórico e diagnóstico
 **Experimental:** métricas de regime, sincronia aproximada e `stability_score`.
 São heurísticas diagnósticas documentadas, não verdades biológicas.
 
-**Planejado:** validação científica ampliada no Bloco B e, depois, plasticidade,
-homeostase e outras extensões. miniSNN Worlds ainda não está implementado.
+**Estado da v0.2:** auditoria automática concluída; revisão manual do Studio e
+revisão humana de release permanecem pendentes. Plasticidade, homeostase e
+miniSNN Worlds ainda não estão implementados.
 
 ## Início rápido
 
@@ -86,9 +87,14 @@ mingw32-make test-docs
 mingw32-make test-diagnostics
 mingw32-make test-plot-neuron
 mingw32-make test-compare-runs
+mingw32-make test-regression
+mingw32-make test-analyzer
+mingw32-make test-long
+mingw32-make check-v02
 ```
 
-`mingw32-make test` cobre API, núcleo, LIF básico, parser e runner. Os testes
+`mingw32-make test` cobre API, núcleo, LIF numérico, parser, runner, topologias,
+reprodutibilidade e estresse de memória. Os testes
 Python e o validador documental são alvos separados. O escopo real de cada
 teste está em [Princípios de desenvolvimento](docs/PRINCIPIOS_DE_DESENVOLVIMENTO.md).
 
@@ -108,6 +114,7 @@ reprodução, teste adequado e documentação proporcional ao impacto. Métricas
 heurísticas são identificadas como tais e resultados não estabelecem causalidade
 sem experimento apropriado.
 
-O próximo passo oficial é o **Bloco B**, dedicado a validação numérica,
-determinismo, robustez, regressão e sanitizers. Consulte o
+A evidência e seus limites estão na
+[Auditoria do Core v0.2](docs/AUDITORIA_DO_CORE_V02.md), na
+[Cobertura de testes](docs/COBERTURA_DE_TESTES.md) e no
 [roadmap oficial](docs/ROADMAP.md).
