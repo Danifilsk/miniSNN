@@ -258,9 +258,19 @@ Depois de uma execucao, `GERAR DIAGNOSTICO` chama `scripts/analyze_run.py` com o
 Python detectado. `ABRIR METRICAS` abre `metrics.csv` e `ABRIR DIAGNOSTICO` abre
 `diagnostics_overview.png`. Em `OFF`, nenhuma analise pesada e executada.
 
-## 13. O que ainda nao existe no Studio
+## 13. Plasticidade
 
-Esta etapa nao implementa peixe, mundo, plasticidade, recompensa, punicao,
-neuroevolucao ou topologia adaptativa.
+`PLASTICIDADE` abre um modal próprio. Ele controla STDP ON/OFF, regra
+`stdp_pair_trace`, A+/A-, taus, incremento dos traces, limites e registro. O
+botão `CANCELAR` não aplica alterações; `APLICAR` valida o cenário completo.
 
-O Studio apenas expoe os recursos ja existentes no motor de cenarios.
+Depois de uma run ativa, `GRAFICO STDP` executa `scripts/plot_plasticity.py` na
+última pasta real. `ABRIR PESOS` abre `weights_final.csv` e `ABRIR STDP` abre
+`plasticity_overview.png`. Ausência dos arquivos produz mensagem controlada.
+Configs antigas e novos cenários comuns carregam STDP OFF.
+
+## 14. O que ainda nao existe no Studio
+
+O Studio não implementa peixe, mundo, homeostase, recompensa, punição,
+neuroevolução, plasticidade inibitória ou topologia adaptativa. Ele expõe o
+STDP excitatório experimental já existente no motor de cenários.

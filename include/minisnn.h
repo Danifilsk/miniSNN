@@ -39,6 +39,27 @@ void minisnn_destroy(MiniSNN **snn_ptr);
 int minisnn_neuron_count(const MiniSNN *snn);
 int minisnn_current_step(const MiniSNN *snn);
 
+/*
+ * As conexoes sao enumeradas por source crescente e, dentro de cada source,
+ * pela ordem em que foram inseridas.
+ */
+size_t minisnn_connection_count(const MiniSNN *snn);
+
+int minisnn_get_connection(
+    const MiniSNN *snn,
+    size_t connection_id,
+    MiniSNNConnectionInfo *out_connection);
+
+int minisnn_get_connection_weight(
+    const MiniSNN *snn,
+    size_t connection_id,
+    double *out_weight);
+
+int minisnn_set_connection_weight(
+    MiniSNN *snn,
+    size_t connection_id,
+    double weight);
+
 /* Configuracao */
 int minisnn_set_neuron_type(
     MiniSNN *snn,
@@ -72,6 +93,27 @@ int minisnn_connect_delayed_ex(
     double weight,
     int delay,
     int allow_self_connection);
+
+/* Plasticidade sinaptica */
+MiniSNNPlasticityConfig minisnn_default_plasticity_config(void);
+
+int minisnn_set_plasticity_config(
+    MiniSNN *snn,
+    const MiniSNNPlasticityConfig *config);
+
+int minisnn_get_plasticity_config(
+    const MiniSNN *snn,
+    MiniSNNPlasticityConfig *out_config);
+
+int minisnn_get_plasticity_stats(
+    const MiniSNN *snn,
+    MiniSNNPlasticityStats *out_stats);
+
+int minisnn_get_plasticity_traces(
+    const MiniSNN *snn,
+    int neuron_id,
+    double *out_pre_trace,
+    double *out_post_trace);
 
 /* Entrada externa */
 int minisnn_set_input(

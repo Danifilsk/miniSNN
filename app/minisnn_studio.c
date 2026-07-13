@@ -19,10 +19,10 @@
 #define PYTHON_COMMAND_BUFFER_SIZE 2400
 #define PYTHON_MESSAGE_BUFFER_SIZE 6000
 #define STUDIO_FIELD_COUNT 21
-#define STUDIO_BUTTON_COUNT 16
+#define STUDIO_BUTTON_COUNT 19
 
 #define STUDIO_MIN_CLIENT_WIDTH 1320
-#define STUDIO_MIN_CLIENT_HEIGHT 760
+#define STUDIO_MIN_CLIENT_HEIGHT 900
 #define STUDIO_INITIAL_CLIENT_WIDTH STUDIO_MIN_CLIENT_WIDTH
 #define STUDIO_INITIAL_CLIENT_HEIGHT STUDIO_MIN_CLIENT_HEIGHT
 
@@ -94,6 +94,10 @@
 #define IDC_BTN_GENERATE_DIAGNOSTICS 2015
 #define IDC_BTN_OPEN_METRICS 2016
 #define IDC_BTN_OPEN_DIAGNOSTICS 2017
+#define IDC_BTN_PLASTICITY 2018
+#define IDC_BTN_PLOT_PLASTICITY 2019
+#define IDC_BTN_OPEN_WEIGHTS 2020
+#define IDC_BTN_OPEN_STDP 2021
 
 #define IDC_STATUS 3001
 #define IDC_SUMMARY 3002
@@ -109,6 +113,22 @@
 #define IDC_OPT_FEEDFORWARD_LAYERS 4009
 #define IDC_OPT_APPLY 4010
 #define IDC_OPT_CANCEL 4011
+
+#define IDC_PLASTICITY_ENABLED 5001
+#define IDC_PLASTICITY_RULE 5002
+#define IDC_PLASTICITY_A_PLUS 5003
+#define IDC_PLASTICITY_A_MINUS 5004
+#define IDC_PLASTICITY_TAU_PLUS 5005
+#define IDC_PLASTICITY_TAU_MINUS 5006
+#define IDC_PLASTICITY_TRACE_INCREMENT 5007
+#define IDC_PLASTICITY_WEIGHT_MIN 5008
+#define IDC_PLASTICITY_WEIGHT_MAX 5009
+#define IDC_PLASTICITY_RECORD_WEIGHTS 5010
+#define IDC_PLASTICITY_RECORD_HISTORY 5011
+#define IDC_PLASTICITY_INTERVAL 5012
+#define IDC_PLASTICITY_LIMIT 5013
+#define IDC_PLASTICITY_APPLY 5014
+#define IDC_PLASTICITY_CANCEL 5015
 
 #define STUDIO_INIT_TIMER_ID 1
 
@@ -150,6 +170,7 @@ typedef struct
     HWND topology_combo;
     HWND diagnostics_combo;
     HWND topology_options_button;
+    HWND plasticity_button;
     HWND status_label;
     HWND summary_box;
     HWND execution_section_label;
@@ -188,8 +209,28 @@ typedef struct
     HWND feedforward_layers_edit;
 } TopologyOptionsDialog;
 
+typedef struct
+{
+    HWND window;
+    ScenarioConfig working_config;
+    HWND enabled_checkbox;
+    HWND rule_combo;
+    HWND a_plus_edit;
+    HWND a_minus_edit;
+    HWND tau_plus_edit;
+    HWND tau_minus_edit;
+    HWND trace_increment_edit;
+    HWND weight_min_edit;
+    HWND weight_max_edit;
+    HWND record_weights_checkbox;
+    HWND record_history_checkbox;
+    HWND interval_edit;
+    HWND limit_edit;
+} PlasticityDialog;
+
 static StudioState g_app;
 static TopologyOptionsDialog g_options;
+static PlasticityDialog g_plasticity;
 
 static void draw_button(const DRAWITEMSTRUCT *item);
 static LRESULT handle_color(HDC hdc, HWND hwnd);
@@ -1338,6 +1379,7 @@ static void update_summary(
         "Nome da execucao: %s\r\n"
         "Pasta real: %s\r\n"
         "Topologia: %s\r\n"
+        "STDP: %s\r\n"
         "Numero de neuronios: %d\r\n"
         "Numero de conexoes: %d\r\n"
         "Neuronios inibitorios: %d\r\n"
@@ -1350,6 +1392,7 @@ static void update_summary(
         config->run_name,
         result->actual_run_name,
         config->topology,
+        config->plasticity_enabled ? "ON" : "OFF",
         config->neurons,
         result->connection_count,
         result->inhibitory_count,
@@ -1369,6 +1412,9 @@ static void set_result_buttons_enabled(BOOL enabled)
         EnableWindow(g_app.buttons[i], enabled);
 
     for (int i = 13; i <= 15; i++)
+        EnableWindow(g_app.buttons[i], enabled);
+
+    for (int i = 16; i <= 18; i++)
         EnableWindow(g_app.buttons[i], enabled);
 }
 
@@ -2121,6 +2167,152 @@ static void open_diagnostics(void)
         "Diagnostico nao encontrado",
         "diagnostics_overview.png nao existe. Clique em GERAR DIAGNOSTICO.",
         "DIAGNOSTICO ABERTO");
+}
+
+static void generate_plasticity_graph(void)
+{
+    char python_path[MAX_PATH];
+    char script_path[MAX_PATH];
+    char output_path[MAX_PATH];
+    char png_path[MAX_PATH];
+    char metrics_path[MAX_PATH];
+    char command[PYTHON_COMMAND_BUFFER_SIZE];
+    char status[STATUS_BUFFER_SIZE];
+    char old_backend[TEXT_BUFFER_SIZE];
+    DWORD old_backend_length;
+    DWORD exit_code = 1;
+    int had_old_backend;
+
+    if (!g_app.has_result)
+    {
+        show_error("Sem resultados", "Rode uma simulacao antes de gerar o grafico STDP.");
+        return;
+    }
+
+    if (!build_run_artifact_path(metrics_path, sizeof(metrics_path), "plasticity_metrics.csv") ||
+        !build_run_artifact_path(png_path, sizeof(png_path), "plasticity_overview.png"))
+    {
+        show_error("Erro interno", "Nao foi possivel montar os caminhos de plasticidade.");
+        return;
+    }
+
+    if (!file_exists(metrics_path))
+    {
+        show_error(
+            "Plasticidade nao encontrada",
+            "plasticity_metrics.csv nao existe. Rode um cenario com STDP ativado e registro de pesos.");
+        return;
+    }
+
+    if (!resolve_python_executable(python_path, sizeof(python_path)))
+    {
+        show_error(
+            "Python nao encontrado",
+            "Nao foi encontrado um Python compativel com pandas e matplotlib.");
+        set_status("PYTHON COMPATIVEL NAO ENCONTRADO");
+        return;
+    }
+
+    if (!project_path(script_path, sizeof(script_path), "scripts\\plot_plasticity.py") ||
+        !project_path(output_path, sizeof(output_path), g_app.last_result.output_directory))
+    {
+        show_error("Erro interno", "Nao foi possivel montar o comando do grafico STDP.");
+        return;
+    }
+
+    snprintf(
+        command,
+        sizeof(command),
+        g_app.resolved_python_uses_py_launcher ?
+            "\"%s\" -3 \"%s\" \"%s\"" :
+            "\"%s\" \"%s\" \"%s\"",
+        python_path,
+        script_path,
+        output_path);
+
+    old_backend_length = GetEnvironmentVariableA(
+        "MPLBACKEND",
+        old_backend,
+        sizeof(old_backend));
+    had_old_backend = old_backend_length > 0 &&
+                      old_backend_length < sizeof(old_backend);
+    SetEnvironmentVariableA("MPLBACKEND", "Agg");
+    set_status("GERANDO GRAFICO STDP...");
+    UpdateWindow(g_app.window);
+
+    if (!run_hidden_process(command, &exit_code))
+        exit_code = 1;
+
+    if (had_old_backend)
+        SetEnvironmentVariableA("MPLBACKEND", old_backend);
+    else
+        SetEnvironmentVariableA("MPLBACKEND", NULL);
+
+    if (exit_code != 0 || !file_exists(png_path))
+    {
+        char message[PYTHON_MESSAGE_BUFFER_SIZE];
+        snprintf(
+            message,
+            sizeof(message),
+            "O grafico STDP nao foi gerado.\n\nPython usado:\n%s\n\n"
+            "Pandas e matplotlib podem estar ausentes, ou os CSVs de pesos podem nao existir.\n\n"
+            "Teste manual:\n%s",
+            python_path,
+            command);
+        show_error("Erro ao gerar grafico STDP", message);
+        set_status("ERRO AO GERAR GRAFICO STDP");
+        return;
+    }
+
+    snprintf(status, sizeof(status), "GRAFICO STDP GERADO: %s", png_path);
+    show_info("Grafico STDP gerado", "plasticity_overview.png foi criado na ultima execucao.");
+    set_status(status);
+}
+
+static void open_weights(void)
+{
+    char path[MAX_PATH];
+
+    if (!g_app.has_result)
+    {
+        show_error("Sem resultados", "Rode uma simulacao antes de abrir os pesos.");
+        return;
+    }
+
+    if (!build_run_artifact_path(path, sizeof(path), "weights_final.csv"))
+    {
+        show_error("Erro interno", "Nao foi possivel montar o caminho dos pesos.");
+        return;
+    }
+
+    open_existing_file(
+        path,
+        "Pesos nao encontrados",
+        "weights_final.csv nao existe. Ative STDP e REGISTRAR PESOS.",
+        "PESOS FINAIS ABERTOS");
+}
+
+static void open_stdp_plot(void)
+{
+    char path[MAX_PATH];
+
+    if (!g_app.has_result)
+    {
+        show_error("Sem resultados", "Rode uma simulacao antes de abrir o grafico STDP.");
+        return;
+    }
+
+    if (!build_run_artifact_path(path, sizeof(path), "plasticity_overview.png"))
+    {
+        show_error("Erro interno", "Nao foi possivel montar o caminho do grafico STDP.");
+        return;
+    }
+
+    open_existing_file(
+        path,
+        "Grafico STDP nao encontrado",
+        "plasticity_overview.png nao existe. Clique em GRAFICO STDP.",
+        "GRAFICO STDP ABERTO");
 }
 
 static void open_neuron_csv(void)
@@ -3201,6 +3393,352 @@ static void open_topology_options(void)
     SetActiveWindow(g_app.window);
 }
 
+static void plasticity_to_controls(void)
+{
+    const ScenarioConfig *config = &g_plasticity.working_config;
+
+    SendMessageA(
+        g_plasticity.enabled_checkbox,
+        BM_SETCHECK,
+        config->plasticity_enabled ? BST_CHECKED : BST_UNCHECKED,
+        0);
+    SendMessageA(
+        g_plasticity.rule_combo,
+        CB_SELECTSTRING,
+        (WPARAM)-1,
+        (LPARAM)config->plasticity_rule);
+    set_window_double(g_plasticity.a_plus_edit, config->plasticity_a_plus);
+    set_window_double(g_plasticity.a_minus_edit, config->plasticity_a_minus);
+    set_window_double(g_plasticity.tau_plus_edit, config->plasticity_tau_plus);
+    set_window_double(g_plasticity.tau_minus_edit, config->plasticity_tau_minus);
+    set_window_double(
+        g_plasticity.trace_increment_edit,
+        config->plasticity_trace_increment);
+    set_window_double(g_plasticity.weight_min_edit, config->plasticity_weight_min);
+    set_window_double(g_plasticity.weight_max_edit, config->plasticity_weight_max);
+    SendMessageA(
+        g_plasticity.record_weights_checkbox,
+        BM_SETCHECK,
+        config->plasticity_record_weights ? BST_CHECKED : BST_UNCHECKED,
+        0);
+    SendMessageA(
+        g_plasticity.record_history_checkbox,
+        BM_SETCHECK,
+        config->plasticity_record_history ? BST_CHECKED : BST_UNCHECKED,
+        0);
+    {
+        char text[TEXT_BUFFER_SIZE];
+        snprintf(text, sizeof(text), "%d", config->plasticity_record_interval_steps);
+        SetWindowTextA(g_plasticity.interval_edit, text);
+        snprintf(text, sizeof(text), "%d", config->plasticity_record_connection_limit);
+        SetWindowTextA(g_plasticity.limit_edit, text);
+    }
+}
+
+static int apply_plasticity_options(void)
+{
+    ScenarioConfig candidate = g_plasticity.working_config;
+    char error[256];
+
+    candidate.plasticity_enabled =
+        SendMessageA(g_plasticity.enabled_checkbox, BM_GETCHECK, 0, 0) ==
+        BST_CHECKED;
+    candidate.plasticity_record_weights =
+        SendMessageA(
+            g_plasticity.record_weights_checkbox,
+            BM_GETCHECK,
+            0,
+            0) == BST_CHECKED;
+    candidate.plasticity_record_history =
+        SendMessageA(
+            g_plasticity.record_history_checkbox,
+            BM_GETCHECK,
+            0,
+            0) == BST_CHECKED;
+    GetWindowTextA(
+        g_plasticity.rule_combo,
+        candidate.plasticity_rule,
+        sizeof(candidate.plasticity_rule));
+
+    if (!parse_double_from_window(
+            g_plasticity.a_plus_edit,
+            "A+",
+            &candidate.plasticity_a_plus,
+            error,
+            sizeof(error)) ||
+        !parse_double_from_window(
+            g_plasticity.a_minus_edit,
+            "A-",
+            &candidate.plasticity_a_minus,
+            error,
+            sizeof(error)) ||
+        !parse_double_from_window(
+            g_plasticity.tau_plus_edit,
+            "TAU+",
+            &candidate.plasticity_tau_plus,
+            error,
+            sizeof(error)) ||
+        !parse_double_from_window(
+            g_plasticity.tau_minus_edit,
+            "TAU-",
+            &candidate.plasticity_tau_minus,
+            error,
+            sizeof(error)) ||
+        !parse_double_from_window(
+            g_plasticity.trace_increment_edit,
+            "TRACE INC",
+            &candidate.plasticity_trace_increment,
+            error,
+            sizeof(error)) ||
+        !parse_double_from_window(
+            g_plasticity.weight_min_edit,
+            "PESO MIN",
+            &candidate.plasticity_weight_min,
+            error,
+            sizeof(error)) ||
+        !parse_double_from_window(
+            g_plasticity.weight_max_edit,
+            "PESO MAX",
+            &candidate.plasticity_weight_max,
+            error,
+            sizeof(error)) ||
+        !parse_int_from_window(
+            g_plasticity.interval_edit,
+            "INTERVALO",
+            &candidate.plasticity_record_interval_steps,
+            error,
+            sizeof(error)) ||
+        !parse_int_from_window(
+            g_plasticity.limit_edit,
+            "LIMITE DE CONEXOES",
+            &candidate.plasticity_record_connection_limit,
+            error,
+            sizeof(error)))
+    {
+        show_error("Plasticidade invalida", error);
+        return 0;
+    }
+
+    if (!scenario_config_validate(&candidate, error, sizeof(error)))
+    {
+        show_error("Plasticidade invalida", error);
+        return 0;
+    }
+
+    g_app.current_config = candidate;
+    g_plasticity.working_config = candidate;
+    set_status(candidate.plasticity_enabled ? "STDP ATIVADO" : "STDP DESATIVADO");
+    DestroyWindow(g_plasticity.window);
+    return 1;
+}
+
+static LRESULT CALLBACK plasticity_options_proc(
+    HWND hwnd,
+    UINT message,
+    WPARAM wparam,
+    LPARAM lparam)
+{
+    (void)lparam;
+
+    switch (message)
+    {
+    case WM_CREATE:
+        g_plasticity.window = hwnd;
+        create_static(hwnd, "PLASTICIDADE SINAPTICA", 24, 18, 360, 24, 0);
+        g_plasticity.enabled_checkbox = create_checkbox(
+            hwnd, "", IDC_PLASTICITY_ENABLED, 26, 54, 24, 24);
+        create_static(hwnd, "STDP: OFF / ON", 58, 56, 220, 24, 0);
+        create_static(hwnd, "Regra", 330, 56, 80, 24, 0);
+        g_plasticity.rule_combo = CreateWindowExA(
+            0,
+            "COMBOBOX",
+            "",
+            WS_CHILD | WS_VISIBLE | CBS_DROPDOWNLIST,
+            410,
+            52,
+            190,
+            100,
+            hwnd,
+            (HMENU)(INT_PTR)IDC_PLASTICITY_RULE,
+            GetModuleHandleA(NULL),
+            NULL);
+        SendMessageA(
+            g_plasticity.rule_combo,
+            WM_SETFONT,
+            (WPARAM)g_app.edit_font,
+            TRUE);
+        SendMessageA(
+            g_plasticity.rule_combo,
+            CB_ADDSTRING,
+            0,
+            (LPARAM)"stdp_pair_trace");
+
+        create_static(hwnd, "A+", 24, 110, 180, 24, 0);
+        g_plasticity.a_plus_edit = create_edit(hwnd, IDC_PLASTICITY_A_PLUS, 190, 106, 120, 28);
+        create_static(hwnd, "A-", 330, 110, 180, 24, 0);
+        g_plasticity.a_minus_edit = create_edit(hwnd, IDC_PLASTICITY_A_MINUS, 480, 106, 120, 28);
+        create_static(hwnd, "TAU+", 24, 150, 180, 24, 0);
+        g_plasticity.tau_plus_edit = create_edit(hwnd, IDC_PLASTICITY_TAU_PLUS, 190, 146, 120, 28);
+        create_static(hwnd, "TAU-", 330, 150, 180, 24, 0);
+        g_plasticity.tau_minus_edit = create_edit(hwnd, IDC_PLASTICITY_TAU_MINUS, 480, 146, 120, 28);
+        create_static(hwnd, "TRACE INC", 24, 190, 180, 24, 0);
+        g_plasticity.trace_increment_edit = create_edit(hwnd, IDC_PLASTICITY_TRACE_INCREMENT, 190, 186, 120, 28);
+        create_static(hwnd, "PESO MIN", 24, 230, 180, 24, 0);
+        g_plasticity.weight_min_edit = create_edit(hwnd, IDC_PLASTICITY_WEIGHT_MIN, 190, 226, 120, 28);
+        create_static(hwnd, "PESO MAX", 330, 230, 180, 24, 0);
+        g_plasticity.weight_max_edit = create_edit(hwnd, IDC_PLASTICITY_WEIGHT_MAX, 480, 226, 120, 28);
+
+        create_static(hwnd, "REGISTRO", 24, 286, 220, 24, 0);
+        g_plasticity.record_weights_checkbox = create_checkbox(
+            hwnd, "", IDC_PLASTICITY_RECORD_WEIGHTS, 26, 322, 24, 24);
+        create_static(hwnd, "REGISTRAR PESOS", 58, 324, 220, 24, 0);
+        g_plasticity.record_history_checkbox = create_checkbox(
+            hwnd, "", IDC_PLASTICITY_RECORD_HISTORY, 330, 322, 24, 24);
+        create_static(hwnd, "REGISTRAR HISTORICO", 362, 324, 238, 24, 0);
+        create_static(hwnd, "INTERVALO", 24, 372, 180, 24, 0);
+        g_plasticity.interval_edit = create_edit(hwnd, IDC_PLASTICITY_INTERVAL, 190, 368, 120, 28);
+        create_static(hwnd, "LIMITE DE CONEXOES", 330, 372, 200, 24, 0);
+        g_plasticity.limit_edit = create_edit(hwnd, IDC_PLASTICITY_LIMIT, 480, 368, 120, 28);
+
+        create_static(
+            hwnd,
+            "STDP aditivo por traces; apenas sinapses de origem EXC sao plasticas.",
+            24,
+            428,
+            576,
+            24,
+            0);
+        create_button(hwnd, "APLICAR", IDC_PLASTICITY_APPLY, 170, 476, 130, 36);
+        create_button(hwnd, "CANCELAR", IDC_PLASTICITY_CANCEL, 330, 476, 130, 36);
+        plasticity_to_controls();
+        enable_dark_title_bar(hwnd);
+        return 0;
+
+    case WM_COMMAND:
+        if (HIWORD(wparam) == BN_CLICKED)
+        {
+            if (LOWORD(wparam) == IDC_PLASTICITY_APPLY)
+            {
+                apply_plasticity_options();
+                return 0;
+            }
+            if (LOWORD(wparam) == IDC_PLASTICITY_CANCEL)
+            {
+                DestroyWindow(hwnd);
+                return 0;
+            }
+        }
+        break;
+
+    case WM_CTLCOLORSTATIC:
+        return handle_color((HDC)wparam, (HWND)lparam);
+    case WM_CTLCOLOREDIT:
+    case WM_CTLCOLORLISTBOX:
+        return handle_edit_color((HDC)wparam);
+    case WM_DRAWITEM:
+        draw_button((const DRAWITEMSTRUCT *)lparam);
+        return TRUE;
+    case WM_ERASEBKGND:
+    {
+        RECT rect;
+        GetClientRect(hwnd, &rect);
+        FillRect((HDC)wparam, &rect, g_app.background_brush);
+        return 1;
+    }
+    case WM_CLOSE:
+        DestroyWindow(hwnd);
+        return 0;
+    case WM_DESTROY:
+        g_plasticity.window = NULL;
+        return 0;
+    default:
+        break;
+    }
+
+    return DefWindowProcA(hwnd, message, wparam, lparam);
+}
+
+static int ensure_plasticity_class_registered(void)
+{
+    static int registered = 0;
+    WNDCLASSA window_class;
+
+    if (registered)
+        return 1;
+
+    memset(&window_class, 0, sizeof(window_class));
+    window_class.lpfnWndProc = plasticity_options_proc;
+    window_class.hInstance = GetModuleHandleA(NULL);
+    window_class.lpszClassName = "MiniSNNPlasticityOptionsWindow";
+    window_class.hCursor = LoadCursor(NULL, IDC_ARROW);
+    window_class.hbrBackground = g_app.background_brush;
+
+    if (!RegisterClassA(&window_class))
+        return 0;
+
+    registered = 1;
+    return 1;
+}
+
+static void open_plasticity_options(void)
+{
+    ScenarioConfig config;
+    char error[256];
+    HWND dialog;
+    MSG message;
+
+    if (!controls_to_config(&config, error, sizeof(error)))
+    {
+        show_error("Configuracao invalida", error);
+        return;
+    }
+
+    if (!ensure_plasticity_class_registered())
+    {
+        show_error("Erro interno", "Nao foi possivel criar a janela de plasticidade.");
+        return;
+    }
+
+    memset(&g_plasticity, 0, sizeof(g_plasticity));
+    g_plasticity.working_config = config;
+
+    dialog = CreateWindowExA(
+        WS_EX_DLGMODALFRAME,
+        "MiniSNNPlasticityOptionsWindow",
+        "PLASTICIDADE",
+        WS_POPUP | WS_CAPTION | WS_SYSMENU,
+        CW_USEDEFAULT,
+        CW_USEDEFAULT,
+        650,
+        570,
+        g_app.window,
+        NULL,
+        GetModuleHandleA(NULL),
+        NULL);
+
+    if (dialog == NULL)
+    {
+        show_error("Erro interno", "Nao foi possivel abrir a janela de plasticidade.");
+        return;
+    }
+
+    EnableWindow(g_app.window, FALSE);
+    ShowWindow(dialog, SW_SHOW);
+    UpdateWindow(dialog);
+
+    while (g_plasticity.window != NULL && GetMessageA(&message, NULL, 0, 0) > 0)
+    {
+        if (!IsDialogMessageA(dialog, &message))
+        {
+            TranslateMessage(&message);
+            DispatchMessageA(&message);
+        }
+    }
+
+    EnableWindow(g_app.window, TRUE);
+    SetActiveWindow(g_app.window);
+}
+
 static void add_field(
     HWND parent,
     int id,
@@ -3348,6 +3886,14 @@ static void create_controls(HWND hwnd)
     add_field(hwnd, IDC_V_THRESHOLD, "V_threshold", x2, y + 12 * STUDIO_ROW_HEIGHT, label_w, control_w);
     add_field(hwnd, IDC_RESISTANCE, "Resistencia", x2, y + 13 * STUDIO_ROW_HEIGHT, label_w, control_w);
     add_field(hwnd, IDC_SYNAPTIC_DECAY, "Decaimento sinaptico", x2, y + 14 * STUDIO_ROW_HEIGHT, label_w, control_w);
+    g_app.plasticity_button = create_button(
+        hwnd,
+        "PLASTICIDADE",
+        IDC_BTN_PLASTICITY,
+        x2,
+        y + 15 * STUDIO_ROW_HEIGHT + 2,
+        280,
+        STUDIO_BUTTON_HEIGHT);
 
     g_app.execution_section_label = create_static(
         hwnd,
@@ -3401,14 +3947,17 @@ static void create_controls(HWND hwnd)
     g_app.buttons[13] = create_button(hwnd, "GERAR DIAGNOSTICO", IDC_BTN_GENERATE_DIAGNOSTICS, right_x + STUDIO_BUTTON_WIDTH_LEFT + STUDIO_BUTTON_GAP, 116 + 4 * STUDIO_BUTTON_ROW_HEIGHT, STUDIO_BUTTON_WIDTH_RIGHT, STUDIO_BUTTON_HEIGHT);
     g_app.buttons[14] = create_button(hwnd, "ABRIR METRICAS", IDC_BTN_OPEN_METRICS, right_x, 116 + 8 * STUDIO_BUTTON_ROW_HEIGHT, STUDIO_BUTTON_WIDTH_LEFT, STUDIO_BUTTON_HEIGHT);
     g_app.buttons[15] = create_button(hwnd, "ABRIR DIAGNOSTICO", IDC_BTN_OPEN_DIAGNOSTICS, right_x + STUDIO_BUTTON_WIDTH_LEFT + STUDIO_BUTTON_GAP, 116 + 8 * STUDIO_BUTTON_ROW_HEIGHT, STUDIO_BUTTON_WIDTH_RIGHT, STUDIO_BUTTON_HEIGHT);
-    g_app.status_label = create_static(hwnd, "PRONTO PARA EXECUTAR", right_x, 536, 340, 42, IDC_STATUS);
+    g_app.buttons[16] = create_button(hwnd, "GRAFICO STDP", IDC_BTN_PLOT_PLASTICITY, right_x, 116 + 9 * STUDIO_BUTTON_ROW_HEIGHT, 340, STUDIO_BUTTON_HEIGHT);
+    g_app.buttons[17] = create_button(hwnd, "ABRIR PESOS", IDC_BTN_OPEN_WEIGHTS, right_x, 116 + 10 * STUDIO_BUTTON_ROW_HEIGHT, STUDIO_BUTTON_WIDTH_LEFT, STUDIO_BUTTON_HEIGHT);
+    g_app.buttons[18] = create_button(hwnd, "ABRIR STDP", IDC_BTN_OPEN_STDP, right_x + STUDIO_BUTTON_WIDTH_LEFT + STUDIO_BUTTON_GAP, 116 + 10 * STUDIO_BUTTON_ROW_HEIGHT, STUDIO_BUTTON_WIDTH_RIGHT, STUDIO_BUTTON_HEIGHT);
+    g_app.status_label = create_static(hwnd, "PRONTO PARA EXECUTAR", right_x, 622, 340, 42, IDC_STATUS);
     g_app.summary_box = CreateWindowExA(
         WS_EX_CLIENTEDGE,
         "EDIT",
         "",
         WS_CHILD | WS_VISIBLE | ES_MULTILINE | ES_READONLY | ES_AUTOVSCROLL | WS_VSCROLL,
         right_x,
-        592,
+        674,
         340,
         145,
         hwnd,
@@ -3435,7 +3984,7 @@ static void layout_controls(HWND hwnd)
     height = rect.bottom - rect.top;
     right_x = right_content_left(width);
     content_width = STUDIO_RIGHT_PANEL_WIDTH - 2 * STUDIO_RIGHT_CONTENT_PADDING;
-    summary_height = height - 612;
+    summary_height = height - 694;
 
     if (summary_height < 140)
         summary_height = 140;
@@ -3443,8 +3992,8 @@ static void layout_controls(HWND hwnd)
     MoveWindow(g_app.execution_section_label, right_x, 92, 174, 24, TRUE);
     MoveWindow(g_app.diagnostics_label, right_x + 178, 94, 54, 24, TRUE);
     MoveWindow(g_app.diagnostics_combo, right_x + 230, 90, 110, 120, TRUE);
-    MoveWindow(g_app.status_label, right_x, 536, content_width, 42, TRUE);
-    MoveWindow(g_app.summary_box, right_x, 592, content_width, summary_height, TRUE);
+    MoveWindow(g_app.status_label, right_x, 622, content_width, 42, TRUE);
+    MoveWindow(g_app.summary_box, right_x, 674, content_width, summary_height, TRUE);
 
     MoveWindow(g_app.buttons[0], right_x, 116, STUDIO_BUTTON_WIDTH_LEFT, STUDIO_BUTTON_HEIGHT, TRUE);
     MoveWindow(g_app.buttons[1], right_x + STUDIO_BUTTON_WIDTH_LEFT + STUDIO_BUTTON_GAP, 116, STUDIO_BUTTON_WIDTH_RIGHT, STUDIO_BUTTON_HEIGHT, TRUE);
@@ -3462,6 +4011,9 @@ static void layout_controls(HWND hwnd)
     MoveWindow(g_app.buttons[13], right_x + STUDIO_BUTTON_WIDTH_LEFT + STUDIO_BUTTON_GAP, 116 + 4 * STUDIO_BUTTON_ROW_HEIGHT, STUDIO_BUTTON_WIDTH_RIGHT, STUDIO_BUTTON_HEIGHT, TRUE);
     MoveWindow(g_app.buttons[14], right_x, 116 + 8 * STUDIO_BUTTON_ROW_HEIGHT, STUDIO_BUTTON_WIDTH_LEFT, STUDIO_BUTTON_HEIGHT, TRUE);
     MoveWindow(g_app.buttons[15], right_x + STUDIO_BUTTON_WIDTH_LEFT + STUDIO_BUTTON_GAP, 116 + 8 * STUDIO_BUTTON_ROW_HEIGHT, STUDIO_BUTTON_WIDTH_RIGHT, STUDIO_BUTTON_HEIGHT, TRUE);
+    MoveWindow(g_app.buttons[16], right_x, 116 + 9 * STUDIO_BUTTON_ROW_HEIGHT, content_width, STUDIO_BUTTON_HEIGHT, TRUE);
+    MoveWindow(g_app.buttons[17], right_x, 116 + 10 * STUDIO_BUTTON_ROW_HEIGHT, STUDIO_BUTTON_WIDTH_LEFT, STUDIO_BUTTON_HEIGHT, TRUE);
+    MoveWindow(g_app.buttons[18], right_x + STUDIO_BUTTON_WIDTH_LEFT + STUDIO_BUTTON_GAP, 116 + 10 * STUDIO_BUTTON_ROW_HEIGHT, STUDIO_BUTTON_WIDTH_RIGHT, STUDIO_BUTTON_HEIGHT, TRUE);
 
     InvalidateRect(hwnd, NULL, TRUE);
 }
@@ -3695,6 +4247,18 @@ static LRESULT CALLBACK window_proc(
                 return 0;
             case IDC_BTN_OPTIONS:
                 open_topology_options();
+                return 0;
+            case IDC_BTN_PLASTICITY:
+                open_plasticity_options();
+                return 0;
+            case IDC_BTN_PLOT_PLASTICITY:
+                generate_plasticity_graph();
+                return 0;
+            case IDC_BTN_OPEN_WEIGHTS:
+                open_weights();
+                return 0;
+            case IDC_BTN_OPEN_STDP:
+                open_stdp_plot();
                 return 0;
             default:
                 break;

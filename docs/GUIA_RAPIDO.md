@@ -79,9 +79,22 @@ results/comparisons/<comparison_name>/
 
 Se o Studio criar um nome com timestamp, use a pasta mostrada como `Pasta real`.
 
+## Testar STDP
+
+```powershell
+mingw32-make scenario-stdp-ltp
+mingw32-make plot-stdp-ltp
+```
+
+Os pesos e o relatório ficam em `results/scenarios/stdp_ltp_demo/`. STDP fica
+desligado por padrão nos cenários antigos. Consulte o
+[Guia de plasticidade](GUIA_DE_PLASTICIDADE.md) antes de interpretar mudanças de
+peso.
+
 ## Próximas leituras
 
 - [Guia do Studio](GUIA_DO_STUDIO.md)
 - [Guia de cenários](GUIA_DE_CENARIOS.md)
 - [Organização de resultados](ORGANIZACAO_DE_RESULTADOS.md)
+- [Guia de plasticidade](GUIA_DE_PLASTICIDADE.md)
 - [Índice completo](INDICE_DA_DOCUMENTACAO.md)

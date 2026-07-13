@@ -30,6 +30,10 @@ Este documento responde: “qual arquivo cuida de quê?”.
 | `tests/test_LIF.c` | Smoke test básico do LIF; não é validação matemática completa. | `test-lif`. |
 | `tests/test_scenario_config.c` | Parser, defaults, erros e compatibilidade de INI. | `test-scenario`. |
 | `tests/test_scenario_runner.c` | Integração do runner e seus arquivos. | `test-runner`. |
+| `src/plasticity.c` e `src/plasticity.h` | Matemática, traces, índice de entradas e estatísticas STDP. | Interno ao Core. |
+| `tests/test_plasticity.c` | Valores exatos, ordem temporal, clamps, traces e autoconexões. | `test-plasticity`. |
+| `tests/test_plasticity_long.c` | Finitude e limites em execução prolongada. | `test-plasticity-long`. |
+| `scripts/plot_plasticity.py` | Panorama de pesos, deltas, trajetórias e métricas. | `test-plot-plasticity`. |
 | `tests/test_analyze_run.py` | Casos sintéticos do diagnóstico. | `test-diagnostics`. |
 | `tests/test_compare_runs.py` | Comparação, fallback e nomes únicos. | `test-compare-runs`. |
 | `tests/test_plot_neuron.py` | Geração do gráfico individual. | `test-plot-neuron`. |
@@ -44,10 +48,11 @@ Este documento responde: “qual arquivo cuida de quê?”.
 3. `scenario_runner` cria uma `MiniSNNConfig` e uma rede pela API pública.
 4. O runner define tipos e cria conexões com `minisnn_connect_delayed_ex()`.
 5. Em cada passo, aplica entrada, chama `minisnn_step()` e consulta o estado.
-6. CSVs, resumo, configuração e manifesto são gravados na pasta real da run.
-7. `analyze_run.py` pode calcular diagnóstico posterior.
-8. `compare_runs.py` pode reunir duas ou mais runs.
-9. O Studio abre os mesmos artefatos sem duplicar o motor de simulação.
+6. Se STDP estiver ativo, a Core atualiza pesos após transmitir os spikes atuais.
+7. CSVs, resumo, configuração e manifesto são gravados na pasta real da run.
+8. `analyze_run.py` pode calcular diagnóstico posterior.
+9. `compare_runs.py` pode reunir duas ou mais runs.
+10. O Studio abre os mesmos artefatos sem duplicar o motor de simulação.
 
 O leitor não precisa conhecer ponteiros ou Win32 para usar esse fluxo; esses
 detalhes ficam encapsulados nos módulos correspondentes.

@@ -72,6 +72,69 @@ def diagnostics_parameters(parser: ConfigParser, level: str | None = None) -> di
     }
 
 
+PLASTICITY_METRIC_FIELDS = (
+    "plasticity_modified_connection_fraction",
+    "plasticity_initial_weight_mean",
+    "plasticity_final_weight_mean",
+    "plasticity_mean_absolute_change",
+    "plasticity_total_signed_change",
+    "plasticity_potentiation_events",
+    "plasticity_depression_events",
+)
+
+
+def read_plasticity_metrics(
+    run_path: Path,
+    config: ConfigParser,
+    warnings: list[str],
+) -> dict[str, object]:
+    enabled = str(cfg(config, "plasticity", "enabled", "false")).lower() in {
+        "true",
+        "yes",
+        "sim",
+        "1",
+    }
+    result: dict[str, object] = {
+        "plasticity_enabled": enabled,
+        "plasticity_rule": cfg(
+            config,
+            "plasticity",
+            "rule",
+            "stdp_pair_trace" if enabled else "NA",
+        ),
+        "plasticity_metrics_source": "config (STDP off)" if not enabled else "indisponivel",
+    }
+    metrics_path = run_path / "plasticity_metrics.csv"
+
+    if metrics_path.exists():
+        try:
+            data = pd.read_csv(metrics_path)
+            if len(data.index) != 1:
+                raise ValueError("esperada exatamente uma linha")
+            row = data.iloc[0].to_dict()
+            for key, value in row.items():
+                if pd.notna(value):
+                    result[str(key)] = value
+            result["plasticity_enabled"] = str(
+                result.get("plasticity_enabled", enabled)
+            ).lower() in {"true", "yes", "sim", "1"}
+            result["plasticity_metrics_source"] = "plasticity_metrics.csv"
+        except Exception as error:
+            warnings.append(f"plasticity_metrics.csv invalido: {error}")
+    elif enabled:
+        warnings.append("STDP ativo, mas plasticity_metrics.csv esta ausente.")
+
+    for key in PLASTICITY_METRIC_FIELDS:
+        result.setdefault(key, NA)
+
+    if enabled:
+        for filename in ("weights_initial.csv", "weights_final.csv"):
+            if not (run_path / filename).exists():
+                warnings.append(f"{filename} ausente para a execucao com STDP.")
+
+    return result
+
+
 def longest_streak(mask: np.ndarray) -> int:
     best = current = 0
     for value in mask.astype(bool):
@@ -388,6 +451,8 @@ def basic_metrics(run_path: Path, level: str | None = None, keep_events: bool = 
                     metrics.setdefault(str(key), value)
         except Exception:
             warnings.append("metrics.csv anterior nao pode ser reutilizado; metricas foram recalculadas.")
+
+    metrics.update(read_plasticity_metrics(run_path, config, warnings))
 
     if population is None or population.empty:
         spikes = np.zeros(steps, dtype=float)

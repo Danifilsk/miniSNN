@@ -72,6 +72,13 @@ limitações e impacto de compatibilidade.
 - Distinguir simulação, observação, interpretação e hipótese.
 - Informar quando um resultado é experimental ou ainda está em validação.
 
+## Mudanças adaptativas
+
+Plasticidade deve declarar regra, elegibilidade, ordem temporal e limites. No C1,
+STDP é aditivo, usa emissão do spike, altera apenas origens EXC e mantém INH
+fixa. Um peso maior é uma observação da execução, não evidência automática de
+aprendizado. Módulos futuros como homeostase não podem ser presumidos.
+
 ## Uso de ferramentas de IA
 
 Ferramentas de IA generativa foram utilizadas como apoio à implementação,

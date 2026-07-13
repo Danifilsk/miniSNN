@@ -6,6 +6,7 @@
 #define SCENARIO_RUN_NAME_MAX 48
 #define SCENARIO_TOPOLOGY_MAX 32
 #define SCENARIO_DIAGNOSTICS_LEVEL_MAX 8
+#define SCENARIO_PLASTICITY_RULE_MAX 32
 
 typedef struct
 {
@@ -54,6 +55,20 @@ typedef struct
     int correlation_sample_size;
     int neuron_sample_limit;
     int sample_stride;
+
+    int plasticity_enabled;
+    char plasticity_rule[SCENARIO_PLASTICITY_RULE_MAX];
+    double plasticity_a_plus;
+    double plasticity_a_minus;
+    double plasticity_tau_plus;
+    double plasticity_tau_minus;
+    double plasticity_trace_increment;
+    double plasticity_weight_min;
+    double plasticity_weight_max;
+    int plasticity_record_weights;
+    int plasticity_record_history;
+    int plasticity_record_interval_steps;
+    int plasticity_record_connection_limit;
 } ScenarioConfig;
 
 void scenario_config_default(ScenarioConfig *config);

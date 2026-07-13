@@ -3,20 +3,21 @@ CFLAGS = -std=c11 -Wall -Wextra -pedantic -fanalyzer
 INCLUDES = -Iinclude -Isrc -Iapp
 BUILD_DIR = build
 
-API_SOURCES = src/minisnn.c src/neuron.c src/network.c
+API_SOURCES = src/minisnn.c src/neuron.c src/network.c src/plasticity.c
 APP_SOURCES = app/scenario_config.c
 SCENARIO_RUNNER_SOURCES = app/scenario_config.c app/scenario_runner.c
-CORE_SOURCES = src/neuron.c src/network.c src/topology.c src/stimulus.c src/recorder.c
-EXPERIMENT_SOURCES = src/neuron.c src/network.c src/stimulus.c src/recorder.c
+CORE_SOURCES = src/neuron.c src/network.c src/plasticity.c src/topology.c src/stimulus.c src/recorder.c
+EXPERIMENT_SOURCES = src/neuron.c src/network.c src/plasticity.c src/stimulus.c src/recorder.c
 SCENARIO ?= configs/random_balanced.ini
 PYTHON ?= python
 ANALYZER_CFLAGS = -std=c11 -Wall -Wextra -pedantic -fanalyzer -Wformat=2 -Wshadow -Wnull-dereference
 
-.PHONY: all help clean test test-api test-core test-lif test-scenario test-runner test-runner-topologies test-reproducibility test-regression test-memory test-long test-analyzer test-sanitize benchmark-v02 check-v02 \
-	test-plot-neuron test-compare-runs test-diagnostics test-docs \
+.PHONY: all help clean test test-api test-core test-lif test-plasticity test-plasticity-long test-scenario test-runner test-runner-topologies test-reproducibility test-regression test-memory test-long test-analyzer test-sanitize benchmark-v02 benchmark-c1 check-v02 check-c1 \
+	test-plot-neuron test-plot-plasticity test-compare-runs test-diagnostics test-docs \
 	api-examples api-single api-chain api-exc-inh \
 	demo ei-balance inhibition-fine inh-to-inh sparse-ei scenario \
 	scenario-random scenario-small-world scenario-feedforward \
+	scenario-stdp-ltp scenario-stdp-ltd scenario-stdp-mixed plot-stdp-ltp \
 	studio-build studio
 
 all: test
@@ -27,6 +28,8 @@ help:
 	@echo   make test-api          - teste da API publica
 	@echo   make test-core         - teste do nucleo/topologias/estimulos/recorders
 	@echo   make test-lif          - validacao numerica do LIF discreto
+	@echo   make test-plasticity   - validacao numerica do STDP por traces
+	@echo   make test-plasticity-long - 10000 passos com STDP e verificacao de limites
 	@echo   make test-scenario     - teste do parser de cenarios
 	@echo   make test-runner       - teste do executor compartilhado de cenarios
 	@echo   make test-runner-topologies - validacao estrutural das topologias do runner
@@ -37,8 +40,11 @@ help:
 	@echo   make test-analyzer     - recompila a suite com fanalyzer e warnings adicionais
 	@echo   make test-sanitize     - executa ASan/UBSan ou informa suporte ausente
 	@echo   make benchmark-v02     - benchmark local controlado do Core v0.2
+	@echo   make benchmark-c1      - mede STDP off, on e custo do historico
 	@echo   make check-v02         - verifica prontidao automatica sem alterar Git
+	@echo   make check-c1          - verifica o fechamento automatico do Bloco C1
 	@echo   make test-plot-neuron  - teste Python do grafico de neuronio
+	@echo   make test-plot-plasticity - teste Python do grafico STDP
 	@echo   make test-compare-runs - teste Python da comparacao de execucoes
 	@echo   make test-diagnostics  - teste Python dos diagnosticos basic/full
 	@echo   make test-docs         - valida links e referencias da documentacao
@@ -48,6 +54,10 @@ help:
 	@echo   make scenario-random   - executa configs/random.ini
 	@echo   make scenario-small-world - executa configs/small_world.ini
 	@echo   make scenario-feedforward - executa configs/feedforward.ini
+	@echo   make scenario-stdp-ltp  - executa o demonstrador STDP de LTP
+	@echo   make scenario-stdp-ltd  - executa o demonstrador STDP de LTD
+	@echo   make scenario-stdp-mixed - executa o demonstrador STDP misto
+	@echo   make plot-stdp-ltp     - gera o panorama STDP do demonstrador LTP
 	@echo   make studio-build      - compila a interface grafica miniSNN Studio
 	@echo   make studio            - compila e abre a interface grafica miniSNN Studio
 	@echo   make ei-balance        - executa o experimento EXC vs EXC/INH
@@ -67,6 +77,12 @@ $(BUILD_DIR)/test_topology.exe: tests/test_topology.c $(CORE_SOURCES) | $(BUILD_
 
 $(BUILD_DIR)/test_LIF.exe: tests/test_LIF.c src/neuron.c src/neuron.h src/config.h | $(BUILD_DIR)
 	$(CC) $(CFLAGS) tests/test_LIF.c src/neuron.c $(INCLUDES) -o $@
+
+$(BUILD_DIR)/test_plasticity.exe: tests/test_plasticity.c src/neuron.c src/network.c src/plasticity.c | $(BUILD_DIR)
+	$(CC) $(CFLAGS) tests/test_plasticity.c src/neuron.c src/network.c src/plasticity.c $(INCLUDES) -o $@
+
+$(BUILD_DIR)/test_plasticity_long.exe: tests/test_plasticity_long.c $(API_SOURCES) | $(BUILD_DIR)
+	$(CC) $(CFLAGS) tests/test_plasticity_long.c $(API_SOURCES) $(INCLUDES) -o $@
 
 $(BUILD_DIR)/test_scenario_config.exe: tests/test_scenario_config.c $(APP_SOURCES) app/scenario_config.h | $(BUILD_DIR)
 	$(CC) $(CFLAGS) tests/test_scenario_config.c $(APP_SOURCES) $(INCLUDES) -o $@
@@ -99,6 +115,12 @@ test-lif: $(BUILD_DIR)/test_LIF.exe
 	$(BUILD_DIR)/test_LIF.exe
 	@if exist lif.csv del /Q lif.csv
 
+test-plasticity: $(BUILD_DIR)/test_plasticity.exe
+	$(BUILD_DIR)/test_plasticity.exe
+
+test-plasticity-long: $(BUILD_DIR)/test_plasticity_long.exe
+	$(BUILD_DIR)/test_plasticity_long.exe
+
 test-scenario: $(BUILD_DIR)/test_scenario_config.exe
 	$(BUILD_DIR)/test_scenario_config.exe
 
@@ -129,11 +151,20 @@ test-sanitize: | $(BUILD_DIR)
 benchmark-v02: $(BUILD_DIR)/benchmark_core.exe $(BUILD_DIR)/minisnn_runner.exe | $(BUILD_DIR)
 	$(PYTHON) scripts/run_benchmarks.py
 
+benchmark-c1: $(BUILD_DIR)/minisnn_runner.exe | $(BUILD_DIR)
+	$(PYTHON) scripts/run_benchmarks_c1.py
+
 check-v02: | $(BUILD_DIR)
 	$(PYTHON) scripts/check_release_v02.py
 
+check-c1: $(BUILD_DIR)/minisnn_runner.exe | $(BUILD_DIR)
+	$(PYTHON) scripts/check_c1.py
+
 test-plot-neuron: | $(BUILD_DIR)
 	$(PYTHON) tests/test_plot_neuron.py
+
+test-plot-plasticity: | $(BUILD_DIR)
+	$(PYTHON) tests/test_plot_plasticity.py
 
 test-compare-runs: | $(BUILD_DIR)
 	$(PYTHON) tests/test_compare_runs.py
@@ -146,7 +177,7 @@ test-diagnostics: | $(BUILD_DIR)
 test-docs: | $(BUILD_DIR)
 	$(PYTHON) tests/test_docs.py
 
-test: test-api test-core test-lif test-scenario test-runner test-runner-topologies test-reproducibility test-memory
+test: test-api test-core test-lif test-plasticity test-scenario test-runner test-runner-topologies test-reproducibility test-memory
 
 $(BUILD_DIR)/example_api_single_neuron.exe: examples/api/example_api_single_neuron.c $(API_SOURCES) include/minisnn.h include/minisnn_types.h | $(BUILD_DIR)
 	$(CC) $(CFLAGS) examples/api/example_api_single_neuron.c $(API_SOURCES) $(INCLUDES) -o $@
@@ -188,6 +219,18 @@ scenario-small-world: $(BUILD_DIR)/minisnn_runner.exe
 
 scenario-feedforward: $(BUILD_DIR)/minisnn_runner.exe
 	$(BUILD_DIR)/minisnn_runner.exe configs/feedforward.ini
+
+scenario-stdp-ltp: $(BUILD_DIR)/minisnn_runner.exe
+	$(BUILD_DIR)/minisnn_runner.exe configs/stdp_ltp_demo.ini
+
+scenario-stdp-ltd: $(BUILD_DIR)/minisnn_runner.exe
+	$(BUILD_DIR)/minisnn_runner.exe configs/stdp_ltd_demo.ini
+
+scenario-stdp-mixed: $(BUILD_DIR)/minisnn_runner.exe
+	$(BUILD_DIR)/minisnn_runner.exe configs/stdp_mixed_demo.ini
+
+plot-stdp-ltp: scenario-stdp-ltp
+	$(PYTHON) scripts/plot_plasticity.py results/scenarios/stdp_ltp_demo
 
 $(BUILD_DIR)/minisnn_studio.exe: app/minisnn_studio.c $(SCENARIO_RUNNER_SOURCES) $(API_SOURCES) include/minisnn.h include/minisnn_types.h app/scenario_config.h app/scenario_runner.h | $(BUILD_DIR)
 	$(CC) $(CFLAGS) app/minisnn_studio.c $(SCENARIO_RUNNER_SOURCES) $(API_SOURCES) $(INCLUDES) -o $@ -mwindows -lcomdlg32 -lshell32 -lgdi32 -luser32 -lole32

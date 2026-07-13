@@ -22,7 +22,13 @@ TESTS = [
     ("LIF", ["tests/test_LIF.c", "src/neuron.c"]),
     (
         "public API",
-        ["tests/test_minisnn_api.c", "src/minisnn.c", "src/neuron.c", "src/network.c"],
+        [
+            "tests/test_minisnn_api.c",
+            "src/minisnn.c",
+            "src/neuron.c",
+            "src/network.c",
+            "src/plasticity.c",
+        ],
     ),
     (
         "core topology",
@@ -30,6 +36,7 @@ TESTS = [
             "tests/test_topology.c",
             "src/neuron.c",
             "src/network.c",
+            "src/plasticity.c",
             "src/topology.c",
             "src/stimulus.c",
             "src/recorder.c",
@@ -48,6 +55,16 @@ TESTS = [
             "src/minisnn.c",
             "src/neuron.c",
             "src/network.c",
+            "src/plasticity.c",
+        ],
+    ),
+    (
+        "plasticity numerical",
+        [
+            "tests/test_plasticity.c",
+            "src/neuron.c",
+            "src/network.c",
+            "src/plasticity.c",
         ],
     ),
 ]

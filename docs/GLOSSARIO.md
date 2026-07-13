@@ -38,6 +38,15 @@
 - **Diagnostics off/basic/full:** níveis de custo e profundidade do diagnóstico.
 - **Heurística:** regra útil para diagnóstico, sem garantia de verdade biológica universal.
 - **Reprodutibilidade:** capacidade de repetir configuração, seed, código e procedimento observável.
+- **Plasticidade sináptica:** mudança do peso de uma conexão durante a execução.
+- **STDP:** regra que relaciona deltas de peso à ordem temporal de spikes pré e pós.
+- **LTP:** termo de potencialização, com delta positivo na regra do C1.
+- **LTD:** termo de depressão, com delta negativo na regra do C1.
+- **Trace pré-sináptico:** memória exponencial dos spikes anteriores do neurônio pré.
+- **Trace pós-sináptico:** memória exponencial dos spikes anteriores do neurônio pós.
+- **Janela temporal:** influência da distância entre spikes, determinada pelos taus.
+- **Clamp de peso:** limitação do peso ao intervalo configurado.
+- **Sinapse elegível:** conexão de origem EXC, peso não negativo e regra ativa no C1.
 
 Fórmulas completas estão no [Guia de diagnóstico](GUIA_DE_DIAGNOSTICO.md) e no
 [Guia de métricas](GUIA_DE_METRICAS.md).

@@ -12,9 +12,11 @@ O roadmap indica ordem de trabalho, não promessa de prazo.
 - [x] A5 — métricas ampliadas e diagnóstico `off/basic/full`.
 - [x] A6 — consolidação documental e validação de referências.
 - [x] Bloco B — auditoria numérica, estrutural, robustez, regressão e benchmark.
+- [x] C1 — STDP aditivo por traces para sinapses de origem EXC.
 
 ## Próximo
 
+- [ ] C1.5 — homeostase e estabilidade.
 - [ ] Revisão humana do checklist do Studio.
 - [ ] Revisão de release da **Core v0.2 - Essential Lab** para E0.
 
@@ -38,10 +40,9 @@ Bloco A
 `Core v0.2` é candidata à revisão humana; E0 e Worlds mínimo ainda são marcos
 planejados, não releases existentes.
 
-## Planejado — Bloco C
+## Planejado — continuidade do Bloco C
 
-- C1 — STDP.
-- C1.5 — homeostase.
+- C1.5 — homeostase e estabilidade.
 - C2 — recompensa.
 - C3 — neuroevolução.
 - C4 — topologia adaptativa.
@@ -52,6 +53,7 @@ planejados, não releases existentes.
 
 ## Experimental
 
-Os programas em `experiments/` e as heurísticas diagnósticas apoiam exploração,
-mas não tornam plasticidade, Worlds ou modelos avançados implementados. Novas
+Os programas em `experiments/`, o STDP experimental do C1 e as heurísticas
+diagnósticas apoiam exploração, mas não tornam homeostase, Worlds ou modelos
+avançados implementados. Novas
 hipóteses devem entrar no roadmap antes de serem descritas como recurso.

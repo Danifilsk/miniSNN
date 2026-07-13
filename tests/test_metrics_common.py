@@ -3,6 +3,8 @@ from __future__ import annotations
 from configparser import ConfigParser
 import math
 from pathlib import Path
+import csv
+import shutil
 import sys
 
 import numpy as np
@@ -19,6 +21,7 @@ from metrics_common import (  # noqa: E402
     entropy_metrics,
     gini,
     longest_streak,
+    read_plasticity_metrics,
     sampled_correlation_metrics,
     segment_metrics,
     stability,
@@ -203,12 +206,70 @@ def test_regimes() -> None:
         check(0.0 <= confidence <= 1.0, f"regime confidence {expected}")
 
 
+def test_plasticity_metrics_loading() -> None:
+    run_path = PROJECT_ROOT / "build" / "test_metrics_plasticity"
+    shutil.rmtree(run_path, ignore_errors=True)
+    run_path.mkdir(parents=True)
+    parser = ConfigParser()
+    parser.read_string(
+        "[plasticity]\n"
+        "enabled = true\n"
+        "rule = stdp_pair_trace\n"
+    )
+    fields = [
+        "plasticity_enabled",
+        "plasticity_rule",
+        "plasticity_modified_connection_fraction",
+        "plasticity_initial_weight_mean",
+        "plasticity_final_weight_mean",
+        "plasticity_mean_absolute_change",
+        "plasticity_total_signed_change",
+        "plasticity_potentiation_events",
+        "plasticity_depression_events",
+    ]
+    with (run_path / "plasticity_metrics.csv").open(
+        "w", encoding="utf-8", newline=""
+    ) as file:
+        writer = csv.DictWriter(file, fieldnames=fields)
+        writer.writeheader()
+        writer.writerow(
+            {
+                "plasticity_enabled": "true",
+                "plasticity_rule": "stdp_pair_trace",
+                "plasticity_modified_connection_fraction": 0.5,
+                "plasticity_initial_weight_mean": 100.0,
+                "plasticity_final_weight_mean": 101.5,
+                "plasticity_mean_absolute_change": 2.0,
+                "plasticity_total_signed_change": 3.0,
+                "plasticity_potentiation_events": 7,
+                "plasticity_depression_events": 4,
+            }
+        )
+    (run_path / "weights_initial.csv").write_text("connection_id\n", encoding="utf-8")
+    (run_path / "weights_final.csv").write_text("connection_id\n", encoding="utf-8")
+
+    warnings: list[str] = []
+    metrics = read_plasticity_metrics(run_path, parser, warnings)
+    check(not warnings, f"unexpected plasticity warnings: {warnings}")
+    check(metrics["plasticity_metrics_source"] == "plasticity_metrics.csv", "source")
+    close(metrics["plasticity_final_weight_mean"], 101.5, "final weight mean")
+    close(metrics["plasticity_total_signed_change"], 3.0, "signed change")
+
+    legacy_warnings: list[str] = []
+    legacy = read_plasticity_metrics(run_path / "legacy", ConfigParser(), legacy_warnings)
+    check(not legacy_warnings, "legacy run should not warn about missing STDP outputs")
+    check(legacy["plasticity_enabled"] is False, "legacy plasticity default")
+    check(legacy["plasticity_metrics_source"] == "config (STDP off)", "legacy source")
+    shutil.rmtree(run_path, ignore_errors=True)
+
+
 def main() -> int:
     test_parameters_and_scalar_metrics()
     test_bursts()
     test_correlations()
     test_stability()
     test_regimes()
+    test_plasticity_metrics_loading()
     print("Shared diagnostics metrics validation OK")
     return 0
 

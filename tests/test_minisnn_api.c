@@ -470,6 +470,108 @@ static int check_recreate_after_destroy(void)
     return 1;
 }
 
+static int check_connection_and_plasticity_api(void)
+{
+    MiniSNN *first = minisnn_create(3);
+    MiniSNN *second = minisnn_create(2);
+    MiniSNNPlasticityConfig config = minisnn_default_plasticity_config();
+    MiniSNNPlasticityConfig loaded;
+    MiniSNNPlasticityStats stats;
+    MiniSNNConnectionInfo connection;
+    double weight = 0.0;
+    double pre_trace = -1.0;
+    double post_trace = -1.0;
+
+    if (first == NULL || second == NULL)
+    {
+        minisnn_destroy(&first);
+        minisnn_destroy(&second);
+        return fail("plasticity API networks could not be created");
+    }
+
+    if (!minisnn_connect(first, 0, 2, 10.0) ||
+        !minisnn_connect(first, 0, 1, 11.0) ||
+        !minisnn_connect(first, 1, 2, -4.0) ||
+        !minisnn_set_neuron_type(first, 1, MINISNN_NEURON_INHIBITORY) ||
+        minisnn_connection_count(first) != 3U)
+    {
+        minisnn_destroy(&first);
+        minisnn_destroy(&second);
+        return fail("connection inspection setup failed");
+    }
+
+    config.enabled = 1;
+    config.a_plus = 0.5;
+    config.weight_max = 20.0;
+
+    if (!minisnn_set_plasticity_config(first, &config) ||
+        !minisnn_get_plasticity_config(first, &loaded) ||
+        !same_double(loaded.a_plus, 0.5) ||
+        !minisnn_get_connection(first, 0U, &connection) ||
+        connection.source != 0U || connection.target != 2U ||
+        !connection.plasticity_eligible ||
+        !minisnn_get_connection(first, 2U, &connection) ||
+        connection.source != 1U || connection.target != 2U ||
+        connection.plasticity_eligible)
+    {
+        minisnn_destroy(&first);
+        minisnn_destroy(&second);
+        return fail("plasticity configuration or deterministic inspection failed");
+    }
+
+    if (!minisnn_set_connection_weight(first, 1U, 12.5) ||
+        !minisnn_get_connection_weight(first, 1U, &weight) ||
+        !same_double(weight, 12.5) ||
+        minisnn_set_connection_weight(first, 3U, 1.0) ||
+        minisnn_set_connection_weight(first, 0U, make_nan()) ||
+        minisnn_get_connection(first, 3U, &connection) ||
+        minisnn_get_connection(first, 0U, NULL))
+    {
+        minisnn_destroy(&first);
+        minisnn_destroy(&second);
+        return fail("safe mutable weight API failed");
+    }
+
+    if (!minisnn_get_plasticity_stats(first, &stats) ||
+        stats.eligible_connections != 2U ||
+        !minisnn_get_plasticity_traces(
+            first,
+            0,
+            &pre_trace,
+            &post_trace) ||
+        !same_double(pre_trace, 0.0) ||
+        !same_double(post_trace, 0.0))
+    {
+        minisnn_destroy(&first);
+        minisnn_destroy(&second);
+        return fail("plasticity statistics or traces getter failed");
+    }
+
+    loaded = minisnn_default_plasticity_config();
+    if (!minisnn_get_plasticity_config(second, &loaded) || loaded.enabled ||
+        minisnn_get_plasticity_stats(NULL, &stats) ||
+        minisnn_set_plasticity_config(NULL, &config) ||
+        minisnn_set_plasticity_config(first, NULL))
+    {
+        minisnn_destroy(&first);
+        minisnn_destroy(&second);
+        return fail("plasticity state was shared or accepted invalid calls");
+    }
+
+    loaded = config;
+    loaded.tau_plus = 0.0;
+    if (minisnn_set_plasticity_config(first, &loaded))
+    {
+        minisnn_destroy(&first);
+        minisnn_destroy(&second);
+        return fail("invalid plasticity configuration was accepted");
+    }
+
+    minisnn_destroy(&first);
+    minisnn_destroy(&second);
+    return 1;
+}
+
 int main(void)
 {
     if (!check_default_config_and_invalid_configs())
@@ -494,6 +596,9 @@ int main(void)
         return 1;
 
     if (!check_recreate_after_destroy())
+        return 1;
+
+    if (!check_connection_and_plasticity_api())
         return 1;
 
     printf("MiniSNN public API validation OK\n");

@@ -270,10 +270,9 @@ se `pandas` e `matplotlib` estao disponiveis. Se nada valido for encontrado,
 ele mostra uma mensagem curta pedindo uma instalacao compativel. O terminal nao
 e necessario quando o Studio estiver configurado.
 
-O Studio ainda mostra apenas recursos ja implementados no motor de cenarios:
-topologias configuraveis, pesos EXC/INH, entrada externa constante, parametros
-LIF e CSVs/graficos. Ele nao adiciona plasticidade, recompensa, mundo externo
-ou topologia adaptativa.
+O Studio mostra recursos implementados no motor de cenarios, incluindo o modal
+`PLASTICIDADE` para STDP excitatório. Ele não adiciona homeostase, recompensa,
+mundo externo ou topologia adaptativa.
 
 ## Resultados e sobrescrita
 
@@ -359,3 +358,19 @@ mingw32-make demo
 
 Os scripts Python usam `plt.show()`. Feche a janela do grafico para o terminal
 encerrar.
+
+## STDP e pesos mutáveis
+
+Para uma demonstração reproduzível:
+
+```powershell
+mingw32-make scenario-stdp-ltp
+mingw32-make plot-stdp-ltp
+```
+
+Use `PLASTICIDADE` no Studio para editar a seção correspondente. Com STDP ativo,
+o runner pode produzir snapshots, histórico, métricas e relatório na pasta real
+da execução. A regra do C1 altera apenas sinapses de origem EXC e usa emissão do
+spike como referência temporal. Consulte o
+[Guia de plasticidade](GUIA_DE_PLASTICIDADE.md) para parâmetros, API, testes e
+limitações científicas.

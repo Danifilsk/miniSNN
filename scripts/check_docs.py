@@ -40,6 +40,8 @@ CENTRAL_DOCUMENTS = (
     "docs/AUDITORIA_DO_CORE_V02.md",
     "docs/COBERTURA_DE_TESTES.md",
     "docs/BENCHMARKS_V02.md",
+    "docs/GUIA_DE_PLASTICIDADE.md",
+    "docs/BENCHMARKS_C1_STDP.md",
     "docs/CHECKLIST_DE_VALIDACAO_DO_STUDIO.md",
 )
 
@@ -56,9 +58,14 @@ IMPORTANT_FILES = (
     "scripts/compare_runs.py",
     "scripts/plot_scenario.py",
     "scripts/plot_neuron.py",
+    "scripts/plot_plasticity.py",
+    "scripts/check_c1.py",
     "scripts/check_docs.py",
     "configs/random.ini",
     "configs/small_world.ini",
+    "configs/stdp_ltp_demo.ini",
+    "configs/stdp_ltd_demo.ini",
+    "configs/stdp_mixed_demo.ini",
     "tests/test_minisnn_api.c",
     "tests/test_topology.c",
     "tests/test_LIF.c",
@@ -72,6 +79,9 @@ IMPORTANT_FILES = (
     "tests/test_runner_topologies.c",
     "tests/test_reproducibility.c",
     "tests/test_regression_baseline.py",
+    "tests/test_plasticity.c",
+    "tests/test_plasticity_long.c",
+    "tests/test_plot_plasticity.py",
 )
 
 REQUIRED_TARGETS = (
@@ -91,6 +101,15 @@ REQUIRED_TARGETS = (
     "test-long",
     "benchmark-v02",
     "check-v02",
+    "test-plasticity",
+    "test-plasticity-long",
+    "test-plot-plasticity",
+    "scenario-stdp-ltp",
+    "scenario-stdp-ltd",
+    "scenario-stdp-mixed",
+    "plot-stdp-ltp",
+    "benchmark-c1",
+    "check-c1",
 )
 
 IMPORTANT_KEYS = (
@@ -104,6 +123,19 @@ IMPORTANT_KEYS = (
     "correlation_sample_size",
     "neuron_sample_limit",
     "sample_stride",
+    "enabled",
+    "rule",
+    "a_plus",
+    "a_minus",
+    "tau_plus",
+    "tau_minus",
+    "trace_increment",
+    "weight_min",
+    "weight_max",
+    "record_weights",
+    "record_history",
+    "record_interval_steps",
+    "record_connection_limit",
 )
 
 STUDIO_BUTTONS = (
@@ -118,6 +150,10 @@ STUDIO_BUTTONS = (
     "GERAR DIAGNOSTICO",
     "ABRIR METRICAS",
     "ABRIR DIAGNOSTICO",
+    "PLASTICIDADE",
+    "GRAFICO STDP",
+    "ABRIR PESOS",
+    "ABRIR STDP",
 )
 
 

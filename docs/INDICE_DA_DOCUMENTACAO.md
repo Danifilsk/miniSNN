@@ -17,6 +17,7 @@ implementados, experimentais e planejados.
 - [Organização de resultados](ORGANIZACAO_DE_RESULTADOS.md) — pastas, nomes únicos e históricos.
 - [Guia de métricas](GUIA_DE_METRICAS.md) — leitura das métricas principais.
 - [Guia de diagnóstico](GUIA_DE_DIAGNOSTICO.md) — níveis, fórmulas, regimes e limitações heurísticas.
+- [Guia de plasticidade](GUIA_DE_PLASTICIDADE.md) — STDP, traces, cenários, saídas e limitações.
 
 ## Para entender tecnicamente
 
@@ -33,6 +34,7 @@ implementados, experimentais e planejados.
 - [Auditoria do Core v0.2](AUDITORIA_DO_CORE_V02.md) — evidências, bugs, limites e estado da fundação.
 - [Cobertura de testes](COBERTURA_DE_TESTES.md) — classificação e lacunas reais da suíte.
 - [Benchmarks v0.2](BENCHMARKS_V02.md) — medições locais reproduzíveis e limites.
+- [Benchmarks C1 STDP](BENCHMARKS_C1_STDP.md) — custo local da regra, histórico e gráfico.
 - [Checklist do Studio](CHECKLIST_DE_VALIDACAO_DO_STUDIO.md) — validação manual separada da automação.
 - [Roadmap](ROADMAP.md) — implementado, próximo e planejado, sem prazos garantidos.
 

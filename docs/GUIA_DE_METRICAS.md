@@ -166,3 +166,15 @@ completa de sincronia neural.
 
 As classes de regime e seus thresholds estão no
 [Guia de diagnóstico](GUIA_DE_DIAGNOSTICO.md).
+
+## Métricas de plasticidade
+
+`plasticity_metrics.csv` é a fonte autoritativa quando existe. Ele registra
+conexões elegíveis/modificadas, fração modificada, eventos LTP/LTD, clamps,
+distribuições inicial/final e mudanças acumuladas. As agregações usam todas as
+conexões elegíveis, mesmo quando snapshots foram amostrados.
+
+`plasticity_total_absolute_change` é cumulativo por atualização; não confundir
+com a diferença líquida final. `analyze_run.py` e `compare_runs.py` reutilizam
+essas métricas e mostram `NA` quando uma run antiga não fornece o campo. Mais
+detalhes no [Guia de plasticidade](GUIA_DE_PLASTICIDADE.md).

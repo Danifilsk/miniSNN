@@ -1,6 +1,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include <math.h>
 
 #include "scenario_config.h"
 #include "scenario_runner.h"
@@ -16,6 +17,12 @@
 #define TEST_UNIQUE_RUN_NAME "test_scenario_runner_unique"
 #define TEST_COLLISION_RUN_NAME "test_scenario_runner_file_collision"
 #define TEST_CORRUPT_HISTORY_RUN_NAME "test_scenario_runner_corrupt_history"
+#define TEST_STDP_RUN_NAME "test_scenario_runner_stdp"
+#define TEST_STDP_OUTPUT_DIR "results/scenarios/test_scenario_runner_stdp"
+#define TEST_STDP_LTD_RUN_NAME "test_scenario_runner_stdp_ltd"
+#define TEST_STDP_MIXED_RUN_NAME "test_scenario_runner_stdp_mixed"
+#define TEST_STDP_SAMPLE_RUN_NAME "test_scenario_runner_stdp_sample"
+#define TEST_STDP_EMPTY_RUN_NAME "test_scenario_runner_stdp_empty"
 
 static int fail(const char *message)
 {
@@ -29,6 +36,11 @@ static int fail(const char *message)
     system("for /D %D in (results\\scenarios\\test_scenario_runner_unique*) do @rmdir /S /Q \"%D\"");
     remove("results/scenarios/test_scenario_runner_file_collision");
     system("if exist results\\scenarios\\test_scenario_runner_corrupt_history rmdir /S /Q results\\scenarios\\test_scenario_runner_corrupt_history");
+    system("if exist results\\scenarios\\test_scenario_runner_stdp rmdir /S /Q results\\scenarios\\test_scenario_runner_stdp");
+    system("if exist results\\scenarios\\test_scenario_runner_stdp_ltd rmdir /S /Q results\\scenarios\\test_scenario_runner_stdp_ltd");
+    system("if exist results\\scenarios\\test_scenario_runner_stdp_mixed rmdir /S /Q results\\scenarios\\test_scenario_runner_stdp_mixed");
+    system("if exist results\\scenarios\\test_scenario_runner_stdp_sample rmdir /S /Q results\\scenarios\\test_scenario_runner_stdp_sample");
+    system("if exist results\\scenarios\\test_scenario_runner_stdp_empty rmdir /S /Q results\\scenarios\\test_scenario_runner_stdp_empty");
     printf("FAIL: %s\n", message);
     return 0;
 }
@@ -434,6 +446,432 @@ static int check_corrupt_history_is_rejected(void)
     return ok;
 }
 
+static int read_first_signed_change(const char *path, double *out_change)
+{
+    FILE *file = fopen(path, "r");
+    char line[1024];
+    char *token;
+    int column = 0;
+
+    if (file == NULL || fgets(line, sizeof(line), file) == NULL ||
+        fgets(line, sizeof(line), file) == NULL)
+    {
+        if (file != NULL)
+            fclose(file);
+        return 0;
+    }
+
+    fclose(file);
+    token = strtok(line, ",");
+
+    while (token != NULL)
+    {
+        if (column == 11)
+        {
+            *out_change = strtod(token, NULL);
+            return 1;
+        }
+
+        column++;
+        token = strtok(NULL, ",");
+    }
+
+    return 0;
+}
+
+static int history_ends_at_step(const char *path, int expected_step)
+{
+    FILE *file = fopen(path, "r");
+    char line[512];
+    char last[512] = "";
+    int step;
+
+    if (file == NULL)
+        return 0;
+
+    while (fgets(line, sizeof(line), file) != NULL)
+        snprintf(last, sizeof(last), "%s", line);
+
+    fclose(file);
+    return sscanf(last, "%d,", &step) == 1 && step == expected_step;
+}
+
+static int check_plasticity_runner_outputs(void)
+{
+    ScenarioConfig config;
+    ScenarioRunResult result;
+    char error[256];
+    double signed_change = 0.0;
+    int ok = 1;
+
+    system("if exist results\\scenarios\\test_scenario_runner_stdp rmdir /S /Q results\\scenarios\\test_scenario_runner_stdp");
+    scenario_config_default(&config);
+    snprintf(config.run_name, sizeof(config.run_name), TEST_STDP_RUN_NAME);
+    snprintf(config.topology, sizeof(config.topology), "chain");
+    config.neurons = 2;
+    config.inhibitory_fraction = 0.0;
+    config.excitatory_weight = 150.0;
+    config.source_count = 1;
+    config.input_current = 20.0;
+    config.steps = 2000;
+    config.record_neuron = 1;
+    config.history_enabled = 0;
+    config.plasticity_enabled = 1;
+    config.plasticity_a_plus = 1.0;
+    config.plasticity_a_minus = 1.05;
+    config.plasticity_weight_max = 300.0;
+    config.plasticity_record_interval_steps = 333;
+    config.plasticity_record_connection_limit = 1;
+
+    if (!scenario_runner_execute(&config, NULL, &result, error, sizeof(error)))
+    {
+        printf("Unexpected STDP runner error: %s\n", error);
+        ok = 0;
+        goto cleanup;
+    }
+
+    if (!file_exists(TEST_STDP_OUTPUT_DIR "/weights_initial.csv") ||
+        !file_exists(TEST_STDP_OUTPUT_DIR "/weights_final.csv") ||
+        !file_exists(TEST_STDP_OUTPUT_DIR "/weight_history.csv") ||
+        !file_exists(TEST_STDP_OUTPUT_DIR "/plasticity_metrics.csv") ||
+        !file_exists(TEST_STDP_OUTPUT_DIR "/stdp_report.txt") ||
+        !read_first_signed_change(
+            TEST_STDP_OUTPUT_DIR "/weights_final.csv",
+            &signed_change) ||
+        signed_change <= 0.0 ||
+        !history_ends_at_step(
+            TEST_STDP_OUTPUT_DIR "/weight_history.csv",
+            config.steps) ||
+        !csv_header_contains(
+            TEST_STDP_OUTPUT_DIR "/metrics.csv",
+            "plasticity_modified_connection_fraction"))
+    {
+        ok = 0;
+    }
+
+cleanup:
+    system("if exist results\\scenarios\\test_scenario_runner_stdp rmdir /S /Q results\\scenarios\\test_scenario_runner_stdp");
+    return ok;
+}
+
+static int report_has_non_finite_token(const char *path)
+{
+    FILE *file = fopen(path, "r");
+    char line[1024];
+
+    if (file == NULL)
+        return 1;
+
+    while (fgets(line, sizeof(line), file) != NULL)
+    {
+        for (char *cursor = line; *cursor != '\0'; cursor++)
+        {
+            if (*cursor >= 'A' && *cursor <= 'Z')
+                *cursor = (char)(*cursor - 'A' + 'a');
+        }
+
+        if (strstr(line, "nan") != NULL ||
+            strstr(line, "=inf") != NULL ||
+            strstr(line, "=-inf") != NULL)
+        {
+            fclose(file);
+            return 1;
+        }
+    }
+
+    fclose(file);
+    return 0;
+}
+
+static int validate_final_weight_rows(
+    const char *path,
+    double weight_min,
+    double weight_max,
+    int require_inhibitory,
+    double *out_total_change)
+{
+    FILE *file = fopen(path, "r");
+    char line[2048];
+    int inhibitory_rows = 0;
+    double total_change = 0.0;
+
+    if (file == NULL || fgets(line, sizeof(line), file) == NULL)
+    {
+        if (file != NULL)
+            fclose(file);
+        return 0;
+    }
+
+    while (fgets(line, sizeof(line), file) != NULL)
+    {
+        char *fields[13];
+        char *token = strtok(line, ",");
+        int count = 0;
+
+        while (token != NULL && count < 13)
+        {
+            fields[count++] = token;
+            token = strtok(NULL, ",");
+        }
+
+        if (count != 13)
+        {
+            fclose(file);
+            return 0;
+        }
+
+        {
+            double current = strtod(fields[10], NULL);
+            double initial = strtod(fields[9], NULL);
+            double change = strtod(fields[11], NULL);
+            int eligible = atoi(fields[7]);
+
+            if (!isfinite(current) || !isfinite(initial) || !isfinite(change))
+            {
+                fclose(file);
+                return 0;
+            }
+
+            if (strcmp(fields[3], "INH") == 0)
+            {
+                inhibitory_rows++;
+                if (eligible != 0 || current != initial || change != 0.0)
+                {
+                    fclose(file);
+                    return 0;
+                }
+            }
+            else if (eligible && (current < weight_min || current > weight_max))
+            {
+                fclose(file);
+                return 0;
+            }
+
+            total_change += change;
+        }
+    }
+
+    fclose(file);
+    if (require_inhibitory && inhibitory_rows == 0)
+        return 0;
+    *out_total_change = total_change;
+    return 1;
+}
+
+static int run_stdp_demo_case(
+    const char *config_path,
+    const char *run_name,
+    int expected_change_sign,
+    int require_inhibitory)
+{
+    ScenarioConfig config;
+    ScenarioRunResult result;
+    char error[256];
+    char final_path[256];
+    char report_path[256];
+    double total_change = 0.0;
+
+    if (!scenario_config_load_file(
+            config_path,
+            &config,
+            error,
+            sizeof(error)))
+    {
+        printf("Unexpected scenario load error: %s\n", error);
+        return 0;
+    }
+
+    snprintf(config.run_name, sizeof(config.run_name), "%s", run_name);
+    config.auto_unique_run = 0;
+    config.history_enabled = 0;
+
+    if (!scenario_runner_execute(&config, NULL, &result, error, sizeof(error)))
+    {
+        printf("Unexpected STDP demo runner error: %s\n", error);
+        return 0;
+    }
+
+    snprintf(
+        final_path,
+        sizeof(final_path),
+        "results/scenarios/%s/weights_final.csv",
+        run_name);
+    snprintf(
+        report_path,
+        sizeof(report_path),
+        "results/scenarios/%s/stdp_report.txt",
+        run_name);
+
+    if (!validate_final_weight_rows(
+            final_path,
+            config.plasticity_weight_min,
+            config.plasticity_weight_max,
+            require_inhibitory,
+            &total_change) ||
+        report_has_non_finite_token(report_path))
+    {
+        return 0;
+    }
+
+    if (expected_change_sign < 0 && total_change >= 0.0)
+        return 0;
+    if (expected_change_sign > 0 && total_change <= 0.0)
+        return 0;
+
+    return 1;
+}
+
+static int read_sample_ids(const char *path, size_t *ids, size_t capacity)
+{
+    FILE *file = fopen(path, "r");
+    char line[1024];
+    size_t count = 0;
+
+    if (file == NULL || fgets(line, sizeof(line), file) == NULL)
+    {
+        if (file != NULL)
+            fclose(file);
+        return -1;
+    }
+
+    while (count < capacity && fgets(line, sizeof(line), file) != NULL)
+    {
+        unsigned long long id;
+
+        if (sscanf(line, "%llu,", &id) != 1)
+        {
+            fclose(file);
+            return -1;
+        }
+        ids[count++] = (size_t)id;
+    }
+
+    if (fgets(line, sizeof(line), file) != NULL)
+    {
+        fclose(file);
+        return -1;
+    }
+
+    fclose(file);
+    return (int)count;
+}
+
+static int check_deterministic_plasticity_sampling(void)
+{
+    ScenarioConfig config;
+    ScenarioRunResult result;
+    char error[256];
+    size_t first[5];
+    size_t second[5];
+    const size_t expected[5] = {0U, 94U, 189U, 284U, 379U};
+    const char *path =
+        "results/scenarios/test_scenario_runner_stdp_sample/weights_initial.csv";
+
+    scenario_config_default(&config);
+    snprintf(config.run_name, sizeof(config.run_name), TEST_STDP_SAMPLE_RUN_NAME);
+    snprintf(config.topology, sizeof(config.topology), "all_to_all");
+    config.neurons = 20;
+    config.inhibitory_fraction = 0.0;
+    config.allow_self_connections = 0;
+    config.source_count = 1;
+    config.input_current = 0.0;
+    config.steps = 1;
+    config.record_neuron = 0;
+    config.auto_unique_run = 0;
+    config.history_enabled = 0;
+    config.plasticity_enabled = 1;
+    config.plasticity_weight_max = 300.0;
+    config.plasticity_record_history = 0;
+    config.plasticity_record_connection_limit = 5;
+
+    system("if exist results\\scenarios\\test_scenario_runner_stdp_sample rmdir /S /Q results\\scenarios\\test_scenario_runner_stdp_sample");
+    if (!scenario_runner_execute(&config, NULL, &result, error, sizeof(error)) ||
+        result.connection_count != 380 ||
+        read_sample_ids(path, first, 5) != 5)
+    {
+        return 0;
+    }
+
+    system("if exist results\\scenarios\\test_scenario_runner_stdp_sample rmdir /S /Q results\\scenarios\\test_scenario_runner_stdp_sample");
+    if (!scenario_runner_execute(&config, NULL, &result, error, sizeof(error)) ||
+        read_sample_ids(path, second, 5) != 5)
+    {
+        return 0;
+    }
+
+    for (size_t i = 0; i < 5; i++)
+    {
+        if (first[i] != expected[i] || second[i] != expected[i])
+            return 0;
+    }
+
+    return 1;
+}
+
+static int check_empty_plasticity_run(void)
+{
+    ScenarioConfig config;
+    ScenarioRunResult result;
+    char error[256];
+    FILE *file;
+    char header[4096];
+    char row[4096];
+    int eligible = -1;
+
+    scenario_config_default(&config);
+    snprintf(config.run_name, sizeof(config.run_name), TEST_STDP_EMPTY_RUN_NAME);
+    snprintf(config.topology, sizeof(config.topology), "chain");
+    config.neurons = 1;
+    config.inhibitory_fraction = 0.0;
+    config.source_count = 1;
+    config.input_current = 0.0;
+    config.steps = 20;
+    config.record_neuron = 0;
+    config.auto_unique_run = 0;
+    config.history_enabled = 0;
+    config.plasticity_enabled = 1;
+    config.plasticity_weight_max = 300.0;
+
+    system("if exist results\\scenarios\\test_scenario_runner_stdp_empty rmdir /S /Q results\\scenarios\\test_scenario_runner_stdp_empty");
+    if (!scenario_runner_execute(&config, NULL, &result, error, sizeof(error)) ||
+        result.spikes_total != 0 || result.connection_count != 0 ||
+        report_has_non_finite_token(
+            "results/scenarios/test_scenario_runner_stdp_empty/stdp_report.txt"))
+    {
+        return 0;
+    }
+
+    file = fopen(
+        "results/scenarios/test_scenario_runner_stdp_empty/plasticity_metrics.csv",
+        "r");
+    if (file == NULL || fgets(header, sizeof(header), file) == NULL ||
+        fgets(row, sizeof(row), file) == NULL)
+    {
+        if (file != NULL)
+            fclose(file);
+        return 0;
+    }
+    fclose(file);
+
+    {
+        char *token = strtok(row, ",");
+        int column = 0;
+
+        while (token != NULL)
+        {
+            if (column == 2)
+            {
+                eligible = atoi(token);
+                break;
+            }
+            column++;
+            token = strtok(NULL, ",");
+        }
+    }
+
+    return eligible == 0;
+}
+
 int main(void)
 {
     ScenarioConfig config;
@@ -479,6 +917,12 @@ int main(void)
         !file_exists(TEST_OUTPUT_DIR "/run_manifest.txt"))
     {
         return fail("required output file missing");
+    }
+
+    if (file_exists(TEST_OUTPUT_DIR "/weights_initial.csv") ||
+        file_exists(TEST_OUTPUT_DIR "/plasticity_metrics.csv"))
+    {
+        return fail("plasticity outputs were created while STDP was off");
     }
 
     if (!summary_contains_expected_data())
@@ -541,7 +985,38 @@ int main(void)
     if (!check_corrupt_history_is_rejected())
         return fail("corrupt history was not rejected safely");
 
+    if (!check_plasticity_runner_outputs())
+        return fail("plasticity runner outputs or LTP validation failed");
+
+    if (!run_stdp_demo_case(
+            "configs/stdp_ltd_demo.ini",
+            TEST_STDP_LTD_RUN_NAME,
+            -1,
+            0))
+    {
+        return fail("LTD runner demo did not depress eligible weights");
+    }
+
+    if (!run_stdp_demo_case(
+            "configs/stdp_mixed_demo.ini",
+            TEST_STDP_MIXED_RUN_NAME,
+            0,
+            1))
+    {
+        return fail("mixed runner demo changed inhibitory weights or left bounds");
+    }
+
+    if (!check_deterministic_plasticity_sampling())
+        return fail("plasticity connection sampling was not deterministic and distributed");
+
+    if (!check_empty_plasticity_run())
+        return fail("silent plasticity run with zero eligible connections failed");
+
     system("if exist results\\scenarios\\test_scenario_runner_temp rmdir /S /Q results\\scenarios\\test_scenario_runner_temp");
+    system("if exist results\\scenarios\\test_scenario_runner_stdp_ltd rmdir /S /Q results\\scenarios\\test_scenario_runner_stdp_ltd");
+    system("if exist results\\scenarios\\test_scenario_runner_stdp_mixed rmdir /S /Q results\\scenarios\\test_scenario_runner_stdp_mixed");
+    system("if exist results\\scenarios\\test_scenario_runner_stdp_sample rmdir /S /Q results\\scenarios\\test_scenario_runner_stdp_sample");
+    system("if exist results\\scenarios\\test_scenario_runner_stdp_empty rmdir /S /Q results\\scenarios\\test_scenario_runner_stdp_empty");
     printf("Scenario runner validation OK\n");
     return 0;
 }

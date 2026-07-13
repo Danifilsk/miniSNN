@@ -8,7 +8,11 @@ import math
 import re
 import sys
 
-from metrics_common import basic_metrics as shared_basic_metrics
+from metrics_common import (
+    basic_metrics as shared_basic_metrics,
+    read_config,
+    read_plasticity_metrics,
+)
 
 try:
     import matplotlib.pyplot as plt
@@ -187,6 +191,9 @@ def analyze_run(run_path: Path) -> tuple[dict[str, object] | None, pd.DataFrame 
         metrics["metrics_source"] = (
             "metrics.csv (campos ausentes derivados)" if stored else "derivadas de CSVs antigos"
         )
+
+    config = read_config(run_path, warnings)
+    metrics.update(read_plasticity_metrics(run_path, config, warnings))
     aliases = {
         "num_neurons": "network_num_neurons",
         "steps": "run_steps",
@@ -277,6 +284,37 @@ def write_report(
             f"sincronia_proxy={format_value(row.get('synchrony_proxy'))}"
         )
         lines.append(f"  origem: {row.get('metrics_source', 'NA')}")
+
+    lines.append("")
+    lines.append("Plasticidade:")
+    plasticity_fields = (
+        "plasticity_modified_connection_fraction",
+        "plasticity_initial_weight_mean",
+        "plasticity_final_weight_mean",
+        "plasticity_mean_absolute_change",
+        "plasticity_total_signed_change",
+        "plasticity_potentiation_events",
+        "plasticity_depression_events",
+    )
+    for _, row in summary.iterrows():
+        available = [
+            field
+            for field in plasticity_fields
+            if field in row and pd.notna(row.get(field))
+        ]
+        unavailable = [field for field in plasticity_fields if field not in available]
+        lines.append(
+            f"- {row['run_name']}: enabled={format_value(row.get('plasticity_enabled'))}; "
+            f"fonte={format_value(row.get('plasticity_metrics_source'))}"
+        )
+        lines.append(
+            "  carregados/derivados: "
+            + (", ".join(available) if available else "nenhum")
+        )
+        lines.append(
+            "  indisponiveis: "
+            + (", ".join(unavailable) if unavailable else "nenhum")
+        )
 
     def ranking(metric: str, title: str, ascending: bool = False) -> None:
         lines.append("")

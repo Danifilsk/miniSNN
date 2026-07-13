@@ -16,6 +16,7 @@ static void network_reset_fields(Network *net)
     net->used_syn_current = NULL;
     net->pending_current = NULL;
     net->ext_current = NULL;
+    net->plasticity = NULL;
 
     net->lif_parameters.dt = 0.0;
     net->lif_parameters.tau = 0.0;
@@ -54,7 +55,8 @@ static int network_is_valid_for_update(Network *net)
         net->syn_current == NULL ||
         net->used_syn_current == NULL ||
         net->pending_current == NULL ||
-        net->ext_current == NULL)
+        net->ext_current == NULL ||
+        net->plasticity == NULL)
     {
         return 0;
     }
@@ -147,6 +149,7 @@ int network_init_with_config(
 
     // Corrente externa
     net->ext_current = malloc(size * sizeof(double));
+    net->plasticity = calloc(1, sizeof(*net->plasticity));
 
     if (net->neurons == NULL ||
         net->connections == NULL ||
@@ -154,7 +157,14 @@ int network_init_with_config(
         net->syn_current == NULL ||
         net->used_syn_current == NULL ||
         net->pending_current == NULL ||
-        net->ext_current == NULL)
+        net->ext_current == NULL ||
+        net->plasticity == NULL)
+    {
+        network_destroy(net);
+        return 0;
+    }
+
+    if (!plasticity_state_init(net->plasticity, size))
     {
         network_destroy(net);
         return 0;
@@ -234,6 +244,17 @@ int network_update(Network *net)
         }
     }
 
+    /* O spike atual ja foi transmitido com o peso anterior ao STDP. */
+    if (!plasticity_apply_step(
+            net->plasticity,
+            net->neurons,
+            net->connections,
+            net->spikes,
+            net->lif_parameters.dt))
+    {
+        return -1;
+    }
+
     next_slot =
         (net->delay_cursor + 1) %
         net->max_synaptic_delay;
@@ -274,6 +295,13 @@ static int network_connect_delayed_impl(
         net->connections == NULL ||
         net->size <= 0 ||
         net->max_synaptic_delay <= 0)
+    {
+        return 0;
+    }
+
+    if (net->plasticity != NULL &&
+        net->plasticity->config.enabled &&
+        net->step > 0)
     {
         return 0;
     }
@@ -325,6 +353,8 @@ static int network_connect_delayed_impl(
 
     connections->list = new_list;
     connections->count = new_count;
+
+    plasticity_state_invalidate_index(net->plasticity);
 
     return 1;
 }
@@ -400,8 +430,111 @@ int network_set_neuron_type(
         return 0;
     }
 
+    if (net->plasticity != NULL &&
+        net->plasticity->config.enabled &&
+        net->step > 0)
+    {
+        return 0;
+    }
+
     net->neurons[neuron_id].type = type;
+    plasticity_state_invalidate_index(net->plasticity);
     return 1;
+}
+
+size_t network_connection_count(const Network *net)
+{
+    size_t count = 0;
+
+    if (net == NULL || net->connections == NULL || net->size <= 0)
+        return 0;
+
+    for (int source = 0; source < net->size; source++)
+    {
+        if (net->connections[source].count < 0)
+            return 0;
+
+        count += (size_t)net->connections[source].count;
+    }
+
+    return count;
+}
+
+int network_get_connection(
+    const Network *net,
+    size_t connection_id,
+    int *out_source,
+    Connection **out_connection)
+{
+    size_t offset = 0;
+
+    if (net == NULL || net->connections == NULL ||
+        out_source == NULL || out_connection == NULL)
+    {
+        return 0;
+    }
+
+    for (int source = 0; source < net->size; source++)
+    {
+        const ConnectionList *list = &net->connections[source];
+        size_t count;
+
+        if (list->count < 0 || (list->count > 0 && list->list == NULL))
+            return 0;
+
+        count = (size_t)list->count;
+
+        if (connection_id < offset + count)
+        {
+            *out_source = source;
+            *out_connection = &list->list[connection_id - offset];
+            return 1;
+        }
+
+        offset += count;
+    }
+
+    return 0;
+}
+
+int network_set_connection_weight(
+    Network *net,
+    size_t connection_id,
+    double weight)
+{
+    int source;
+    Connection *connection;
+
+    if (!isfinite(weight) ||
+        !network_get_connection(
+            net,
+            connection_id,
+            &source,
+            &connection))
+    {
+        return 0;
+    }
+
+    (void)source;
+    connection->weight = weight;
+    return 1;
+}
+
+int network_set_plasticity_config(
+    Network *net,
+    const MiniSNNPlasticityConfig *config)
+{
+    if (net == NULL || net->plasticity == NULL ||
+        net->neurons == NULL || net->connections == NULL)
+    {
+        return 0;
+    }
+
+    return plasticity_state_configure(
+        net->plasticity,
+        config,
+        net->neurons,
+        net->connections);
 }
 
 void network_clear_connections(Network *net)
@@ -415,6 +548,8 @@ void network_clear_connections(Network *net)
         net->connections[i].list = NULL;
         net->connections[i].count = 0;
     }
+
+    plasticity_state_invalidate_index(net->plasticity);
 }
 
 int network_set_external_current(Network *net, int neuron_id, double current)
@@ -478,6 +613,12 @@ void network_destroy(Network *net)
     free(net->used_syn_current);
     free(net->pending_current);
     free(net->ext_current);
+
+    if (net->plasticity != NULL)
+    {
+        plasticity_state_destroy(net->plasticity);
+        free(net->plasticity);
+    }
 
     network_reset_fields(net);
 }

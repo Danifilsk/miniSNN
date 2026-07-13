@@ -194,6 +194,11 @@ Runs antigas continuam analisaveis se possuirem `population.csv`. Raster ou CSV
 individual ausente reduz as metricas disponiveis, mas nao invalida o restante.
 `compare_runs.py` reutiliza `metrics.csv` completo e deriva apenas o que faltar.
 
+Quando `plasticity_metrics.csv` existe, diagnóstico e comparação o leem como
+fonte autoritativa, mesmo se `metrics.csv` já estiver completo. Runs antigas ou
+com STDP OFF continuam válidas; campos não disponíveis ficam `NA` e um aviso é
+emitido apenas quando STDP estava ativo mas o artefato esperado está ausente.
+
 O raster e lido em chunks. O modo `basic` evita correlacoes O(N^2); o modo
 `full` usa amostragem. A analise de potencial de todos os neuronios nao e feita,
 pois a execucao atual registra serie temporal completa apenas do neuronio

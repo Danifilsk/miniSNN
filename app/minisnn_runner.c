@@ -37,6 +37,7 @@ static void print_summary(
     printf("first_active_step: %d\n", result->first_active_step);
     printf("last_active_step: %d\n", result->last_active_step);
     printf("diagnostics_level: %s\n", config->diagnostics_level);
+    printf("plasticity_enabled: %s\n", config->plasticity_enabled ? "true" : "false");
 }
 
 int main(int argc, char **argv)
@@ -96,6 +97,21 @@ int main(int argc, char **argv)
 
     if (strcmp(scenario.diagnostics_level, "off") != 0)
         printf("- %s/metrics.csv\n", result.output_directory);
+
+    if (scenario.plasticity_enabled)
+    {
+        if (scenario.plasticity_record_weights)
+        {
+            printf("- %s/weights_initial.csv\n", result.output_directory);
+            printf("- %s/weights_final.csv\n", result.output_directory);
+        }
+
+        if (scenario.plasticity_record_history)
+            printf("- %s/weight_history.csv\n", result.output_directory);
+
+        printf("- %s/plasticity_metrics.csv\n", result.output_directory);
+        printf("- %s/stdp_report.txt\n", result.output_directory);
+    }
 
     return 0;
 }

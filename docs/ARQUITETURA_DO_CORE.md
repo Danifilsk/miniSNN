@@ -61,6 +61,12 @@ chama `minisnn_step()` e consulta spikes, tensão e corrente sináptica usada. A
 rede mantém delays e corrente pendente internamente. Os CSVs registram o estado
 observado depois do update, com a corrente sináptica efetivamente usada pelo LIF.
 
+Com STDP ativo, `src/plasticity.c` executa depois que os spikes atuais foram
+transmitidos com o peso anterior. O módulo decai traces, acumula deltas LTD pelas
+listas de saída e LTP por um índice de entradas, aplica um clamp por conexão e
+só então incrementa os traces. O índice guarda `(source, outgoing_index)`, não
+ponteiros sujeitos a `realloc`.
+
 ## Observabilidade
 
 O runner produz `population.csv`, `raster.csv`, um CSV do neurônio detalhado,
@@ -74,7 +80,8 @@ gráficos sem alterar a simulação concluída.
 - Séries temporais completas de tensão e corrente existem apenas para o neurônio detalhado.
 - Algumas métricas são derivadas após a execução, não durante o timestep neural.
 - O único modelo neural implementado é o LIF simplificado.
-- Não há STDP, homeostase, recompensa, memória ou Worlds.
+- Há STDP aditivo experimental apenas para origens EXC; não há homeostase,
+  recompensa, memória ou Worlds.
 
 Veja também o [Mapa do projeto](MAPA_DO_PROJETO.md) e a
 [Referência da API](../API_REFERENCE.md).

@@ -59,6 +59,46 @@ def write_run(name: str, per_step: list[list[tuple[int, str]]], complete: bool =
     return run
 
 
+def add_plasticity_outputs(run: Path) -> None:
+    with (run / "config_used.ini").open("a", encoding="utf-8") as file:
+        file.write(
+            "\n[plasticity]\n"
+            "enabled = true\n"
+            "rule = stdp_pair_trace\n"
+        )
+    fields = [
+        "plasticity_enabled",
+        "plasticity_rule",
+        "plasticity_modified_connection_fraction",
+        "plasticity_initial_weight_mean",
+        "plasticity_final_weight_mean",
+        "plasticity_mean_absolute_change",
+        "plasticity_total_signed_change",
+        "plasticity_potentiation_events",
+        "plasticity_depression_events",
+    ]
+    with (run / "plasticity_metrics.csv").open(
+        "w", encoding="utf-8", newline=""
+    ) as file:
+        writer = csv.DictWriter(file, fieldnames=fields)
+        writer.writeheader()
+        writer.writerow(
+            {
+                "plasticity_enabled": "true",
+                "plasticity_rule": "stdp_pair_trace",
+                "plasticity_modified_connection_fraction": 0.5,
+                "plasticity_initial_weight_mean": 100.0,
+                "plasticity_final_weight_mean": 102.0,
+                "plasticity_mean_absolute_change": 2.0,
+                "plasticity_total_signed_change": 4.0,
+                "plasticity_potentiation_events": 8,
+                "plasticity_depression_events": 3,
+            }
+        )
+    (run / "weights_initial.csv").write_text("connection_id\n", encoding="utf-8")
+    (run / "weights_final.csv").write_text("connection_id\n", encoding="utf-8")
+
+
 def check(condition: bool, message: str) -> None:
     if not condition:
         raise AssertionError(message)
@@ -92,6 +132,7 @@ def main() -> int:
                 events.append((3, "INH"))
             sustained_events.append(events)
         sustained = write_run("sustained", sustained_events)
+        add_plasticity_outputs(sustained)
         sustained_metrics = analyze(sustained, "full")
         check(sustained_metrics["activity_total_spikes"] == 30, "sustained total")
         close(sustained_metrics["activity_mean_spikes_per_step"], 1.5, "sustained mean")
@@ -110,6 +151,18 @@ def main() -> int:
         close(sustained_metrics["activity_population_fano_factor"], 1.0 / 6.0, "Fano")
         check(sustained_metrics["activity_has_late_activity"], "sustained late activity")
         check(sustained_metrics["diagnostic_regime"] == "sustained", "sustained regime")
+        check(sustained_metrics["plasticity_enabled"] is True, "plasticity enabled")
+        check(
+            sustained_metrics["plasticity_metrics_source"] == "plasticity_metrics.csv",
+            "plasticity authoritative source",
+        )
+        close(
+            sustained_metrics["plasticity_final_weight_mean"],
+            102.0,
+            "plasticity final mean",
+        )
+        report_text = (sustained / "metrics_report.txt").read_text(encoding="utf-8")
+        check("Plasticidade" in report_text, "plasticity report section")
 
         expected_counts = [7, 7, 6, 10]
         close(sustained_metrics["neuron_mean_spikes"], 7.5, "neuron mean")

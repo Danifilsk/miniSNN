@@ -52,6 +52,10 @@ A API atual está em `include/minisnn.h` e usa o tipo opaco `MiniSNN`. As funç�
 `minisnn_connect_ex()` e `minisnn_connect_delayed_ex()` acrescentam controle
 explícito de auto-conexão. As funções sem `_ex` continuam rejeitando self-loop.
 
+O C1 acrescenta inspeção determinística de conexões, pesos mutáveis e API de
+plasticidade sem remover funções existentes. Cada rede mantém configuração,
+traces e estatísticas próprios.
+
 Não há ainda política de versionamento semântico formal. Mudanças futuras devem
 ser documentadas e funções públicas devem ser deprecadas antes de remoção.
 
@@ -71,3 +75,8 @@ que disponíveis.
 
 Os totais `random_demo = 6757` e `small_world_demo = 15045` foram preservados na
 auditoria da Core v0.2.
+
+Configs sem `[plasticity]` e configs com `enabled = false` são equivalentes no
+estado dinâmico normalizado. Elas não geram arquivos pesados de pesos. Ativar
+STDP muda pesos e pode mudar spikes, portanto resultados C1 devem preservar
+config, seed, manifesto e arquivos de plasticidade.

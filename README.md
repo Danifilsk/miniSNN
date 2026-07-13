@@ -14,14 +14,16 @@ validada.
 **Implementado:** neurônios LIF, pesos EXC/INH, delays sinápticos, corrente com
 decaimento, sete topologias configuráveis, API pública opaca, cenários INI,
 Studio Win32, CSVs, gráficos, comparação, histórico e diagnóstico
-`off/basic/full`.
+`off/basic/full`, inspeção de conexões e STDP aditivo por traces para sinapses
+de origem EXC.
 
 **Experimental:** métricas de regime, sincronia aproximada e `stability_score`.
-São heurísticas diagnósticas documentadas, não verdades biológicas.
+O STDP do C1 também é uma regra experimental simplificada. Esses recursos não
+são verdades biológicas nem prova de aprendizado de tarefa.
 
 **Estado da v0.2:** auditoria automática concluída; revisão manual do Studio e
-revisão humana de release permanecem pendentes. Plasticidade, homeostase e
-miniSNN Worlds ainda não estão implementados.
+revisão humana de release permanecem pendentes. O C1 foi implementado sobre
+essa base; homeostase, recompensa e miniSNN Worlds ainda não estão implementados.
 
 ## Início rápido
 
@@ -76,6 +78,7 @@ Referências diretas:
 - [Guia do Studio](docs/GUIA_DO_STUDIO.md)
 - [Guia de cenários](docs/GUIA_DE_CENARIOS.md)
 - [Guia de diagnóstico](docs/GUIA_DE_DIAGNOSTICO.md)
+- [Guia de plasticidade](docs/GUIA_DE_PLASTICIDADE.md)
 - [Referência da API pública](API_REFERENCE.md)
 - [Roadmap](docs/ROADMAP.md)
 
@@ -90,6 +93,9 @@ mingw32-make test-compare-runs
 mingw32-make test-regression
 mingw32-make test-analyzer
 mingw32-make test-long
+mingw32-make test-plasticity-long
+mingw32-make test-plot-plasticity
+mingw32-make check-c1
 mingw32-make check-v02
 ```
 
@@ -101,7 +107,8 @@ teste está em [Princípios de desenvolvimento](docs/PRINCIPIOS_DE_DESENVOLVIMEN
 ## Limitações atuais
 
 - O único modelo neural é o LIF simplificado, sem período refratário explícito.
-- Não há STDP, homeostase, recompensa, memória ou topologia adaptativa.
+- O STDP é aditivo, baseado em emissão e limitado a sinapses de origem EXC.
+- Não há homeostase, recompensa, memória ou topologia adaptativa.
 - O Studio depende da API Win32 e o fluxo principal de build foi validado no Windows.
 - Diagnóstico completo depende de Python, pandas e matplotlib.
 - Séries completas de tensão e corrente são gravadas para o neurônio detalhado, não para toda a rede.

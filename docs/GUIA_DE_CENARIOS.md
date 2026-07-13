@@ -447,3 +447,17 @@ Veja tambem:
 ```text
 docs/GUIA_DE_METRICAS.md
 ```
+
+## 13. Seção `[plasticity]`
+
+As chaves disponíveis são `enabled`, `rule`, `a_plus`, `a_minus`, `tau_plus`,
+`tau_minus`, `trace_increment`, `weight_min`, `weight_max`, `record_weights`,
+`record_history`, `record_interval_steps` e `record_connection_limit`.
+
+`enabled` e os dois campos `record_*` são booleanos. A única regra aceita no C1
+é `stdp_pair_trace`. Amplitudes devem ser finitas e não negativas; taus e
+incremento, positivos; `weight_min >= 0`; `weight_max > weight_min`; intervalo
+e limite, inteiros positivos. Sem a seção, STDP fica desligado.
+
+Exemplos prontos: `configs/stdp_ltp_demo.ini`, `configs/stdp_ltd_demo.ini` e
+`configs/stdp_mixed_demo.ini`. Veja o [Guia de plasticidade](GUIA_DE_PLASTICIDADE.md).

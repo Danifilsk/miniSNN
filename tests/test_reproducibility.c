@@ -184,9 +184,91 @@ static int check_seed_effects(void)
     return 1;
 }
 
+static int check_plasticity_reproducibility(void)
+{
+    ScenarioConfig config;
+    ScenarioRunResult first;
+    ScenarioRunResult second;
+    char error[256];
+    const char *files[] = {
+        "weights_initial.csv",
+        "weights_final.csv",
+        "weight_history.csv",
+        "plasticity_metrics.csv"
+    };
+    unsigned long long hashes[4];
+    int ok;
+
+    reproducible_config(&config, "test_reproducibility_stdp", "random_balanced", 23U);
+    config.steps = 600;
+    config.excitatory_weight = 120.0;
+    config.plasticity_enabled = 1;
+    config.plasticity_weight_max = 250.0;
+    config.plasticity_record_interval_steps = 17;
+    config.plasticity_record_connection_limit = 9;
+    cleanup_run(config.run_name);
+
+    if (!scenario_runner_execute(&config, NULL, &first, error, sizeof(error)))
+    {
+        printf("Runner STDP error: %s\n", error);
+        return 0;
+    }
+
+    for (size_t i = 0; i < sizeof(files) / sizeof(files[0]); i++)
+    {
+        char path[320];
+        snprintf(
+            path,
+            sizeof(path),
+            "results/scenarios/%s/%s",
+            config.run_name,
+            files[i]);
+        hashes[i] = hash_file(path, &ok);
+        if (!ok)
+        {
+            cleanup_run(config.run_name);
+            return fail("could not hash first STDP output");
+        }
+    }
+
+    if (!scenario_runner_execute(&config, NULL, &second, error, sizeof(error)))
+    {
+        cleanup_run(config.run_name);
+        return fail("second STDP reproducibility run failed");
+    }
+
+    if (first.topology_signature != second.topology_signature ||
+        first.spikes_total != second.spikes_total)
+    {
+        cleanup_run(config.run_name);
+        return fail("same STDP config changed topology or spikes");
+    }
+
+    for (size_t i = 0; i < sizeof(files) / sizeof(files[0]); i++)
+    {
+        char path[320];
+        snprintf(
+            path,
+            sizeof(path),
+            "results/scenarios/%s/%s",
+            config.run_name,
+            files[i]);
+        if (hashes[i] != hash_file(path, &ok) || !ok)
+        {
+            cleanup_run(config.run_name);
+            return fail("same STDP config changed weight outputs");
+        }
+    }
+
+    cleanup_run(config.run_name);
+    return 1;
+}
+
 int main(void)
 {
-    if (!check_same_seed_same_run() || !check_seed_effects())
+    if (!check_same_seed_same_run() ||
+        !check_seed_effects() ||
+        !check_plasticity_reproducibility())
         return 1;
 
     printf("Runner reproducibility validation OK\n");

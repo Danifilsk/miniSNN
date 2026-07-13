@@ -29,3 +29,30 @@ Status atual: **VALIDAÇÃO MANUAL PENDENTE**.
 Registrar data, Windows, Python e falhas após execução humana. Não marcar como
 passou apenas porque a suíte automatizada compilou.
 
+## C1 — plasticidade STDP
+
+- [ ] Studio abre.
+- [ ] Config antiga abre com STDP OFF.
+- [ ] Janela `PLASTICIDADE` abre.
+- [ ] Cancelar não altera os valores.
+- [ ] Ativar STDP funciona.
+- [ ] Campos inválidos são recusados.
+- [ ] Config STDP salva.
+- [ ] Config salva recarrega com os mesmos valores.
+- [ ] `stdp_ltp_demo` roda.
+- [ ] `stdp_ltd_demo` roda.
+- [ ] `stdp_mixed_demo` roda.
+- [ ] `weights_initial.csv` abre.
+- [ ] `weights_final.csv` abre.
+- [ ] `weight_history.csv` abre.
+- [ ] `GRAFICO STDP` funciona.
+- [ ] `ABRIR STDP` abre o PNG correto.
+- [ ] STDP OFF preserva cenário antigo.
+- [ ] Histórico geral continua funcionando.
+- [ ] Diagnóstico continua funcionando.
+- [ ] Comparação continua funcionando.
+- [ ] Nomes únicos continuam funcionando.
+- [ ] Cancelamentos não travam.
+- [ ] Mensagens de erro são compreensíveis.
+
+Status C1: **VALIDAÇÃO MANUAL PENDENTE**.

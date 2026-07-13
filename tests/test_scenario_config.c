@@ -98,7 +98,22 @@ static const char *valid_config_text(void)
         "isi_min_spikes = 5\n"
         "correlation_sample_size = 64\n"
         "neuron_sample_limit = 500\n"
-        "sample_stride = 2\n";
+        "sample_stride = 2\n"
+        "\n"
+        "[plasticity]\n"
+        "enabled = true\n"
+        "rule = stdp_pair_trace\n"
+        "a_plus = 0.5\n"
+        "a_minus = 0.25\n"
+        "tau_plus = 2.0\n"
+        "tau_minus = 3.0\n"
+        "trace_increment = 1.5\n"
+        "weight_min = 0.0\n"
+        "weight_max = 250.0\n"
+        "record_weights = true\n"
+        "record_history = false\n"
+        "record_interval_steps = 5\n"
+        "record_connection_limit = 32\n";
 }
 
 static int load_text_expect_success(const char *content, ScenarioConfig *config)
@@ -216,6 +231,23 @@ static int check_valid_file_loads_correctly(void)
         return fail("diagnostic values were not loaded");
     }
 
+    if (!config.plasticity_enabled ||
+        strcmp(config.plasticity_rule, "stdp_pair_trace") != 0 ||
+        !double_close(config.plasticity_a_plus, 0.5) ||
+        !double_close(config.plasticity_a_minus, 0.25) ||
+        !double_close(config.plasticity_tau_plus, 2.0) ||
+        !double_close(config.plasticity_tau_minus, 3.0) ||
+        !double_close(config.plasticity_trace_increment, 1.5) ||
+        !double_close(config.plasticity_weight_min, 0.0) ||
+        !double_close(config.plasticity_weight_max, 250.0) ||
+        !config.plasticity_record_weights ||
+        config.plasticity_record_history ||
+        config.plasticity_record_interval_steps != 5 ||
+        config.plasticity_record_connection_limit != 32)
+    {
+        return fail("plasticity values were not loaded");
+    }
+
     return 1;
 }
 
@@ -260,7 +292,24 @@ static int configs_match(
            a->isi_min_spikes == b->isi_min_spikes &&
            a->correlation_sample_size == b->correlation_sample_size &&
            a->neuron_sample_limit == b->neuron_sample_limit &&
-           a->sample_stride == b->sample_stride;
+           a->sample_stride == b->sample_stride &&
+           a->plasticity_enabled == b->plasticity_enabled &&
+           strcmp(a->plasticity_rule, b->plasticity_rule) == 0 &&
+           double_close(a->plasticity_a_plus, b->plasticity_a_plus) &&
+           double_close(a->plasticity_a_minus, b->plasticity_a_minus) &&
+           double_close(a->plasticity_tau_plus, b->plasticity_tau_plus) &&
+           double_close(a->plasticity_tau_minus, b->plasticity_tau_minus) &&
+           double_close(
+               a->plasticity_trace_increment,
+               b->plasticity_trace_increment) &&
+           double_close(a->plasticity_weight_min, b->plasticity_weight_min) &&
+           double_close(a->plasticity_weight_max, b->plasticity_weight_max) &&
+           a->plasticity_record_weights == b->plasticity_record_weights &&
+           a->plasticity_record_history == b->plasticity_record_history &&
+           a->plasticity_record_interval_steps ==
+               b->plasticity_record_interval_steps &&
+           a->plasticity_record_connection_limit ==
+               b->plasticity_record_connection_limit;
 }
 
 static int check_save_and_reload(void)
@@ -285,6 +334,11 @@ static int check_save_and_reload(void)
     config.auto_unique_run = 1;
     config.history_enabled = 0;
     snprintf(config.diagnostics_level, sizeof(config.diagnostics_level), "full");
+    config.plasticity_enabled = 1;
+    config.plasticity_a_plus = 0.75;
+    config.plasticity_record_history = 0;
+    config.plasticity_record_interval_steps = 7;
+    config.plasticity_record_connection_limit = 19;
 
     if (!scenario_config_save_file(
             TEMP_SAVE_PATH,
@@ -484,6 +538,40 @@ int main(void)
         return 1;
     }
 
+    if (!load_text_expect_failure(
+            "enabled = talvez\n",
+            "invalid plasticity enabled was accepted") ||
+        !load_text_expect_failure(
+            "rule = triplet\n",
+            "unknown plasticity rule was accepted") ||
+        !load_text_expect_failure(
+            "a_plus = NaN\n",
+            "NaN plasticity amplitude was accepted") ||
+        !load_text_expect_failure(
+            "a_minus = inf\n",
+            "infinite plasticity amplitude was accepted") ||
+        !load_text_expect_failure(
+            "tau_plus = 0\n",
+            "zero tau_plus was accepted") ||
+        !load_text_expect_failure(
+            "tau_minus = -1\n",
+            "negative tau_minus was accepted") ||
+        !load_text_expect_failure(
+            "weight_min = 2\nweight_max = 2\n",
+            "invalid plasticity weight interval was accepted") ||
+        !load_text_expect_failure(
+            "record_interval_steps = 0\n",
+            "zero plasticity record interval was accepted") ||
+        !load_text_expect_failure(
+            "record_connection_limit = 0\n",
+            "zero plasticity connection limit was accepted") ||
+        !load_text_expect_failure(
+            "a_plus = 1\na_plus = 2\n",
+            "duplicate plasticity key was accepted"))
+    {
+        return 1;
+    }
+
     if (!load_text_expect_success(
             "run_name = legacy_demo\ntopology = chain\nneurons = 2\nsource_count = 1\nrecord_neuron = 0\n",
             &legacy_config) ||
@@ -491,6 +579,10 @@ int main(void)
     {
         return fail("legacy config did not default diagnostics to off");
     }
+
+
+    if (legacy_config.plasticity_enabled != 0)
+        return fail("legacy config did not default plasticity to off");
 
     if (!check_save_and_reload())
         return 1;

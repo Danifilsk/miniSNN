@@ -3,6 +3,7 @@
 
 #include "neuron.h"
 #include "connection.h"
+#include "plasticity.h"
 
 typedef struct
 {
@@ -38,6 +39,8 @@ typedef struct
 
     // Número de neurônios
     int size;
+
+    PlasticityState *plasticity;
 
 } Network;
 
@@ -85,6 +88,23 @@ int network_set_neuron_type(
     Network *net,
     int neuron_id,
     NeuronType type);
+
+size_t network_connection_count(const Network *net);
+
+int network_get_connection(
+    const Network *net,
+    size_t connection_id,
+    int *out_source,
+    Connection **out_connection);
+
+int network_set_connection_weight(
+    Network *net,
+    size_t connection_id,
+    double weight);
+
+int network_set_plasticity_config(
+    Network *net,
+    const MiniSNNPlasticityConfig *config);
 
 void network_clear_connections(Network *net);
 

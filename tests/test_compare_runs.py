@@ -59,7 +59,10 @@ def write_config(path: Path, name: str, topology: str) -> None:
         "steps = 5\n"
         "dt = 0.1\n\n"
         "[recording]\n"
-        "record_neuron = 0\n",
+        "record_neuron = 0\n\n"
+        "[plasticity]\n"
+        f"enabled = {'true' if name == 'run_a' else 'false'}\n"
+        "rule = stdp_pair_trace\n",
         encoding="utf-8",
     )
 
@@ -109,6 +112,42 @@ def write_stored_metrics(path: Path, name: str) -> None:
         )
 
 
+def write_plasticity_metrics(path: Path) -> None:
+    with (path / "plasticity_metrics.csv").open(
+        "w", encoding="utf-8", newline=""
+    ) as file:
+        writer = csv.DictWriter(
+            file,
+            fieldnames=[
+                "plasticity_enabled",
+                "plasticity_rule",
+                "plasticity_modified_connection_fraction",
+                "plasticity_initial_weight_mean",
+                "plasticity_final_weight_mean",
+                "plasticity_mean_absolute_change",
+                "plasticity_total_signed_change",
+                "plasticity_potentiation_events",
+                "plasticity_depression_events",
+            ],
+        )
+        writer.writeheader()
+        writer.writerow(
+            {
+                "plasticity_enabled": "true",
+                "plasticity_rule": "stdp_pair_trace",
+                "plasticity_modified_connection_fraction": 0.5,
+                "plasticity_initial_weight_mean": 100,
+                "plasticity_final_weight_mean": 101,
+                "plasticity_mean_absolute_change": 1,
+                "plasticity_total_signed_change": 2,
+                "plasticity_potentiation_events": 5,
+                "plasticity_depression_events": 3,
+            }
+        )
+    (path / "weights_initial.csv").write_text("connection_id\n", encoding="utf-8")
+    (path / "weights_final.csv").write_text("connection_id\n", encoding="utf-8")
+
+
 def main() -> int:
     temp_root = PROJECT_ROOT / "build" / "test_compare_runs_temp"
     comparisons_root = temp_root / "comparisons"
@@ -130,6 +169,7 @@ def main() -> int:
         write_summary(run_a, "run_a", "random", 7)
         write_summary(run_b, "run_b", "small_world", 8)
         write_stored_metrics(run_a, "run_a")
+        write_plasticity_metrics(run_a)
 
         output_dir = compare_runs(
             [run_a, run_b],
@@ -196,6 +236,18 @@ def main() -> int:
         close(stored["stability_score"], 0.7, "stored stability")
         if stored["diagnostic_regime"] != "sustained":
             print("FAIL: stored diagnostic regime changed")
+            return 1
+        close(
+            stored["plasticity_final_weight_mean"],
+            101.0,
+            "stored plasticity final weight",
+        )
+        if stored["plasticity_metrics_source"] != "plasticity_metrics.csv":
+            print("FAIL: plasticity_metrics.csv was not reused")
+            return 1
+        report = (output_dir / "comparison_report.txt").read_text(encoding="utf-8")
+        if "Plasticidade:" not in report or "plasticity_final_weight_mean" not in report:
+            print("FAIL: comparison report lacks plasticity evidence")
             return 1
 
         close(derived["total_spikes"], 5.0, "derived total")

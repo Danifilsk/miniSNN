@@ -121,6 +121,121 @@ int minisnn_current_step(const MiniSNN *snn);
 
 **Erros importantes:** rede nula retorna `-1`.
 
+## MiniSNNConnectionInfo
+
+Visão pública de uma conexão: `source`, `target`, tipos, `weight`, `delay` e
+`plasticity_eligible`. IDs planos são determinísticos: origem crescente e ordem
+de inserção na lista de saída.
+
+## MiniSNNPlasticityConfig
+
+Configura o STDP: `enabled`, `rule`, `a_plus`, `a_minus`, `tau_plus`,
+`tau_minus`, `trace_increment`, `weight_min` e `weight_max`. O C1 aceita
+`MINISNN_PLASTICITY_STDP_PAIR_TRACE`; a regra é aditiva e somente origens EXC
+são elegíveis.
+
+## MiniSNNPlasticityStats
+
+Contém eventos LTP/LTD, clamps mínimo/máximo, conexões elegíveis/modificadas e
+mudanças assinada, absoluta e máxima acumuladas.
+
+## minisnn_connection_count
+
+```c
+size_t minisnn_connection_count(const MiniSNN *snn);
+```
+
+Retorna a quantidade de conexões, ou zero para rede nula/inválida.
+
+## minisnn_get_connection
+
+```c
+int minisnn_get_connection(
+    const MiniSNN *snn,
+    size_t connection_id,
+    MiniSNNConnectionInfo *out_connection);
+```
+
+Preenche uma visão estável da conexão indicada. Retorna zero para ponteiros ou
+ID inválidos.
+
+## minisnn_get_connection_weight
+
+```c
+int minisnn_get_connection_weight(
+    const MiniSNN *snn,
+    size_t connection_id,
+    double *out_weight);
+```
+
+Consulta o peso atual sem expor o armazenamento interno.
+
+## minisnn_set_connection_weight
+
+```c
+int minisnn_set_connection_weight(
+    MiniSNN *snn,
+    size_t connection_id,
+    double weight);
+```
+
+Substitui o peso atual quando o ID existe e o valor é finito. A função não
+aplica os limites STDP a uma edição manual; o chamador continua responsável
+pelo sinal desejado. Uma conexão EXC com peso negativo deixa de ser elegível.
+
+## minisnn_default_plasticity_config
+
+```c
+MiniSNNPlasticityConfig minisnn_default_plasticity_config(void);
+```
+
+Retorna configuração válida com plasticidade desligada.
+
+## minisnn_set_plasticity_config
+
+```c
+int minisnn_set_plasticity_config(
+    MiniSNN *snn,
+    const MiniSNNPlasticityConfig *config);
+```
+
+Valida e copia a configuração. Preserva pesos, zera traces e estatísticas e
+reconstrói o índice de entradas quando necessário. Com STDP ativo, a estrutura
+de conexões deve estar pronta antes do primeiro step.
+
+## minisnn_get_plasticity_config
+
+```c
+int minisnn_get_plasticity_config(
+    const MiniSNN *snn,
+    MiniSNNPlasticityConfig *out_config);
+```
+
+Consulta a configuração efetiva da instância.
+
+## minisnn_get_plasticity_stats
+
+```c
+int minisnn_get_plasticity_stats(
+    const MiniSNN *snn,
+    MiniSNNPlasticityStats *out_stats);
+```
+
+Consulta estatísticas acumuladas desde a última configuração da plasticidade.
+
+## minisnn_get_plasticity_traces
+
+```c
+int minisnn_get_plasticity_traces(
+    const MiniSNN *snn,
+    int neuron_id,
+    double *out_pre_trace,
+    double *out_post_trace);
+```
+
+Consulta os traces pré e pós de um neurônio. Ambos os destinos são obrigatórios.
+Traces começam em zero e usam o `dt` da instância.
+
 ## MiniSNNNeuronType
 
 ```c

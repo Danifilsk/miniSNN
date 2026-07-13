@@ -45,6 +45,19 @@ typedef enum
     FIELD_CORRELATION_SAMPLE_SIZE,
     FIELD_NEURON_SAMPLE_LIMIT,
     FIELD_SAMPLE_STRIDE,
+    FIELD_PLASTICITY_ENABLED,
+    FIELD_PLASTICITY_RULE,
+    FIELD_PLASTICITY_A_PLUS,
+    FIELD_PLASTICITY_A_MINUS,
+    FIELD_PLASTICITY_TAU_PLUS,
+    FIELD_PLASTICITY_TAU_MINUS,
+    FIELD_PLASTICITY_TRACE_INCREMENT,
+    FIELD_PLASTICITY_WEIGHT_MIN,
+    FIELD_PLASTICITY_WEIGHT_MAX,
+    FIELD_PLASTICITY_RECORD_WEIGHTS,
+    FIELD_PLASTICITY_RECORD_HISTORY,
+    FIELD_PLASTICITY_RECORD_INTERVAL_STEPS,
+    FIELD_PLASTICITY_RECORD_CONNECTION_LIMIT,
     FIELD_COUNT
 } ScenarioField;
 
@@ -91,7 +104,20 @@ static const KeyMap KEY_MAP[] =
     {"isi_min_spikes", FIELD_ISI_MIN_SPIKES},
     {"correlation_sample_size", FIELD_CORRELATION_SAMPLE_SIZE},
     {"neuron_sample_limit", FIELD_NEURON_SAMPLE_LIMIT},
-    {"sample_stride", FIELD_SAMPLE_STRIDE}
+    {"sample_stride", FIELD_SAMPLE_STRIDE},
+    {"enabled", FIELD_PLASTICITY_ENABLED},
+    {"rule", FIELD_PLASTICITY_RULE},
+    {"a_plus", FIELD_PLASTICITY_A_PLUS},
+    {"a_minus", FIELD_PLASTICITY_A_MINUS},
+    {"tau_plus", FIELD_PLASTICITY_TAU_PLUS},
+    {"tau_minus", FIELD_PLASTICITY_TAU_MINUS},
+    {"trace_increment", FIELD_PLASTICITY_TRACE_INCREMENT},
+    {"weight_min", FIELD_PLASTICITY_WEIGHT_MIN},
+    {"weight_max", FIELD_PLASTICITY_WEIGHT_MAX},
+    {"record_weights", FIELD_PLASTICITY_RECORD_WEIGHTS},
+    {"record_history", FIELD_PLASTICITY_RECORD_HISTORY},
+    {"record_interval_steps", FIELD_PLASTICITY_RECORD_INTERVAL_STEPS},
+    {"record_connection_limit", FIELD_PLASTICITY_RECORD_CONNECTION_LIMIT}
 };
 
 static void set_error(
@@ -360,6 +386,21 @@ static int assign_value(
         }
         return 1;
 
+    case FIELD_PLASTICITY_RULE:
+        if (!copy_string_value(
+                config->plasticity_rule,
+                sizeof(config->plasticity_rule),
+                value))
+        {
+            set_line_error(
+                error_message,
+                error_message_size,
+                line_number,
+                "regra de plasticidade muito longa");
+            return 0;
+        }
+        return 1;
+
     case FIELD_SEED:
         if (!parse_uint_value(value, &uint_value))
         {
@@ -377,6 +418,9 @@ static int assign_value(
     case FIELD_ALLOW_INH_TO_INH:
     case FIELD_AUTO_UNIQUE_RUN:
     case FIELD_HISTORY_ENABLED:
+    case FIELD_PLASTICITY_ENABLED:
+    case FIELD_PLASTICITY_RECORD_WEIGHTS:
+    case FIELD_PLASTICITY_RECORD_HISTORY:
         if (!parse_bool_value(value, &bool_value))
         {
             set_line_error(
@@ -393,8 +437,14 @@ static int assign_value(
             config->allow_inh_to_inh = bool_value;
         else if (field == FIELD_AUTO_UNIQUE_RUN)
             config->auto_unique_run = bool_value;
-        else
+        else if (field == FIELD_HISTORY_ENABLED)
             config->history_enabled = bool_value;
+        else if (field == FIELD_PLASTICITY_ENABLED)
+            config->plasticity_enabled = bool_value;
+        else if (field == FIELD_PLASTICITY_RECORD_WEIGHTS)
+            config->plasticity_record_weights = bool_value;
+        else
+            config->plasticity_record_history = bool_value;
 
         return 1;
 
@@ -412,6 +462,8 @@ static int assign_value(
     case FIELD_CORRELATION_SAMPLE_SIZE:
     case FIELD_NEURON_SAMPLE_LIMIT:
     case FIELD_SAMPLE_STRIDE:
+    case FIELD_PLASTICITY_RECORD_INTERVAL_STEPS:
+    case FIELD_PLASTICITY_RECORD_CONNECTION_LIMIT:
         if (!parse_int_value(value, &int_value))
         {
             set_line_error(
@@ -448,6 +500,10 @@ static int assign_value(
             config->neuron_sample_limit = int_value;
         else if (field == FIELD_SAMPLE_STRIDE)
             config->sample_stride = int_value;
+        else if (field == FIELD_PLASTICITY_RECORD_INTERVAL_STEPS)
+            config->plasticity_record_interval_steps = int_value;
+        else if (field == FIELD_PLASTICITY_RECORD_CONNECTION_LIMIT)
+            config->plasticity_record_connection_limit = int_value;
         else
             config->record_neuron = int_value;
 
@@ -467,6 +523,13 @@ static int assign_value(
     case FIELD_SYNAPTIC_DECAY:
     case FIELD_SMALL_WORLD_REWIRE_PROBABILITY:
     case FIELD_BURST_Z_THRESHOLD:
+    case FIELD_PLASTICITY_A_PLUS:
+    case FIELD_PLASTICITY_A_MINUS:
+    case FIELD_PLASTICITY_TAU_PLUS:
+    case FIELD_PLASTICITY_TAU_MINUS:
+    case FIELD_PLASTICITY_TRACE_INCREMENT:
+    case FIELD_PLASTICITY_WEIGHT_MIN:
+    case FIELD_PLASTICITY_WEIGHT_MAX:
         if (!parse_double_value(value, &double_value))
         {
             set_line_error(
@@ -503,8 +566,22 @@ static int assign_value(
             config->synaptic_decay = double_value;
         else if (field == FIELD_BURST_Z_THRESHOLD)
             config->burst_z_threshold = double_value;
-        else
+        else if (field == FIELD_SMALL_WORLD_REWIRE_PROBABILITY)
             config->small_world_rewire_probability = double_value;
+        else if (field == FIELD_PLASTICITY_A_PLUS)
+            config->plasticity_a_plus = double_value;
+        else if (field == FIELD_PLASTICITY_A_MINUS)
+            config->plasticity_a_minus = double_value;
+        else if (field == FIELD_PLASTICITY_TAU_PLUS)
+            config->plasticity_tau_plus = double_value;
+        else if (field == FIELD_PLASTICITY_TAU_MINUS)
+            config->plasticity_tau_minus = double_value;
+        else if (field == FIELD_PLASTICITY_TRACE_INCREMENT)
+            config->plasticity_trace_increment = double_value;
+        else if (field == FIELD_PLASTICITY_WEIGHT_MIN)
+            config->plasticity_weight_min = double_value;
+        else
+            config->plasticity_weight_max = double_value;
 
         return 1;
 
@@ -598,6 +675,23 @@ void scenario_config_default(ScenarioConfig *config)
     config->correlation_sample_size = 128;
     config->neuron_sample_limit = 1000;
     config->sample_stride = 1;
+
+    config->plasticity_enabled = 0;
+    snprintf(
+        config->plasticity_rule,
+        sizeof(config->plasticity_rule),
+        "stdp_pair_trace");
+    config->plasticity_a_plus = 1.0;
+    config->plasticity_a_minus = 1.05;
+    config->plasticity_tau_plus = 20.0;
+    config->plasticity_tau_minus = 20.0;
+    config->plasticity_trace_increment = 1.0;
+    config->plasticity_weight_min = 0.0;
+    config->plasticity_weight_max = 200.0;
+    config->plasticity_record_weights = 1;
+    config->plasticity_record_history = 1;
+    config->plasticity_record_interval_steps = 10;
+    config->plasticity_record_connection_limit = 256;
 }
 
 int scenario_config_validate(
@@ -641,6 +735,49 @@ int scenario_config_validate(
         config->burst_z_threshold < 0.0)
     {
         set_error(error_message, error_message_size, "parametros de diagnostico invalidos");
+        return 0;
+    }
+
+    if (config->plasticity_enabled != 0 &&
+        config->plasticity_enabled != 1)
+    {
+        set_error(error_message, error_message_size, "plasticity enabled invalido");
+        return 0;
+    }
+
+    if (strcmp(config->plasticity_rule, "stdp_pair_trace") != 0)
+    {
+        set_error(error_message, error_message_size, "plasticity rule invalida");
+        return 0;
+    }
+
+    if (!isfinite(config->plasticity_a_plus) ||
+        config->plasticity_a_plus < 0.0 ||
+        !isfinite(config->plasticity_a_minus) ||
+        config->plasticity_a_minus < 0.0 ||
+        !isfinite(config->plasticity_tau_plus) ||
+        config->plasticity_tau_plus <= 0.0 ||
+        !isfinite(config->plasticity_tau_minus) ||
+        config->plasticity_tau_minus <= 0.0 ||
+        !isfinite(config->plasticity_trace_increment) ||
+        config->plasticity_trace_increment <= 0.0 ||
+        !isfinite(config->plasticity_weight_min) ||
+        config->plasticity_weight_min < 0.0 ||
+        !isfinite(config->plasticity_weight_max) ||
+        config->plasticity_weight_max <= config->plasticity_weight_min)
+    {
+        set_error(error_message, error_message_size, "parametros de plasticidade invalidos");
+        return 0;
+    }
+
+    if ((config->plasticity_record_weights != 0 &&
+         config->plasticity_record_weights != 1) ||
+        (config->plasticity_record_history != 0 &&
+         config->plasticity_record_history != 1) ||
+        config->plasticity_record_interval_steps <= 0 ||
+        config->plasticity_record_connection_limit <= 0)
+    {
+        set_error(error_message, error_message_size, "registro de plasticidade invalido");
         return 0;
     }
 
@@ -1000,7 +1137,22 @@ int scenario_config_save_file(
             "isi_min_spikes = %d\n"
             "correlation_sample_size = %d\n"
             "neuron_sample_limit = %d\n"
-            "sample_stride = %d\n",
+            "sample_stride = %d\n"
+            "\n"
+            "[plasticity]\n"
+            "enabled = %s\n"
+            "rule = %s\n"
+            "a_plus = %.17g\n"
+            "a_minus = %.17g\n"
+            "tau_plus = %.17g\n"
+            "tau_minus = %.17g\n"
+            "trace_increment = %.17g\n"
+            "weight_min = %.17g\n"
+            "weight_max = %.17g\n"
+            "record_weights = %s\n"
+            "record_history = %s\n"
+            "record_interval_steps = %d\n"
+            "record_connection_limit = %d\n",
             config->run_name,
             config->topology,
             config->neurons,
@@ -1036,7 +1188,20 @@ int scenario_config_save_file(
             config->isi_min_spikes,
             config->correlation_sample_size,
             config->neuron_sample_limit,
-            config->sample_stride) < 0)
+            config->sample_stride,
+            config->plasticity_enabled ? "true" : "false",
+            config->plasticity_rule,
+            config->plasticity_a_plus,
+            config->plasticity_a_minus,
+            config->plasticity_tau_plus,
+            config->plasticity_tau_minus,
+            config->plasticity_trace_increment,
+            config->plasticity_weight_min,
+            config->plasticity_weight_max,
+            config->plasticity_record_weights ? "true" : "false",
+            config->plasticity_record_history ? "true" : "false",
+            config->plasticity_record_interval_steps,
+            config->plasticity_record_connection_limit) < 0)
     {
         fclose(file);
         set_error(error_message, error_message_size, "erro ao escrever arquivo de cenario");

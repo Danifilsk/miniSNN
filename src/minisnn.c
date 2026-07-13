@@ -112,6 +112,78 @@ int minisnn_current_step(const MiniSNN *snn)
     return snn->net.step;
 }
 
+size_t minisnn_connection_count(const MiniSNN *snn)
+{
+    if (snn == NULL)
+        return 0;
+
+    return network_connection_count(&snn->net);
+}
+
+int minisnn_get_connection(
+    const MiniSNN *snn,
+    size_t connection_id,
+    MiniSNNConnectionInfo *out_connection)
+{
+    int source;
+    Connection *connection;
+
+    if (snn == NULL || out_connection == NULL ||
+        !network_get_connection(
+            &snn->net,
+            connection_id,
+            &source,
+            &connection) ||
+        connection->target < 0 || connection->target >= snn->net.size)
+    {
+        return 0;
+    }
+
+    out_connection->source = (size_t)source;
+    out_connection->target = (size_t)connection->target;
+    out_connection->source_type =
+        (MiniSNNNeuronType)snn->net.neurons[source].type;
+    out_connection->target_type =
+        (MiniSNNNeuronType)snn->net.neurons[connection->target].type;
+    out_connection->weight = connection->weight;
+    out_connection->delay = (unsigned int)connection->delay;
+    out_connection->plasticity_eligible =
+        plasticity_connection_is_eligible(
+            snn->net.plasticity,
+            snn->net.neurons,
+            source,
+            connection);
+    return 1;
+}
+
+int minisnn_get_connection_weight(
+    const MiniSNN *snn,
+    size_t connection_id,
+    double *out_weight)
+{
+    MiniSNNConnectionInfo connection;
+
+    if (out_weight == NULL ||
+        !minisnn_get_connection(snn, connection_id, &connection))
+    {
+        return 0;
+    }
+
+    *out_weight = connection.weight;
+    return 1;
+}
+
+int minisnn_set_connection_weight(
+    MiniSNN *snn,
+    size_t connection_id,
+    double weight)
+{
+    if (snn == NULL)
+        return 0;
+
+    return network_set_connection_weight(&snn->net, connection_id, weight);
+}
+
 int minisnn_set_neuron_type(
     MiniSNN *snn,
     int neuron_id,
@@ -184,6 +256,63 @@ int minisnn_connect_delayed_ex(
         weight,
         delay,
         allow_self_connection);
+}
+
+MiniSNNPlasticityConfig minisnn_default_plasticity_config(void)
+{
+    return plasticity_default_config();
+}
+
+int minisnn_set_plasticity_config(
+    MiniSNN *snn,
+    const MiniSNNPlasticityConfig *config)
+{
+    if (snn == NULL)
+        return 0;
+
+    return network_set_plasticity_config(&snn->net, config);
+}
+
+int minisnn_get_plasticity_config(
+    const MiniSNN *snn,
+    MiniSNNPlasticityConfig *out_config)
+{
+    if (snn == NULL || out_config == NULL || snn->net.plasticity == NULL)
+        return 0;
+
+    *out_config = snn->net.plasticity->config;
+    return 1;
+}
+
+int minisnn_get_plasticity_stats(
+    const MiniSNN *snn,
+    MiniSNNPlasticityStats *out_stats)
+{
+    if (snn == NULL || out_stats == NULL || snn->net.plasticity == NULL)
+        return 0;
+
+    *out_stats = snn->net.plasticity->stats;
+    return 1;
+}
+
+int minisnn_get_plasticity_traces(
+    const MiniSNN *snn,
+    int neuron_id,
+    double *out_pre_trace,
+    double *out_post_trace)
+{
+    if (!minisnn_valid_neuron_id(snn, neuron_id) ||
+        out_pre_trace == NULL || out_post_trace == NULL ||
+        snn->net.plasticity == NULL ||
+        snn->net.plasticity->pre_trace == NULL ||
+        snn->net.plasticity->post_trace == NULL)
+    {
+        return 0;
+    }
+
+    *out_pre_trace = snn->net.plasticity->pre_trace[neuron_id];
+    *out_post_trace = snn->net.plasticity->post_trace[neuron_id];
+    return 1;
 }
 
 int minisnn_set_input(

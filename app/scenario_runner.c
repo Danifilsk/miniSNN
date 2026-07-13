@@ -41,6 +41,30 @@ typedef struct
     int delay_max;
 } ConnectivityStats;
 
+typedef struct
+{
+    size_t count;
+    double sum;
+    double square_sum;
+    double minimum;
+    double maximum;
+} WeightAggregate;
+
+typedef struct
+{
+    int enabled;
+    int snapshots_sampled;
+    size_t total_connections;
+    size_t sample_count;
+    size_t *sample_ids;
+    double *initial_sample_weights;
+    FILE *history_file;
+    int last_history_step;
+    WeightAggregate initial_weights;
+    WeightAggregate final_weights;
+    MiniSNNPlasticityStats stats;
+} PlasticityRunData;
+
 static void topology_hash_value(
     unsigned long long *hash,
     unsigned long long value)
@@ -885,6 +909,542 @@ static int build_topology(
     return 0;
 }
 
+static const char *public_type_name(MiniSNNNeuronType type)
+{
+    return type == MINISNN_NEURON_INHIBITORY ? "INH" : "EXC";
+}
+
+static void weight_aggregate_add(WeightAggregate *aggregate, double weight)
+{
+    if (aggregate->count == 0)
+    {
+        aggregate->minimum = weight;
+        aggregate->maximum = weight;
+    }
+    else
+    {
+        if (weight < aggregate->minimum)
+            aggregate->minimum = weight;
+        if (weight > aggregate->maximum)
+            aggregate->maximum = weight;
+    }
+
+    aggregate->count++;
+    aggregate->sum += weight;
+    aggregate->square_sum += weight * weight;
+}
+
+static int collect_weight_aggregate(
+    const MiniSNN *snn,
+    WeightAggregate *aggregate)
+{
+    size_t connection_count;
+
+    if (snn == NULL || aggregate == NULL)
+        return 0;
+
+    memset(aggregate, 0, sizeof(*aggregate));
+    connection_count = minisnn_connection_count(snn);
+
+    for (size_t connection_id = 0;
+         connection_id < connection_count;
+         connection_id++)
+    {
+        MiniSNNConnectionInfo connection;
+
+        if (!minisnn_get_connection(snn, connection_id, &connection))
+            return 0;
+
+        if (connection.plasticity_eligible)
+            weight_aggregate_add(aggregate, connection.weight);
+    }
+
+    return 1;
+}
+
+static double weight_aggregate_mean(const WeightAggregate *aggregate)
+{
+    return aggregate->count > 0 ?
+        aggregate->sum / (double)aggregate->count :
+        0.0;
+}
+
+static double weight_aggregate_std(const WeightAggregate *aggregate)
+{
+    double mean;
+    double variance;
+
+    if (aggregate->count == 0)
+        return 0.0;
+
+    mean = weight_aggregate_mean(aggregate);
+    variance = aggregate->square_sum / (double)aggregate->count - mean * mean;
+    return variance > 0.0 ? sqrt(variance) : 0.0;
+}
+
+static size_t distributed_sample_id(
+    size_t total,
+    size_t sample_count,
+    size_t sample_index)
+{
+    if (sample_count <= 1U)
+        return 0U;
+
+    return (sample_index * (total - 1U)) / (sample_count - 1U);
+}
+
+static void plasticity_run_data_close(PlasticityRunData *data)
+{
+    if (data == NULL)
+        return;
+
+    if (data->history_file != NULL)
+        fclose(data->history_file);
+
+    free(data->sample_ids);
+    free(data->initial_sample_weights);
+    memset(data, 0, sizeof(*data));
+}
+
+static int write_initial_weights(
+    const MiniSNN *snn,
+    const ScenarioConfig *config,
+    const char *output_dir,
+    const PlasticityRunData *data)
+{
+    char path[SCENARIO_OUTPUT_PATH_MAX];
+    FILE *file;
+
+    if (!config->plasticity_record_weights)
+        return 1;
+
+    if (!make_path(path, output_dir, "weights_initial.csv"))
+        return 0;
+
+    file = fopen(path, "w");
+    if (file == NULL)
+        return 0;
+
+    if (fprintf(
+            file,
+            "connection_id,source,target,source_type,target_type,delay,weight,eligible,sampled\n") < 0)
+    {
+        fclose(file);
+        return 0;
+    }
+
+    for (size_t i = 0; i < data->sample_count; i++)
+    {
+        MiniSNNConnectionInfo connection;
+
+        if (!minisnn_get_connection(snn, data->sample_ids[i], &connection) ||
+            fprintf(
+                file,
+                "%llu,%llu,%llu,%s,%s,%u,%.17g,%d,%d\n",
+                (unsigned long long)data->sample_ids[i],
+                (unsigned long long)connection.source,
+                (unsigned long long)connection.target,
+                public_type_name(connection.source_type),
+                public_type_name(connection.target_type),
+                connection.delay,
+                connection.weight,
+                connection.plasticity_eligible,
+                data->snapshots_sampled) < 0)
+        {
+            fclose(file);
+            return 0;
+        }
+    }
+
+    return fclose(file) == 0;
+}
+
+static int write_weight_history_step(
+    const MiniSNN *snn,
+    PlasticityRunData *data,
+    int step)
+{
+    if (data->history_file == NULL)
+        return 1;
+
+    for (size_t i = 0; i < data->sample_count; i++)
+    {
+        MiniSNNConnectionInfo connection;
+
+        if (!minisnn_get_connection(snn, data->sample_ids[i], &connection) ||
+            fprintf(
+                data->history_file,
+                "%d,%llu,%llu,%llu,%.17g\n",
+                step,
+                (unsigned long long)data->sample_ids[i],
+                (unsigned long long)connection.source,
+                (unsigned long long)connection.target,
+                connection.weight) < 0)
+        {
+            return 0;
+        }
+    }
+
+    data->last_history_step = step;
+    return 1;
+}
+
+static int plasticity_run_data_prepare(
+    const MiniSNN *snn,
+    const ScenarioConfig *config,
+    const char *output_dir,
+    PlasticityRunData *data)
+{
+    size_t limit;
+    int needs_sample;
+
+    memset(data, 0, sizeof(*data));
+    data->enabled = config->plasticity_enabled;
+    data->last_history_step = -1;
+
+    if (!data->enabled)
+        return 1;
+
+    data->total_connections = minisnn_connection_count(snn);
+
+    if (!collect_weight_aggregate(snn, &data->initial_weights))
+        return 0;
+
+    needs_sample = config->plasticity_record_weights ||
+        config->plasticity_record_history;
+    limit = (size_t)config->plasticity_record_connection_limit;
+    data->sample_count = needs_sample ? data->total_connections : 0U;
+
+    if (data->sample_count > limit)
+        data->sample_count = limit;
+
+    data->snapshots_sampled =
+        data->sample_count < data->total_connections;
+
+    if (data->sample_count > 0)
+    {
+        data->sample_ids = malloc(
+            data->sample_count * sizeof(*data->sample_ids));
+        data->initial_sample_weights = malloc(
+            data->sample_count * sizeof(*data->initial_sample_weights));
+
+        if (data->sample_ids == NULL ||
+            data->initial_sample_weights == NULL)
+        {
+            plasticity_run_data_close(data);
+            return 0;
+        }
+
+        for (size_t i = 0; i < data->sample_count; i++)
+        {
+            size_t connection_id = data->snapshots_sampled ?
+                distributed_sample_id(
+                    data->total_connections,
+                    data->sample_count,
+                    i) :
+                i;
+
+            data->sample_ids[i] = connection_id;
+
+            if (!minisnn_get_connection_weight(
+                    snn,
+                    connection_id,
+                    &data->initial_sample_weights[i]))
+            {
+                plasticity_run_data_close(data);
+                return 0;
+            }
+        }
+    }
+
+    if (!write_initial_weights(snn, config, output_dir, data))
+    {
+        plasticity_run_data_close(data);
+        return 0;
+    }
+
+    if (config->plasticity_record_history)
+    {
+        char path[SCENARIO_OUTPUT_PATH_MAX];
+
+        if (!make_path(path, output_dir, "weight_history.csv"))
+        {
+            plasticity_run_data_close(data);
+            return 0;
+        }
+
+        data->history_file = fopen(path, "w");
+
+        if (data->history_file == NULL ||
+            fprintf(
+                data->history_file,
+                "step,connection_id,source,target,weight\n") < 0 ||
+            !write_weight_history_step(snn, data, 0))
+        {
+            plasticity_run_data_close(data);
+            return 0;
+        }
+    }
+
+    return 1;
+}
+
+static int write_final_weights(
+    const MiniSNN *snn,
+    const ScenarioConfig *config,
+    const char *output_dir,
+    const PlasticityRunData *data)
+{
+    char path[SCENARIO_OUTPUT_PATH_MAX];
+    FILE *file;
+
+    if (!config->plasticity_record_weights)
+        return 1;
+
+    if (!make_path(path, output_dir, "weights_final.csv"))
+        return 0;
+
+    file = fopen(path, "w");
+    if (file == NULL)
+        return 0;
+
+    if (fprintf(
+            file,
+            "connection_id,source,target,source_type,target_type,delay,weight,eligible,sampled,initial_weight,final_weight,signed_change,absolute_change\n") < 0)
+    {
+        fclose(file);
+        return 0;
+    }
+
+    for (size_t i = 0; i < data->sample_count; i++)
+    {
+        MiniSNNConnectionInfo connection;
+        double change;
+
+        if (!minisnn_get_connection(snn, data->sample_ids[i], &connection))
+        {
+            fclose(file);
+            return 0;
+        }
+
+        change = connection.weight - data->initial_sample_weights[i];
+
+        if (fprintf(
+                file,
+                "%llu,%llu,%llu,%s,%s,%u,%.17g,%d,%d,%.17g,%.17g,%.17g,%.17g\n",
+                (unsigned long long)data->sample_ids[i],
+                (unsigned long long)connection.source,
+                (unsigned long long)connection.target,
+                public_type_name(connection.source_type),
+                public_type_name(connection.target_type),
+                connection.delay,
+                connection.weight,
+                connection.plasticity_eligible,
+                data->snapshots_sampled,
+                data->initial_sample_weights[i],
+                connection.weight,
+                change,
+                fabs(change)) < 0)
+        {
+            fclose(file);
+            return 0;
+        }
+    }
+
+    return fclose(file) == 0;
+}
+
+static int write_plasticity_metrics(
+    const ScenarioConfig *config,
+    const char *output_dir,
+    const PlasticityRunData *data)
+{
+    char path[SCENARIO_OUTPUT_PATH_MAX];
+    FILE *file;
+    double modified_fraction = data->stats.eligible_connections > 0 ?
+        (double)data->stats.modified_connections /
+            (double)data->stats.eligible_connections :
+        0.0;
+    double mean_absolute_change = data->stats.eligible_connections > 0 ?
+        data->stats.total_absolute_change /
+            (double)data->stats.eligible_connections :
+        0.0;
+    double mean_signed_change = data->stats.eligible_connections > 0 ?
+        data->stats.total_signed_change /
+            (double)data->stats.eligible_connections :
+        0.0;
+
+    if (!make_path(path, output_dir, "plasticity_metrics.csv"))
+        return 0;
+
+    file = fopen(path, "w");
+    if (file == NULL)
+        return 0;
+
+    if (fprintf(
+            file,
+            "plasticity_enabled,plasticity_rule,plasticity_eligible_connection_count,plasticity_modified_connection_count,plasticity_modified_connection_fraction,plasticity_potentiation_events,plasticity_depression_events,plasticity_clamp_min_events,plasticity_clamp_max_events,plasticity_initial_weight_mean,plasticity_initial_weight_min,plasticity_initial_weight_max,plasticity_initial_weight_std,plasticity_final_weight_mean,plasticity_final_weight_min,plasticity_final_weight_max,plasticity_final_weight_std,plasticity_total_signed_change,plasticity_total_absolute_change,plasticity_mean_absolute_change,plasticity_max_absolute_change,plasticity_mean_signed_change\n"
+            "%s,%s,%llu,%llu,%.17g,%llu,%llu,%llu,%llu,%.17g,%.17g,%.17g,%.17g,%.17g,%.17g,%.17g,%.17g,%.17g,%.17g,%.17g,%.17g,%.17g\n",
+            config->plasticity_enabled ? "true" : "false",
+            config->plasticity_rule,
+            (unsigned long long)data->stats.eligible_connections,
+            (unsigned long long)data->stats.modified_connections,
+            modified_fraction,
+            data->stats.potentiation_events,
+            data->stats.depression_events,
+            data->stats.clamp_min_events,
+            data->stats.clamp_max_events,
+            weight_aggregate_mean(&data->initial_weights),
+            data->initial_weights.count > 0 ? data->initial_weights.minimum : 0.0,
+            data->initial_weights.count > 0 ? data->initial_weights.maximum : 0.0,
+            weight_aggregate_std(&data->initial_weights),
+            weight_aggregate_mean(&data->final_weights),
+            data->final_weights.count > 0 ? data->final_weights.minimum : 0.0,
+            data->final_weights.count > 0 ? data->final_weights.maximum : 0.0,
+            weight_aggregate_std(&data->final_weights),
+            data->stats.total_signed_change,
+            data->stats.total_absolute_change,
+            mean_absolute_change,
+            data->stats.max_absolute_change,
+            mean_signed_change) < 0)
+    {
+        fclose(file);
+        return 0;
+    }
+
+    return fclose(file) == 0;
+}
+
+static int write_stdp_report(
+    const ScenarioConfig *config,
+    const ScenarioRunResult *result,
+    const char *output_dir,
+    const PlasticityRunData *data,
+    double simulation_seconds)
+{
+    char path[SCENARIO_OUTPUT_PATH_MAX];
+    FILE *file;
+
+    if (!make_path(path, output_dir, "stdp_report.txt"))
+        return 0;
+
+    file = fopen(path, "w");
+    if (file == NULL)
+        return 0;
+
+    if (fprintf(
+            file,
+            "MINISNN - RELATORIO DE PLASTICIDADE STDP\n\n"
+            "1. Identificacao da execucao\n"
+            "run_name=%s\nactual_run_name=%s\ntopology=%s\nsteps=%d\n\n"
+            "2. Configuracao STDP\n"
+            "rule=%s\na_plus=%.17g\na_minus=%.17g\ntau_plus=%.17g\ntau_minus=%.17g\n"
+            "trace_increment=%.17g\nweight_min=%.17g\nweight_max=%.17g\n\n"
+            "3. Convencao temporal\n"
+            "O spike atual e transmitido com o peso anterior. O novo peso vale apenas para transmissoes futuras.\n"
+            "A referencia temporal pre-sinaptica e a emissao do spike, nao sua chegada apos o delay.\n\n"
+            "4. Conexoes elegiveis\n"
+            "total_connections=%llu\neligible_connections=%llu\n"
+            "Somente sinapses com origem EXC e peso nao negativo sao elegiveis.\n\n"
+            "5. Pesos iniciais\nmean=%.17g\nmin=%.17g\nmax=%.17g\nstd=%.17g\n\n"
+            "6. Pesos finais\nmean=%.17g\nmin=%.17g\nmax=%.17g\nstd=%.17g\n\n"
+            "7. Potencializacao e depressao\npotentiation_events=%llu\ndepression_events=%llu\n"
+            "total_signed_change=%.17g\ntotal_absolute_change=%.17g\n\n"
+            "8. Limites de peso\nclamp_min_events=%llu\nclamp_max_events=%llu\n\n"
+            "9. Conexoes mais alteradas\nConsulte weights_final.csv para os deltas individuais registrados.\n\n"
+            "10. Amostragem e registro\nrecorded_connections=%llu\ncomplete_snapshot=%s\n"
+            "sampling_rule=%s\n\n"
+            "11. Desempenho\nsimulation_time_seconds=%.6f\n\n"
+            "12. Avisos e limitacoes\n"
+            "Esta e uma regra STDP aditiva simplificada e experimental.\n"
+            "Sinapses inibitorias permaneceram fixas nesta execucao.\n"
+            "Aumento de peso nao prova aprendizado de uma tarefa.\n"
+            "A implementacao nao representa toda a plasticidade biologica e nao inclui homeostase.\n",
+            config->run_name,
+            result->actual_run_name,
+            config->topology,
+            config->steps,
+            config->plasticity_rule,
+            config->plasticity_a_plus,
+            config->plasticity_a_minus,
+            config->plasticity_tau_plus,
+            config->plasticity_tau_minus,
+            config->plasticity_trace_increment,
+            config->plasticity_weight_min,
+            config->plasticity_weight_max,
+            (unsigned long long)data->total_connections,
+            (unsigned long long)data->stats.eligible_connections,
+            weight_aggregate_mean(&data->initial_weights),
+            data->initial_weights.count > 0 ? data->initial_weights.minimum : 0.0,
+            data->initial_weights.count > 0 ? data->initial_weights.maximum : 0.0,
+            weight_aggregate_std(&data->initial_weights),
+            weight_aggregate_mean(&data->final_weights),
+            data->final_weights.count > 0 ? data->final_weights.minimum : 0.0,
+            data->final_weights.count > 0 ? data->final_weights.maximum : 0.0,
+            weight_aggregate_std(&data->final_weights),
+            data->stats.potentiation_events,
+            data->stats.depression_events,
+            data->stats.total_signed_change,
+            data->stats.total_absolute_change,
+            data->stats.clamp_min_events,
+            data->stats.clamp_max_events,
+            (unsigned long long)data->sample_count,
+            data->snapshots_sampled ? "false" : "true",
+            data->snapshots_sampled ?
+                "floor(k*(E-1)/(L-1)); L=1 seleciona connection_id 0" :
+                "todas as conexoes em ordem plana deterministica",
+            simulation_seconds) < 0)
+    {
+        fclose(file);
+        return 0;
+    }
+
+    return fclose(file) == 0;
+}
+
+static int plasticity_run_data_finalize(
+    const MiniSNN *snn,
+    const ScenarioConfig *config,
+    const ScenarioRunResult *result,
+    PlasticityRunData *data,
+    double simulation_seconds)
+{
+    if (!data->enabled)
+        return 1;
+
+    if (data->history_file != NULL &&
+        data->last_history_step != config->steps &&
+        !write_weight_history_step(snn, data, config->steps))
+    {
+        return 0;
+    }
+
+    if (data->history_file != NULL)
+    {
+        FILE *history_file = data->history_file;
+        data->history_file = NULL;
+
+        if (fclose(history_file) != 0)
+            return 0;
+    }
+
+    if (!collect_weight_aggregate(snn, &data->final_weights) ||
+        !minisnn_get_plasticity_stats(snn, &data->stats) ||
+        !write_final_weights(snn, config, result->output_directory, data) ||
+        !write_plasticity_metrics(config, result->output_directory, data) ||
+        !write_stdp_report(
+            config,
+            result,
+            result->output_directory,
+            data,
+            simulation_seconds))
+    {
+        return 0;
+    }
+
+    return 1;
+}
+
 static int open_output_files(
     const ScenarioConfig *config,
     const char *output_dir,
@@ -960,7 +1520,8 @@ static void close_file_if_open(FILE *file)
 static int write_summary(
     FILE *file,
     const ScenarioConfig *config,
-    const ScenarioRunResult *result)
+    const ScenarioRunResult *result,
+    const PlasticityRunData *plasticity_data)
 {
     return fprintf(
                file,
@@ -983,7 +1544,12 @@ static int write_summary(
                "spikes_exc=%d\n"
                "spikes_inh=%d\n"
                "first_active_step=%d\n"
-               "last_active_step=%d\n",
+               "last_active_step=%d\n"
+               "plasticity_enabled=%s\n"
+               "plasticity_rule=%s\n"
+               "plasticity_eligible_connections=%llu\n"
+               "plasticity_modified_connections=%llu\n"
+               "plasticity_total_signed_change=%.17g\n",
                config->run_name,
                result->actual_run_name,
                config->topology,
@@ -1003,7 +1569,12 @@ static int write_summary(
                result->spikes_exc,
                result->spikes_inh,
                result->first_active_step,
-               result->last_active_step) >= 0;
+               result->last_active_step,
+               config->plasticity_enabled ? "true" : "false",
+               config->plasticity_rule,
+               (unsigned long long)plasticity_data->stats.eligible_connections,
+               (unsigned long long)plasticity_data->stats.modified_connections,
+               plasticity_data->stats.total_signed_change) >= 0;
 }
 
 static int append_scenario_history(
@@ -1143,7 +1714,8 @@ static int write_basic_metrics(
     double simulation_seconds,
     double wall_seconds,
     const char *population_path,
-    const char *raster_path)
+    const char *raster_path,
+    const PlasticityRunData *plasticity_data)
 {
     char path[SCENARIO_OUTPUT_PATH_MAX];
     char timestamp[32];
@@ -1165,6 +1737,16 @@ static int write_basic_metrics(
     int outdegree_max;
     int possible_connections;
     int has_late_activity;
+    double plasticity_modified_fraction =
+        plasticity_data->stats.eligible_connections > 0 ?
+        (double)plasticity_data->stats.modified_connections /
+            (double)plasticity_data->stats.eligible_connections :
+        0.0;
+    double plasticity_mean_absolute_change =
+        plasticity_data->stats.eligible_connections > 0 ?
+        plasticity_data->stats.total_absolute_change /
+            (double)plasticity_data->stats.eligible_connections :
+        0.0;
 
     if (!make_path(path, result->output_directory, "metrics.csv"))
         return 0;
@@ -1214,10 +1796,10 @@ static int write_basic_metrics(
 
     if (fprintf(
             file,
-            "run_name,actual_run_name,run_path,timestamp,topology,network_num_neurons,run_steps,run_dt,run_simulation_duration,run_seed,run_recorded_neuron,diagnostics_level,network_total_connections,network_excitatory_neuron_count,network_inhibitory_neuron_count,activity_total_spikes,activity_mean_spikes_per_step,activity_min_spikes_per_step,activity_max_spikes_per_step,activity_active_timesteps,activity_silent_timesteps,activity_fraction,silence_fraction,activity_first_active_step,activity_last_active_step,activity_peak_step,activity_peak_value,activity_has_late_activity,neuron_mean_spikes,exc_total_spikes,inh_total_spikes,network_connection_density,network_self_connection_count,network_excitatory_connection_count,network_inhibitory_connection_count,network_weight_mean,network_weight_min,network_weight_max,network_weight_std,network_delay_mean,network_delay_min,network_delay_max,network_delay_std,network_indegree_mean,network_indegree_min,network_indegree_max,network_indegree_std,network_outdegree_mean,network_outdegree_min,network_outdegree_max,network_outdegree_std,performance_simulation_time_seconds,performance_wall_time_seconds,performance_steps_per_second,performance_neuron_updates_per_second,performance_spikes_per_second_processed,performance_population_csv_size_bytes,performance_raster_csv_size_bytes\n") < 0 ||
+            "run_name,actual_run_name,run_path,timestamp,topology,network_num_neurons,run_steps,run_dt,run_simulation_duration,run_seed,run_recorded_neuron,diagnostics_level,network_total_connections,network_excitatory_neuron_count,network_inhibitory_neuron_count,activity_total_spikes,activity_mean_spikes_per_step,activity_min_spikes_per_step,activity_max_spikes_per_step,activity_active_timesteps,activity_silent_timesteps,activity_fraction,silence_fraction,activity_first_active_step,activity_last_active_step,activity_peak_step,activity_peak_value,activity_has_late_activity,neuron_mean_spikes,exc_total_spikes,inh_total_spikes,network_connection_density,network_self_connection_count,network_excitatory_connection_count,network_inhibitory_connection_count,network_weight_mean,network_weight_min,network_weight_max,network_weight_std,network_delay_mean,network_delay_min,network_delay_max,network_delay_std,network_indegree_mean,network_indegree_min,network_indegree_max,network_indegree_std,network_outdegree_mean,network_outdegree_min,network_outdegree_max,network_outdegree_std,performance_simulation_time_seconds,performance_wall_time_seconds,performance_steps_per_second,performance_neuron_updates_per_second,performance_spikes_per_second_processed,performance_population_csv_size_bytes,performance_raster_csv_size_bytes,plasticity_enabled,plasticity_modified_connection_fraction,plasticity_initial_weight_mean,plasticity_final_weight_mean,plasticity_mean_absolute_change,plasticity_total_signed_change,plasticity_potentiation_events,plasticity_depression_events\n") < 0 ||
         fprintf(
             file,
-            "%s,%s,%s,%s,%s,%d,%d,%.12g,%.12g,%u,%d,%s,%d,%d,%d,%d,%.12g,%d,%d,%d,%d,%.12g,%.12g,%d,%d,%d,%d,%s,%.12g,%d,%d,%.12g,%d,%d,%d,%.12g,%.12g,%.12g,%.12g,%.12g,%d,%d,%.12g,%.12g,%d,%d,%.12g,%.12g,%d,%d,%.12g,%.12g,%.12g,%.12g,%.12g,%.12g,%llu,%llu\n",
+            "%s,%s,%s,%s,%s,%d,%d,%.12g,%.12g,%u,%d,%s,%d,%d,%d,%d,%.12g,%d,%d,%d,%d,%.12g,%.12g,%d,%d,%d,%d,%s,%.12g,%d,%d,%.12g,%d,%d,%d,%.12g,%.12g,%.12g,%.12g,%.12g,%d,%d,%.12g,%.12g,%d,%d,%.12g,%.12g,%d,%d,%.12g,%.12g,%.12g,%.12g,%.12g,%.12g,%llu,%llu,%s,%.17g,%.17g,%.17g,%.17g,%.17g,%llu,%llu\n",
             config->run_name,
             result->actual_run_name,
             result->output_directory,
@@ -1276,7 +1858,15 @@ static int write_basic_metrics(
                 ((double)config->steps * config->neurons) / simulation_seconds : 0.0,
             simulation_seconds > 0.0 ? result->spikes_total / simulation_seconds : 0.0,
             file_size_bytes(population_path),
-            file_size_bytes(raster_path)) < 0)
+            file_size_bytes(raster_path),
+            config->plasticity_enabled ? "true" : "false",
+            plasticity_modified_fraction,
+            weight_aggregate_mean(&plasticity_data->initial_weights),
+            weight_aggregate_mean(&plasticity_data->final_weights),
+            plasticity_mean_absolute_change,
+            plasticity_data->stats.total_signed_change,
+            plasticity_data->stats.potentiation_events,
+            plasticity_data->stats.depression_events) < 0)
     {
         fclose(file);
         return 0;
@@ -1296,6 +1886,7 @@ static int write_run_manifest(
     FILE *file;
     char git_commit[96] = "NA";
     char git_status[32] = "NA";
+    char plasticity_files[256] = "NA";
     FILE *pipe;
 
     if (!make_path(path, result->output_directory, "run_manifest.txt"))
@@ -1306,6 +1897,20 @@ static int write_run_manifest(
         return 0;
 
     current_timestamp(timestamp, sizeof(timestamp));
+
+    if (config->plasticity_enabled)
+    {
+        snprintf(
+            plasticity_files,
+            sizeof(plasticity_files),
+            "plasticity_metrics.csv;stdp_report.txt%s%s",
+            config->plasticity_record_weights ?
+                ";weights_initial.csv;weights_final.csv" :
+                "",
+            config->plasticity_record_history ?
+                ";weight_history.csv" :
+                "");
+    }
 
     pipe = _popen("git rev-parse --short HEAD 2>NUL", "r");
     if (pipe != NULL)
@@ -1353,6 +1958,22 @@ static int write_run_manifest(
             "dt=%.12g\n"
             "steps=%d\n"
             "diagnostics_level=%s\n"
+            "plasticity_enabled=%s\n"
+            "plasticity_rule=%s\n"
+            "plasticity_a_plus=%.17g\n"
+            "plasticity_a_minus=%.17g\n"
+            "plasticity_tau_plus=%.17g\n"
+            "plasticity_tau_minus=%.17g\n"
+            "plasticity_trace_increment=%.17g\n"
+            "plasticity_weight_min=%.17g\n"
+            "plasticity_weight_max=%.17g\n"
+            "plasticity_timing_reference=spike_emission\n"
+            "inhibitory_plasticity=disabled\n"
+            "plasticity_record_weights=%s\n"
+            "plasticity_record_history=%s\n"
+            "plasticity_record_interval_steps=%d\n"
+            "plasticity_record_connection_limit=%d\n"
+            "plasticity_output_files=%s\n"
             "python=NA\n"
             "python_version=NA\n"
             "pandas_version=NA\n"
@@ -1380,6 +2001,20 @@ static int write_run_manifest(
             config->dt,
             config->steps,
             config->diagnostics_level,
+            config->plasticity_enabled ? "true" : "false",
+            config->plasticity_rule,
+            config->plasticity_a_plus,
+            config->plasticity_a_minus,
+            config->plasticity_tau_plus,
+            config->plasticity_tau_minus,
+            config->plasticity_trace_increment,
+            config->plasticity_weight_min,
+            config->plasticity_weight_max,
+            config->plasticity_record_weights ? "true" : "false",
+            config->plasticity_record_history ? "true" : "false",
+            config->plasticity_record_interval_steps,
+            config->plasticity_record_connection_limit,
+            plasticity_files,
             config->record_neuron,
             metrics_generated ? ";metrics.csv" : "") < 0)
     {
@@ -1397,7 +2032,8 @@ static int run_simulation(
     FILE *population_file,
     FILE *raster_file,
     FILE *neuron_file,
-    ScenarioRunResult *result)
+    ScenarioRunResult *result,
+    PlasticityRunData *plasticity_data)
 {
     result->spikes_total = 0;
     result->spikes_exc = 0;
@@ -1538,6 +2174,15 @@ static int run_simulation(
         {
             return 0;
         }
+
+        if (plasticity_data->enabled &&
+            config->plasticity_record_history &&
+            (((step + 1) % config->plasticity_record_interval_steps) == 0 ||
+             step + 1 == config->steps) &&
+            !write_weight_history_step(snn, plasticity_data, step + 1))
+        {
+            return 0;
+        }
     }
 
     return 1;
@@ -1564,6 +2209,7 @@ int scenario_runner_execute(
     char summary_path[SCENARIO_OUTPUT_PATH_MAX];
     int neuron_is_inhibitory[SCENARIO_MAX_NEURONS];
     ConnectivityStats connectivity;
+    PlasticityRunData plasticity_data;
     ULONGLONG wall_start;
     ULONGLONG simulation_start;
     double simulation_seconds;
@@ -1579,6 +2225,7 @@ int scenario_runner_execute(
     memset(&result, 0, sizeof(result));
     memset(neuron_is_inhibitory, 0, sizeof(neuron_is_inhibitory));
     memset(&connectivity, 0, sizeof(connectivity));
+    memset(&plasticity_data, 0, sizeof(plasticity_data));
 
     if (!scenario_config_validate(config, error_message, error_message_size))
         return 0;
@@ -1665,6 +2312,39 @@ int scenario_runner_execute(
         connectivity.inhibitory_to_inhibitory_count;
     result.topology_signature = connectivity.topology_signature;
 
+    {
+        MiniSNNPlasticityConfig plasticity_config =
+            minisnn_default_plasticity_config();
+
+        plasticity_config.enabled = config->plasticity_enabled;
+        plasticity_config.rule = MINISNN_PLASTICITY_STDP_PAIR_TRACE;
+        plasticity_config.a_plus = config->plasticity_a_plus;
+        plasticity_config.a_minus = config->plasticity_a_minus;
+        plasticity_config.tau_plus = config->plasticity_tau_plus;
+        plasticity_config.tau_minus = config->plasticity_tau_minus;
+        plasticity_config.trace_increment = config->plasticity_trace_increment;
+        plasticity_config.weight_min = config->plasticity_weight_min;
+        plasticity_config.weight_max = config->plasticity_weight_max;
+
+        if (!minisnn_set_plasticity_config(snn, &plasticity_config))
+        {
+            set_error(error_message, error_message_size, "erro ao configurar plasticidade");
+            minisnn_destroy(&snn);
+            return 0;
+        }
+    }
+
+    if (!plasticity_run_data_prepare(
+            snn,
+            config,
+            result.output_directory,
+            &plasticity_data))
+    {
+        set_error(error_message, error_message_size, "erro ao preparar saidas de plasticidade");
+        minisnn_destroy(&snn);
+        return 0;
+    }
+
     if (!open_output_files(
             config,
             result.output_directory,
@@ -1682,6 +2362,7 @@ int scenario_runner_execute(
         close_file_if_open(raster_file);
         close_file_if_open(neuron_file);
         close_file_if_open(summary_file);
+        plasticity_run_data_close(&plasticity_data);
         minisnn_destroy(&snn);
         return 0;
     }
@@ -1695,13 +2376,15 @@ int scenario_runner_execute(
             population_file,
             raster_file,
             neuron_file,
-            &result))
+            &result,
+            &plasticity_data))
     {
         set_error(error_message, error_message_size, "erro durante simulacao");
         close_file_if_open(population_file);
         close_file_if_open(raster_file);
         close_file_if_open(neuron_file);
         close_file_if_open(summary_file);
+        plasticity_run_data_close(&plasticity_data);
         minisnn_destroy(&snn);
         return 0;
     }
@@ -1709,13 +2392,31 @@ int scenario_runner_execute(
     simulation_seconds =
         (double)(GetTickCount64() - simulation_start) / 1000.0;
 
-    if (!write_summary(summary_file, config, &result))
+    if (!plasticity_run_data_finalize(
+            snn,
+            config,
+            &result,
+            &plasticity_data,
+            simulation_seconds))
+    {
+        set_error(error_message, error_message_size, "erro ao finalizar saidas de plasticidade");
+        close_file_if_open(population_file);
+        close_file_if_open(raster_file);
+        close_file_if_open(neuron_file);
+        close_file_if_open(summary_file);
+        plasticity_run_data_close(&plasticity_data);
+        minisnn_destroy(&snn);
+        return 0;
+    }
+
+    if (!write_summary(summary_file, config, &result, &plasticity_data))
     {
         set_error(error_message, error_message_size, "erro ao escrever summary.txt");
         close_file_if_open(population_file);
         close_file_if_open(raster_file);
         close_file_if_open(neuron_file);
         close_file_if_open(summary_file);
+        plasticity_run_data_close(&plasticity_data);
         minisnn_destroy(&snn);
         return 0;
     }
@@ -1737,9 +2438,11 @@ int scenario_runner_execute(
                 simulation_seconds,
                 wall_seconds,
                 population_path,
-                raster_path))
+                raster_path,
+                &plasticity_data))
         {
             set_error(error_message, error_message_size, "erro ao escrever metrics.csv");
+            plasticity_run_data_close(&plasticity_data);
             return 0;
         }
 
@@ -1753,6 +2456,7 @@ int scenario_runner_execute(
             metrics_generated))
     {
         set_error(error_message, error_message_size, "erro ao escrever run_manifest.txt");
+        plasticity_run_data_close(&plasticity_data);
         return 0;
     }
 
@@ -1760,8 +2464,11 @@ int scenario_runner_execute(
         !append_scenario_history(config, &result, source_config_path, "OK"))
     {
         set_error(error_message, error_message_size, "erro ao atualizar historico de cenarios");
+        plasticity_run_data_close(&plasticity_data);
         return 0;
     }
+
+    plasticity_run_data_close(&plasticity_data);
 
     *out_result = result;
     return 1;
