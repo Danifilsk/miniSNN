@@ -49,6 +49,7 @@ A analise `basic` cria:
 ```text
 metrics.csv
 metrics_report.txt
+metrics_report.html
 diagnostics_overview.png
 ```
 
@@ -66,6 +67,18 @@ diagnostics_correlation.png
 
 Quando um grafico nao pode ser calculado, o relatorio registra `Nao
 disponivel` e o motivo.
+
+`metrics_report.html` é a interface de leitura em tema escuro. Ele é
+autossuficiente, abre localmente sem servidor ou internet, não recalcula as
+métricas e oferece links relativos para `metrics.csv` e os demais artefatos.
+O CSV continua sendo a fonte bruta. Runs antigas que já possuam `metrics.csv`
+podem receber o HTML posteriormente:
+
+```powershell
+python scripts/generate_run_reports.py results/scenarios/run_antiga --metrics
+```
+
+No Studio, `ABRIR METRICAS` abre o HTML e o gera sob demanda quando necessário.
 
 ## 4. Metricas basicas
 
@@ -184,6 +197,10 @@ Ele e um indice heuristico de diagnostico, nao uma medida biologica universal.
 solicitado/real, seed, modelo, topologia, `dt`, passos, nivel e arquivos. A
 analise acrescenta Python, pandas e matplotlib. Informacoes indisponiveis ficam
 `NA` e nao interrompem a simulacao.
+
+Quando os relatórios HTML são gerados, o manifesto existente recebe a seção
+`[html_reports]` sem apagar a proveniência anterior. Runs sem manifesto continuam
+compatíveis; nesse caso, apenas o HTML é criado.
 
 Tempos reais de simulacao e analise sao separados da duracao simulada. Tambem
 sao registrados throughput e tamanhos dos CSVs/resultados.

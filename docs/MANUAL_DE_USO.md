@@ -132,6 +132,7 @@ antes de limpar manualmente.
 | `mingw32-make test-runner` | Testa o executor de cenarios | `Scenario runner validation OK` |
 | `mingw32-make test-compare-runs` | Testa comparacao de execucoes | `Run comparison validation OK` |
 | `mingw32-make test-diagnostics` | Testa diagnosticos basic/full | `Run diagnostics validation OK` |
+| `mingw32-make test-run-reports` | Testa relatórios HTML locais | `HTML run reports validation OK` |
 | `mingw32-make test-docs` | Valida links e referências documentais | `Documentation validation OK` |
 | `mingw32-make api-examples` | Executa os tres exemplos publicos | CSVs em `results/api/` |
 | `mingw32-make api-single` | Exemplo de um neuronio | `api_single_neuron.csv` |
@@ -278,7 +279,21 @@ mundo externo ou topologia adaptativa.
 
 Cada execucao gera `run_manifest.txt`. Com diagnostico `basic` ou `full`, o
 runner tambem gera `metrics.csv`; `scripts/analyze_run.py` completa as metricas,
-o relatorio e os graficos. O guia detalhado esta em
+o relatório textual, `metrics_report.html` e os gráficos. Com pesos registrados,
+`scripts/plot_plasticity.py` também produz `weights_report.html`. Esses HTMLs
+abrem sem servidor ou internet e mantêm links para os CSVs brutos. Pelo terminal:
+
+```powershell
+mingw32-make report-metrics RUN=results/scenarios/random_demo
+mingw32-make report-weights RUN=results/scenarios/stdp_ltp_demo
+mingw32-make report-all RUN=results/scenarios/stdp_ltp_demo
+```
+
+No Studio, `ABRIR METRICAS` e `ABRIR PESOS` abrem os relatórios no navegador
+padrão e tentam gerá-los sob demanda na última pasta real. Uma run antiga com
+`metrics.csv` continua suportada. Se STDP estiver desligado e
+`weights_final.csv` não existir, o Studio informa que não há relatório de pesos.
+O guia detalhado está em
 `docs/GUIA_DE_DIAGNOSTICO.md`.
 
 Os programas abrem os CSVs em modo `"w"`. Ao executar novamente o mesmo

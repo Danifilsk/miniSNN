@@ -13,11 +13,12 @@ PYTHON ?= python
 ANALYZER_CFLAGS = -std=c11 -Wall -Wextra -pedantic -fanalyzer -Wformat=2 -Wshadow -Wnull-dereference
 
 .PHONY: all help clean test test-api test-core test-lif test-plasticity test-plasticity-long test-scenario test-runner test-runner-topologies test-reproducibility test-regression test-memory test-long test-analyzer test-sanitize benchmark-v02 benchmark-c1 check-v02 check-c1 \
-	test-plot-neuron test-plot-plasticity test-compare-runs test-diagnostics test-docs \
+	test-plot-neuron test-plot-plasticity test-compare-runs test-diagnostics test-run-reports test-docs \
 	api-examples api-single api-chain api-exc-inh \
 	demo ei-balance inhibition-fine inh-to-inh sparse-ei scenario \
 	scenario-random scenario-small-world scenario-feedforward \
 	scenario-stdp-ltp scenario-stdp-ltd scenario-stdp-mixed plot-stdp-ltp \
+	report-metrics report-weights report-all \
 	studio-build studio
 
 all: test
@@ -47,6 +48,7 @@ help:
 	@echo   make test-plot-plasticity - teste Python do grafico STDP
 	@echo   make test-compare-runs - teste Python da comparacao de execucoes
 	@echo   make test-diagnostics  - teste Python dos diagnosticos basic/full
+	@echo   make test-run-reports  - valida relatorios HTML de metricas e pesos
 	@echo   make test-docs         - valida links e referencias da documentacao
 	@echo   make api-examples      - executa os exemplos publicos da API
 	@echo   make demo              - executa o demo interno
@@ -58,6 +60,9 @@ help:
 	@echo   make scenario-stdp-ltd  - executa o demonstrador STDP de LTD
 	@echo   make scenario-stdp-mixed - executa o demonstrador STDP misto
 	@echo   make plot-stdp-ltp     - gera o panorama STDP do demonstrador LTP
+	@echo   make report-metrics RUN=results/scenarios/run - gera metrics_report.html
+	@echo   make report-weights RUN=results/scenarios/run - gera weights_report.html
+	@echo   make report-all RUN=results/scenarios/run - gera os dois relatorios HTML
 	@echo   make studio-build      - compila a interface grafica miniSNN Studio
 	@echo   make studio            - compila e abre a interface grafica miniSNN Studio
 	@echo   make ei-balance        - executa o experimento EXC vs EXC/INH
@@ -174,6 +179,9 @@ test-diagnostics: | $(BUILD_DIR)
 	$(PYTHON) tests/test_analyze_run.py
 	$(PYTHON) tests/test_script_robustness.py
 
+test-run-reports: | $(BUILD_DIR)
+	$(PYTHON) tests/test_run_reports.py
+
 test-docs: | $(BUILD_DIR)
 	$(PYTHON) tests/test_docs.py
 
@@ -231,6 +239,18 @@ scenario-stdp-mixed: $(BUILD_DIR)/minisnn_runner.exe
 
 plot-stdp-ltp: scenario-stdp-ltp
 	$(PYTHON) scripts/plot_plasticity.py results/scenarios/stdp_ltp_demo
+
+report-metrics:
+	@if "$(RUN)"=="" (echo Erro: informe RUN=results/scenarios/nome_da_execucao & exit /B 1)
+	$(PYTHON) scripts/generate_run_reports.py "$(RUN)" --metrics
+
+report-weights:
+	@if "$(RUN)"=="" (echo Erro: informe RUN=results/scenarios/nome_da_execucao & exit /B 1)
+	$(PYTHON) scripts/generate_run_reports.py "$(RUN)" --weights
+
+report-all:
+	@if "$(RUN)"=="" (echo Erro: informe RUN=results/scenarios/nome_da_execucao & exit /B 1)
+	$(PYTHON) scripts/generate_run_reports.py "$(RUN)" --all
 
 $(BUILD_DIR)/minisnn_studio.exe: app/minisnn_studio.c $(SCENARIO_RUNNER_SOURCES) $(API_SOURCES) include/minisnn.h include/minisnn_types.h app/scenario_config.h app/scenario_runner.h | $(BUILD_DIR)
 	$(CC) $(CFLAGS) app/minisnn_studio.c $(SCENARIO_RUNNER_SOURCES) $(API_SOURCES) $(INCLUDES) -o $@ -mwindows -lcomdlg32 -lshell32 -lgdi32 -luser32 -lole32

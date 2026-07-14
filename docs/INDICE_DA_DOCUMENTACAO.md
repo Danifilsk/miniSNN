@@ -19,6 +19,10 @@ implementados, experimentais e planejados.
 - [Guia de diagnóstico](GUIA_DE_DIAGNOSTICO.md) — níveis, fórmulas, regimes e limitações heurísticas.
 - [Guia de plasticidade](GUIA_DE_PLASTICIDADE.md) — STDP, traces, cenários, saídas e limitações.
 
+Os guias de diagnóstico e plasticidade também explicam os relatórios locais
+`metrics_report.html` e `weights_report.html`. Eles são a camada de leitura;
+os CSVs permanecem como fonte bruta e podem ser acessados pelos links do HTML.
+
 ## Para entender tecnicamente
 
 - [Arquitetura do Core](ARQUITETURA_DO_CORE.md) — camadas, encapsulamento e fluxo de dados.

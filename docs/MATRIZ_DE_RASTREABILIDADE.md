@@ -14,6 +14,7 @@
 | Histórico | `[output]` | runner e comparador | testes de runner/comparação | `index.csv` | [Resultados](ORGANIZACAO_DE_RESULTADOS.md) | Implementado |
 | Diagnóstico | `[diagnostics]` | runner, `analyze_run.py`, `metrics_common.py` | `test_metrics_common`, `test_analyze_run` | métricas, relatório e PNGs | [Diagnóstico](GUIA_DE_DIAGNOSTICO.md) | Fórmulas validadas; classificação heurística |
 | STDP C1 | `[plasticity]` | `src/plasticity.c`, API e runner | `test_plasticity`, parser, runner, reprodutibilidade e long | pesos, histórico, métricas, relatório e PNG | [Plasticidade](GUIA_DE_PLASTICIDADE.md) | Implementado para origens EXC; experimental |
+| Relatórios HTML C1.1 | pasta de run | `generate_run_reports.py`, `html_report_common.py` e Studio | `test_run_reports`, diagnóstico, plot STDP e docs | `metrics_report.html`, `weights_report.html` e links para CSV | [Diagnóstico](GUIA_DE_DIAGNOSTICO.md) e [Plasticidade](GUIA_DE_PLASTICIDADE.md) | Apresentação local; não altera métricas ou dinâmica |
 | Reprodutibilidade | `seed` | `scenario_runner` | `test_reproducibility`, golden | assinatura, spikes e raster | [Auditoria](AUDITORIA_DO_CORE_V02.md) | Validado no mesmo binário |
 | Robustez | limites e falhas | parser, runner, scripts | memory stress, scripts e long run | erros controlados | [Cobertura](COBERTURA_DE_TESTES.md) | Automatizado; sanitizer indisponível |
 | Documentação | estrutura em `docs/` | Markdown e `check_docs.py` | `test_docs` | relatório do validador | [Índice](INDICE_DA_DOCUMENTACAO.md) | Implementado |

@@ -163,6 +163,9 @@ def main() -> int:
         )
         report_text = (sustained / "metrics_report.txt").read_text(encoding="utf-8")
         check("Plasticidade" in report_text, "plasticity report section")
+        html_report = (sustained / "metrics_report.html").read_text(encoding="utf-8")
+        check("RELATORIO DE METRICAS" in html_report, "HTML metrics report")
+        check("Plasticidade" in html_report, "HTML plasticity section")
 
         expected_counts = [7, 7, 6, 10]
         close(sustained_metrics["neuron_mean_spikes"], 7.5, "neuron mean")
@@ -252,7 +255,12 @@ def main() -> int:
 
         incomplete = write_run("incomplete", [[(0, "EXC")]], complete=False)
         analyze(incomplete, "basic")
-        for filename in ("metrics.csv", "metrics_report.txt", "diagnostics_overview.png"):
+        for filename in (
+            "metrics.csv",
+            "metrics_report.txt",
+            "metrics_report.html",
+            "diagnostics_overview.png",
+        ):
             check((incomplete / filename).exists(), f"incomplete missing {filename}")
     finally:
         shutil.rmtree(TEMP_ROOT, ignore_errors=True)

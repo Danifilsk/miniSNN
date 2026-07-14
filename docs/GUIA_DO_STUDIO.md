@@ -255,8 +255,14 @@ Para comparar testes:
 
 O seletor `DIAG` oferece `OFF`, `BASIC` e `FULL`. Novos cenarios usam `BASIC`.
 Depois de uma execucao, `GERAR DIAGNOSTICO` chama `scripts/analyze_run.py` com o
-Python detectado. `ABRIR METRICAS` abre `metrics.csv` e `ABRIR DIAGNOSTICO` abre
-`diagnostics_overview.png`. Em `OFF`, nenhuma analise pesada e executada.
+Python detectado. `ABRIR METRICAS` abre `metrics_report.html` no navegador
+padrão. Se o HTML ainda não existir e `metrics.csv` estiver disponível, o
+Studio chama `scripts/generate_run_reports.py` para criá-lo na última pasta real
+(`actual_run_name`). `ABRIR DIAGNOSTICO` continua abrindo
+`diagnostics_overview.png`. Em `OFF`, nenhuma análise nova é executada
+automaticamente, mas uma run antiga que já tenha `metrics.csv` pode receber o
+HTML sob demanda. O relatório funciona localmente, sem internet, e contém links
+para o CSV bruto e demais arquivos da execução.
 
 ## 13. Plasticidade
 
@@ -265,9 +271,13 @@ Python detectado. `ABRIR METRICAS` abre `metrics.csv` e `ABRIR DIAGNOSTICO` abre
 botão `CANCELAR` não aplica alterações; `APLICAR` valida o cenário completo.
 
 Depois de uma run ativa, `GRAFICO STDP` executa `scripts/plot_plasticity.py` na
-última pasta real. `ABRIR PESOS` abre `weights_final.csv` e `ABRIR STDP` abre
-`plasticity_overview.png`. Ausência dos arquivos produz mensagem controlada.
-Configs antigas e novos cenários comuns carregam STDP OFF.
+última pasta real e também atualiza `weights_report.html`. `ABRIR PESOS` abre
+esse HTML no navegador padrão; se necessário, ele é gerado sob demanda a partir
+de `weights_final.csv`. `ABRIR STDP` continua abrindo
+`plasticity_overview.png`. O CSV completo permanece acessível pela pasta e pelos
+links do relatório. Ausência dos arquivos produz mensagem controlada; uma run
+com STDP OFF normalmente não possui relatório de pesos. Configs antigas e novos
+cenários comuns carregam STDP OFF.
 
 ## 14. O que ainda nao existe no Studio
 

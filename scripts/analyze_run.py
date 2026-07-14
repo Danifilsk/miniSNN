@@ -24,6 +24,7 @@ from metrics_common import (
     sampled_correlation_metrics,
     write_metrics,
 )
+from html_report_common import ReportGenerationError, generate_metrics_report
 
 
 def value(metrics: dict[str, object], key: str) -> str:
@@ -355,6 +356,11 @@ def analyze(run_directory: str | Path, level: str) -> dict[str, object]:
     write_metrics(metrics_path, metrics)
     outputs.append(metrics_path)
     update_manifest(run_path, level, outputs)
+    try:
+        html_report = generate_metrics_report(run_path)
+    except ReportGenerationError as error:
+        raise ValueError(f"falha ao gerar metrics_report.html: {error}") from error
+    outputs.append(html_report)
     print(f"Diagnostico {level} gerado em: {run_path}")
     for output in outputs:
         print(f"- {output.name}")

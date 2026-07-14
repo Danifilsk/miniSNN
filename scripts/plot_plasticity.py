@@ -2,6 +2,8 @@ from pathlib import Path
 import math
 import sys
 
+from html_report_common import ReportGenerationError, generate_weights_report
+
 try:
     import matplotlib.pyplot as plt
     import pandas as pd
@@ -196,6 +198,11 @@ def generate_plasticity_plot(run_dir: Path | str) -> Path | None:
     plt.tight_layout()
     figure.savefig(output_path)
     plt.close(figure)
+    try:
+        generate_weights_report(run_dir)
+    except ReportGenerationError as error:
+        print(f"Erro ao gerar weights_report.html: {error}")
+        return None
     return output_path
 
 

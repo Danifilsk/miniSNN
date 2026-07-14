@@ -59,6 +59,8 @@ IMPORTANT_FILES = (
     "scripts/plot_scenario.py",
     "scripts/plot_neuron.py",
     "scripts/plot_plasticity.py",
+    "scripts/generate_run_reports.py",
+    "scripts/html_report_common.py",
     "scripts/check_c1.py",
     "scripts/check_docs.py",
     "configs/random.ini",
@@ -82,6 +84,7 @@ IMPORTANT_FILES = (
     "tests/test_plasticity.c",
     "tests/test_plasticity_long.c",
     "tests/test_plot_plasticity.py",
+    "tests/test_run_reports.py",
 )
 
 REQUIRED_TARGETS = (
@@ -104,6 +107,7 @@ REQUIRED_TARGETS = (
     "test-plasticity",
     "test-plasticity-long",
     "test-plot-plasticity",
+    "test-run-reports",
     "scenario-stdp-ltp",
     "scenario-stdp-ltd",
     "scenario-stdp-mixed",
@@ -235,6 +239,21 @@ def validate_docs(root: Path) -> list[str]:
             errors.append(f"botão esperado ausente no Studio: {button}")
         if f"`{button}`" not in studio_guide:
             errors.append(f"botão do Studio ausente no guia: {button}")
+
+    if '"metrics_report.html"' not in studio_source:
+        errors.append("Studio não aponta ABRIR METRICAS para metrics_report.html")
+    if '"weights_report.html"' not in studio_source:
+        errors.append("Studio não aponta ABRIR PESOS para weights_report.html")
+
+    documentation_text = "\n".join(texts.values())
+    for required_output in (
+        "metrics_report.html",
+        "weights_report.html",
+        "metrics.csv",
+        "weights_final.csv",
+    ):
+        if required_output not in documentation_text:
+            errors.append(f"saída central não documentada: {required_output}")
 
     api_header = (root / "include" / "minisnn.h").read_text(encoding="utf-8")
     api_reference = texts.get(root / "API_REFERENCE.md", "")

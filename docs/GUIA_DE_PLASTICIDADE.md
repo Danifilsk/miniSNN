@@ -136,7 +136,18 @@ python scripts/plot_plasticity.py results/scenarios/stdp_ltp_demo
 ```
 
 O script cria `plasticity_overview.png` com distribuição inicial/final,
-mudanças, trajetórias amostradas e métricas principais.
+mudanças, trajetórias amostradas e métricas principais, e também gera
+`weights_report.html`. O HTML mostra cards, tabela limitada para leitura,
+rankings, aviso explícito de amostragem e links para os CSVs completos. Ele
+funciona localmente e sem internet. Para gerar apenas o relatório:
+
+```powershell
+python scripts/generate_run_reports.py results/scenarios/stdp_ltp_demo --weights
+```
+
+`weights_final.csv` permanece como fonte bruta. Em redes grandes, o HTML exibe
+até 500 registros e informa quantos foram omitidos apenas da apresentação; a
+amostragem científica produzida pelo runner não é alterada.
 
 ## 8. API pública
 
@@ -151,9 +162,10 @@ completa está em [API_REFERENCE.md](../API_REFERENCE.md).
 
 O botão `PLASTICIDADE` abre um modal com ON/OFF, regra, amplitudes, taus,
 incremento, limites e opções de registro. `GRAFICO STDP` usa o Python já
-resolvido pelo Studio; `ABRIR PESOS` abre `weights_final.csv`; `ABRIR STDP` abre
-o PNG da última pasta real. Cenários comuns e configs antigas abrem com STDP
-OFF.
+resolvido pelo Studio; `ABRIR PESOS` abre `weights_report.html`; `ABRIR STDP`
+abre o PNG da última pasta real. O relatório é gerado sob demanda quando
+`weights_final.csv` existe. Com STDP OFF ou sem registro de pesos, o Studio
+informa que não há relatório em vez de criar dados fictícios.
 
 ## 10. Testes e desempenho
 
@@ -161,6 +173,7 @@ OFF.
 mingw32-make test-plasticity
 mingw32-make test-plasticity-long
 mingw32-make test-plot-plasticity
+mingw32-make test-run-reports
 mingw32-make test-regression
 mingw32-make test-reproducibility
 mingw32-make check-c1

@@ -37,9 +37,19 @@ Valores de `level`: `off`, `basic` e `full`.
 - **Comparação (A3):** pasta em `results/comparisons/` com resumo, relatório e gráficos.
 - **Organização (A4):** `actual_run_name`, nomes únicos e arquivos `index.csv`.
 - **Diagnóstico (A5):** manifesto, `metrics.csv`, relatório e gráficos `diagnostics_*`.
+- **Relatórios HTML (C1.1):** `metrics_report.html` e, quando há pesos registrados, `weights_report.html`.
 
 Runs antigas sem `metrics.csv` continuam comparáveis por fallback quando os CSVs
 necessários existem. Dados ausentes resultam em aviso ou `NA`, não em valores inventados.
+
+Mudança de interface: `ABRIR METRICAS` e `ABRIR PESOS` deixam de abrir
+diretamente `metrics.csv` e `weights_final.csv`; agora abrem os relatórios HTML
+locais. Os CSVs continuam sendo produzidos, não mudaram de formato e permanecem
+acessíveis pela pasta e pelos links internos. Uma run antiga com `metrics.csv`
+pode receber `metrics_report.html` posteriormente. Runs sem
+`run_manifest.txt` também são aceitas. Com STDP desligado ou sem
+`weights_final.csv`, a ausência de `weights_report.html` é esperada e tratada
+com mensagem clara.
 
 Na v0.2, `summary.txt` recebeu assinatura e contagens por classe de conexão sem
 remover chaves antigas. `NaN`/infinito em colunas obrigatórias agora gera erro ou

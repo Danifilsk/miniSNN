@@ -2123,6 +2123,122 @@ static int build_run_artifact_path(
     return project_path(out_path, out_path_size, relative_path);
 }
 
+static int ensure_run_report(
+    const char *report_filename,
+    const char *source_filename,
+    const char *mode,
+    const char *missing_source_message,
+    const char *failure_message)
+{
+    char report_path[MAX_PATH];
+    char source_path[MAX_PATH];
+    char python_path[MAX_PATH];
+    char script_path[MAX_PATH];
+    char output_path[MAX_PATH];
+    char command[PYTHON_COMMAND_BUFFER_SIZE];
+    char message[PYTHON_MESSAGE_BUFFER_SIZE];
+    char status[STATUS_BUFFER_SIZE];
+    DWORD exit_code = 1;
+
+    if (!build_run_artifact_path(
+            report_path,
+            sizeof(report_path),
+            report_filename) ||
+        !build_run_artifact_path(
+            source_path,
+            sizeof(source_path),
+            source_filename))
+    {
+        show_error(
+            "Erro interno",
+            "Nao foi possivel montar os caminhos do relatorio HTML.");
+        return 0;
+    }
+
+    if (file_exists(report_path))
+        return 1;
+
+    if (!file_exists(source_path))
+    {
+        snprintf(
+            message,
+            sizeof(message),
+            "%s\n\nCaminho verificado:\n%s",
+            missing_source_message,
+            source_path);
+        show_error("Relatorio indisponivel", message);
+        return 0;
+    }
+
+    if (!resolve_python_executable(python_path, sizeof(python_path)))
+    {
+        show_error(
+            "Python nao encontrado",
+            "Nao foi encontrado um Python compativel para gerar o relatorio HTML.\n\n"
+            "Verifique o Python e os arquivos da execucao.");
+        set_status("PYTHON COMPATIVEL NAO ENCONTRADO");
+        return 0;
+    }
+
+    if (!project_path(
+            script_path,
+            sizeof(script_path),
+            "scripts\\generate_run_reports.py") ||
+        !project_path(
+            output_path,
+            sizeof(output_path),
+            g_app.last_result.output_directory))
+    {
+        show_error(
+            "Erro interno",
+            "Nao foi possivel montar o comando do gerador de relatorios.");
+        return 0;
+    }
+
+    snprintf(
+        command,
+        sizeof(command),
+        g_app.resolved_python_uses_py_launcher ?
+            "\"%s\" -3 \"%s\" \"%s\" %s" :
+            "\"%s\" \"%s\" \"%s\" %s",
+        python_path,
+        script_path,
+        output_path,
+        mode);
+
+    snprintf(
+        status,
+        sizeof(status),
+        "GERANDO %s...",
+        report_filename);
+    set_status(status);
+    UpdateWindow(g_app.window);
+
+    if (!run_hidden_process(command, &exit_code) ||
+        exit_code != 0 ||
+        !file_exists(report_path))
+    {
+        snprintf(
+            message,
+            sizeof(message),
+            "%s\n\n"
+            "Python usado:\n%s\n\n"
+            "Pasta da execucao:\n%s\n\n"
+            "Comando para diagnostico:\n%s\n\n"
+            "Codigo de saida: %lu",
+            failure_message,
+            python_path,
+            output_path,
+            command,
+            (unsigned long)exit_code);
+        show_error("Erro ao gerar relatorio", message);
+        set_status("ERRO AO GERAR RELATORIO HTML");
+        return 0;
+    }
+
+    return 1;
+}
+
 static void open_metrics(void)
 {
     char path[MAX_PATH];
@@ -2133,17 +2249,28 @@ static void open_metrics(void)
         return;
     }
 
-    if (!build_run_artifact_path(path, sizeof(path), "metrics.csv"))
+    if (!ensure_run_report(
+            "metrics_report.html",
+            "metrics.csv",
+            "--metrics",
+            "metrics.csv nao existe. Gere o diagnostico ou use nivel BASIC/FULL.",
+            "Nao foi possivel gerar o relatorio de metricas.\n"
+            "Verifique o Python e os arquivos da execucao."))
     {
-        show_error("Erro interno", "Nao foi possivel montar o caminho de metrics.csv.");
+        return;
+    }
+
+    if (!build_run_artifact_path(path, sizeof(path), "metrics_report.html"))
+    {
+        show_error("Erro interno", "Nao foi possivel montar o caminho de metrics_report.html.");
         return;
     }
 
     open_existing_file(
         path,
         "Metricas nao encontradas",
-        "metrics.csv nao existe. Gere o diagnostico ou use nivel BASIC/FULL.",
-        "METRICAS ABERTAS");
+        "metrics_report.html nao existe. Gere o diagnostico novamente.",
+        "RELATORIO DE METRICAS ABERTO");
 }
 
 static void open_diagnostics(void)
@@ -2279,7 +2406,19 @@ static void open_weights(void)
         return;
     }
 
-    if (!build_run_artifact_path(path, sizeof(path), "weights_final.csv"))
+    if (!ensure_run_report(
+            "weights_report.html",
+            "weights_final.csv",
+            "--weights",
+            "Esta execucao nao possui relatorio de pesos.\n"
+            "O STDP pode estar desligado ou os arquivos de plasticidade podem nao ter sido gerados.",
+            "Nao foi possivel gerar o relatorio de pesos.\n"
+            "Verifique o Python e os arquivos da execucao."))
+    {
+        return;
+    }
+
+    if (!build_run_artifact_path(path, sizeof(path), "weights_report.html"))
     {
         show_error("Erro interno", "Nao foi possivel montar o caminho dos pesos.");
         return;
@@ -2288,8 +2427,8 @@ static void open_weights(void)
     open_existing_file(
         path,
         "Pesos nao encontrados",
-        "weights_final.csv nao existe. Ative STDP e REGISTRAR PESOS.",
-        "PESOS FINAIS ABERTOS");
+        "weights_report.html nao existe. Gere o relatorio de pesos novamente.",
+        "RELATORIO DE PESOS ABERTO");
 }
 
 static void open_stdp_plot(void)

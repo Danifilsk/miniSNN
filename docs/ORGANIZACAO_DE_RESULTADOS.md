@@ -119,9 +119,17 @@ normal.
 ## 9. Arquivos de diagnostico
 
 Runs novas tambem podem conter `run_manifest.txt`, `metrics.csv`,
-`metrics_report.txt` e graficos `diagnostics_*.png`. No modo full aparecem
+`metrics_report.txt`, `metrics_report.html` e graficos `diagnostics_*.png`. No modo full aparecem
 `metrics_neurons.csv` e `metrics_windows.csv`. Esses arquivos pertencem a mesma
 pasta real da execucao e seguem a mesma politica de nome unico.
+
+Runs com registro de pesos também podem conter `weights_report.html`. Os dois
+HTMLs são apresentações locais e autossuficientes; `metrics.csv`,
+`weights_final.csv`, `plasticity_metrics.csv` e `weight_history.csv` continuam
+como dados brutos. Links relativos nos relatórios permitem abrir esses arquivos
+sem depender de internet. Runs antigas podem receber o relatório depois com
+`scripts/generate_run_reports.py`; STDP desligado normalmente não produz
+`weights_final.csv` nem relatório de pesos.
 
 ## 10. O que nao deve ser commitado
 

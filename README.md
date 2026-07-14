@@ -48,6 +48,19 @@ python scripts/analyze_run.py results/scenarios/random_demo --level basic
 Resultados ficam em `results/scenarios/<actual_run_name>/`. Veja o
 [Guia rápido](docs/GUIA_RAPIDO.md) para o fluxo completo de cinco minutos.
 
+Relatórios locais legíveis podem ser gerados sem internet, mantendo os CSVs
+como dados brutos:
+
+```powershell
+mingw32-make report-metrics RUN=results/scenarios/random_demo
+mingw32-make report-weights RUN=results/scenarios/stdp_ltp_demo
+```
+
+Os comandos criam `metrics_report.html` e `weights_report.html` dentro da
+própria run. No Studio, `ABRIR METRICAS` e `ABRIR PESOS` abrem esses HTMLs no
+navegador padrão; os links internos continuam dando acesso a `metrics.csv`,
+`weights_final.csv` e aos demais artefatos científicos.
+
 ## Estrutura
 
 ```text
@@ -95,6 +108,7 @@ mingw32-make test-analyzer
 mingw32-make test-long
 mingw32-make test-plasticity-long
 mingw32-make test-plot-plasticity
+mingw32-make test-run-reports
 mingw32-make check-c1
 mingw32-make check-v02
 ```

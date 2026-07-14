@@ -44,6 +44,10 @@ def main() -> int:
         if output is None or not output.is_file() or output.stat().st_size == 0:
             print("FAIL: plasticity PNG was not generated")
             return 1
+        report = temp_dir / "weights_report.html"
+        if not report.is_file() or report.stat().st_size == 0:
+            print("FAIL: weights HTML report was not generated")
+            return 1
 
         (temp_dir / "weights_final.csv").write_text(
             "invalid\n1\n",
