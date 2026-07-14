@@ -99,6 +99,40 @@ def add_plasticity_outputs(run: Path) -> None:
     (run / "weights_final.csv").write_text("connection_id\n", encoding="utf-8")
 
 
+def add_homeostasis_outputs(run: Path) -> None:
+    fields = [
+        "homeostasis_enabled",
+        "homeostasis_intrinsic_enabled",
+        "homeostasis_synaptic_scaling_enabled",
+        "homeostasis_inhibitory_gain_enabled",
+        "homeostasis_target_rate",
+        "homeostasis_population_rate_final",
+        "homeostasis_rate_error_final",
+        "homeostasis_threshold_final_mean",
+        "homeostasis_scaling_events",
+        "homeostasis_inhibitory_gain_final",
+    ]
+    with (run / "homeostasis_metrics.csv").open(
+        "w", encoding="utf-8", newline=""
+    ) as file:
+        writer = csv.DictWriter(file, fieldnames=fields)
+        writer.writeheader()
+        writer.writerow(
+            {
+                "homeostasis_enabled": "true",
+                "homeostasis_intrinsic_enabled": "true",
+                "homeostasis_synaptic_scaling_enabled": "true",
+                "homeostasis_inhibitory_gain_enabled": "false",
+                "homeostasis_target_rate": 0.05,
+                "homeostasis_population_rate_final": 0.04,
+                "homeostasis_rate_error_final": -0.01,
+                "homeostasis_threshold_final_mean": -51.0,
+                "homeostasis_scaling_events": 4,
+                "homeostasis_inhibitory_gain_final": 1.0,
+            }
+        )
+
+
 def check(condition: bool, message: str) -> None:
     if not condition:
         raise AssertionError(message)
@@ -133,6 +167,7 @@ def main() -> int:
             sustained_events.append(events)
         sustained = write_run("sustained", sustained_events)
         add_plasticity_outputs(sustained)
+        add_homeostasis_outputs(sustained)
         sustained_metrics = analyze(sustained, "full")
         check(sustained_metrics["activity_total_spikes"] == 30, "sustained total")
         close(sustained_metrics["activity_mean_spikes_per_step"], 1.5, "sustained mean")
@@ -161,11 +196,18 @@ def main() -> int:
             102.0,
             "plasticity final mean",
         )
+        check(sustained_metrics["homeostasis_enabled"] is True,
+              "homeostasis enabled")
+        close(sustained_metrics["homeostasis_population_rate_final"], 0.04,
+              "homeostasis final rate")
         report_text = (sustained / "metrics_report.txt").read_text(encoding="utf-8")
         check("Plasticidade" in report_text, "plasticity report section")
+        check("HOMEOSTASE E ESTABILIDADE" in report_text,
+              "homeostasis text report section")
         html_report = (sustained / "metrics_report.html").read_text(encoding="utf-8")
         check("RELATORIO DE METRICAS" in html_report, "HTML metrics report")
         check("Plasticidade" in html_report, "HTML plasticity section")
+        check("13. Homeostase" in html_report, "HTML homeostasis section")
 
         expected_counts = [7, 7, 6, 10]
         close(sustained_metrics["neuron_mean_spikes"], 7.5, "neuron mean")

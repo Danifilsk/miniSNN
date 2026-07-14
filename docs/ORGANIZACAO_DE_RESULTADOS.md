@@ -141,3 +141,11 @@ results/comparisons/*
 ```
 
 Os `.gitkeep` dessas pastas continuam versionaveis para preservar a estrutura.
+
+## Arquivos de homeostase
+
+Runs ativas podem incluir `homeostasis_metrics.csv`, `homeostasis_history.csv`,
+`threshold_history.csv`, `homeostasis_neurons.csv`, `homeostasis_report.txt`,
+`homeostasis_report.html` e `homeostasis_overview.png`. Eles permanecem na pasta
+da run. Benchmark C1.5 recriável fica em `results/benchmarks/` e continua
+ignorado pelo Git conforme a política local.

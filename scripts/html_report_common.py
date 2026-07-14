@@ -253,8 +253,10 @@ def _metric_category(key: str) -> str:
         return "1. Identificacao da execucao"
     if key.startswith("plasticity_"):
         return "12. Plasticidade"
+    if key.startswith("homeostasis_"):
+        return "13. Homeostase"
     if key.startswith("performance_"):
-        return "13. Desempenho"
+        return "14. Desempenho"
     if key.startswith(("exc_", "inh_", "exc_inh_")):
         return "6. EXC/INH"
     if key.startswith("burst_"):
@@ -336,6 +338,12 @@ def generate_metrics_report(run_directory: Path | str) -> Path:
         for key, value in plasticity.items():
             if key not in metrics or metrics[key].strip() in {"", "NA"}:
                 metrics[key] = value
+    homeostasis_path = run_dir / "homeostasis_metrics.csv"
+    if homeostasis_path.is_file():
+        homeostasis = read_single_row_csv(homeostasis_path)
+        for key, value in homeostasis.items():
+            if key not in metrics or metrics[key].strip() in {"", "NA"}:
+                metrics[key] = value
     manifest = read_key_values(run_dir / "run_manifest.txt")
 
     cards = [
@@ -350,12 +358,19 @@ def generate_metrics_report(run_directory: Path | str) -> Path:
     ]
     enabled = _flag(_first(metrics, "plasticity_enabled") or manifest.get("plasticity_enabled", "false"))
     cards.append(("STDP", "ON" if enabled else "OFF"))
+    homeostasis_enabled = _flag(
+        _first(metrics, "homeostasis_enabled")
+        or manifest.get("homeostasis_enabled", "false")
+    )
+    cards.append(("Homeostase", "ON" if homeostasis_enabled else "OFF"))
 
     sections: dict[str, list[tuple[str, object]]] = {}
     for key, value in metrics.items():
         if key == "run_path":
             continue
         if key.startswith("plasticity_") and enabled is False and key != "plasticity_enabled":
+            continue
+        if key.startswith("homeostasis_") and homeostasis_enabled is False and key != "homeostasis_enabled":
             continue
         sections.setdefault(_metric_category(key), []).append((key, value))
 
@@ -366,13 +381,18 @@ def generate_metrics_report(run_directory: Path | str) -> Path:
         "5. Neuronios", "6. EXC/INH", "7. Bursts",
         "8. Distribuicao e concentracao", "9. Variabilidade e sincronia aproximada",
         "10. Neuronio detalhado", "11. Conectividade", "12. Plasticidade",
-        "13. Desempenho", "15. Metricas adicionais",
+        "13. Homeostase", "14. Desempenho", "15. Metricas adicionais",
     ):
         rows = sections.get(title, [])
         if title == "12. Plasticidade" and enabled is False:
             body += '<h2>12. Plasticidade</h2><div class="notice">Plasticidade: DESATIVADA. Zeros de aprendizado nao sao apresentados como medicoes.</div>'
         elif rows:
             body += f"<h2>{escaped(title)}</h2>" + _key_value_table(rows)
+
+    if homeostasis_enabled is False:
+        body += '<div class="notice">Homeostase: DESATIVADA. O caminho dinamico permanece o convencional.</div>'
+    elif homeostasis_enabled:
+        body += '<div class="notice">Mecanismos homeostaticos simplificados; nao garantem estabilidade universal.</div>'
 
     if any(key in metrics for key in ("diagnostic_regime", "diagnostic_confidence", "diagnostic_stability_score", "activity_synchrony_proxy", "synchrony_proxy", "stability_score")):
         body += '<div class="notice">Indicador heuristico da miniSNN; nao representa uma medida biologica universal.</div>'
@@ -383,15 +403,28 @@ def generate_metrics_report(run_directory: Path | str) -> Path:
         "run_manifest.txt", "diagnostics_overview.png", "plasticity_metrics.csv",
         "weights_initial.csv", "weights_final.csv", "weight_history.csv",
         "stdp_report.txt", "plasticity_overview.png", WEIGHTS_REPORT_FILENAME,
+        "homeostasis_metrics.csv", "homeostasis_history.csv",
+        "threshold_history.csv", "homeostasis_neurons.csv",
+        "homeostasis_report.txt", "homeostasis_report.html",
+        "homeostasis_overview.png",
     ))
-    body += _preview_images(run_dir, ("diagnostics_overview.png", "plasticity_overview.png"))
-    text_report = run_dir / "metrics_report.txt"
-    if text_report.is_file():
-        try:
-            content = text_report.read_text(encoding="utf-8", errors="replace")[:100_000]
-            body += f"<h3>Relatorio textual</h3><pre>{escaped(content)}</pre>"
-        except OSError:
-            pass
+    body += _preview_images(run_dir, (
+        "diagnostics_overview.png", "plasticity_overview.png",
+        "homeostasis_overview.png",
+    ))
+    for filename, title in (
+        ("metrics_report.txt", "Relatorio textual"),
+        ("homeostasis_report.txt", "Relatorio homeostatico textual"),
+    ):
+        text_report = run_dir / filename
+        if text_report.is_file():
+            try:
+                content = text_report.read_text(
+                    encoding="utf-8", errors="replace"
+                )[:100_000]
+                body += f"<h3>{escaped(title)}</h3><pre>{escaped(content)}</pre>"
+            except OSError:
+                pass
 
     output = run_dir / METRICS_REPORT_FILENAME
     actual = _first(metrics, "actual_run_name", "run_name") or run_dir.name
@@ -606,6 +639,8 @@ def generate_weights_report(run_directory: Path | str) -> Path:
         metrics.update(read_single_row_csv(run_dir / "metrics.csv"))
     if (run_dir / "plasticity_metrics.csv").is_file():
         metrics.update(read_single_row_csv(run_dir / "plasticity_metrics.csv"))
+    if (run_dir / "homeostasis_metrics.csv").is_file():
+        metrics.update(read_single_row_csv(run_dir / "homeostasis_metrics.csv"))
     weight_min = _decimal(manifest.get("plasticity_weight_min", ""))
     weight_max = _decimal(manifest.get("plasticity_weight_max", ""))
     streamed = _stream_weights(final_path, weight_min, weight_max)
@@ -646,6 +681,17 @@ def generate_weights_report(run_directory: Path | str) -> Path:
     ]
 
     body = _cards(cards)
+    if _flag(_first(metrics, "homeostasis_enabled") or manifest.get("homeostasis_enabled", "false")):
+        body += (
+            '<div class="notice">Os deltas STDP e de scaling sao contabilizados '
+            'separadamente. Os pesos finais representam o efeito liquido dos '
+            'mecanismos ativos.</div>'
+            + _key_value_table([
+                ("homeostasis_scaling_events", _first(metrics, "homeostasis_scaling_events") or "NA"),
+                ("homeostasis_scaling_total_signed_change", _first(metrics, "homeostasis_scaling_total_signed_change") or "NA"),
+                ("homeostasis_scaling_total_absolute_change", _first(metrics, "homeostasis_scaling_total_absolute_change") or "NA"),
+            ])
+        )
     body += "<h2>Identificacao e cobertura</h2>" + _key_value_table(identification)
     if sampled:
         body += '<div class="notice">ATENCAO: a tabela abaixo representa uma amostra deterministica das conexoes. As metricas agregadas podem considerar todas as conexoes elegiveis.</div>'

@@ -389,3 +389,19 @@ da execução. A regra do C1 altera apenas sinapses de origem EXC e usa emissão
 spike como referência temporal. Consulte o
 [Guia de plasticidade](GUIA_DE_PLASTICIDADE.md) para parâmetros, API, testes e
 limitações científicas.
+
+## Homeostase
+
+Edite `[homeostasis]` em um cenário ou use o modal `HOMEOSTASE` do Studio. Para
+um fluxo pronto:
+
+```powershell
+mingw32-make scenario-homeostasis-silence
+mingw32-make scenario-homeostasis-explosion
+mingw32-make scenario-homeostasis-stdp
+```
+
+Os resultados ficam na pasta da run. Gere o panorama com
+`mingw32-make plot-homeostasis RUN=results/scenarios/nome`. Veja o
+[Guia de homeostase](GUIA_DE_HOMEOSTASE.md) para parâmetros, ordem temporal,
+outputs, testes e limitações.

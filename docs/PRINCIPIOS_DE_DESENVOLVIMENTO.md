@@ -85,3 +85,10 @@ Ferramentas de IA generativa foram utilizadas como apoio à implementação,
 refatoração e documentação. As funcionalidades são submetidas a testes,
 execuções reproduzíveis e revisão dos resultados. A ferramenta não é autora do
 projeto e esta nota não substitui as regras da instituição ou publicação futura.
+
+## Controles adaptativos
+
+Homeostase é opt-in e deve preservar bit a bit os golden tests quando desligada.
+Cada mecanismo precisa de fórmula única no Core, ordem temporal explícita,
+estatística separada do STDP, limites configuráveis e linguagem científica que
+não prometa estabilidade universal.

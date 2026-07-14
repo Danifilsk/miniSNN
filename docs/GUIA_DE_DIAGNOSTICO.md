@@ -220,3 +220,10 @@ O raster e lido em chunks. O modo `basic` evita correlacoes O(N^2); o modo
 `full` usa amostragem. A analise de potencial de todos os neuronios nao e feita,
 pois a execucao atual registra serie temporal completa apenas do neuronio
 detalhado. Nenhuma interpretacao gerada estabelece causalidade biologica.
+
+## Homeostase no diagnóstico
+
+Quando `homeostasis_metrics.csv` existe, o relatório inclui mecanismos ativos,
+taxa-alvo, taxa final, erro, thresholds, scaling e ganho. Ausência do arquivo em
+uma run antiga não é erro. Valores não finitos são recusados. A classificação de
+regime continua heurística e não demonstra que a homeostase causou estabilidade.

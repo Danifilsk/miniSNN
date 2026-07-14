@@ -264,11 +264,93 @@ static int check_plasticity_reproducibility(void)
     return 1;
 }
 
+static int check_homeostasis_reproducibility(void)
+{
+    ScenarioConfig config;
+    ScenarioRunResult first;
+    ScenarioRunResult second;
+    char error[256];
+    const char *files[] = {
+        "population.csv",
+        "raster.csv",
+        "weights_final.csv",
+        "homeostasis_metrics.csv",
+        "homeostasis_history.csv",
+        "threshold_history.csv",
+        "homeostasis_neurons.csv"
+    };
+    unsigned long long hashes[7];
+    int ok;
+
+    reproducible_config(
+        &config, "test_reproducibility_homeostasis", "random_balanced", 29U);
+    config.steps = 500;
+    config.plasticity_enabled = 1;
+    config.plasticity_record_weights = 1;
+    config.plasticity_weight_max = 400.0;
+    config.homeostasis_enabled = 1;
+    config.homeostasis_intrinsic_enabled = 1;
+    config.homeostasis_synaptic_scaling_enabled = 1;
+    config.homeostasis_inhibitory_gain_enabled = 1;
+    config.homeostasis_update_interval_steps = 7;
+    config.homeostasis_record_history = 1;
+    config.homeostasis_record_interval_steps = 11;
+    config.homeostasis_record_neuron_limit = 5;
+    cleanup_run(config.run_name);
+
+    if (!scenario_runner_execute(&config, NULL, &first, error, sizeof(error)))
+    {
+        printf("Runner homeostasis error: %s\n", error);
+        return 0;
+    }
+
+    for (size_t i = 0; i < sizeof(files) / sizeof(files[0]); i++)
+    {
+        char path[320];
+        snprintf(path, sizeof(path), "results/scenarios/%s/%s",
+            config.run_name, files[i]);
+        hashes[i] = hash_file(path, &ok);
+        if (!ok)
+        {
+            cleanup_run(config.run_name);
+            return fail("could not hash first homeostasis output");
+        }
+    }
+
+    if (!scenario_runner_execute(&config, NULL, &second, error, sizeof(error)))
+    {
+        cleanup_run(config.run_name);
+        return fail("second homeostasis reproducibility run failed");
+    }
+    if (first.topology_signature != second.topology_signature ||
+        first.spikes_total != second.spikes_total)
+    {
+        cleanup_run(config.run_name);
+        return fail("same homeostasis config changed topology or spikes");
+    }
+
+    for (size_t i = 0; i < sizeof(files) / sizeof(files[0]); i++)
+    {
+        char path[320];
+        snprintf(path, sizeof(path), "results/scenarios/%s/%s",
+            config.run_name, files[i]);
+        if (hashes[i] != hash_file(path, &ok) || !ok)
+        {
+            cleanup_run(config.run_name);
+            return fail("same homeostasis config changed normalized outputs");
+        }
+    }
+
+    cleanup_run(config.run_name);
+    return 1;
+}
+
 int main(void)
 {
     if (!check_same_seed_same_run() ||
         !check_seed_effects() ||
-        !check_plasticity_reproducibility())
+        !check_plasticity_reproducibility() ||
+        !check_homeostasis_reproducibility())
         return 1;
 
     printf("Runner reproducibility validation OK\n");

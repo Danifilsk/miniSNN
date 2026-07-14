@@ -58,6 +58,29 @@ typedef enum
     FIELD_PLASTICITY_RECORD_HISTORY,
     FIELD_PLASTICITY_RECORD_INTERVAL_STEPS,
     FIELD_PLASTICITY_RECORD_CONNECTION_LIMIT,
+    FIELD_HOMEOSTASIS_ENABLED,
+    FIELD_HOMEOSTASIS_INTRINSIC_ENABLED,
+    FIELD_HOMEOSTASIS_TARGET_RATE,
+    FIELD_HOMEOSTASIS_RATE_TAU,
+    FIELD_HOMEOSTASIS_UPDATE_INTERVAL_STEPS,
+    FIELD_HOMEOSTASIS_THRESHOLD_ETA,
+    FIELD_HOMEOSTASIS_THRESHOLD_MIN,
+    FIELD_HOMEOSTASIS_THRESHOLD_MAX,
+    FIELD_HOMEOSTASIS_SCALING_ENABLED,
+    FIELD_HOMEOSTASIS_SCALING_TARGET_MODE,
+    FIELD_HOMEOSTASIS_SCALING_ETA,
+    FIELD_HOMEOSTASIS_SCALING_MIN_FACTOR,
+    FIELD_HOMEOSTASIS_SCALING_MAX_FACTOR,
+    FIELD_HOMEOSTASIS_SCALING_WEIGHT_MIN,
+    FIELD_HOMEOSTASIS_SCALING_WEIGHT_MAX,
+    FIELD_HOMEOSTASIS_INHIBITORY_GAIN_ENABLED,
+    FIELD_HOMEOSTASIS_INHIBITORY_GAIN_INITIAL,
+    FIELD_HOMEOSTASIS_INHIBITORY_GAIN_ETA,
+    FIELD_HOMEOSTASIS_INHIBITORY_GAIN_MIN,
+    FIELD_HOMEOSTASIS_INHIBITORY_GAIN_MAX,
+    FIELD_HOMEOSTASIS_RECORD_HISTORY,
+    FIELD_HOMEOSTASIS_RECORD_INTERVAL_STEPS,
+    FIELD_HOMEOSTASIS_RECORD_NEURON_LIMIT,
     FIELD_COUNT
 } ScenarioField;
 
@@ -186,9 +209,65 @@ static void remove_comment(char *line)
         *comment = '\0';
 }
 
-static int find_field(const char *key, ScenarioField *out_field)
+static int find_field(
+    const char *section,
+    const char *key,
+    ScenarioField *out_field)
 {
     size_t count = sizeof(KEY_MAP) / sizeof(KEY_MAP[0]);
+
+    if (strcmp(section, "homeostasis") == 0)
+    {
+        if (strcmp(key, "enabled") == 0)
+            *out_field = FIELD_HOMEOSTASIS_ENABLED;
+        else if (strcmp(key, "intrinsic_enabled") == 0)
+            *out_field = FIELD_HOMEOSTASIS_INTRINSIC_ENABLED;
+        else if (strcmp(key, "target_rate") == 0)
+            *out_field = FIELD_HOMEOSTASIS_TARGET_RATE;
+        else if (strcmp(key, "rate_tau") == 0)
+            *out_field = FIELD_HOMEOSTASIS_RATE_TAU;
+        else if (strcmp(key, "update_interval_steps") == 0)
+            *out_field = FIELD_HOMEOSTASIS_UPDATE_INTERVAL_STEPS;
+        else if (strcmp(key, "threshold_eta") == 0)
+            *out_field = FIELD_HOMEOSTASIS_THRESHOLD_ETA;
+        else if (strcmp(key, "threshold_min") == 0)
+            *out_field = FIELD_HOMEOSTASIS_THRESHOLD_MIN;
+        else if (strcmp(key, "threshold_max") == 0)
+            *out_field = FIELD_HOMEOSTASIS_THRESHOLD_MAX;
+        else if (strcmp(key, "synaptic_scaling_enabled") == 0)
+            *out_field = FIELD_HOMEOSTASIS_SCALING_ENABLED;
+        else if (strcmp(key, "scaling_target_mode") == 0)
+            *out_field = FIELD_HOMEOSTASIS_SCALING_TARGET_MODE;
+        else if (strcmp(key, "scaling_eta") == 0)
+            *out_field = FIELD_HOMEOSTASIS_SCALING_ETA;
+        else if (strcmp(key, "scaling_min_factor") == 0)
+            *out_field = FIELD_HOMEOSTASIS_SCALING_MIN_FACTOR;
+        else if (strcmp(key, "scaling_max_factor") == 0)
+            *out_field = FIELD_HOMEOSTASIS_SCALING_MAX_FACTOR;
+        else if (strcmp(key, "scaling_weight_min") == 0)
+            *out_field = FIELD_HOMEOSTASIS_SCALING_WEIGHT_MIN;
+        else if (strcmp(key, "scaling_weight_max") == 0)
+            *out_field = FIELD_HOMEOSTASIS_SCALING_WEIGHT_MAX;
+        else if (strcmp(key, "inhibitory_gain_enabled") == 0)
+            *out_field = FIELD_HOMEOSTASIS_INHIBITORY_GAIN_ENABLED;
+        else if (strcmp(key, "inhibitory_gain_initial") == 0)
+            *out_field = FIELD_HOMEOSTASIS_INHIBITORY_GAIN_INITIAL;
+        else if (strcmp(key, "inhibitory_gain_eta") == 0)
+            *out_field = FIELD_HOMEOSTASIS_INHIBITORY_GAIN_ETA;
+        else if (strcmp(key, "inhibitory_gain_min") == 0)
+            *out_field = FIELD_HOMEOSTASIS_INHIBITORY_GAIN_MIN;
+        else if (strcmp(key, "inhibitory_gain_max") == 0)
+            *out_field = FIELD_HOMEOSTASIS_INHIBITORY_GAIN_MAX;
+        else if (strcmp(key, "record_history") == 0)
+            *out_field = FIELD_HOMEOSTASIS_RECORD_HISTORY;
+        else if (strcmp(key, "record_interval_steps") == 0)
+            *out_field = FIELD_HOMEOSTASIS_RECORD_INTERVAL_STEPS;
+        else if (strcmp(key, "record_neuron_limit") == 0)
+            *out_field = FIELD_HOMEOSTASIS_RECORD_NEURON_LIMIT;
+        else
+            return 0;
+        return 1;
+    }
 
     for (size_t i = 0; i < count; i++)
     {
@@ -401,6 +480,21 @@ static int assign_value(
         }
         return 1;
 
+    case FIELD_HOMEOSTASIS_SCALING_TARGET_MODE:
+        if (!copy_string_value(
+                config->homeostasis_scaling_target_mode,
+                sizeof(config->homeostasis_scaling_target_mode),
+                value))
+        {
+            set_line_error(
+                error_message,
+                error_message_size,
+                line_number,
+                "scaling_target_mode muito longo");
+            return 0;
+        }
+        return 1;
+
     case FIELD_SEED:
         if (!parse_uint_value(value, &uint_value))
         {
@@ -421,6 +515,11 @@ static int assign_value(
     case FIELD_PLASTICITY_ENABLED:
     case FIELD_PLASTICITY_RECORD_WEIGHTS:
     case FIELD_PLASTICITY_RECORD_HISTORY:
+    case FIELD_HOMEOSTASIS_ENABLED:
+    case FIELD_HOMEOSTASIS_INTRINSIC_ENABLED:
+    case FIELD_HOMEOSTASIS_SCALING_ENABLED:
+    case FIELD_HOMEOSTASIS_INHIBITORY_GAIN_ENABLED:
+    case FIELD_HOMEOSTASIS_RECORD_HISTORY:
         if (!parse_bool_value(value, &bool_value))
         {
             set_line_error(
@@ -443,8 +542,18 @@ static int assign_value(
             config->plasticity_enabled = bool_value;
         else if (field == FIELD_PLASTICITY_RECORD_WEIGHTS)
             config->plasticity_record_weights = bool_value;
-        else
+        else if (field == FIELD_PLASTICITY_RECORD_HISTORY)
             config->plasticity_record_history = bool_value;
+        else if (field == FIELD_HOMEOSTASIS_ENABLED)
+            config->homeostasis_enabled = bool_value;
+        else if (field == FIELD_HOMEOSTASIS_INTRINSIC_ENABLED)
+            config->homeostasis_intrinsic_enabled = bool_value;
+        else if (field == FIELD_HOMEOSTASIS_SCALING_ENABLED)
+            config->homeostasis_synaptic_scaling_enabled = bool_value;
+        else if (field == FIELD_HOMEOSTASIS_INHIBITORY_GAIN_ENABLED)
+            config->homeostasis_inhibitory_gain_enabled = bool_value;
+        else
+            config->homeostasis_record_history = bool_value;
 
         return 1;
 
@@ -464,6 +573,9 @@ static int assign_value(
     case FIELD_SAMPLE_STRIDE:
     case FIELD_PLASTICITY_RECORD_INTERVAL_STEPS:
     case FIELD_PLASTICITY_RECORD_CONNECTION_LIMIT:
+    case FIELD_HOMEOSTASIS_UPDATE_INTERVAL_STEPS:
+    case FIELD_HOMEOSTASIS_RECORD_INTERVAL_STEPS:
+    case FIELD_HOMEOSTASIS_RECORD_NEURON_LIMIT:
         if (!parse_int_value(value, &int_value))
         {
             set_line_error(
@@ -504,6 +616,12 @@ static int assign_value(
             config->plasticity_record_interval_steps = int_value;
         else if (field == FIELD_PLASTICITY_RECORD_CONNECTION_LIMIT)
             config->plasticity_record_connection_limit = int_value;
+        else if (field == FIELD_HOMEOSTASIS_UPDATE_INTERVAL_STEPS)
+            config->homeostasis_update_interval_steps = int_value;
+        else if (field == FIELD_HOMEOSTASIS_RECORD_INTERVAL_STEPS)
+            config->homeostasis_record_interval_steps = int_value;
+        else if (field == FIELD_HOMEOSTASIS_RECORD_NEURON_LIMIT)
+            config->homeostasis_record_neuron_limit = int_value;
         else
             config->record_neuron = int_value;
 
@@ -530,6 +648,20 @@ static int assign_value(
     case FIELD_PLASTICITY_TRACE_INCREMENT:
     case FIELD_PLASTICITY_WEIGHT_MIN:
     case FIELD_PLASTICITY_WEIGHT_MAX:
+    case FIELD_HOMEOSTASIS_TARGET_RATE:
+    case FIELD_HOMEOSTASIS_RATE_TAU:
+    case FIELD_HOMEOSTASIS_THRESHOLD_ETA:
+    case FIELD_HOMEOSTASIS_THRESHOLD_MIN:
+    case FIELD_HOMEOSTASIS_THRESHOLD_MAX:
+    case FIELD_HOMEOSTASIS_SCALING_ETA:
+    case FIELD_HOMEOSTASIS_SCALING_MIN_FACTOR:
+    case FIELD_HOMEOSTASIS_SCALING_MAX_FACTOR:
+    case FIELD_HOMEOSTASIS_SCALING_WEIGHT_MIN:
+    case FIELD_HOMEOSTASIS_SCALING_WEIGHT_MAX:
+    case FIELD_HOMEOSTASIS_INHIBITORY_GAIN_INITIAL:
+    case FIELD_HOMEOSTASIS_INHIBITORY_GAIN_ETA:
+    case FIELD_HOMEOSTASIS_INHIBITORY_GAIN_MIN:
+    case FIELD_HOMEOSTASIS_INHIBITORY_GAIN_MAX:
         if (!parse_double_value(value, &double_value))
         {
             set_line_error(
@@ -580,8 +712,36 @@ static int assign_value(
             config->plasticity_trace_increment = double_value;
         else if (field == FIELD_PLASTICITY_WEIGHT_MIN)
             config->plasticity_weight_min = double_value;
-        else
+        else if (field == FIELD_PLASTICITY_WEIGHT_MAX)
             config->plasticity_weight_max = double_value;
+        else if (field == FIELD_HOMEOSTASIS_TARGET_RATE)
+            config->homeostasis_target_rate = double_value;
+        else if (field == FIELD_HOMEOSTASIS_RATE_TAU)
+            config->homeostasis_rate_tau = double_value;
+        else if (field == FIELD_HOMEOSTASIS_THRESHOLD_ETA)
+            config->homeostasis_threshold_eta = double_value;
+        else if (field == FIELD_HOMEOSTASIS_THRESHOLD_MIN)
+            config->homeostasis_threshold_min = double_value;
+        else if (field == FIELD_HOMEOSTASIS_THRESHOLD_MAX)
+            config->homeostasis_threshold_max = double_value;
+        else if (field == FIELD_HOMEOSTASIS_SCALING_ETA)
+            config->homeostasis_scaling_eta = double_value;
+        else if (field == FIELD_HOMEOSTASIS_SCALING_MIN_FACTOR)
+            config->homeostasis_scaling_min_factor = double_value;
+        else if (field == FIELD_HOMEOSTASIS_SCALING_MAX_FACTOR)
+            config->homeostasis_scaling_max_factor = double_value;
+        else if (field == FIELD_HOMEOSTASIS_SCALING_WEIGHT_MIN)
+            config->homeostasis_scaling_weight_min = double_value;
+        else if (field == FIELD_HOMEOSTASIS_SCALING_WEIGHT_MAX)
+            config->homeostasis_scaling_weight_max = double_value;
+        else if (field == FIELD_HOMEOSTASIS_INHIBITORY_GAIN_INITIAL)
+            config->homeostasis_inhibitory_gain_initial = double_value;
+        else if (field == FIELD_HOMEOSTASIS_INHIBITORY_GAIN_ETA)
+            config->homeostasis_inhibitory_gain_eta = double_value;
+        else if (field == FIELD_HOMEOSTASIS_INHIBITORY_GAIN_MIN)
+            config->homeostasis_inhibitory_gain_min = double_value;
+        else
+            config->homeostasis_inhibitory_gain_max = double_value;
 
         return 1;
 
@@ -692,6 +852,33 @@ void scenario_config_default(ScenarioConfig *config)
     config->plasticity_record_history = 1;
     config->plasticity_record_interval_steps = 10;
     config->plasticity_record_connection_limit = 256;
+
+    config->homeostasis_enabled = 0;
+    config->homeostasis_intrinsic_enabled = 1;
+    config->homeostasis_target_rate = 0.05;
+    config->homeostasis_rate_tau = 100.0;
+    config->homeostasis_update_interval_steps = 10;
+    config->homeostasis_threshold_eta = 0.05;
+    config->homeostasis_threshold_min = -60.0;
+    config->homeostasis_threshold_max = -40.0;
+    config->homeostasis_synaptic_scaling_enabled = 0;
+    snprintf(
+        config->homeostasis_scaling_target_mode,
+        sizeof(config->homeostasis_scaling_target_mode),
+        "initial_incoming_sum");
+    config->homeostasis_scaling_eta = 0.10;
+    config->homeostasis_scaling_min_factor = 0.50;
+    config->homeostasis_scaling_max_factor = 2.0;
+    config->homeostasis_scaling_weight_min = 0.0;
+    config->homeostasis_scaling_weight_max = 1000.0;
+    config->homeostasis_inhibitory_gain_enabled = 0;
+    config->homeostasis_inhibitory_gain_initial = 1.0;
+    config->homeostasis_inhibitory_gain_eta = 0.05;
+    config->homeostasis_inhibitory_gain_min = 0.25;
+    config->homeostasis_inhibitory_gain_max = 4.0;
+    config->homeostasis_record_history = 1;
+    config->homeostasis_record_interval_steps = 10;
+    config->homeostasis_record_neuron_limit = 256;
 }
 
 int scenario_config_validate(
@@ -778,6 +965,89 @@ int scenario_config_validate(
         config->plasticity_record_connection_limit <= 0)
     {
         set_error(error_message, error_message_size, "registro de plasticidade invalido");
+        return 0;
+    }
+
+    if ((config->homeostasis_enabled != 0 &&
+         config->homeostasis_enabled != 1) ||
+        (config->homeostasis_intrinsic_enabled != 0 &&
+         config->homeostasis_intrinsic_enabled != 1) ||
+        (config->homeostasis_synaptic_scaling_enabled != 0 &&
+         config->homeostasis_synaptic_scaling_enabled != 1) ||
+        (config->homeostasis_inhibitory_gain_enabled != 0 &&
+         config->homeostasis_inhibitory_gain_enabled != 1) ||
+        (config->homeostasis_record_history != 0 &&
+         config->homeostasis_record_history != 1))
+    {
+        set_error(error_message, error_message_size, "opcoes de homeostase invalidas");
+        return 0;
+    }
+
+    if (!isfinite(config->homeostasis_target_rate) ||
+        config->homeostasis_target_rate < 0.0 ||
+        !isfinite(config->homeostasis_rate_tau) ||
+        config->homeostasis_rate_tau <= 0.0 ||
+        config->homeostasis_update_interval_steps <= 0 ||
+        !isfinite(config->homeostasis_threshold_eta) ||
+        config->homeostasis_threshold_eta < 0.0 ||
+        !isfinite(config->homeostasis_threshold_min) ||
+        !isfinite(config->homeostasis_threshold_max) ||
+        config->homeostasis_threshold_max <= config->homeostasis_threshold_min ||
+        (config->homeostasis_enabled && config->homeostasis_intrinsic_enabled &&
+         (config->v_threshold < config->homeostasis_threshold_min ||
+          config->v_threshold > config->homeostasis_threshold_max)))
+    {
+        set_error(error_message, error_message_size, "parametros intrinsecos de homeostase invalidos");
+        return 0;
+    }
+
+    if (strcmp(
+            config->homeostasis_scaling_target_mode,
+            "initial_incoming_sum") != 0 ||
+        !isfinite(config->homeostasis_scaling_eta) ||
+        config->homeostasis_scaling_eta < 0.0 ||
+        config->homeostasis_scaling_eta > 1.0 ||
+        !isfinite(config->homeostasis_scaling_min_factor) ||
+        config->homeostasis_scaling_min_factor <= 0.0 ||
+        !isfinite(config->homeostasis_scaling_max_factor) ||
+        config->homeostasis_scaling_max_factor <
+            config->homeostasis_scaling_min_factor ||
+        !isfinite(config->homeostasis_scaling_weight_min) ||
+        config->homeostasis_scaling_weight_min < 0.0 ||
+        !isfinite(config->homeostasis_scaling_weight_max) ||
+        config->homeostasis_scaling_weight_max <=
+            config->homeostasis_scaling_weight_min)
+    {
+        set_error(error_message, error_message_size, "parametros de scaling homeostatico invalidos");
+        return 0;
+    }
+
+    if (!isfinite(config->homeostasis_inhibitory_gain_initial) ||
+        config->homeostasis_inhibitory_gain_initial <= 0.0 ||
+        !isfinite(config->homeostasis_inhibitory_gain_eta) ||
+        config->homeostasis_inhibitory_gain_eta < 0.0 ||
+        !isfinite(config->homeostasis_inhibitory_gain_min) ||
+        config->homeostasis_inhibitory_gain_min <= 0.0 ||
+        !isfinite(config->homeostasis_inhibitory_gain_max) ||
+        config->homeostasis_inhibitory_gain_max <
+            config->homeostasis_inhibitory_gain_min ||
+        config->homeostasis_inhibitory_gain_initial <
+            config->homeostasis_inhibitory_gain_min ||
+        config->homeostasis_inhibitory_gain_initial >
+            config->homeostasis_inhibitory_gain_max ||
+        config->homeostasis_record_interval_steps <= 0 ||
+        config->homeostasis_record_neuron_limit <= 0)
+    {
+        set_error(error_message, error_message_size, "parametros de ganho/registro homeostatico invalidos");
+        return 0;
+    }
+
+    if (config->homeostasis_enabled &&
+        !config->homeostasis_intrinsic_enabled &&
+        !config->homeostasis_synaptic_scaling_enabled &&
+        !config->homeostasis_inhibitory_gain_enabled)
+    {
+        set_error(error_message, error_message_size, "homeostase ativa sem mecanismo habilitado");
         return 0;
     }
 
@@ -917,7 +1187,8 @@ int scenario_config_load_file(
 {
     FILE *file;
     ScenarioConfig config;
-    unsigned long long seen_fields = 0ULL;
+    unsigned char seen_fields[FIELD_COUNT];
+    char current_section[64] = "";
     char line[512];
     int line_number = 0;
 
@@ -928,6 +1199,7 @@ int scenario_config_load_file(
     }
 
     scenario_config_default(&config);
+    memset(seen_fields, 0, sizeof(seen_fields));
     snprintf(config.diagnostics_level, sizeof(config.diagnostics_level), "off");
 
     file = fopen(filename, "r");
@@ -945,7 +1217,6 @@ int scenario_config_load_file(
         char *key;
         char *value;
         ScenarioField field;
-        unsigned long long mask;
 
         line_number++;
 
@@ -981,6 +1252,20 @@ int scenario_config_load_file(
                 return 0;
             }
 
+            text[length - 1] = '\0';
+            if (!copy_string_value(
+                    current_section,
+                    sizeof(current_section),
+                    trim(text + 1)))
+            {
+                fclose(file);
+                set_line_error(
+                    error_message,
+                    error_message_size,
+                    line_number,
+                    "nome de secao muito longo");
+                return 0;
+            }
             continue;
         }
 
@@ -1012,7 +1297,7 @@ int scenario_config_load_file(
             return 0;
         }
 
-        if (!find_field(key, &field))
+        if (!find_field(current_section, key, &field))
         {
             char message[160];
             snprintf(message, sizeof(message), "chave desconhecida '%s'", key);
@@ -1021,9 +1306,7 @@ int scenario_config_load_file(
             return 0;
         }
 
-        mask = 1ULL << (unsigned int)field;
-
-        if ((seen_fields & mask) != 0ULL)
+        if (seen_fields[field])
         {
             char message[160];
             snprintf(message, sizeof(message), "chave duplicada '%s'", key);
@@ -1032,7 +1315,7 @@ int scenario_config_load_file(
             return 0;
         }
 
-        seen_fields |= mask;
+        seen_fields[field] = 1U;
 
         if (!assign_value(
                 &config,
@@ -1205,6 +1488,62 @@ int scenario_config_save_file(
     {
         fclose(file);
         set_error(error_message, error_message_size, "erro ao escrever arquivo de cenario");
+        return 0;
+    }
+
+    if (fprintf(
+            file,
+            "\n"
+            "[homeostasis]\n"
+            "enabled = %s\n"
+            "intrinsic_enabled = %s\n"
+            "target_rate = %.17g\n"
+            "rate_tau = %.17g\n"
+            "update_interval_steps = %d\n"
+            "threshold_eta = %.17g\n"
+            "threshold_min = %.17g\n"
+            "threshold_max = %.17g\n"
+            "synaptic_scaling_enabled = %s\n"
+            "scaling_target_mode = %s\n"
+            "scaling_eta = %.17g\n"
+            "scaling_min_factor = %.17g\n"
+            "scaling_max_factor = %.17g\n"
+            "scaling_weight_min = %.17g\n"
+            "scaling_weight_max = %.17g\n"
+            "inhibitory_gain_enabled = %s\n"
+            "inhibitory_gain_initial = %.17g\n"
+            "inhibitory_gain_eta = %.17g\n"
+            "inhibitory_gain_min = %.17g\n"
+            "inhibitory_gain_max = %.17g\n"
+            "record_history = %s\n"
+            "record_interval_steps = %d\n"
+            "record_neuron_limit = %d\n",
+            config->homeostasis_enabled ? "true" : "false",
+            config->homeostasis_intrinsic_enabled ? "true" : "false",
+            config->homeostasis_target_rate,
+            config->homeostasis_rate_tau,
+            config->homeostasis_update_interval_steps,
+            config->homeostasis_threshold_eta,
+            config->homeostasis_threshold_min,
+            config->homeostasis_threshold_max,
+            config->homeostasis_synaptic_scaling_enabled ? "true" : "false",
+            config->homeostasis_scaling_target_mode,
+            config->homeostasis_scaling_eta,
+            config->homeostasis_scaling_min_factor,
+            config->homeostasis_scaling_max_factor,
+            config->homeostasis_scaling_weight_min,
+            config->homeostasis_scaling_weight_max,
+            config->homeostasis_inhibitory_gain_enabled ? "true" : "false",
+            config->homeostasis_inhibitory_gain_initial,
+            config->homeostasis_inhibitory_gain_eta,
+            config->homeostasis_inhibitory_gain_min,
+            config->homeostasis_inhibitory_gain_max,
+            config->homeostasis_record_history ? "true" : "false",
+            config->homeostasis_record_interval_steps,
+            config->homeostasis_record_neuron_limit) < 0)
+    {
+        fclose(file);
+        set_error(error_message, error_message_size, "erro ao escrever homeostase");
         return 0;
     }
 

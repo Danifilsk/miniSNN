@@ -7,6 +7,7 @@
 #define SCENARIO_TOPOLOGY_MAX 32
 #define SCENARIO_DIAGNOSTICS_LEVEL_MAX 8
 #define SCENARIO_PLASTICITY_RULE_MAX 32
+#define SCENARIO_SCALING_TARGET_MODE_MAX 32
 
 typedef struct
 {
@@ -69,6 +70,30 @@ typedef struct
     int plasticity_record_history;
     int plasticity_record_interval_steps;
     int plasticity_record_connection_limit;
+
+    int homeostasis_enabled;
+    int homeostasis_intrinsic_enabled;
+    double homeostasis_target_rate;
+    double homeostasis_rate_tau;
+    int homeostasis_update_interval_steps;
+    double homeostasis_threshold_eta;
+    double homeostasis_threshold_min;
+    double homeostasis_threshold_max;
+    int homeostasis_synaptic_scaling_enabled;
+    char homeostasis_scaling_target_mode[SCENARIO_SCALING_TARGET_MODE_MAX];
+    double homeostasis_scaling_eta;
+    double homeostasis_scaling_min_factor;
+    double homeostasis_scaling_max_factor;
+    double homeostasis_scaling_weight_min;
+    double homeostasis_scaling_weight_max;
+    int homeostasis_inhibitory_gain_enabled;
+    double homeostasis_inhibitory_gain_initial;
+    double homeostasis_inhibitory_gain_eta;
+    double homeostasis_inhibitory_gain_min;
+    double homeostasis_inhibitory_gain_max;
+    int homeostasis_record_history;
+    int homeostasis_record_interval_steps;
+    int homeostasis_record_neuron_limit;
 } ScenarioConfig;
 
 void scenario_config_default(ScenarioConfig *config);

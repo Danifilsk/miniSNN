@@ -3,7 +3,7 @@
 [Voltar ao índice da documentação](docs/INDICE_DA_DOCUMENTACAO.md)
 
 **Status:** implementado. A fonte de verdade das assinaturas é
-`include/minisnn.h`; este documento foi conferido com o header atual no A6.
+`include/minisnn.h`; este documento foi conferido com o header atual no C1.5.
 
 Esta referência descreve a API pública atual de `minisnn.h`.
 
@@ -235,6 +235,132 @@ int minisnn_get_plasticity_traces(
 
 Consulta os traces pré e pós de um neurônio. Ambos os destinos são obrigatórios.
 Traces começam em zero e usam o `dt` da instância.
+
+## MiniSNNHomeostasisConfig
+
+Configura a homeostase opcional por instância. Contém ativação global e dos três
+mecanismos, taxa-alvo e tau, intervalo, parâmetros e clamps de threshold,
+scaling EXC e ganho INH. A configuração padrão é válida e vem desligada.
+
+## MiniSNNHomeostasisStats
+
+Contém contadores separados de atualizações, mudanças e clamps de threshold,
+scaling e ganho, eventos de soma zero, mudanças acumuladas, agregados da taxa,
+fatores de scaling observados e estado populacional final.
+
+## minisnn_default_homeostasis_config
+
+```c
+MiniSNNHomeostasisConfig minisnn_default_homeostasis_config(void);
+```
+
+Retorna os defaults documentados no guia de homeostase, com `enabled = 0`.
+
+## minisnn_set_homeostasis_config
+
+```c
+int minisnn_set_homeostasis_config(
+    MiniSNN *snn,
+    const MiniSNNHomeostasisConfig *config);
+```
+
+Valida e copia a configuração. Preserva pesos, potenciais, step e STDP; zera
+traces e estatísticas, restaura thresholds e ganho e recaptura as somas EXC.
+
+## minisnn_get_homeostasis_config
+
+```c
+int minisnn_get_homeostasis_config(
+    const MiniSNN *snn,
+    MiniSNNHomeostasisConfig *out_config);
+```
+
+Consulta a configuração efetiva sem expor o estado interno.
+
+## minisnn_reset_homeostasis
+
+```c
+int minisnn_reset_homeostasis(MiniSNN *snn);
+```
+
+Reaplica a semântica de reset à configuração atual. Preserva pesos e recaptura
+os alvos de scaling a partir deles.
+
+## minisnn_get_homeostasis_stats
+
+```c
+int minisnn_get_homeostasis_stats(
+    const MiniSNN *snn,
+    MiniSNNHomeostasisStats *out_stats);
+```
+
+Consulta estatísticas acumuladas desde a última configuração ou reset.
+
+## minisnn_get_neuron_rate_trace
+
+```c
+int minisnn_get_neuron_rate_trace(
+    const MiniSNN *snn,
+    int neuron_id,
+    double *out_rate_trace);
+```
+
+Retorna a taxa exponencial do neurônio. Com homeostase desligada, retorna zero.
+
+## minisnn_get_neuron_effective_threshold
+
+```c
+int minisnn_get_neuron_effective_threshold(
+    const MiniSNN *snn,
+    int neuron_id,
+    double *out_threshold);
+```
+
+Retorna o threshold individual usado em passos futuros. Desligada, coincide com
+o threshold-base.
+
+## minisnn_get_base_threshold
+
+```c
+int minisnn_get_base_threshold(
+    const MiniSNN *snn,
+    double *out_threshold);
+```
+
+Retorna o `v_threshold` imutável da configuração neural da instância.
+
+## minisnn_get_inhibitory_gain
+
+```c
+int minisnn_get_inhibitory_gain(
+    const MiniSNN *snn,
+    double *out_gain);
+```
+
+Retorna o multiplicador global de transmissão INH. Desligada, retorna `1.0`.
+
+## minisnn_get_initial_incoming_exc_sum
+
+```c
+int minisnn_get_initial_incoming_exc_sum(
+    const MiniSNN *snn,
+    int neuron_id,
+    double *out_sum);
+```
+
+Retorna o alvo capturado para o scaling EXC do neurônio.
+
+## minisnn_get_current_incoming_exc_sum
+
+```c
+int minisnn_get_current_incoming_exc_sum(
+    const MiniSNN *snn,
+    int neuron_id,
+    double *out_sum);
+```
+
+Calcula a soma atual das entradas positivas de origem EXC usando o índice
+interno de conexões de entrada.
 
 ## MiniSNNNeuronType
 

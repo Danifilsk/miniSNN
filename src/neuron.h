@@ -45,6 +45,12 @@ int lif_update_with_parameters(
     double current,
     const LIFParameters *parameters);
 
+int lif_update_with_threshold(
+    LIFNeuron *neuron,
+    double current,
+    const LIFParameters *parameters,
+    double effective_threshold);
+
 void lif_init(LIFNeuron *n);
 
 // Atualiza um passo do modelo LIF

@@ -19,7 +19,7 @@
 #define PYTHON_COMMAND_BUFFER_SIZE 2400
 #define PYTHON_MESSAGE_BUFFER_SIZE 6000
 #define STUDIO_FIELD_COUNT 21
-#define STUDIO_BUTTON_COUNT 19
+#define STUDIO_BUTTON_COUNT 21
 
 #define STUDIO_MIN_CLIENT_WIDTH 1320
 #define STUDIO_MIN_CLIENT_HEIGHT 900
@@ -98,6 +98,9 @@
 #define IDC_BTN_PLOT_PLASTICITY 2019
 #define IDC_BTN_OPEN_WEIGHTS 2020
 #define IDC_BTN_OPEN_STDP 2021
+#define IDC_BTN_HOMEOSTASIS 2022
+#define IDC_BTN_PLOT_HOMEOSTASIS 2023
+#define IDC_BTN_OPEN_HOMEOSTASIS 2024
 
 #define IDC_STATUS 3001
 #define IDC_SUMMARY 3002
@@ -129,6 +132,31 @@
 #define IDC_PLASTICITY_LIMIT 5013
 #define IDC_PLASTICITY_APPLY 5014
 #define IDC_PLASTICITY_CANCEL 5015
+
+#define IDC_HOME_ENABLED 6001
+#define IDC_HOME_INTRINSIC 6002
+#define IDC_HOME_TARGET_RATE 6003
+#define IDC_HOME_RATE_TAU 6004
+#define IDC_HOME_UPDATE_INTERVAL 6005
+#define IDC_HOME_THRESHOLD_ETA 6006
+#define IDC_HOME_THRESHOLD_MIN 6007
+#define IDC_HOME_THRESHOLD_MAX 6008
+#define IDC_HOME_SCALING 6009
+#define IDC_HOME_SCALING_ETA 6010
+#define IDC_HOME_SCALING_FACTOR_MIN 6011
+#define IDC_HOME_SCALING_FACTOR_MAX 6012
+#define IDC_HOME_SCALING_WEIGHT_MIN 6013
+#define IDC_HOME_SCALING_WEIGHT_MAX 6014
+#define IDC_HOME_GAIN 6015
+#define IDC_HOME_GAIN_INITIAL 6016
+#define IDC_HOME_GAIN_ETA 6017
+#define IDC_HOME_GAIN_MIN 6018
+#define IDC_HOME_GAIN_MAX 6019
+#define IDC_HOME_RECORD_HISTORY 6020
+#define IDC_HOME_RECORD_INTERVAL 6021
+#define IDC_HOME_RECORD_LIMIT 6022
+#define IDC_HOME_APPLY 6023
+#define IDC_HOME_CANCEL 6024
 
 #define STUDIO_INIT_TIMER_ID 1
 
@@ -171,6 +199,7 @@ typedef struct
     HWND diagnostics_combo;
     HWND topology_options_button;
     HWND plasticity_button;
+    HWND homeostasis_button;
     HWND status_label;
     HWND summary_box;
     HWND execution_section_label;
@@ -228,9 +257,38 @@ typedef struct
     HWND limit_edit;
 } PlasticityDialog;
 
+typedef struct
+{
+    HWND window;
+    ScenarioConfig working_config;
+    HWND enabled_checkbox;
+    HWND intrinsic_checkbox;
+    HWND target_rate_edit;
+    HWND rate_tau_edit;
+    HWND update_interval_edit;
+    HWND threshold_eta_edit;
+    HWND threshold_min_edit;
+    HWND threshold_max_edit;
+    HWND scaling_checkbox;
+    HWND scaling_eta_edit;
+    HWND scaling_factor_min_edit;
+    HWND scaling_factor_max_edit;
+    HWND scaling_weight_min_edit;
+    HWND scaling_weight_max_edit;
+    HWND gain_checkbox;
+    HWND gain_initial_edit;
+    HWND gain_eta_edit;
+    HWND gain_min_edit;
+    HWND gain_max_edit;
+    HWND record_history_checkbox;
+    HWND record_interval_edit;
+    HWND record_limit_edit;
+} HomeostasisDialog;
+
 static StudioState g_app;
 static TopologyOptionsDialog g_options;
 static PlasticityDialog g_plasticity;
+static HomeostasisDialog g_homeostasis;
 
 static void draw_button(const DRAWITEMSTRUCT *item);
 static LRESULT handle_color(HDC hdc, HWND hwnd);
@@ -1380,6 +1438,7 @@ static void update_summary(
         "Pasta real: %s\r\n"
         "Topologia: %s\r\n"
         "STDP: %s\r\n"
+        "Homeostase: %s\r\n"
         "Numero de neuronios: %d\r\n"
         "Numero de conexoes: %d\r\n"
         "Neuronios inibitorios: %d\r\n"
@@ -1393,6 +1452,7 @@ static void update_summary(
         result->actual_run_name,
         config->topology,
         config->plasticity_enabled ? "ON" : "OFF",
+        config->homeostasis_enabled ? "ON" : "OFF",
         config->neurons,
         result->connection_count,
         result->inhibitory_count,
@@ -1415,6 +1475,9 @@ static void set_result_buttons_enabled(BOOL enabled)
         EnableWindow(g_app.buttons[i], enabled);
 
     for (int i = 16; i <= 18; i++)
+        EnableWindow(g_app.buttons[i], enabled);
+
+    for (int i = 19; i <= 20; i++)
         EnableWindow(g_app.buttons[i], enabled);
 }
 
@@ -2452,6 +2515,112 @@ static void open_stdp_plot(void)
         "Grafico STDP nao encontrado",
         "plasticity_overview.png nao existe. Clique em GRAFICO STDP.",
         "GRAFICO STDP ABERTO");
+}
+
+static void generate_homeostasis_graph(void)
+{
+    char python_path[MAX_PATH];
+    char script_path[MAX_PATH];
+    char output_path[MAX_PATH];
+    char metrics_path[MAX_PATH];
+    char png_path[MAX_PATH];
+    char command[PYTHON_COMMAND_BUFFER_SIZE];
+    char status[STATUS_BUFFER_SIZE];
+    char old_backend[TEXT_BUFFER_SIZE];
+    DWORD old_backend_length;
+    DWORD exit_code = 1;
+    int had_old_backend;
+
+    if (!g_app.has_result)
+    {
+        show_error("Sem resultados", "Rode uma simulacao antes de gerar o grafico de homeostase.");
+        return;
+    }
+    if (!build_run_artifact_path(metrics_path, sizeof(metrics_path), "homeostasis_metrics.csv") ||
+        !build_run_artifact_path(png_path, sizeof(png_path), "homeostasis_overview.png"))
+    {
+        show_error("Erro interno", "Nao foi possivel montar os caminhos de homeostase.");
+        return;
+    }
+    if (!file_exists(metrics_path))
+    {
+        show_error(
+            "Homeostase nao encontrada",
+            "Esta execucao nao possui dados homeostaticos.\nA homeostase pode estar desligada.");
+        return;
+    }
+    if (!resolve_python_executable(python_path, sizeof(python_path)))
+    {
+        show_error("Python nao encontrado", "Nao foi encontrado um Python compativel com pandas e matplotlib.");
+        return;
+    }
+    if (!project_path(script_path, sizeof(script_path), "scripts\\plot_homeostasis.py") ||
+        !project_path(output_path, sizeof(output_path), g_app.last_result.output_directory))
+    {
+        show_error("Erro interno", "Nao foi possivel montar o comando homeostatico.");
+        return;
+    }
+    snprintf(
+        command,
+        sizeof(command),
+        g_app.resolved_python_uses_py_launcher ?
+            "\"%s\" -3 \"%s\" \"%s\"" :
+            "\"%s\" \"%s\" \"%s\"",
+        python_path,
+        script_path,
+        output_path);
+
+    old_backend_length = GetEnvironmentVariableA("MPLBACKEND", old_backend, sizeof(old_backend));
+    had_old_backend = old_backend_length > 0 && old_backend_length < sizeof(old_backend);
+    SetEnvironmentVariableA("MPLBACKEND", "Agg");
+    set_status("GERANDO GRAFICO HOMEOSTASE...");
+    UpdateWindow(g_app.window);
+    if (!run_hidden_process(command, &exit_code))
+        exit_code = 1;
+    if (had_old_backend)
+        SetEnvironmentVariableA("MPLBACKEND", old_backend);
+    else
+        SetEnvironmentVariableA("MPLBACKEND", NULL);
+
+    if (exit_code != 0 || !file_exists(png_path))
+    {
+        char message[PYTHON_MESSAGE_BUFFER_SIZE];
+        snprintf(
+            message,
+            sizeof(message),
+            "O grafico de homeostase nao foi gerado.\n\nPython usado:\n%s\n\n"
+            "Pandas e matplotlib podem estar ausentes.\n\nTeste manual:\n%s",
+            python_path,
+            command);
+        show_error("Erro ao gerar homeostase", message);
+        set_status("ERRO AO GERAR GRAFICO HOMEOSTASE");
+        return;
+    }
+
+    snprintf(status, sizeof(status), "GRAFICO HOMEOSTASE GERADO: %s", png_path);
+    show_info("Grafico de homeostase", "homeostasis_overview.png foi criado na ultima execucao.");
+    set_status(status);
+}
+
+static void open_homeostasis_report(void)
+{
+    char path[MAX_PATH];
+
+    if (!g_app.has_result)
+    {
+        show_error("Sem resultados", "Rode uma simulacao antes de abrir a homeostase.");
+        return;
+    }
+    if (!build_run_artifact_path(path, sizeof(path), "homeostasis_report.html"))
+    {
+        show_error("Erro interno", "Nao foi possivel montar o caminho homeostatico.");
+        return;
+    }
+    open_existing_file(
+        path,
+        "Homeostase nao encontrada",
+        "Esta execucao nao possui dados homeostaticos.\nA homeostase pode estar desligada.",
+        "RELATORIO DE HOMEOSTASE ABERTO");
 }
 
 static void open_neuron_csv(void)
@@ -3878,6 +4047,299 @@ static void open_plasticity_options(void)
     SetActiveWindow(g_app.window);
 }
 
+static void homeostasis_to_controls(void)
+{
+    const ScenarioConfig *config = &g_homeostasis.working_config;
+    char text[TEXT_BUFFER_SIZE];
+
+    SendMessageA(g_homeostasis.enabled_checkbox, BM_SETCHECK,
+        config->homeostasis_enabled ? BST_CHECKED : BST_UNCHECKED, 0);
+    SendMessageA(g_homeostasis.intrinsic_checkbox, BM_SETCHECK,
+        config->homeostasis_intrinsic_enabled ? BST_CHECKED : BST_UNCHECKED, 0);
+    SendMessageA(g_homeostasis.scaling_checkbox, BM_SETCHECK,
+        config->homeostasis_synaptic_scaling_enabled ? BST_CHECKED : BST_UNCHECKED, 0);
+    SendMessageA(g_homeostasis.gain_checkbox, BM_SETCHECK,
+        config->homeostasis_inhibitory_gain_enabled ? BST_CHECKED : BST_UNCHECKED, 0);
+    SendMessageA(g_homeostasis.record_history_checkbox, BM_SETCHECK,
+        config->homeostasis_record_history ? BST_CHECKED : BST_UNCHECKED, 0);
+
+    set_window_double(g_homeostasis.target_rate_edit, config->homeostasis_target_rate);
+    set_window_double(g_homeostasis.rate_tau_edit, config->homeostasis_rate_tau);
+    set_window_double(g_homeostasis.threshold_eta_edit, config->homeostasis_threshold_eta);
+    set_window_double(g_homeostasis.threshold_min_edit, config->homeostasis_threshold_min);
+    set_window_double(g_homeostasis.threshold_max_edit, config->homeostasis_threshold_max);
+    set_window_double(g_homeostasis.scaling_eta_edit, config->homeostasis_scaling_eta);
+    set_window_double(g_homeostasis.scaling_factor_min_edit, config->homeostasis_scaling_min_factor);
+    set_window_double(g_homeostasis.scaling_factor_max_edit, config->homeostasis_scaling_max_factor);
+    set_window_double(g_homeostasis.scaling_weight_min_edit, config->homeostasis_scaling_weight_min);
+    set_window_double(g_homeostasis.scaling_weight_max_edit, config->homeostasis_scaling_weight_max);
+    set_window_double(g_homeostasis.gain_initial_edit, config->homeostasis_inhibitory_gain_initial);
+    set_window_double(g_homeostasis.gain_eta_edit, config->homeostasis_inhibitory_gain_eta);
+    set_window_double(g_homeostasis.gain_min_edit, config->homeostasis_inhibitory_gain_min);
+    set_window_double(g_homeostasis.gain_max_edit, config->homeostasis_inhibitory_gain_max);
+
+    snprintf(text, sizeof(text), "%d", config->homeostasis_update_interval_steps);
+    SetWindowTextA(g_homeostasis.update_interval_edit, text);
+    snprintf(text, sizeof(text), "%d", config->homeostasis_record_interval_steps);
+    SetWindowTextA(g_homeostasis.record_interval_edit, text);
+    snprintf(text, sizeof(text), "%d", config->homeostasis_record_neuron_limit);
+    SetWindowTextA(g_homeostasis.record_limit_edit, text);
+}
+
+static int apply_homeostasis_options(void)
+{
+    ScenarioConfig candidate = g_homeostasis.working_config;
+    char error[256];
+
+    candidate.homeostasis_enabled =
+        SendMessageA(g_homeostasis.enabled_checkbox, BM_GETCHECK, 0, 0) == BST_CHECKED;
+    candidate.homeostasis_intrinsic_enabled =
+        SendMessageA(g_homeostasis.intrinsic_checkbox, BM_GETCHECK, 0, 0) == BST_CHECKED;
+    candidate.homeostasis_synaptic_scaling_enabled =
+        SendMessageA(g_homeostasis.scaling_checkbox, BM_GETCHECK, 0, 0) == BST_CHECKED;
+    candidate.homeostasis_inhibitory_gain_enabled =
+        SendMessageA(g_homeostasis.gain_checkbox, BM_GETCHECK, 0, 0) == BST_CHECKED;
+    candidate.homeostasis_record_history =
+        SendMessageA(g_homeostasis.record_history_checkbox, BM_GETCHECK, 0, 0) == BST_CHECKED;
+    snprintf(
+        candidate.homeostasis_scaling_target_mode,
+        sizeof(candidate.homeostasis_scaling_target_mode),
+        "initial_incoming_sum");
+
+    if (!parse_double_from_window(g_homeostasis.target_rate_edit, "TAXA ALVO",
+            &candidate.homeostasis_target_rate, error, sizeof(error)) ||
+        !parse_double_from_window(g_homeostasis.rate_tau_edit, "TAU TAXA",
+            &candidate.homeostasis_rate_tau, error, sizeof(error)) ||
+        !parse_int_from_window(g_homeostasis.update_interval_edit, "INTERVALO",
+            &candidate.homeostasis_update_interval_steps, error, sizeof(error)) ||
+        !parse_double_from_window(g_homeostasis.threshold_eta_edit, "ETA THRESHOLD",
+            &candidate.homeostasis_threshold_eta, error, sizeof(error)) ||
+        !parse_double_from_window(g_homeostasis.threshold_min_edit, "THRESHOLD MIN",
+            &candidate.homeostasis_threshold_min, error, sizeof(error)) ||
+        !parse_double_from_window(g_homeostasis.threshold_max_edit, "THRESHOLD MAX",
+            &candidate.homeostasis_threshold_max, error, sizeof(error)) ||
+        !parse_double_from_window(g_homeostasis.scaling_eta_edit, "ETA SCALING",
+            &candidate.homeostasis_scaling_eta, error, sizeof(error)) ||
+        !parse_double_from_window(g_homeostasis.scaling_factor_min_edit, "FATOR MIN",
+            &candidate.homeostasis_scaling_min_factor, error, sizeof(error)) ||
+        !parse_double_from_window(g_homeostasis.scaling_factor_max_edit, "FATOR MAX",
+            &candidate.homeostasis_scaling_max_factor, error, sizeof(error)) ||
+        !parse_double_from_window(g_homeostasis.scaling_weight_min_edit, "PESO MIN",
+            &candidate.homeostasis_scaling_weight_min, error, sizeof(error)) ||
+        !parse_double_from_window(g_homeostasis.scaling_weight_max_edit, "PESO MAX",
+            &candidate.homeostasis_scaling_weight_max, error, sizeof(error)) ||
+        !parse_double_from_window(g_homeostasis.gain_initial_edit, "GANHO INICIAL",
+            &candidate.homeostasis_inhibitory_gain_initial, error, sizeof(error)) ||
+        !parse_double_from_window(g_homeostasis.gain_eta_edit, "ETA GANHO",
+            &candidate.homeostasis_inhibitory_gain_eta, error, sizeof(error)) ||
+        !parse_double_from_window(g_homeostasis.gain_min_edit, "GANHO MIN",
+            &candidate.homeostasis_inhibitory_gain_min, error, sizeof(error)) ||
+        !parse_double_from_window(g_homeostasis.gain_max_edit, "GANHO MAX",
+            &candidate.homeostasis_inhibitory_gain_max, error, sizeof(error)) ||
+        !parse_int_from_window(g_homeostasis.record_interval_edit, "INTERVALO REGISTRO",
+            &candidate.homeostasis_record_interval_steps, error, sizeof(error)) ||
+        !parse_int_from_window(g_homeostasis.record_limit_edit, "LIMITE NEURONIOS",
+            &candidate.homeostasis_record_neuron_limit, error, sizeof(error)))
+    {
+        show_error("Homeostase invalida", error);
+        return 0;
+    }
+
+    if (!scenario_config_validate(&candidate, error, sizeof(error)))
+    {
+        show_error("Homeostase invalida", error);
+        return 0;
+    }
+
+    g_app.current_config = candidate;
+    g_homeostasis.working_config = candidate;
+    set_status(candidate.homeostasis_enabled ? "HOMEOSTASE ATIVADA" : "HOMEOSTASE DESATIVADA");
+    DestroyWindow(g_homeostasis.window);
+    return 1;
+}
+
+static LRESULT CALLBACK homeostasis_options_proc(
+    HWND hwnd,
+    UINT message,
+    WPARAM wparam,
+    LPARAM lparam)
+{
+    (void)lparam;
+    switch (message)
+    {
+    case WM_CREATE:
+        g_homeostasis.window = hwnd;
+        create_static(hwnd, "HOMEOSTASE", 24, 16, 300, 28, 0);
+        g_homeostasis.enabled_checkbox = create_checkbox(hwnd, "", IDC_HOME_ENABLED, 26, 50, 24, 24);
+        create_static(hwnd, "HOMEOSTASE: OFF / ON", 58, 52, 240, 24, 0);
+        g_homeostasis.intrinsic_checkbox = create_checkbox(hwnd, "", IDC_HOME_INTRINSIC, 320, 50, 24, 24);
+        create_static(hwnd, "INTRINSECA: OFF / ON", 352, 52, 240, 24, 0);
+
+        create_static(hwnd, "TAXA ALVO", 24, 100, 130, 24, 0);
+        g_homeostasis.target_rate_edit = create_edit(hwnd, IDC_HOME_TARGET_RATE, 150, 96, 100, 28);
+        create_static(hwnd, "TAU TAXA", 280, 100, 130, 24, 0);
+        g_homeostasis.rate_tau_edit = create_edit(hwnd, IDC_HOME_RATE_TAU, 400, 96, 100, 28);
+        create_static(hwnd, "INTERVALO", 530, 100, 130, 24, 0);
+        g_homeostasis.update_interval_edit = create_edit(hwnd, IDC_HOME_UPDATE_INTERVAL, 650, 96, 100, 28);
+
+        create_static(hwnd, "ETA THRESHOLD", 24, 140, 130, 24, 0);
+        g_homeostasis.threshold_eta_edit = create_edit(hwnd, IDC_HOME_THRESHOLD_ETA, 150, 136, 100, 28);
+        create_static(hwnd, "THRESHOLD MIN", 280, 140, 130, 24, 0);
+        g_homeostasis.threshold_min_edit = create_edit(hwnd, IDC_HOME_THRESHOLD_MIN, 400, 136, 100, 28);
+        create_static(hwnd, "THRESHOLD MAX", 530, 140, 130, 24, 0);
+        g_homeostasis.threshold_max_edit = create_edit(hwnd, IDC_HOME_THRESHOLD_MAX, 650, 136, 100, 28);
+
+        g_homeostasis.scaling_checkbox = create_checkbox(hwnd, "", IDC_HOME_SCALING, 26, 198, 24, 24);
+        create_static(hwnd, "SCALING: OFF / ON", 58, 200, 210, 24, 0);
+        create_static(hwnd, "ALVO: INITIAL INCOMING SUM", 320, 200, 340, 24, 0);
+        create_static(hwnd, "ETA SCALING", 24, 244, 130, 24, 0);
+        g_homeostasis.scaling_eta_edit = create_edit(hwnd, IDC_HOME_SCALING_ETA, 150, 240, 100, 28);
+        create_static(hwnd, "FATOR MIN", 280, 244, 130, 24, 0);
+        g_homeostasis.scaling_factor_min_edit = create_edit(hwnd, IDC_HOME_SCALING_FACTOR_MIN, 400, 240, 100, 28);
+        create_static(hwnd, "FATOR MAX", 530, 244, 130, 24, 0);
+        g_homeostasis.scaling_factor_max_edit = create_edit(hwnd, IDC_HOME_SCALING_FACTOR_MAX, 650, 240, 100, 28);
+        create_static(hwnd, "PESO MIN", 24, 284, 130, 24, 0);
+        g_homeostasis.scaling_weight_min_edit = create_edit(hwnd, IDC_HOME_SCALING_WEIGHT_MIN, 150, 280, 100, 28);
+        create_static(hwnd, "PESO MAX", 280, 284, 130, 24, 0);
+        g_homeostasis.scaling_weight_max_edit = create_edit(hwnd, IDC_HOME_SCALING_WEIGHT_MAX, 400, 280, 100, 28);
+
+        g_homeostasis.gain_checkbox = create_checkbox(hwnd, "", IDC_HOME_GAIN, 26, 342, 24, 24);
+        create_static(hwnd, "GANHO INH: OFF / ON", 58, 344, 240, 24, 0);
+        create_static(hwnd, "GANHO INICIAL", 24, 388, 130, 24, 0);
+        g_homeostasis.gain_initial_edit = create_edit(hwnd, IDC_HOME_GAIN_INITIAL, 150, 384, 100, 28);
+        create_static(hwnd, "ETA GANHO", 280, 388, 130, 24, 0);
+        g_homeostasis.gain_eta_edit = create_edit(hwnd, IDC_HOME_GAIN_ETA, 400, 384, 100, 28);
+        create_static(hwnd, "GANHO MIN", 530, 388, 130, 24, 0);
+        g_homeostasis.gain_min_edit = create_edit(hwnd, IDC_HOME_GAIN_MIN, 650, 384, 100, 28);
+        create_static(hwnd, "GANHO MAX", 530, 428, 130, 24, 0);
+        g_homeostasis.gain_max_edit = create_edit(hwnd, IDC_HOME_GAIN_MAX, 650, 424, 100, 28);
+
+        g_homeostasis.record_history_checkbox = create_checkbox(hwnd, "", IDC_HOME_RECORD_HISTORY, 26, 490, 24, 24);
+        create_static(hwnd, "REGISTRAR HISTORICO", 58, 492, 230, 24, 0);
+        create_static(hwnd, "INTERVALO REGISTRO", 280, 492, 180, 24, 0);
+        g_homeostasis.record_interval_edit = create_edit(hwnd, IDC_HOME_RECORD_INTERVAL, 450, 488, 100, 28);
+        create_static(hwnd, "LIMITE NEURONIOS", 24, 532, 180, 24, 0);
+        g_homeostasis.record_limit_edit = create_edit(hwnd, IDC_HOME_RECORD_LIMIT, 190, 528, 100, 28);
+
+        create_static(hwnd,
+            "Mecanismos simplificados de controle; nao garantem estabilidade universal.",
+            24, 578, 700, 24, 0);
+        create_button(hwnd, "APLICAR", IDC_HOME_APPLY, 245, 620, 130, 36);
+        create_button(hwnd, "CANCELAR", IDC_HOME_CANCEL, 405, 620, 130, 36);
+        homeostasis_to_controls();
+        enable_dark_title_bar(hwnd);
+        return 0;
+    case WM_COMMAND:
+        if (HIWORD(wparam) == BN_CLICKED)
+        {
+            if (LOWORD(wparam) == IDC_HOME_APPLY)
+            {
+                apply_homeostasis_options();
+                return 0;
+            }
+            if (LOWORD(wparam) == IDC_HOME_CANCEL)
+            {
+                DestroyWindow(hwnd);
+                return 0;
+            }
+        }
+        break;
+    case WM_CTLCOLORSTATIC:
+        return handle_color((HDC)wparam, (HWND)lparam);
+    case WM_CTLCOLOREDIT:
+        return handle_edit_color((HDC)wparam);
+    case WM_DRAWITEM:
+        draw_button((const DRAWITEMSTRUCT *)lparam);
+        return TRUE;
+    case WM_ERASEBKGND:
+    {
+        RECT rect;
+        GetClientRect(hwnd, &rect);
+        FillRect((HDC)wparam, &rect, g_app.background_brush);
+        return 1;
+    }
+    case WM_CLOSE:
+        DestroyWindow(hwnd);
+        return 0;
+    case WM_DESTROY:
+        g_homeostasis.window = NULL;
+        return 0;
+    default:
+        break;
+    }
+    return DefWindowProcA(hwnd, message, wparam, lparam);
+}
+
+static int ensure_homeostasis_class_registered(void)
+{
+    static int registered = 0;
+    WNDCLASSA window_class;
+    if (registered)
+        return 1;
+    memset(&window_class, 0, sizeof(window_class));
+    window_class.lpfnWndProc = homeostasis_options_proc;
+    window_class.hInstance = GetModuleHandleA(NULL);
+    window_class.lpszClassName = "MiniSNNHomeostasisOptionsWindow";
+    window_class.hCursor = LoadCursor(NULL, IDC_ARROW);
+    window_class.hbrBackground = g_app.background_brush;
+    if (!RegisterClassA(&window_class))
+        return 0;
+    registered = 1;
+    return 1;
+}
+
+static void open_homeostasis_options(void)
+{
+    ScenarioConfig config;
+    char error[256];
+    HWND dialog;
+    MSG message;
+
+    if (!controls_to_config(&config, error, sizeof(error)))
+    {
+        show_error("Configuracao invalida", error);
+        return;
+    }
+    if (!ensure_homeostasis_class_registered())
+    {
+        show_error("Erro interno", "Nao foi possivel criar a janela de homeostase.");
+        return;
+    }
+    memset(&g_homeostasis, 0, sizeof(g_homeostasis));
+    g_homeostasis.working_config = config;
+    dialog = CreateWindowExA(
+        WS_EX_DLGMODALFRAME,
+        "MiniSNNHomeostasisOptionsWindow",
+        "HOMEOSTASE",
+        WS_POPUP | WS_CAPTION | WS_SYSMENU,
+        CW_USEDEFAULT,
+        CW_USEDEFAULT,
+        800,
+        710,
+        g_app.window,
+        NULL,
+        GetModuleHandleA(NULL),
+        NULL);
+    if (dialog == NULL)
+    {
+        show_error("Erro interno", "Nao foi possivel abrir a janela de homeostase.");
+        return;
+    }
+    EnableWindow(g_app.window, FALSE);
+    ShowWindow(dialog, SW_SHOW);
+    UpdateWindow(dialog);
+    while (g_homeostasis.window != NULL && GetMessageA(&message, NULL, 0, 0) > 0)
+    {
+        if (!IsDialogMessageA(dialog, &message))
+        {
+            TranslateMessage(&message);
+            DispatchMessageA(&message);
+        }
+    }
+    EnableWindow(g_app.window, TRUE);
+    SetActiveWindow(g_app.window);
+}
+
 static void add_field(
     HWND parent,
     int id,
@@ -4033,6 +4495,14 @@ static void create_controls(HWND hwnd)
         y + 15 * STUDIO_ROW_HEIGHT + 2,
         280,
         STUDIO_BUTTON_HEIGHT);
+    g_app.homeostasis_button = create_button(
+        hwnd,
+        "HOMEOSTASE",
+        IDC_BTN_HOMEOSTASIS,
+        x2,
+        y + 16 * STUDIO_ROW_HEIGHT + 2,
+        280,
+        STUDIO_BUTTON_HEIGHT);
 
     g_app.execution_section_label = create_static(
         hwnd,
@@ -4089,14 +4559,16 @@ static void create_controls(HWND hwnd)
     g_app.buttons[16] = create_button(hwnd, "GRAFICO STDP", IDC_BTN_PLOT_PLASTICITY, right_x, 116 + 9 * STUDIO_BUTTON_ROW_HEIGHT, 340, STUDIO_BUTTON_HEIGHT);
     g_app.buttons[17] = create_button(hwnd, "ABRIR PESOS", IDC_BTN_OPEN_WEIGHTS, right_x, 116 + 10 * STUDIO_BUTTON_ROW_HEIGHT, STUDIO_BUTTON_WIDTH_LEFT, STUDIO_BUTTON_HEIGHT);
     g_app.buttons[18] = create_button(hwnd, "ABRIR STDP", IDC_BTN_OPEN_STDP, right_x + STUDIO_BUTTON_WIDTH_LEFT + STUDIO_BUTTON_GAP, 116 + 10 * STUDIO_BUTTON_ROW_HEIGHT, STUDIO_BUTTON_WIDTH_RIGHT, STUDIO_BUTTON_HEIGHT);
-    g_app.status_label = create_static(hwnd, "PRONTO PARA EXECUTAR", right_x, 622, 340, 42, IDC_STATUS);
+    g_app.buttons[19] = create_button(hwnd, "GRAFICO HOMEOSTASE", IDC_BTN_PLOT_HOMEOSTASIS, right_x, 116 + 11 * STUDIO_BUTTON_ROW_HEIGHT, STUDIO_BUTTON_WIDTH_LEFT, STUDIO_BUTTON_HEIGHT);
+    g_app.buttons[20] = create_button(hwnd, "ABRIR HOMEOSTASE", IDC_BTN_OPEN_HOMEOSTASIS, right_x + STUDIO_BUTTON_WIDTH_LEFT + STUDIO_BUTTON_GAP, 116 + 11 * STUDIO_BUTTON_ROW_HEIGHT, STUDIO_BUTTON_WIDTH_RIGHT, STUDIO_BUTTON_HEIGHT);
+    g_app.status_label = create_static(hwnd, "PRONTO PARA EXECUTAR", right_x, 668, 340, 42, IDC_STATUS);
     g_app.summary_box = CreateWindowExA(
         WS_EX_CLIENTEDGE,
         "EDIT",
         "",
         WS_CHILD | WS_VISIBLE | ES_MULTILINE | ES_READONLY | ES_AUTOVSCROLL | WS_VSCROLL,
         right_x,
-        674,
+        720,
         340,
         145,
         hwnd,
@@ -4123,7 +4595,7 @@ static void layout_controls(HWND hwnd)
     height = rect.bottom - rect.top;
     right_x = right_content_left(width);
     content_width = STUDIO_RIGHT_PANEL_WIDTH - 2 * STUDIO_RIGHT_CONTENT_PADDING;
-    summary_height = height - 694;
+    summary_height = height - 740;
 
     if (summary_height < 140)
         summary_height = 140;
@@ -4131,8 +4603,8 @@ static void layout_controls(HWND hwnd)
     MoveWindow(g_app.execution_section_label, right_x, 92, 174, 24, TRUE);
     MoveWindow(g_app.diagnostics_label, right_x + 178, 94, 54, 24, TRUE);
     MoveWindow(g_app.diagnostics_combo, right_x + 230, 90, 110, 120, TRUE);
-    MoveWindow(g_app.status_label, right_x, 622, content_width, 42, TRUE);
-    MoveWindow(g_app.summary_box, right_x, 674, content_width, summary_height, TRUE);
+    MoveWindow(g_app.status_label, right_x, 668, content_width, 42, TRUE);
+    MoveWindow(g_app.summary_box, right_x, 720, content_width, summary_height, TRUE);
 
     MoveWindow(g_app.buttons[0], right_x, 116, STUDIO_BUTTON_WIDTH_LEFT, STUDIO_BUTTON_HEIGHT, TRUE);
     MoveWindow(g_app.buttons[1], right_x + STUDIO_BUTTON_WIDTH_LEFT + STUDIO_BUTTON_GAP, 116, STUDIO_BUTTON_WIDTH_RIGHT, STUDIO_BUTTON_HEIGHT, TRUE);
@@ -4153,6 +4625,8 @@ static void layout_controls(HWND hwnd)
     MoveWindow(g_app.buttons[16], right_x, 116 + 9 * STUDIO_BUTTON_ROW_HEIGHT, content_width, STUDIO_BUTTON_HEIGHT, TRUE);
     MoveWindow(g_app.buttons[17], right_x, 116 + 10 * STUDIO_BUTTON_ROW_HEIGHT, STUDIO_BUTTON_WIDTH_LEFT, STUDIO_BUTTON_HEIGHT, TRUE);
     MoveWindow(g_app.buttons[18], right_x + STUDIO_BUTTON_WIDTH_LEFT + STUDIO_BUTTON_GAP, 116 + 10 * STUDIO_BUTTON_ROW_HEIGHT, STUDIO_BUTTON_WIDTH_RIGHT, STUDIO_BUTTON_HEIGHT, TRUE);
+    MoveWindow(g_app.buttons[19], right_x, 116 + 11 * STUDIO_BUTTON_ROW_HEIGHT, STUDIO_BUTTON_WIDTH_LEFT, STUDIO_BUTTON_HEIGHT, TRUE);
+    MoveWindow(g_app.buttons[20], right_x + STUDIO_BUTTON_WIDTH_LEFT + STUDIO_BUTTON_GAP, 116 + 11 * STUDIO_BUTTON_ROW_HEIGHT, STUDIO_BUTTON_WIDTH_RIGHT, STUDIO_BUTTON_HEIGHT, TRUE);
 
     InvalidateRect(hwnd, NULL, TRUE);
 }
@@ -4390,6 +4864,9 @@ static LRESULT CALLBACK window_proc(
             case IDC_BTN_PLASTICITY:
                 open_plasticity_options();
                 return 0;
+            case IDC_BTN_HOMEOSTASIS:
+                open_homeostasis_options();
+                return 0;
             case IDC_BTN_PLOT_PLASTICITY:
                 generate_plasticity_graph();
                 return 0;
@@ -4398,6 +4875,12 @@ static LRESULT CALLBACK window_proc(
                 return 0;
             case IDC_BTN_OPEN_STDP:
                 open_stdp_plot();
+                return 0;
+            case IDC_BTN_PLOT_HOMEOSTASIS:
+                generate_homeostasis_graph();
+                return 0;
+            case IDC_BTN_OPEN_HOMEOSTASIS:
+                open_homeostasis_report();
                 return 0;
             default:
                 break;

@@ -4,6 +4,7 @@
 #include "neuron.h"
 #include "connection.h"
 #include "plasticity.h"
+#include "homeostasis.h"
 
 typedef struct
 {
@@ -41,6 +42,7 @@ typedef struct
     int size;
 
     PlasticityState *plasticity;
+    HomeostasisState *homeostasis;
 
 } Network;
 
@@ -105,6 +107,12 @@ int network_set_connection_weight(
 int network_set_plasticity_config(
     Network *net,
     const MiniSNNPlasticityConfig *config);
+
+int network_set_homeostasis_config(
+    Network *net,
+    const MiniSNNHomeostasisConfig *config);
+
+int network_reset_homeostasis(Network *net);
 
 void network_clear_connections(Network *net);
 

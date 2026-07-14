@@ -281,6 +281,15 @@ cenários comuns carregam STDP OFF.
 
 ## 14. O que ainda nao existe no Studio
 
-O Studio não implementa peixe, mundo, homeostase, recompensa, punição,
-neuroevolução, plasticidade inibitória ou topologia adaptativa. Ele expõe o
-STDP excitatório experimental já existente no motor de cenários.
+O Studio não implementa peixe, mundo, recompensa, punição, neuroevolução,
+plasticidade inibitória ou topologia adaptativa. Ele expõe o STDP excitatório e
+a homeostase simplificada já existentes no motor de cenários.
+
+## HOMEOSTASE
+
+`HOMEOSTASE` abre um modal separado com ativação global, mecanismo intrínseco,
+taxa-alvo, tau, intervalo, clamps de threshold, scaling EXC, ganho INH e opções
+de histórico. Cancelar não altera a configuração. `GRAFICO HOMEOSTASE` gera
+`homeostasis_overview.png`; `ABRIR HOMEOSTASE` abre
+`homeostasis_report.html`. Uma run sem dados mostra que a homeostase pode estar
+desligada. A validação manual desses controles permanece no checklist do Studio.

@@ -18,6 +18,11 @@
 | Reprodutibilidade | `seed` | `scenario_runner` | `test_reproducibility`, golden | assinatura, spikes e raster | [Auditoria](AUDITORIA_DO_CORE_V02.md) | Validado no mesmo binário |
 | Robustez | limites e falhas | parser, runner, scripts | memory stress, scripts e long run | erros controlados | [Cobertura](COBERTURA_DE_TESTES.md) | Automatizado; sanitizer indisponível |
 | Documentação | estrutura em `docs/` | Markdown e `check_docs.py` | `test_docs` | relatório do validador | [Índice](INDICE_DA_DOCUMENTACAO.md) | Implementado |
+| Rate trace | `src/homeostasis.c` | fórmula exponencial exata | `test_homeostasis` | `homeostasis_neurons.csv` | [Homeostase](GUIA_DE_HOMEOSTASE.md) | Implementado |
+| Threshold adaptativo | `src/homeostasis.c`, `src/network.c` | direção, clamp e ordem | `test_homeostasis` | `threshold_history.csv` | [Homeostase](GUIA_DE_HOMEOSTASE.md) | Implementado |
+| Scaling EXC | `src/homeostasis.c` | soma, proporção, zero e STDP | `test_homeostasis` | `homeostasis_metrics.csv` | [Homeostase](GUIA_DE_HOMEOSTASE.md) | Implementado |
+| Ganho INH | `src/homeostasis.c`, `src/network.c` | fórmula e transmissão futura | `test_homeostasis` | `homeostasis_history.csv` | [Homeostase](GUIA_DE_HOMEOSTASE.md) | Implementado |
+| Fechamento C1.5 | `scripts/check_c15.py` | arquivos, demos, regressão | `check-c15` | saída do checker | [Homeostase](GUIA_DE_HOMEOSTASE.md) | Implementado |
 
 Esta matriz não substitui revisão científica ou validação biológica. A validação
 manual do Studio permanece separada.

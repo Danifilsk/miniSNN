@@ -90,3 +90,10 @@ Configs sem `[plasticity]` e configs com `enabled = false` são equivalentes no
 estado dinâmico normalizado. Elas não geram arquivos pesados de pesos. Ativar
 STDP muda pesos e pode mudar spikes, portanto resultados C1 devem preservar
 config, seed, manifesto e arquivos de plasticidade.
+
+## Homeostase C1.5
+
+Configs sem `[homeostasis]` e configs com `enabled = false` preservam limiar-base,
+ganho `1.0`, pesos, spikes e CSVs dinâmicos anteriores. Runs antigas continuam
+analisáveis e exibem homeostase como ausente/desligada. Ativar homeostase cria
+novos artefatos; os CSVs de pesos continuam registrando pesos brutos.

@@ -12,6 +12,7 @@ from metrics_common import (
     basic_metrics as shared_basic_metrics,
     read_config,
     read_plasticity_metrics,
+    read_homeostasis_metrics,
 )
 
 try:
@@ -194,6 +195,7 @@ def analyze_run(run_path: Path) -> tuple[dict[str, object] | None, pd.DataFrame 
 
     config = read_config(run_path, warnings)
     metrics.update(read_plasticity_metrics(run_path, config, warnings))
+    metrics.update(read_homeostasis_metrics(run_path, config, warnings))
     aliases = {
         "num_neurons": "network_num_neurons",
         "steps": "run_steps",
@@ -314,6 +316,26 @@ def write_report(
         lines.append(
             "  indisponiveis: "
             + (", ".join(unavailable) if unavailable else "nenhum")
+        )
+
+    lines.append("")
+    lines.append("Homeostase:")
+    homeostasis_fields = (
+        "homeostasis_population_rate_final",
+        "homeostasis_rate_error_mean_absolute",
+        "homeostasis_threshold_final_mean",
+        "homeostasis_scaling_events",
+        "homeostasis_inhibitory_gain_final",
+    )
+    for _, row in summary.iterrows():
+        available = [
+            field for field in homeostasis_fields
+            if field in row and pd.notna(row.get(field))
+        ]
+        lines.append(
+            f"- {row['run_name']}: enabled={format_value(row.get('homeostasis_enabled'))}; "
+            f"fonte={format_value(row.get('homeostasis_metrics_source'))}; "
+            f"campos={', '.join(available) if available else 'nenhum'}"
         )
 
     def ranking(metric: str, title: str, ascending: bool = False) -> None:

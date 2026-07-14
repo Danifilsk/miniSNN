@@ -42,6 +42,8 @@ CENTRAL_DOCUMENTS = (
     "docs/BENCHMARKS_V02.md",
     "docs/GUIA_DE_PLASTICIDADE.md",
     "docs/BENCHMARKS_C1_STDP.md",
+    "docs/GUIA_DE_HOMEOSTASE.md",
+    "docs/BENCHMARKS_C15_HOMEOSTASE.md",
     "docs/CHECKLIST_DE_VALIDACAO_DO_STUDIO.md",
 )
 
@@ -62,12 +64,18 @@ IMPORTANT_FILES = (
     "scripts/generate_run_reports.py",
     "scripts/html_report_common.py",
     "scripts/check_c1.py",
+    "scripts/plot_homeostasis.py",
+    "scripts/run_benchmarks_c15.py",
+    "scripts/check_c15.py",
     "scripts/check_docs.py",
     "configs/random.ini",
     "configs/small_world.ini",
     "configs/stdp_ltp_demo.ini",
     "configs/stdp_ltd_demo.ini",
     "configs/stdp_mixed_demo.ini",
+    "configs/homeostasis_silence_recovery_demo.ini",
+    "configs/homeostasis_explosion_control_demo.ini",
+    "configs/homeostasis_stdp_scaling_demo.ini",
     "tests/test_minisnn_api.c",
     "tests/test_topology.c",
     "tests/test_LIF.c",
@@ -85,6 +93,10 @@ IMPORTANT_FILES = (
     "tests/test_plasticity_long.c",
     "tests/test_plot_plasticity.py",
     "tests/test_run_reports.py",
+    "tests/test_homeostasis.c",
+    "tests/test_homeostasis_runner.c",
+    "tests/test_homeostasis_long.c",
+    "tests/test_plot_homeostasis.py",
 )
 
 REQUIRED_TARGETS = (
@@ -114,6 +126,15 @@ REQUIRED_TARGETS = (
     "plot-stdp-ltp",
     "benchmark-c1",
     "check-c1",
+    "test-homeostasis",
+    "test-homeostasis-long",
+    "test-plot-homeostasis",
+    "scenario-homeostasis-silence",
+    "scenario-homeostasis-explosion",
+    "scenario-homeostasis-stdp",
+    "plot-homeostasis",
+    "benchmark-c15",
+    "check-c15",
 )
 
 IMPORTANT_KEYS = (
@@ -140,6 +161,26 @@ IMPORTANT_KEYS = (
     "record_history",
     "record_interval_steps",
     "record_connection_limit",
+    "intrinsic_enabled",
+    "target_rate",
+    "rate_tau",
+    "update_interval_steps",
+    "threshold_eta",
+    "threshold_min",
+    "threshold_max",
+    "synaptic_scaling_enabled",
+    "scaling_target_mode",
+    "scaling_eta",
+    "scaling_min_factor",
+    "scaling_max_factor",
+    "scaling_weight_min",
+    "scaling_weight_max",
+    "inhibitory_gain_enabled",
+    "inhibitory_gain_initial",
+    "inhibitory_gain_eta",
+    "inhibitory_gain_min",
+    "inhibitory_gain_max",
+    "record_neuron_limit",
 )
 
 STUDIO_BUTTONS = (
@@ -158,6 +199,9 @@ STUDIO_BUTTONS = (
     "GRAFICO STDP",
     "ABRIR PESOS",
     "ABRIR STDP",
+    "HOMEOSTASE",
+    "GRAFICO HOMEOSTASE",
+    "ABRIR HOMEOSTASE",
 )
 
 
@@ -227,7 +271,8 @@ def validate_docs(root: Path) -> list[str]:
     parser_source = (root / "app" / "scenario_config.c").read_text(encoding="utf-8")
     scenario_guide = texts.get(root / "docs" / "GUIA_DE_CENARIOS.md", "")
     for key in IMPORTANT_KEYS:
-        if f'{{"{key}",' not in parser_source:
+        if (f'{{"{key}",' not in parser_source and
+                f'strcmp(key, "{key}")' not in parser_source):
             errors.append(f"chave documentada ausente no parser: {key}")
         if f"`{key}`" not in scenario_guide:
             errors.append(f"chave do parser ausente no guia de cenários: {key}")
@@ -251,6 +296,9 @@ def validate_docs(root: Path) -> list[str]:
         "weights_report.html",
         "metrics.csv",
         "weights_final.csv",
+        "homeostasis_metrics.csv",
+        "homeostasis_report.html",
+        "homeostasis_overview.png",
     ):
         if required_output not in documentation_text:
             errors.append(f"saída central não documentada: {required_output}")

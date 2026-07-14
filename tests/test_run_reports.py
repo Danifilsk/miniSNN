@@ -154,6 +154,37 @@ def main() -> int:
         check("stdp_pair_trace" in stdp_text, "STDP rule")
         check("plasticity_potentiation_events" in stdp_text, "STDP metrics")
 
+        home = TEMP_ROOT / "Partial Homeostasis Run"
+        home.mkdir()
+        write_metrics(home, homeostasis_enabled="true")
+        write_single(
+            home / "homeostasis_metrics.csv",
+            {
+                "homeostasis_enabled": "true",
+                "homeostasis_intrinsic_enabled": "true",
+                "homeostasis_synaptic_scaling_enabled": "false",
+                "homeostasis_inhibitory_gain_enabled": "false",
+                "homeostasis_target_rate": 0.05,
+                "homeostasis_population_rate_final": 0.04,
+                "homeostasis_rate_error_final": -0.01,
+                "homeostasis_threshold_final_mean": -51.0,
+                "homeostasis_inhibitory_gain_final": 1.0,
+            },
+        )
+        (home / "homeostasis_report.txt").write_text(
+            "Resumo <script>alert('home')</script>", encoding="utf-8"
+        )
+        home_text = generate_metrics_report(home).read_text(encoding="utf-8")
+        check("13. Homeostase" in home_text, "homeostasis metrics section")
+        check("Mecanismos homeostaticos simplificados" in home_text,
+              "homeostasis limitation notice")
+        check('href="homeostasis_metrics.csv"' in home_text,
+              "homeostasis relative CSV link")
+        check("&lt;script&gt;" in home_text and "<script>alert('home')</script>" not in home_text,
+              "escaped homeostasis report")
+        check("http://" not in home_text and "https://" not in home_text,
+              "homeostasis report external resource")
+
         escaped_run = TEMP_ROOT / "Escaped Run"
         escaped_run.mkdir()
         write_metrics(
@@ -182,8 +213,18 @@ def main() -> int:
         (stdp / "run_manifest.txt").write_text(
             "actual_run_name=stdp_run\ntopology=chain\nplasticity_enabled=true\n"
             "plasticity_rule=stdp_pair_trace\nplasticity_weight_min=0\n"
-            "plasticity_weight_max=200\n",
+            "plasticity_weight_max=200\nhomeostasis_enabled=true\n",
             encoding="utf-8",
+        )
+        write_single(
+            stdp / "homeostasis_metrics.csv",
+            {
+                "homeostasis_enabled": "true",
+                "homeostasis_synaptic_scaling_enabled": "true",
+                "homeostasis_scaling_events": 3,
+                "homeostasis_scaling_total_signed_change": -1.25,
+                "homeostasis_scaling_total_absolute_change": 4.5,
+            },
         )
         weights_before = (stdp / "weights_final.csv").read_bytes()
         weight_output = generate_weights_report(stdp)
@@ -200,6 +241,8 @@ def main() -> int:
         check("amostra deterministica" in weight_text, "sampling warning")
         check("Historico de pesos" in weight_text, "history summary")
         check('href="weights_final.csv"' in weight_text, "complete CSV link")
+        check("deltas STDP e de scaling" in weight_text,
+              "STDP and scaling distinction")
 
         large = TEMP_ROOT / "Large Weight Run"
         large.mkdir()
@@ -235,6 +278,16 @@ def main() -> int:
             lambda: generate_metrics_report(invalid),
             invalid / "metrics_report.html",
             "incomplete metrics",
+        )
+        write_metrics(invalid, homeostasis_enabled="true")
+        (invalid / "homeostasis_metrics.csv").write_text(
+            "homeostasis_enabled,homeostasis_population_rate_final\ntrue,nan\n",
+            encoding="utf-8",
+        )
+        expect_failure(
+            lambda: generate_metrics_report(invalid),
+            invalid / "metrics_report.html",
+            "nonfinite homeostasis metrics",
         )
         expect_failure(
             lambda: generate_weights_report(invalid),

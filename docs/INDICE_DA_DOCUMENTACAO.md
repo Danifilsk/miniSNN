@@ -18,6 +18,7 @@ implementados, experimentais e planejados.
 - [Guia de métricas](GUIA_DE_METRICAS.md) — leitura das métricas principais.
 - [Guia de diagnóstico](GUIA_DE_DIAGNOSTICO.md) — níveis, fórmulas, regimes e limitações heurísticas.
 - [Guia de plasticidade](GUIA_DE_PLASTICIDADE.md) — STDP, traces, cenários, saídas e limitações.
+- [Guia de homeostase](GUIA_DE_HOMEOSTASE.md) — threshold, scaling EXC, ganho INH e ordem temporal.
 
 Os guias de diagnóstico e plasticidade também explicam os relatórios locais
 `metrics_report.html` e `weights_report.html`. Eles são a camada de leitura;
@@ -39,6 +40,7 @@ os CSVs permanecem como fonte bruta e podem ser acessados pelos links do HTML.
 - [Cobertura de testes](COBERTURA_DE_TESTES.md) — classificação e lacunas reais da suíte.
 - [Benchmarks v0.2](BENCHMARKS_V02.md) — medições locais reproduzíveis e limites.
 - [Benchmarks C1 STDP](BENCHMARKS_C1_STDP.md) — custo local da regra, histórico e gráfico.
+- [Benchmarks C1.5](BENCHMARKS_C15_HOMEOSTASE.md) — custo local dos mecanismos e histórico.
 - [Checklist do Studio](CHECKLIST_DE_VALIDACAO_DO_STUDIO.md) — validação manual separada da automação.
 - [Roadmap](ROADMAP.md) — implementado, próximo e planejado, sem prazos garantidos.
 

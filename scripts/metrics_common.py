@@ -135,6 +135,40 @@ def read_plasticity_metrics(
     return result
 
 
+def read_homeostasis_metrics(
+    run_path: Path,
+    config: ConfigParser,
+    warnings: list[str],
+) -> dict[str, object]:
+    enabled = str(cfg(config, "homeostasis", "enabled", "false")).lower() in {
+        "true", "yes", "sim", "1"
+    }
+    result: dict[str, object] = {
+        "homeostasis_enabled": enabled,
+        "homeostasis_metrics_source": (
+            "config (homeostase off)" if not enabled else "indisponivel"
+        ),
+    }
+    metrics_path = run_path / "homeostasis_metrics.csv"
+    if metrics_path.exists():
+        try:
+            data = pd.read_csv(metrics_path)
+            if len(data.index) != 1:
+                raise ValueError("esperada exatamente uma linha")
+            row = data.iloc[0].to_dict()
+            for key, value in row.items():
+                if pd.notna(value):
+                    if isinstance(value, (int, float, np.number)) and not math.isfinite(float(value)):
+                        raise ValueError(f"valor nao finito em {key}")
+                    result[str(key)] = value
+            result["homeostasis_metrics_source"] = "homeostasis_metrics.csv"
+        except Exception as error:
+            warnings.append(f"homeostasis_metrics.csv invalido: {error}")
+    elif enabled:
+        warnings.append("Homeostase ativa, mas homeostasis_metrics.csv esta ausente.")
+    return result
+
+
 def longest_streak(mask: np.ndarray) -> int:
     best = current = 0
     for value in mask.astype(bool):
@@ -453,6 +487,7 @@ def basic_metrics(run_path: Path, level: str | None = None, keep_events: bool = 
             warnings.append("metrics.csv anterior nao pode ser reutilizado; metricas foram recalculadas.")
 
     metrics.update(read_plasticity_metrics(run_path, config, warnings))
+    metrics.update(read_homeostasis_metrics(run_path, config, warnings))
 
     if population is None or population.empty:
         spikes = np.zeros(steps, dtype=float)

@@ -178,3 +178,13 @@ conexões elegíveis, mesmo quando snapshots foram amostrados.
 com a diferença líquida final. `analyze_run.py` e `compare_runs.py` reutilizam
 essas métricas e mostram `NA` quando uma run antiga não fornece o campo. Mais
 detalhes no [Guia de plasticidade](GUIA_DE_PLASTICIDADE.md).
+
+## Métricas homeostáticas
+
+`homeostasis_metrics.csv` registra mecanismos ativos, contadores, clamps,
+mudanças acumuladas, taxa populacional final, erro e ganho final.
+`homeostasis_history.csv` registra taxa, meta, erro e ganho ao longo do tempo;
+`threshold_history.csv` resume os thresholds; `homeostasis_neurons.csv` contém a
+amostra determinística por neurônio. O diagnóstico e a comparação agregam esses
+campos quando presentes e usam `NA` para runs antigas. Veja o
+[Guia de homeostase](GUIA_DE_HOMEOSTASE.md).

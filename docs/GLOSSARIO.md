@@ -50,3 +50,16 @@
 
 Fórmulas completas estão no [Guia de diagnóstico](GUIA_DE_DIAGNOSTICO.md) e no
 [Guia de métricas](GUIA_DE_METRICAS.md).
+
+## Homeostase
+
+- **Homeostase neural:** controle simplificado que tenta aproximar atividade de uma referência.
+- **Taxa-alvo:** parâmetro do modelo usado como referência, não constante biológica universal.
+- **Rate trace:** média exponencial de spikes por unidade temporal.
+- **Threshold adaptativo:** limiar individual alterado a partir do erro de taxa.
+- **Excitabilidade:** facilidade relativa com que o neurônio alcança o limiar.
+- **Escalonamento sináptico:** multiplicação coordenada das entradas EXC.
+- **Soma de entrada excitatória:** soma dos pesos positivos de origens EXC para um destino.
+- **Ganho inibitório:** multiplicador global aplicado na transmissão INH sem mudar o peso bruto.
+- **Erro de taxa:** taxa observada menos taxa-alvo.
+- **Clamp homeostático:** limite mínimo/máximo aplicado a threshold, peso, fator ou ganho.

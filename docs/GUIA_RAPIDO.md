@@ -97,4 +97,11 @@ peso.
 - [Guia de cenários](GUIA_DE_CENARIOS.md)
 - [Organização de resultados](ORGANIZACAO_DE_RESULTADOS.md)
 - [Guia de plasticidade](GUIA_DE_PLASTICIDADE.md)
+- [Guia de homeostase](GUIA_DE_HOMEOSTASE.md)
 - [Índice completo](INDICE_DA_DOCUMENTACAO.md)
+
+## Homeostase opcional
+
+Use `mingw32-make scenario-homeostasis-silence` para a primeira execução e
+`mingw32-make plot-homeostasis RUN=results/scenarios/homeostasis_silence_recovery_demo`
+para o panorama. Configs antigas permanecem com a homeostase desligada.

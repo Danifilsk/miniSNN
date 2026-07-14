@@ -148,6 +148,34 @@ def write_plasticity_metrics(path: Path) -> None:
     (path / "weights_final.csv").write_text("connection_id\n", encoding="utf-8")
 
 
+def write_homeostasis_metrics(path: Path) -> None:
+    with (path / "homeostasis_metrics.csv").open(
+        "w", encoding="utf-8", newline=""
+    ) as file:
+        writer = csv.DictWriter(
+            file,
+            fieldnames=[
+                "homeostasis_enabled",
+                "homeostasis_population_rate_final",
+                "homeostasis_rate_error_mean_absolute",
+                "homeostasis_threshold_final_mean",
+                "homeostasis_scaling_events",
+                "homeostasis_inhibitory_gain_final",
+            ],
+        )
+        writer.writeheader()
+        writer.writerow(
+            {
+                "homeostasis_enabled": "true",
+                "homeostasis_population_rate_final": 0.04,
+                "homeostasis_rate_error_mean_absolute": 0.01,
+                "homeostasis_threshold_final_mean": -51.0,
+                "homeostasis_scaling_events": 3,
+                "homeostasis_inhibitory_gain_final": 1.2,
+            }
+        )
+
+
 def main() -> int:
     temp_root = PROJECT_ROOT / "build" / "test_compare_runs_temp"
     comparisons_root = temp_root / "comparisons"
@@ -170,6 +198,7 @@ def main() -> int:
         write_summary(run_b, "run_b", "small_world", 8)
         write_stored_metrics(run_a, "run_a")
         write_plasticity_metrics(run_a)
+        write_homeostasis_metrics(run_a)
 
         output_dir = compare_runs(
             [run_a, run_b],
@@ -245,9 +274,17 @@ def main() -> int:
         if stored["plasticity_metrics_source"] != "plasticity_metrics.csv":
             print("FAIL: plasticity_metrics.csv was not reused")
             return 1
+        close(stored["homeostasis_population_rate_final"], 0.04,
+              "stored homeostasis final rate")
+        if stored["homeostasis_metrics_source"] != "homeostasis_metrics.csv":
+            print("FAIL: homeostasis_metrics.csv was not reused")
+            return 1
         report = (output_dir / "comparison_report.txt").read_text(encoding="utf-8")
         if "Plasticidade:" not in report or "plasticity_final_weight_mean" not in report:
             print("FAIL: comparison report lacks plasticity evidence")
+            return 1
+        if "Homeostase:" not in report or "homeostasis_population_rate_final" not in report:
+            print("FAIL: comparison report lacks homeostasis evidence")
             return 1
 
         close(derived["total_spikes"], 5.0, "derived total")

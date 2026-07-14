@@ -85,3 +85,11 @@ gráficos sem alterar a simulação concluída.
 
 Veja também o [Mapa do projeto](MAPA_DO_PROJETO.md) e a
 [Referência da API](../API_REFERENCE.md).
+
+## Estado homeostático por rede
+
+`src/homeostasis.c` concentra validação e fórmulas. `src/network.c` mantém um
+`HomeostasisState` privado, chama STDP antes da homeostase e reutiliza o índice
+de entradas por `source` e índice de saída. Quando desligada, não há arrays por
+neurônio nem loops homeostáticos. Threshold e ganho atualizados só afetam passos
+futuros. Consulte o [Guia de homeostase](GUIA_DE_HOMEOSTASE.md).

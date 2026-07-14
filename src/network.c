@@ -17,6 +17,7 @@ static void network_reset_fields(Network *net)
     net->pending_current = NULL;
     net->ext_current = NULL;
     net->plasticity = NULL;
+    net->homeostasis = NULL;
 
     net->lif_parameters.dt = 0.0;
     net->lif_parameters.tau = 0.0;
@@ -56,7 +57,8 @@ static int network_is_valid_for_update(Network *net)
         net->used_syn_current == NULL ||
         net->pending_current == NULL ||
         net->ext_current == NULL ||
-        net->plasticity == NULL)
+        net->plasticity == NULL ||
+        net->homeostasis == NULL)
     {
         return 0;
     }
@@ -150,6 +152,7 @@ int network_init_with_config(
     // Corrente externa
     net->ext_current = malloc(size * sizeof(double));
     net->plasticity = calloc(1, sizeof(*net->plasticity));
+    net->homeostasis = calloc(1, sizeof(*net->homeostasis));
 
     if (net->neurons == NULL ||
         net->connections == NULL ||
@@ -158,13 +161,20 @@ int network_init_with_config(
         net->used_syn_current == NULL ||
         net->pending_current == NULL ||
         net->ext_current == NULL ||
-        net->plasticity == NULL)
+        net->plasticity == NULL ||
+        net->homeostasis == NULL)
     {
         network_destroy(net);
         return 0;
     }
 
     if (!plasticity_state_init(net->plasticity, size))
+    {
+        network_destroy(net);
+        return 0;
+    }
+
+    if (!homeostasis_state_init(net->homeostasis, size))
     {
         network_destroy(net);
         return 0;
@@ -194,9 +204,12 @@ int network_update(Network *net)
 {
     int total_spikes = 0;
     int next_slot;
+    int homeostasis_enabled;
 
     if (!network_is_valid_for_update(net))
         return -1;
+
+    homeostasis_enabled = net->homeostasis->config.enabled;
 
     // Limpa os spikes do passo anterior
     for (int i = 0; i < net->size; i++)
@@ -209,8 +222,19 @@ int network_update(Network *net)
 
         double I = net->ext_current[i] + net->used_syn_current[i];
 
-        net->spikes[i] =
-            lif_update_with_parameters(&net->neurons[i], I, &net->lif_parameters);
+        if (homeostasis_enabled)
+        {
+            net->spikes[i] = lif_update_with_threshold(
+                &net->neurons[i],
+                I,
+                &net->lif_parameters,
+                net->homeostasis->effective_threshold[i]);
+        }
+        else
+        {
+            net->spikes[i] = lif_update_with_parameters(
+                &net->neurons[i], I, &net->lif_parameters);
+        }
 
         if (net->spikes[i])
             total_spikes++;
@@ -239,8 +263,17 @@ int network_update(Network *net)
                 (net->delay_cursor + c->delay) %
                 net->max_synaptic_delay;
 
-            net->pending_current[delivery_slot * net->size + c->target] +=
-                c->weight;
+            if (homeostasis_enabled &&
+                net->neurons[i].type == NEURON_INHIBITORY)
+            {
+                net->pending_current[delivery_slot * net->size + c->target] +=
+                    c->weight * net->homeostasis->inhibitory_gain;
+            }
+            else
+            {
+                net->pending_current[delivery_slot * net->size + c->target] +=
+                    c->weight;
+            }
         }
     }
 
@@ -251,6 +284,20 @@ int network_update(Network *net)
             net->connections,
             net->spikes,
             net->lif_parameters.dt))
+    {
+        return -1;
+    }
+
+    if (homeostasis_enabled &&
+        !homeostasis_apply_step(
+            net->homeostasis,
+            net->lif_parameters.v_threshold,
+            net->lif_parameters.dt,
+            (unsigned long long)net->step + 1ULL,
+            net->spikes,
+            net->neurons,
+            net->connections,
+            net->plasticity))
     {
         return -1;
     }
@@ -306,6 +353,14 @@ static int network_connect_delayed_impl(
         return 0;
     }
 
+
+    if (net->homeostasis != NULL &&
+        net->homeostasis->config.enabled &&
+        net->step > 0)
+    {
+        return 0;
+    }
+
     if (source < 0 || source >= net->size ||
         target < 0 || target >= net->size)
     {
@@ -355,6 +410,7 @@ static int network_connect_delayed_impl(
     connections->count = new_count;
 
     plasticity_state_invalidate_index(net->plasticity);
+    homeostasis_state_invalidate_targets(net->homeostasis);
 
     return 1;
 }
@@ -437,8 +493,16 @@ int network_set_neuron_type(
         return 0;
     }
 
+    if (net->homeostasis != NULL &&
+        net->homeostasis->config.enabled &&
+        net->step > 0)
+    {
+        return 0;
+    }
+
     net->neurons[neuron_id].type = type;
     plasticity_state_invalidate_index(net->plasticity);
+    homeostasis_state_invalidate_targets(net->homeostasis);
     return 1;
 }
 
@@ -537,6 +601,43 @@ int network_set_plasticity_config(
         net->connections);
 }
 
+int network_set_homeostasis_config(
+    Network *net,
+    const MiniSNNHomeostasisConfig *config)
+{
+    if (net == NULL || net->homeostasis == NULL ||
+        net->plasticity == NULL || net->neurons == NULL ||
+        net->connections == NULL)
+    {
+        return 0;
+    }
+
+    return homeostasis_state_configure(
+        net->homeostasis,
+        config,
+        net->lif_parameters.v_threshold,
+        net->neurons,
+        net->connections,
+        net->plasticity);
+}
+
+int network_reset_homeostasis(Network *net)
+{
+    if (net == NULL || net->homeostasis == NULL ||
+        net->plasticity == NULL || net->neurons == NULL ||
+        net->connections == NULL)
+    {
+        return 0;
+    }
+
+    return homeostasis_state_reset(
+        net->homeostasis,
+        net->lif_parameters.v_threshold,
+        net->neurons,
+        net->connections,
+        net->plasticity);
+}
+
 void network_clear_connections(Network *net)
 {
     if (net == NULL || net->connections == NULL)
@@ -550,6 +651,7 @@ void network_clear_connections(Network *net)
     }
 
     plasticity_state_invalidate_index(net->plasticity);
+    homeostasis_state_invalidate_targets(net->homeostasis);
 }
 
 int network_set_external_current(Network *net, int neuron_id, double current)
@@ -618,6 +720,12 @@ void network_destroy(Network *net)
     {
         plasticity_state_destroy(net->plasticity);
         free(net->plasticity);
+    }
+
+    if (net->homeostasis != NULL)
+    {
+        homeostasis_state_destroy(net->homeostasis);
+        free(net->homeostasis);
     }
 
     network_reset_fields(net);

@@ -3,21 +3,23 @@ CFLAGS = -std=c11 -Wall -Wextra -pedantic -fanalyzer
 INCLUDES = -Iinclude -Isrc -Iapp
 BUILD_DIR = build
 
-API_SOURCES = src/minisnn.c src/neuron.c src/network.c src/plasticity.c
+API_SOURCES = src/minisnn.c src/neuron.c src/network.c src/plasticity.c src/homeostasis.c
 APP_SOURCES = app/scenario_config.c
 SCENARIO_RUNNER_SOURCES = app/scenario_config.c app/scenario_runner.c
-CORE_SOURCES = src/neuron.c src/network.c src/plasticity.c src/topology.c src/stimulus.c src/recorder.c
-EXPERIMENT_SOURCES = src/neuron.c src/network.c src/plasticity.c src/stimulus.c src/recorder.c
+CORE_SOURCES = src/neuron.c src/network.c src/plasticity.c src/homeostasis.c src/topology.c src/stimulus.c src/recorder.c
+EXPERIMENT_SOURCES = src/neuron.c src/network.c src/plasticity.c src/homeostasis.c src/stimulus.c src/recorder.c
 SCENARIO ?= configs/random_balanced.ini
 PYTHON ?= python
 ANALYZER_CFLAGS = -std=c11 -Wall -Wextra -pedantic -fanalyzer -Wformat=2 -Wshadow -Wnull-dereference
 
-.PHONY: all help clean test test-api test-core test-lif test-plasticity test-plasticity-long test-scenario test-runner test-runner-topologies test-reproducibility test-regression test-memory test-long test-analyzer test-sanitize benchmark-v02 benchmark-c1 check-v02 check-c1 \
+.PHONY: all help clean test test-api test-core test-lif test-plasticity test-plasticity-long test-homeostasis test-homeostasis-long test-scenario test-runner test-runner-topologies test-reproducibility test-regression test-memory test-long test-analyzer test-sanitize benchmark-v02 benchmark-c1 benchmark-c15 check-v02 check-c1 check-c15 \
 	test-plot-neuron test-plot-plasticity test-compare-runs test-diagnostics test-run-reports test-docs \
+	test-plot-homeostasis plot-homeostasis \
 	api-examples api-single api-chain api-exc-inh \
 	demo ei-balance inhibition-fine inh-to-inh sparse-ei scenario \
 	scenario-random scenario-small-world scenario-feedforward \
 	scenario-stdp-ltp scenario-stdp-ltd scenario-stdp-mixed plot-stdp-ltp \
+	scenario-homeostasis-silence scenario-homeostasis-explosion scenario-homeostasis-stdp \
 	report-metrics report-weights report-all \
 	studio-build studio
 
@@ -31,6 +33,8 @@ help:
 	@echo   make test-lif          - validacao numerica do LIF discreto
 	@echo   make test-plasticity   - validacao numerica do STDP por traces
 	@echo   make test-plasticity-long - 10000 passos com STDP e verificacao de limites
+	@echo   make test-homeostasis   - validacao numerica da homeostase
+	@echo   make test-homeostasis-long - 20000 passos com todos os mecanismos
 	@echo   make test-scenario     - teste do parser de cenarios
 	@echo   make test-runner       - teste do executor compartilhado de cenarios
 	@echo   make test-runner-topologies - validacao estrutural das topologias do runner
@@ -42,10 +46,14 @@ help:
 	@echo   make test-sanitize     - executa ASan/UBSan ou informa suporte ausente
 	@echo   make benchmark-v02     - benchmark local controlado do Core v0.2
 	@echo   make benchmark-c1      - mede STDP off, on e custo do historico
+	@echo   make benchmark-c15     - compara cinco modos de homeostase
 	@echo   make check-v02         - verifica prontidao automatica sem alterar Git
 	@echo   make check-c1          - verifica o fechamento automatico do Bloco C1
+	@echo   make check-c15         - verifica o fechamento automatico do Bloco C1.5
 	@echo   make test-plot-neuron  - teste Python do grafico de neuronio
 	@echo   make test-plot-plasticity - teste Python do grafico STDP
+	@echo   make test-plot-homeostasis - teste Python do panorama homeostatico
+	@echo   make plot-homeostasis RUN=results/scenarios/run - gera panorama homeostatico
 	@echo   make test-compare-runs - teste Python da comparacao de execucoes
 	@echo   make test-diagnostics  - teste Python dos diagnosticos basic/full
 	@echo   make test-run-reports  - valida relatorios HTML de metricas e pesos
@@ -59,6 +67,9 @@ help:
 	@echo   make scenario-stdp-ltp  - executa o demonstrador STDP de LTP
 	@echo   make scenario-stdp-ltd  - executa o demonstrador STDP de LTD
 	@echo   make scenario-stdp-mixed - executa o demonstrador STDP misto
+	@echo   make scenario-homeostasis-silence - recuperacao de baixa atividade
+	@echo   make scenario-homeostasis-explosion - controle de atividade excessiva
+	@echo   make scenario-homeostasis-stdp - STDP combinado com scaling
 	@echo   make plot-stdp-ltp     - gera o panorama STDP do demonstrador LTP
 	@echo   make report-metrics RUN=results/scenarios/run - gera metrics_report.html
 	@echo   make report-weights RUN=results/scenarios/run - gera weights_report.html
@@ -83,11 +94,20 @@ $(BUILD_DIR)/test_topology.exe: tests/test_topology.c $(CORE_SOURCES) | $(BUILD_
 $(BUILD_DIR)/test_LIF.exe: tests/test_LIF.c src/neuron.c src/neuron.h src/config.h | $(BUILD_DIR)
 	$(CC) $(CFLAGS) tests/test_LIF.c src/neuron.c $(INCLUDES) -o $@
 
-$(BUILD_DIR)/test_plasticity.exe: tests/test_plasticity.c src/neuron.c src/network.c src/plasticity.c | $(BUILD_DIR)
-	$(CC) $(CFLAGS) tests/test_plasticity.c src/neuron.c src/network.c src/plasticity.c $(INCLUDES) -o $@
+$(BUILD_DIR)/test_plasticity.exe: tests/test_plasticity.c src/neuron.c src/network.c src/plasticity.c src/homeostasis.c | $(BUILD_DIR)
+	$(CC) $(CFLAGS) tests/test_plasticity.c src/neuron.c src/network.c src/plasticity.c src/homeostasis.c $(INCLUDES) -o $@
 
 $(BUILD_DIR)/test_plasticity_long.exe: tests/test_plasticity_long.c $(API_SOURCES) | $(BUILD_DIR)
 	$(CC) $(CFLAGS) tests/test_plasticity_long.c $(API_SOURCES) $(INCLUDES) -o $@
+
+$(BUILD_DIR)/test_homeostasis.exe: tests/test_homeostasis.c $(API_SOURCES) | $(BUILD_DIR)
+	$(CC) $(CFLAGS) tests/test_homeostasis.c $(API_SOURCES) $(INCLUDES) -o $@
+
+$(BUILD_DIR)/test_homeostasis_runner.exe: tests/test_homeostasis_runner.c $(SCENARIO_RUNNER_SOURCES) $(API_SOURCES) | $(BUILD_DIR)
+	$(CC) $(CFLAGS) tests/test_homeostasis_runner.c $(SCENARIO_RUNNER_SOURCES) $(API_SOURCES) $(INCLUDES) -o $@
+
+$(BUILD_DIR)/test_homeostasis_long.exe: tests/test_homeostasis_long.c $(API_SOURCES) | $(BUILD_DIR)
+	$(CC) $(CFLAGS) tests/test_homeostasis_long.c $(API_SOURCES) $(INCLUDES) -o $@
 
 $(BUILD_DIR)/test_scenario_config.exe: tests/test_scenario_config.c $(APP_SOURCES) app/scenario_config.h | $(BUILD_DIR)
 	$(CC) $(CFLAGS) tests/test_scenario_config.c $(APP_SOURCES) $(INCLUDES) -o $@
@@ -126,6 +146,13 @@ test-plasticity: $(BUILD_DIR)/test_plasticity.exe
 test-plasticity-long: $(BUILD_DIR)/test_plasticity_long.exe
 	$(BUILD_DIR)/test_plasticity_long.exe
 
+test-homeostasis: $(BUILD_DIR)/test_homeostasis.exe $(BUILD_DIR)/test_homeostasis_runner.exe
+	$(BUILD_DIR)/test_homeostasis.exe
+	$(BUILD_DIR)/test_homeostasis_runner.exe
+
+test-homeostasis-long: $(BUILD_DIR)/test_homeostasis_long.exe
+	$(BUILD_DIR)/test_homeostasis_long.exe
+
 test-scenario: $(BUILD_DIR)/test_scenario_config.exe
 	$(BUILD_DIR)/test_scenario_config.exe
 
@@ -159,17 +186,30 @@ benchmark-v02: $(BUILD_DIR)/benchmark_core.exe $(BUILD_DIR)/minisnn_runner.exe |
 benchmark-c1: $(BUILD_DIR)/minisnn_runner.exe | $(BUILD_DIR)
 	$(PYTHON) scripts/run_benchmarks_c1.py
 
+benchmark-c15: $(BUILD_DIR)/minisnn_runner.exe | $(BUILD_DIR)
+	$(PYTHON) scripts/run_benchmarks_c15.py
+
 check-v02: | $(BUILD_DIR)
 	$(PYTHON) scripts/check_release_v02.py
 
 check-c1: $(BUILD_DIR)/minisnn_runner.exe | $(BUILD_DIR)
 	$(PYTHON) scripts/check_c1.py
 
+check-c15: $(BUILD_DIR)/minisnn_runner.exe | $(BUILD_DIR)
+	$(PYTHON) scripts/check_c15.py
+
 test-plot-neuron: | $(BUILD_DIR)
 	$(PYTHON) tests/test_plot_neuron.py
 
 test-plot-plasticity: | $(BUILD_DIR)
 	$(PYTHON) tests/test_plot_plasticity.py
+
+test-plot-homeostasis: | $(BUILD_DIR)
+	$(PYTHON) tests/test_plot_homeostasis.py
+
+plot-homeostasis:
+	@if "$(RUN)"=="" (echo Erro: informe RUN=results/scenarios/nome_da_execucao & exit /B 1)
+	$(PYTHON) scripts/plot_homeostasis.py "$(RUN)"
 
 test-compare-runs: | $(BUILD_DIR)
 	$(PYTHON) tests/test_compare_runs.py
@@ -185,7 +225,7 @@ test-run-reports: | $(BUILD_DIR)
 test-docs: | $(BUILD_DIR)
 	$(PYTHON) tests/test_docs.py
 
-test: test-api test-core test-lif test-plasticity test-scenario test-runner test-runner-topologies test-reproducibility test-memory
+test: test-api test-core test-lif test-plasticity test-homeostasis test-scenario test-runner test-runner-topologies test-reproducibility test-memory
 
 $(BUILD_DIR)/example_api_single_neuron.exe: examples/api/example_api_single_neuron.c $(API_SOURCES) include/minisnn.h include/minisnn_types.h | $(BUILD_DIR)
 	$(CC) $(CFLAGS) examples/api/example_api_single_neuron.c $(API_SOURCES) $(INCLUDES) -o $@
@@ -236,6 +276,18 @@ scenario-stdp-ltd: $(BUILD_DIR)/minisnn_runner.exe
 
 scenario-stdp-mixed: $(BUILD_DIR)/minisnn_runner.exe
 	$(BUILD_DIR)/minisnn_runner.exe configs/stdp_mixed_demo.ini
+
+scenario-homeostasis-silence: $(BUILD_DIR)/minisnn_runner.exe
+	$(BUILD_DIR)/minisnn_runner.exe configs/homeostasis_silence_recovery_demo.ini
+	$(PYTHON) scripts/plot_homeostasis.py results/scenarios/homeostasis_silence_recovery_demo
+
+scenario-homeostasis-explosion: $(BUILD_DIR)/minisnn_runner.exe
+	$(BUILD_DIR)/minisnn_runner.exe configs/homeostasis_explosion_control_demo.ini
+	$(PYTHON) scripts/plot_homeostasis.py results/scenarios/homeostasis_explosion_control_demo
+
+scenario-homeostasis-stdp: $(BUILD_DIR)/minisnn_runner.exe
+	$(BUILD_DIR)/minisnn_runner.exe configs/homeostasis_stdp_scaling_demo.ini
+	$(PYTHON) scripts/plot_homeostasis.py results/scenarios/homeostasis_stdp_scaling_demo
 
 plot-stdp-ltp: scenario-stdp-ltp
 	$(PYTHON) scripts/plot_plasticity.py results/scenarios/stdp_ltp_demo

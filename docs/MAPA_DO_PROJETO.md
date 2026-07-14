@@ -60,3 +60,12 @@ Este documento responde: “qual arquivo cuida de quê?”.
 
 O leitor não precisa conhecer ponteiros ou Win32 para usar esse fluxo; esses
 detalhes ficam encapsulados nos módulos correspondentes.
+
+## C1.5
+
+- `src/homeostasis.c` e `src/homeostasis.h`: fórmulas, estado e estatísticas homeostáticas.
+- `tests/test_homeostasis*.c`: matemática, runner e execução prolongada.
+- `scripts/plot_homeostasis.py`: PNG e atualização do HTML local.
+- `scripts/run_benchmarks_c15.py`: benchmark controlado.
+- `configs/homeostasis_*_demo.ini`: três demonstrações reproduzíveis.
+- `docs/GUIA_DE_HOMEOSTASE.md`: referência operacional e científica.

@@ -65,6 +65,18 @@ typedef struct
     MiniSNNPlasticityStats stats;
 } PlasticityRunData;
 
+typedef struct
+{
+    int enabled;
+    FILE *history_file;
+    FILE *threshold_file;
+    int last_history_step;
+    size_t sample_count;
+    int sample_ids[SCENARIO_MAX_NEURONS];
+    MiniSNNHomeostasisStats stats;
+    double final_threshold_mean;
+} HomeostasisRunData;
+
 static void topology_hash_value(
     unsigned long long *hash,
     unsigned long long value)
@@ -1445,6 +1457,510 @@ static int plasticity_run_data_finalize(
     return 1;
 }
 
+static void homeostasis_run_data_close(HomeostasisRunData *data)
+{
+    if (data == NULL)
+        return;
+    if (data->history_file != NULL)
+        fclose(data->history_file);
+    if (data->threshold_file != NULL)
+        fclose(data->threshold_file);
+    data->history_file = NULL;
+    data->threshold_file = NULL;
+}
+
+static int collect_homeostasis_snapshot(
+    const MiniSNN *snn,
+    const ScenarioConfig *config,
+    double *population_rate,
+    double *threshold_mean,
+    double *threshold_min,
+    double *threshold_max,
+    double *incoming_mean,
+    double *incoming_error_mean)
+{
+    double rate_sum = 0.0;
+    double threshold_sum = 0.0;
+    double incoming_sum = 0.0;
+    double incoming_error_sum = 0.0;
+
+    *threshold_min = 0.0;
+    *threshold_max = 0.0;
+
+    for (int i = 0; i < config->neurons; i++)
+    {
+        double rate;
+        double threshold;
+        double initial_incoming;
+        double current_incoming;
+
+        if (!minisnn_get_neuron_rate_trace(snn, i, &rate) ||
+            !minisnn_get_neuron_effective_threshold(snn, i, &threshold) ||
+            !minisnn_get_initial_incoming_exc_sum(snn, i, &initial_incoming) ||
+            !minisnn_get_current_incoming_exc_sum(snn, i, &current_incoming))
+        {
+            return 0;
+        }
+
+        if (!isfinite(rate) || !isfinite(threshold) ||
+            !isfinite(initial_incoming) || !isfinite(current_incoming))
+        {
+            return 0;
+        }
+
+        rate_sum += rate;
+        threshold_sum += threshold;
+        incoming_sum += current_incoming;
+        incoming_error_sum += fabs(current_incoming - initial_incoming);
+
+        if (i == 0 || threshold < *threshold_min)
+            *threshold_min = threshold;
+        if (i == 0 || threshold > *threshold_max)
+            *threshold_max = threshold;
+    }
+
+    *population_rate = rate_sum / (double)config->neurons;
+    *threshold_mean = threshold_sum / (double)config->neurons;
+    *incoming_mean = incoming_sum / (double)config->neurons;
+    *incoming_error_mean = incoming_error_sum / (double)config->neurons;
+    return 1;
+}
+
+static int write_homeostasis_history_step(
+    const MiniSNN *snn,
+    const ScenarioConfig *config,
+    HomeostasisRunData *data,
+    int step)
+{
+    double population_rate;
+    double threshold_mean;
+    double threshold_min;
+    double threshold_max;
+    double incoming_mean;
+    double incoming_error_mean;
+    double inhibitory_gain;
+    MiniSNNHomeostasisStats stats;
+    double scaling_factor_mean;
+
+    if (data->history_file == NULL || data->threshold_file == NULL)
+        return 1;
+
+    if (!collect_homeostasis_snapshot(
+            snn,
+            config,
+            &population_rate,
+            &threshold_mean,
+            &threshold_min,
+            &threshold_max,
+            &incoming_mean,
+            &incoming_error_mean) ||
+        !minisnn_get_inhibitory_gain(snn, &inhibitory_gain) ||
+        !minisnn_get_homeostasis_stats(snn, &stats))
+    {
+        return 0;
+    }
+
+    scaling_factor_mean = stats.scaling_factor_count > 0ULL ?
+        stats.scaling_factor_sum / (double)stats.scaling_factor_count : 1.0;
+
+    if (fprintf(
+            data->history_file,
+            "%d,%.17g,%.17g,%.17g,%.17g,%.17g,%.17g,%.17g,%.17g,%.17g,%.17g,%llu\n",
+            step,
+            population_rate,
+            config->homeostasis_target_rate,
+            population_rate - config->homeostasis_target_rate,
+            threshold_mean,
+            threshold_min,
+            threshold_max,
+            inhibitory_gain,
+            incoming_mean,
+            incoming_error_mean,
+            scaling_factor_mean,
+            stats.scaling_events) < 0)
+    {
+        return 0;
+    }
+
+    for (size_t i = 0; i < data->sample_count; i++)
+    {
+        double rate;
+        double threshold;
+        int neuron_id = data->sample_ids[i];
+
+        if (!minisnn_get_neuron_rate_trace(snn, neuron_id, &rate) ||
+            !minisnn_get_neuron_effective_threshold(snn, neuron_id, &threshold) ||
+            fprintf(
+                data->threshold_file,
+                "%d,%d,%.17g,%.17g,%.17g,1\n",
+                step,
+                neuron_id,
+                rate,
+                threshold,
+                config->v_threshold) < 0)
+        {
+            return 0;
+        }
+    }
+
+    data->last_history_step = step;
+    return 1;
+}
+
+static int homeostasis_run_data_prepare(
+    const MiniSNN *snn,
+    const ScenarioConfig *config,
+    const char *output_dir,
+    HomeostasisRunData *data)
+{
+    char path[SCENARIO_OUTPUT_PATH_MAX];
+    size_t limit;
+
+    memset(data, 0, sizeof(*data));
+    data->enabled = config->homeostasis_enabled;
+    data->last_history_step = -1;
+
+    if (!data->enabled)
+        return 1;
+
+    limit = (size_t)config->homeostasis_record_neuron_limit;
+    data->sample_count = (size_t)config->neurons < limit ?
+        (size_t)config->neurons : limit;
+
+    for (size_t i = 0; i < data->sample_count; i++)
+    {
+        data->sample_ids[i] = (int)distributed_sample_id(
+            (size_t)config->neurons, data->sample_count, i);
+    }
+
+    if (!make_path(path, output_dir, "homeostasis_history.csv"))
+        return 0;
+    data->history_file = fopen(path, "w");
+    if (data->history_file == NULL || fprintf(
+            data->history_file,
+            "step,population_rate,target_rate,rate_error,threshold_mean,threshold_min,threshold_max,inhibitory_gain,incoming_exc_sum_mean,incoming_exc_sum_error_mean,scaling_factor_mean,scaling_events_cumulative\n") < 0)
+    {
+        homeostasis_run_data_close(data);
+        return 0;
+    }
+
+    if (!make_path(path, output_dir, "threshold_history.csv"))
+    {
+        homeostasis_run_data_close(data);
+        return 0;
+    }
+    data->threshold_file = fopen(path, "w");
+    if (data->threshold_file == NULL || fprintf(
+            data->threshold_file,
+            "step,neuron_id,rate_trace,effective_threshold,initial_threshold,sampled\n") < 0 ||
+        !write_homeostasis_history_step(snn, config, data, 0))
+    {
+        homeostasis_run_data_close(data);
+        return 0;
+    }
+
+    return 1;
+}
+
+static int write_homeostasis_neurons(
+    const MiniSNN *snn,
+    const ScenarioConfig *config,
+    const ScenarioRunResult *result,
+    const HomeostasisRunData *data)
+{
+    char path[SCENARIO_OUTPUT_PATH_MAX];
+    FILE *file;
+    size_t count = data->sample_count > 0 ?
+        data->sample_count : (size_t)config->neurons;
+
+    if (!make_path(path, result->output_directory, "homeostasis_neurons.csv"))
+        return 0;
+    file = fopen(path, "w");
+    if (file == NULL || fprintf(
+            file,
+            "neuron_id,neuron_type,rate_trace,target_rate,rate_error,initial_threshold,final_threshold,threshold_change,initial_incoming_exc_sum,final_incoming_exc_sum,incoming_exc_sum_change,sampled\n") < 0)
+    {
+        if (file != NULL)
+            fclose(file);
+        return 0;
+    }
+
+    for (size_t i = 0; i < count; i++)
+    {
+        int neuron_id = data->sample_count > 0 ? data->sample_ids[i] : (int)i;
+        double rate;
+        double threshold;
+        double initial_sum;
+        double final_sum;
+
+        if (!minisnn_get_neuron_rate_trace(snn, neuron_id, &rate) ||
+            !minisnn_get_neuron_effective_threshold(snn, neuron_id, &threshold) ||
+            !minisnn_get_initial_incoming_exc_sum(snn, neuron_id, &initial_sum) ||
+            !minisnn_get_current_incoming_exc_sum(snn, neuron_id, &final_sum) ||
+            fprintf(
+                file,
+                "%d,%s,%.17g,%.17g,%.17g,%.17g,%.17g,%.17g,%.17g,%.17g,%.17g,1\n",
+                neuron_id,
+                neuron_id_is_inhibitory(
+                    neuron_id, config->neurons, result->inhibitory_count) ?
+                    "INH" : "EXC",
+                rate,
+                config->homeostasis_target_rate,
+                rate - config->homeostasis_target_rate,
+                config->v_threshold,
+                threshold,
+                threshold - config->v_threshold,
+                initial_sum,
+                final_sum,
+                final_sum - initial_sum) < 0)
+        {
+            fclose(file);
+            return 0;
+        }
+    }
+
+    return fclose(file) == 0;
+}
+
+static int write_homeostasis_metrics(
+    const MiniSNN *snn,
+    const ScenarioConfig *config,
+    const ScenarioRunResult *result,
+    HomeostasisRunData *data)
+{
+    char path[SCENARIO_OUTPUT_PATH_MAX];
+    FILE *file;
+    double population_rate;
+    double threshold_mean;
+    double threshold_min;
+    double threshold_max;
+    double incoming_mean;
+    double incoming_error_mean;
+    double initial_incoming_mean = 0.0;
+    double threshold_abs_change = 0.0;
+    double gain;
+    double rate_mean;
+    double rate_error_mean;
+    double rate_error_abs_mean;
+    double scaling_factor_mean;
+
+    if (!collect_homeostasis_snapshot(
+            snn, config, &population_rate, &threshold_mean, &threshold_min,
+            &threshold_max, &incoming_mean, &incoming_error_mean) ||
+        !minisnn_get_inhibitory_gain(snn, &gain) ||
+        !minisnn_get_homeostasis_stats(snn, &data->stats))
+    {
+        return 0;
+    }
+
+    for (int i = 0; i < config->neurons; i++)
+    {
+        double initial_sum;
+        double threshold;
+        if (!minisnn_get_initial_incoming_exc_sum(snn, i, &initial_sum) ||
+            !minisnn_get_neuron_effective_threshold(snn, i, &threshold))
+        {
+            return 0;
+        }
+        initial_incoming_mean += initial_sum;
+        threshold_abs_change += fabs(threshold - config->v_threshold);
+    }
+    initial_incoming_mean /= (double)config->neurons;
+    threshold_abs_change /= (double)config->neurons;
+
+    rate_mean = data->stats.population_rate_sample_count > 0ULL ?
+        data->stats.population_rate_sum /
+            (double)data->stats.population_rate_sample_count : 0.0;
+    rate_error_mean = data->stats.population_rate_sample_count > 0ULL ?
+        data->stats.rate_error_sum /
+            (double)data->stats.population_rate_sample_count : 0.0;
+    rate_error_abs_mean = data->stats.population_rate_sample_count > 0ULL ?
+        data->stats.rate_error_absolute_sum /
+            (double)data->stats.population_rate_sample_count : 0.0;
+    scaling_factor_mean = data->stats.scaling_factor_count > 0ULL ?
+        data->stats.scaling_factor_sum /
+            (double)data->stats.scaling_factor_count : 1.0;
+    data->final_threshold_mean = threshold_mean;
+
+    if (!make_path(path, result->output_directory, "homeostasis_metrics.csv"))
+        return 0;
+    file = fopen(path, "w");
+    if (file == NULL)
+        return 0;
+
+    if (fprintf(
+            file,
+            "homeostasis_enabled,homeostasis_intrinsic_enabled,homeostasis_synaptic_scaling_enabled,homeostasis_inhibitory_gain_enabled,homeostasis_target_rate,homeostasis_update_interval_steps,homeostasis_update_count,homeostasis_population_rate_final,homeostasis_population_rate_mean,homeostasis_population_rate_min,homeostasis_population_rate_max,homeostasis_rate_error_final,homeostasis_rate_error_mean,homeostasis_rate_error_mean_absolute,homeostasis_threshold_initial_mean,homeostasis_threshold_final_mean,homeostasis_threshold_final_min,homeostasis_threshold_final_max,homeostasis_threshold_mean_absolute_change,homeostasis_threshold_modified_neuron_count,homeostasis_threshold_modified_neuron_fraction,homeostasis_threshold_increase_events,homeostasis_threshold_decrease_events,homeostasis_threshold_clamp_min_events,homeostasis_threshold_clamp_max_events,homeostasis_scaling_events,homeostasis_scaling_connections_modified,homeostasis_scaling_factor_mean,homeostasis_scaling_factor_min,homeostasis_scaling_factor_max,homeostasis_initial_incoming_exc_sum_mean,homeostasis_final_incoming_exc_sum_mean,homeostasis_incoming_exc_sum_error_mean_absolute,homeostasis_scaling_total_signed_change,homeostasis_scaling_total_absolute_change,homeostasis_scaling_zero_sum_skips,homeostasis_scaling_clamp_min_events,homeostasis_scaling_clamp_max_events,homeostasis_inhibitory_gain_initial,homeostasis_inhibitory_gain_final,homeostasis_inhibitory_gain_min_observed,homeostasis_inhibitory_gain_max_observed,homeostasis_inhibitory_gain_increase_events,homeostasis_inhibitory_gain_decrease_events,homeostasis_inhibitory_gain_clamp_min_events,homeostasis_inhibitory_gain_clamp_max_events,homeostasis_inhibitory_connection_count\n"
+            "true,%s,%s,%s,%.17g,%d,%llu,%.17g,%.17g,%.17g,%.17g,%.17g,%.17g,%.17g,%.17g,%.17g,%.17g,%.17g,%.17g,%llu,%.17g,%llu,%llu,%llu,%llu,%llu,%llu,%.17g,%.17g,%.17g,%.17g,%.17g,%.17g,%.17g,%.17g,%llu,%llu,%llu,%.17g,%.17g,%.17g,%.17g,%llu,%llu,%llu,%llu,%d\n",
+            config->homeostasis_enabled && config->homeostasis_intrinsic_enabled ?
+                "true" : "false",
+            config->homeostasis_enabled &&
+                config->homeostasis_synaptic_scaling_enabled ? "true" : "false",
+            config->homeostasis_enabled &&
+                config->homeostasis_inhibitory_gain_enabled ? "true" : "false",
+            config->homeostasis_target_rate,
+            config->homeostasis_update_interval_steps,
+            data->stats.update_count,
+            population_rate,
+            rate_mean,
+            data->stats.population_rate_sample_count > 0ULL ?
+                data->stats.population_rate_min : 0.0,
+            data->stats.population_rate_sample_count > 0ULL ?
+                data->stats.population_rate_max : 0.0,
+            population_rate - config->homeostasis_target_rate,
+            rate_error_mean,
+            rate_error_abs_mean,
+            config->v_threshold,
+            threshold_mean,
+            threshold_min,
+            threshold_max,
+            threshold_abs_change,
+            data->stats.threshold_modified_neuron_count,
+            (double)data->stats.threshold_modified_neuron_count /
+                (double)config->neurons,
+            data->stats.threshold_increase_events,
+            data->stats.threshold_decrease_events,
+            data->stats.threshold_clamp_min_events,
+            data->stats.threshold_clamp_max_events,
+            data->stats.scaling_events,
+            data->stats.scaling_connections_modified,
+            scaling_factor_mean,
+            data->stats.scaling_factor_count > 0ULL ?
+                data->stats.scaling_factor_min : 1.0,
+            data->stats.scaling_factor_count > 0ULL ?
+                data->stats.scaling_factor_max : 1.0,
+            initial_incoming_mean,
+            incoming_mean,
+            incoming_error_mean,
+            data->stats.total_scaling_signed_change,
+            data->stats.total_scaling_absolute_change,
+            data->stats.scaling_zero_sum_skips,
+            data->stats.scaling_clamp_min_events,
+            data->stats.scaling_clamp_max_events,
+            config->homeostasis_inhibitory_gain_initial,
+            gain,
+            data->stats.inhibitory_gain_min_observed,
+            data->stats.inhibitory_gain_max_observed,
+            data->stats.inhibitory_gain_increase_events,
+            data->stats.inhibitory_gain_decrease_events,
+            data->stats.inhibitory_gain_clamp_min_events,
+            data->stats.inhibitory_gain_clamp_max_events,
+            result->inhibitory_to_excitatory_count +
+                result->inhibitory_to_inhibitory_count) < 0)
+    {
+        fclose(file);
+        return 0;
+    }
+
+    return fclose(file) == 0;
+}
+
+static int write_homeostasis_reports(
+    const ScenarioConfig *config,
+    const ScenarioRunResult *result,
+    const HomeostasisRunData *data)
+{
+    char path[SCENARIO_OUTPUT_PATH_MAX];
+    FILE *file;
+    const char *text =
+        "Estes mecanismos simplificados nao garantem estabilidade universal; "
+        "silencio ou hiperatividade ainda podem ocorrer.";
+
+    if (!make_path(path, result->output_directory, "homeostasis_report.txt"))
+        return 0;
+    file = fopen(path, "w");
+    if (file == NULL || fprintf(
+            file,
+            "MINISNN - RELATORIO DE HOMEOSTASE\n\n"
+            "1. Identificacao da execucao\nrun_name=%s\n\n"
+            "2. Configuracao homeostatica\ntarget_rate=%.17g\ninterval=%d\n\n"
+            "3. Ordem temporal\nLIF -> transmissao -> STDP -> rate trace -> homeostase.\n\n"
+            "4. Taxa-alvo e taxa observada\nfinal_population_rate=%.17g\n\n"
+            "5. Adaptacao de threshold\neventos=%llu\n\n"
+            "6. Escalonamento sinaptico\neventos=%llu\n\n"
+            "7. Ganho inibitorio\nfinal=%.17g\n\n"
+            "8. Interacao com STDP\nScaling ocorre depois do STDP e possui estatisticas separadas.\n\n"
+            "9. Estado inicial e final\nConsulte homeostasis_neurons.csv.\n\n"
+            "10. Clamps e limites\nthreshold_min=%.17g threshold_max=%.17g\n\n"
+            "11. Amostragem\nAmostragem deterministica distribuida quando necessaria.\n\n"
+            "12. Desempenho\nConsulte metrics.csv.\n\n"
+            "13. Avisos e limitacoes\n%s\n",
+            result->actual_run_name,
+            config->homeostasis_target_rate,
+            config->homeostasis_update_interval_steps,
+            data->stats.final_population_rate,
+            data->stats.threshold_increase_events +
+                data->stats.threshold_decrease_events,
+            data->stats.scaling_events,
+            data->stats.final_inhibitory_gain,
+            config->homeostasis_threshold_min,
+            config->homeostasis_threshold_max,
+            text) < 0)
+    {
+        if (file != NULL)
+            fclose(file);
+        return 0;
+    }
+    if (fclose(file) != 0)
+        return 0;
+
+    if (!make_path(path, result->output_directory, "homeostasis_report.html"))
+        return 0;
+    file = fopen(path, "w");
+    if (file == NULL || fprintf(
+            file,
+            "<!doctype html><html lang=\"pt-BR\"><meta charset=\"utf-8\">"
+            "<title>miniSNN - Homeostase</title><body>"
+            "<h1>Relatorio de homeostase</h1>"
+            "<p><strong>Execucao:</strong> %s</p>"
+            "<p>Taxa-alvo: %.17g; taxa final observada: %.17g.</p>"
+            "<p>Threshold efetivo adaptado em %llu neuronios; ganho inibitorio final %.17g.</p>"
+            "<p>Eventos de scaling: %llu.</p><p>%s</p>"
+            "<p><a href=\"homeostasis_metrics.csv\">Metricas CSV</a> | "
+            "<a href=\"homeostasis_history.csv\">Historico</a></p>"
+            "</body></html>\n",
+            result->actual_run_name,
+            config->homeostasis_target_rate,
+            data->stats.final_population_rate,
+            data->stats.threshold_modified_neuron_count,
+            data->stats.final_inhibitory_gain,
+            data->stats.scaling_events,
+            text) < 0)
+    {
+        if (file != NULL)
+            fclose(file);
+        return 0;
+    }
+    return fclose(file) == 0;
+}
+
+static int homeostasis_run_data_finalize(
+    const MiniSNN *snn,
+    const ScenarioConfig *config,
+    const ScenarioRunResult *result,
+    HomeostasisRunData *data)
+{
+    if (!data->enabled)
+        return 1;
+
+    if (data->history_file != NULL && data->last_history_step != config->steps &&
+        !write_homeostasis_history_step(snn, config, data, config->steps))
+    {
+        return 0;
+    }
+
+    if (data->history_file != NULL && fclose(data->history_file) != 0)
+        return 0;
+    data->history_file = NULL;
+    if (data->threshold_file != NULL && fclose(data->threshold_file) != 0)
+        return 0;
+    data->threshold_file = NULL;
+
+    return write_homeostasis_neurons(snn, config, result, data) &&
+        write_homeostasis_metrics(snn, config, result, data) &&
+        write_homeostasis_reports(config, result, data);
+}
+
 static int open_output_files(
     const ScenarioConfig *config,
     const char *output_dir,
@@ -1521,7 +2037,8 @@ static int write_summary(
     FILE *file,
     const ScenarioConfig *config,
     const ScenarioRunResult *result,
-    const PlasticityRunData *plasticity_data)
+    const PlasticityRunData *plasticity_data,
+    const HomeostasisRunData *homeostasis_data)
 {
     return fprintf(
                file,
@@ -1549,7 +2066,11 @@ static int write_summary(
                "plasticity_rule=%s\n"
                "plasticity_eligible_connections=%llu\n"
                "plasticity_modified_connections=%llu\n"
-               "plasticity_total_signed_change=%.17g\n",
+               "plasticity_total_signed_change=%.17g\n"
+               "homeostasis_enabled=%s\n"
+               "homeostasis_update_count=%llu\n"
+               "homeostasis_population_rate_final=%.17g\n"
+               "homeostasis_inhibitory_gain_final=%.17g\n",
                config->run_name,
                result->actual_run_name,
                config->topology,
@@ -1574,7 +2095,12 @@ static int write_summary(
                config->plasticity_rule,
                (unsigned long long)plasticity_data->stats.eligible_connections,
                (unsigned long long)plasticity_data->stats.modified_connections,
-               plasticity_data->stats.total_signed_change) >= 0;
+               plasticity_data->stats.total_signed_change,
+               config->homeostasis_enabled ? "true" : "false",
+               homeostasis_data->stats.update_count,
+               homeostasis_data->stats.final_population_rate,
+               config->homeostasis_enabled ?
+                   homeostasis_data->stats.final_inhibitory_gain : 1.0) >= 0;
 }
 
 static int append_scenario_history(
@@ -1715,10 +2241,13 @@ static int write_basic_metrics(
     double wall_seconds,
     const char *population_path,
     const char *raster_path,
-    const PlasticityRunData *plasticity_data)
+    const PlasticityRunData *plasticity_data,
+    const HomeostasisRunData *homeostasis_data)
 {
     char path[SCENARIO_OUTPUT_PATH_MAX];
     char timestamp[32];
+    char homeostasis_metrics[512] = "";
+    const char *homeostasis_header = "";
     FILE *file;
     double activity_fraction;
     double silence_fraction;
@@ -1794,12 +2323,45 @@ static int write_basic_metrics(
         &outdegree_std);
     current_timestamp(timestamp, sizeof(timestamp));
 
+    if (config->homeostasis_enabled)
+    {
+        int written;
+
+        homeostasis_header =
+            ",homeostasis_enabled,homeostasis_intrinsic_enabled,"
+            "homeostasis_synaptic_scaling_enabled,"
+            "homeostasis_inhibitory_gain_enabled,homeostasis_target_rate,"
+            "homeostasis_population_rate_final,homeostasis_rate_error_final,"
+            "homeostasis_threshold_final_mean,homeostasis_scaling_events,"
+            "homeostasis_inhibitory_gain_final";
+        written = snprintf(
+            homeostasis_metrics,
+            sizeof(homeostasis_metrics),
+            ",true,%s,%s,%s,%.17g,%.17g,%.17g,%.17g,%llu,%.17g",
+            config->homeostasis_intrinsic_enabled ? "true" : "false",
+            config->homeostasis_synaptic_scaling_enabled ? "true" : "false",
+            config->homeostasis_inhibitory_gain_enabled ? "true" : "false",
+            config->homeostasis_target_rate,
+            homeostasis_data->stats.final_population_rate,
+            homeostasis_data->stats.final_population_rate -
+                config->homeostasis_target_rate,
+            homeostasis_data->final_threshold_mean,
+            homeostasis_data->stats.scaling_events,
+            homeostasis_data->stats.final_inhibitory_gain);
+        if (written < 0 || (size_t)written >= sizeof(homeostasis_metrics))
+        {
+            fclose(file);
+            return 0;
+        }
+    }
+
     if (fprintf(
             file,
-            "run_name,actual_run_name,run_path,timestamp,topology,network_num_neurons,run_steps,run_dt,run_simulation_duration,run_seed,run_recorded_neuron,diagnostics_level,network_total_connections,network_excitatory_neuron_count,network_inhibitory_neuron_count,activity_total_spikes,activity_mean_spikes_per_step,activity_min_spikes_per_step,activity_max_spikes_per_step,activity_active_timesteps,activity_silent_timesteps,activity_fraction,silence_fraction,activity_first_active_step,activity_last_active_step,activity_peak_step,activity_peak_value,activity_has_late_activity,neuron_mean_spikes,exc_total_spikes,inh_total_spikes,network_connection_density,network_self_connection_count,network_excitatory_connection_count,network_inhibitory_connection_count,network_weight_mean,network_weight_min,network_weight_max,network_weight_std,network_delay_mean,network_delay_min,network_delay_max,network_delay_std,network_indegree_mean,network_indegree_min,network_indegree_max,network_indegree_std,network_outdegree_mean,network_outdegree_min,network_outdegree_max,network_outdegree_std,performance_simulation_time_seconds,performance_wall_time_seconds,performance_steps_per_second,performance_neuron_updates_per_second,performance_spikes_per_second_processed,performance_population_csv_size_bytes,performance_raster_csv_size_bytes,plasticity_enabled,plasticity_modified_connection_fraction,plasticity_initial_weight_mean,plasticity_final_weight_mean,plasticity_mean_absolute_change,plasticity_total_signed_change,plasticity_potentiation_events,plasticity_depression_events\n") < 0 ||
+            "run_name,actual_run_name,run_path,timestamp,topology,network_num_neurons,run_steps,run_dt,run_simulation_duration,run_seed,run_recorded_neuron,diagnostics_level,network_total_connections,network_excitatory_neuron_count,network_inhibitory_neuron_count,activity_total_spikes,activity_mean_spikes_per_step,activity_min_spikes_per_step,activity_max_spikes_per_step,activity_active_timesteps,activity_silent_timesteps,activity_fraction,silence_fraction,activity_first_active_step,activity_last_active_step,activity_peak_step,activity_peak_value,activity_has_late_activity,neuron_mean_spikes,exc_total_spikes,inh_total_spikes,network_connection_density,network_self_connection_count,network_excitatory_connection_count,network_inhibitory_connection_count,network_weight_mean,network_weight_min,network_weight_max,network_weight_std,network_delay_mean,network_delay_min,network_delay_max,network_delay_std,network_indegree_mean,network_indegree_min,network_indegree_max,network_indegree_std,network_outdegree_mean,network_outdegree_min,network_outdegree_max,network_outdegree_std,performance_simulation_time_seconds,performance_wall_time_seconds,performance_steps_per_second,performance_neuron_updates_per_second,performance_spikes_per_second_processed,performance_population_csv_size_bytes,performance_raster_csv_size_bytes,plasticity_enabled,plasticity_modified_connection_fraction,plasticity_initial_weight_mean,plasticity_final_weight_mean,plasticity_mean_absolute_change,plasticity_total_signed_change,plasticity_potentiation_events,plasticity_depression_events%s\n",
+            homeostasis_header) < 0 ||
         fprintf(
             file,
-            "%s,%s,%s,%s,%s,%d,%d,%.12g,%.12g,%u,%d,%s,%d,%d,%d,%d,%.12g,%d,%d,%d,%d,%.12g,%.12g,%d,%d,%d,%d,%s,%.12g,%d,%d,%.12g,%d,%d,%d,%.12g,%.12g,%.12g,%.12g,%.12g,%d,%d,%.12g,%.12g,%d,%d,%.12g,%.12g,%d,%d,%.12g,%.12g,%.12g,%.12g,%.12g,%.12g,%llu,%llu,%s,%.17g,%.17g,%.17g,%.17g,%.17g,%llu,%llu\n",
+            "%s,%s,%s,%s,%s,%d,%d,%.12g,%.12g,%u,%d,%s,%d,%d,%d,%d,%.12g,%d,%d,%d,%d,%.12g,%.12g,%d,%d,%d,%d,%s,%.12g,%d,%d,%.12g,%d,%d,%d,%.12g,%.12g,%.12g,%.12g,%.12g,%d,%d,%.12g,%.12g,%d,%d,%.12g,%.12g,%d,%d,%.12g,%.12g,%.12g,%.12g,%.12g,%.12g,%llu,%llu,%s,%.17g,%.17g,%.17g,%.17g,%.17g,%llu,%llu%s\n",
             config->run_name,
             result->actual_run_name,
             result->output_directory,
@@ -1866,7 +2428,8 @@ static int write_basic_metrics(
             plasticity_mean_absolute_change,
             plasticity_data->stats.total_signed_change,
             plasticity_data->stats.potentiation_events,
-            plasticity_data->stats.depression_events) < 0)
+            plasticity_data->stats.depression_events,
+            homeostasis_metrics) < 0)
     {
         fclose(file);
         return 0;
@@ -1887,6 +2450,7 @@ static int write_run_manifest(
     char git_commit[96] = "NA";
     char git_status[32] = "NA";
     char plasticity_files[256] = "NA";
+    char homeostasis_files[384] = "NA";
     FILE *pipe;
 
     if (!make_path(path, result->output_directory, "run_manifest.txt"))
@@ -1910,6 +2474,14 @@ static int write_run_manifest(
             config->plasticity_record_history ?
                 ";weight_history.csv" :
                 "");
+    }
+
+    if (config->homeostasis_enabled)
+    {
+        snprintf(
+            homeostasis_files,
+            sizeof(homeostasis_files),
+            "homeostasis_metrics.csv;homeostasis_neurons.csv;homeostasis_report.txt;homeostasis_report.html;homeostasis_history.csv;threshold_history.csv");
     }
 
     pipe = _popen("git rev-parse --short HEAD 2>NUL", "r");
@@ -1974,6 +2546,16 @@ static int write_run_manifest(
             "plasticity_record_interval_steps=%d\n"
             "plasticity_record_connection_limit=%d\n"
             "plasticity_output_files=%s\n"
+            "homeostasis_enabled=%s\n"
+            "homeostasis_intrinsic_enabled=%s\n"
+            "homeostasis_synaptic_scaling_enabled=%s\n"
+            "homeostasis_inhibitory_gain_enabled=%s\n"
+            "homeostasis_target_rate=%.17g\n"
+            "homeostasis_update_interval_steps=%d\n"
+            "homeostasis_record_history=%s\n"
+            "homeostasis_record_interval_steps=%d\n"
+            "homeostasis_record_neuron_limit=%d\n"
+            "homeostasis_output_files=%s\n"
             "python=NA\n"
             "python_version=NA\n"
             "pandas_version=NA\n"
@@ -2015,6 +2597,16 @@ static int write_run_manifest(
             config->plasticity_record_interval_steps,
             config->plasticity_record_connection_limit,
             plasticity_files,
+            config->homeostasis_enabled ? "true" : "false",
+            config->homeostasis_intrinsic_enabled ? "true" : "false",
+            config->homeostasis_synaptic_scaling_enabled ? "true" : "false",
+            config->homeostasis_inhibitory_gain_enabled ? "true" : "false",
+            config->homeostasis_target_rate,
+            config->homeostasis_update_interval_steps,
+            config->homeostasis_record_history ? "true" : "false",
+            config->homeostasis_record_interval_steps,
+            config->homeostasis_record_neuron_limit,
+            homeostasis_files,
             config->record_neuron,
             metrics_generated ? ";metrics.csv" : "") < 0)
     {
@@ -2033,7 +2625,8 @@ static int run_simulation(
     FILE *raster_file,
     FILE *neuron_file,
     ScenarioRunResult *result,
-    PlasticityRunData *plasticity_data)
+    PlasticityRunData *plasticity_data,
+    HomeostasisRunData *homeostasis_data)
 {
     result->spikes_total = 0;
     result->spikes_exc = 0;
@@ -2183,6 +2776,16 @@ static int run_simulation(
         {
             return 0;
         }
+
+        if (homeostasis_data->enabled &&
+            config->homeostasis_record_history &&
+            (((step + 1) % config->homeostasis_record_interval_steps) == 0 ||
+             step + 1 == config->steps) &&
+            !write_homeostasis_history_step(
+                snn, config, homeostasis_data, step + 1))
+        {
+            return 0;
+        }
     }
 
     return 1;
@@ -2210,6 +2813,7 @@ int scenario_runner_execute(
     int neuron_is_inhibitory[SCENARIO_MAX_NEURONS];
     ConnectivityStats connectivity;
     PlasticityRunData plasticity_data;
+    HomeostasisRunData homeostasis_data;
     ULONGLONG wall_start;
     ULONGLONG simulation_start;
     double simulation_seconds;
@@ -2226,6 +2830,7 @@ int scenario_runner_execute(
     memset(neuron_is_inhibitory, 0, sizeof(neuron_is_inhibitory));
     memset(&connectivity, 0, sizeof(connectivity));
     memset(&plasticity_data, 0, sizeof(plasticity_data));
+    memset(&homeostasis_data, 0, sizeof(homeostasis_data));
 
     if (!scenario_config_validate(config, error_message, error_message_size))
         return 0;
@@ -2334,6 +2939,50 @@ int scenario_runner_execute(
         }
     }
 
+    {
+        MiniSNNHomeostasisConfig homeostasis_config =
+            minisnn_default_homeostasis_config();
+
+        homeostasis_config.enabled = config->homeostasis_enabled;
+        homeostasis_config.intrinsic_enabled =
+            config->homeostasis_intrinsic_enabled;
+        homeostasis_config.target_rate = config->homeostasis_target_rate;
+        homeostasis_config.rate_tau = config->homeostasis_rate_tau;
+        homeostasis_config.update_interval_steps =
+            (unsigned int)config->homeostasis_update_interval_steps;
+        homeostasis_config.threshold_eta = config->homeostasis_threshold_eta;
+        homeostasis_config.threshold_min = config->homeostasis_threshold_min;
+        homeostasis_config.threshold_max = config->homeostasis_threshold_max;
+        homeostasis_config.synaptic_scaling_enabled =
+            config->homeostasis_synaptic_scaling_enabled;
+        homeostasis_config.scaling_eta = config->homeostasis_scaling_eta;
+        homeostasis_config.scaling_min_factor =
+            config->homeostasis_scaling_min_factor;
+        homeostasis_config.scaling_max_factor =
+            config->homeostasis_scaling_max_factor;
+        homeostasis_config.scaling_weight_min =
+            config->homeostasis_scaling_weight_min;
+        homeostasis_config.scaling_weight_max =
+            config->homeostasis_scaling_weight_max;
+        homeostasis_config.inhibitory_gain_enabled =
+            config->homeostasis_inhibitory_gain_enabled;
+        homeostasis_config.inhibitory_gain_initial =
+            config->homeostasis_inhibitory_gain_initial;
+        homeostasis_config.inhibitory_gain_eta =
+            config->homeostasis_inhibitory_gain_eta;
+        homeostasis_config.inhibitory_gain_min =
+            config->homeostasis_inhibitory_gain_min;
+        homeostasis_config.inhibitory_gain_max =
+            config->homeostasis_inhibitory_gain_max;
+
+        if (!minisnn_set_homeostasis_config(snn, &homeostasis_config))
+        {
+            set_error(error_message, error_message_size, "erro ao configurar homeostase");
+            minisnn_destroy(&snn);
+            return 0;
+        }
+    }
+
     if (!plasticity_run_data_prepare(
             snn,
             config,
@@ -2341,6 +2990,18 @@ int scenario_runner_execute(
             &plasticity_data))
     {
         set_error(error_message, error_message_size, "erro ao preparar saidas de plasticidade");
+        minisnn_destroy(&snn);
+        return 0;
+    }
+
+    if (!homeostasis_run_data_prepare(
+            snn,
+            config,
+            result.output_directory,
+            &homeostasis_data))
+    {
+        set_error(error_message, error_message_size, "erro ao preparar saidas de homeostase");
+        plasticity_run_data_close(&plasticity_data);
         minisnn_destroy(&snn);
         return 0;
     }
@@ -2363,6 +3024,7 @@ int scenario_runner_execute(
         close_file_if_open(neuron_file);
         close_file_if_open(summary_file);
         plasticity_run_data_close(&plasticity_data);
+        homeostasis_run_data_close(&homeostasis_data);
         minisnn_destroy(&snn);
         return 0;
     }
@@ -2377,7 +3039,8 @@ int scenario_runner_execute(
             raster_file,
             neuron_file,
             &result,
-            &plasticity_data))
+            &plasticity_data,
+            &homeostasis_data))
     {
         set_error(error_message, error_message_size, "erro durante simulacao");
         close_file_if_open(population_file);
@@ -2385,6 +3048,7 @@ int scenario_runner_execute(
         close_file_if_open(neuron_file);
         close_file_if_open(summary_file);
         plasticity_run_data_close(&plasticity_data);
+        homeostasis_run_data_close(&homeostasis_data);
         minisnn_destroy(&snn);
         return 0;
     }
@@ -2405,11 +3069,34 @@ int scenario_runner_execute(
         close_file_if_open(neuron_file);
         close_file_if_open(summary_file);
         plasticity_run_data_close(&plasticity_data);
+        homeostasis_run_data_close(&homeostasis_data);
         minisnn_destroy(&snn);
         return 0;
     }
 
-    if (!write_summary(summary_file, config, &result, &plasticity_data))
+    if (!homeostasis_run_data_finalize(
+            snn,
+            config,
+            &result,
+            &homeostasis_data))
+    {
+        set_error(error_message, error_message_size, "erro ao finalizar saidas de homeostase");
+        close_file_if_open(population_file);
+        close_file_if_open(raster_file);
+        close_file_if_open(neuron_file);
+        close_file_if_open(summary_file);
+        plasticity_run_data_close(&plasticity_data);
+        homeostasis_run_data_close(&homeostasis_data);
+        minisnn_destroy(&snn);
+        return 0;
+    }
+
+    if (!write_summary(
+            summary_file,
+            config,
+            &result,
+            &plasticity_data,
+            &homeostasis_data))
     {
         set_error(error_message, error_message_size, "erro ao escrever summary.txt");
         close_file_if_open(population_file);
@@ -2417,6 +3104,7 @@ int scenario_runner_execute(
         close_file_if_open(neuron_file);
         close_file_if_open(summary_file);
         plasticity_run_data_close(&plasticity_data);
+        homeostasis_run_data_close(&homeostasis_data);
         minisnn_destroy(&snn);
         return 0;
     }
@@ -2439,10 +3127,12 @@ int scenario_runner_execute(
                 wall_seconds,
                 population_path,
                 raster_path,
-                &plasticity_data))
+                &plasticity_data,
+                &homeostasis_data))
         {
             set_error(error_message, error_message_size, "erro ao escrever metrics.csv");
             plasticity_run_data_close(&plasticity_data);
+            homeostasis_run_data_close(&homeostasis_data);
             return 0;
         }
 
@@ -2457,6 +3147,7 @@ int scenario_runner_execute(
     {
         set_error(error_message, error_message_size, "erro ao escrever run_manifest.txt");
         plasticity_run_data_close(&plasticity_data);
+        homeostasis_run_data_close(&homeostasis_data);
         return 0;
     }
 
@@ -2465,10 +3156,12 @@ int scenario_runner_execute(
     {
         set_error(error_message, error_message_size, "erro ao atualizar historico de cenarios");
         plasticity_run_data_close(&plasticity_data);
+        homeostasis_run_data_close(&homeostasis_data);
         return 0;
     }
 
     plasticity_run_data_close(&plasticity_data);
+    homeostasis_run_data_close(&homeostasis_data);
 
     *out_result = result;
     return 1;

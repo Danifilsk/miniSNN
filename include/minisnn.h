@@ -115,6 +115,51 @@ int minisnn_get_plasticity_traces(
     double *out_pre_trace,
     double *out_post_trace);
 
+/* Homeostase neural simplificada */
+MiniSNNHomeostasisConfig minisnn_default_homeostasis_config(void);
+
+int minisnn_set_homeostasis_config(
+    MiniSNN *snn,
+    const MiniSNNHomeostasisConfig *config);
+
+int minisnn_get_homeostasis_config(
+    const MiniSNN *snn,
+    MiniSNNHomeostasisConfig *out_config);
+
+int minisnn_reset_homeostasis(MiniSNN *snn);
+
+int minisnn_get_homeostasis_stats(
+    const MiniSNN *snn,
+    MiniSNNHomeostasisStats *out_stats);
+
+int minisnn_get_neuron_rate_trace(
+    const MiniSNN *snn,
+    int neuron_id,
+    double *out_rate_trace);
+
+int minisnn_get_neuron_effective_threshold(
+    const MiniSNN *snn,
+    int neuron_id,
+    double *out_threshold);
+
+int minisnn_get_base_threshold(
+    const MiniSNN *snn,
+    double *out_threshold);
+
+int minisnn_get_inhibitory_gain(
+    const MiniSNN *snn,
+    double *out_gain);
+
+int minisnn_get_initial_incoming_exc_sum(
+    const MiniSNN *snn,
+    int neuron_id,
+    double *out_sum);
+
+int minisnn_get_current_incoming_exc_sum(
+    const MiniSNN *snn,
+    int neuron_id,
+    double *out_sum);
+
 /* Entrada externa */
 int minisnn_set_input(
     MiniSNN *snn,

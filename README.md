@@ -14,8 +14,8 @@ validada.
 **Implementado:** neurônios LIF, pesos EXC/INH, delays sinápticos, corrente com
 decaimento, sete topologias configuráveis, API pública opaca, cenários INI,
 Studio Win32, CSVs, gráficos, comparação, histórico e diagnóstico
-`off/basic/full`, inspeção de conexões e STDP aditivo por traces para sinapses
-de origem EXC.
+`off/basic/full`, inspeção de conexões, STDP aditivo por traces para sinapses
+de origem EXC e homeostase opcional de threshold, scaling EXC e ganho INH.
 
 **Experimental:** métricas de regime, sincronia aproximada e `stability_score`.
 O STDP do C1 também é uma regra experimental simplificada. Esses recursos não
@@ -23,7 +23,8 @@ são verdades biológicas nem prova de aprendizado de tarefa.
 
 **Estado da v0.2:** auditoria automática concluída; revisão manual do Studio e
 revisão humana de release permanecem pendentes. O C1 foi implementado sobre
-essa base; homeostase, recompensa e miniSNN Worlds ainda não estão implementados.
+essa base; o C1.5 de homeostase foi implementado localmente. Recompensa e
+miniSNN Worlds ainda não estão implementados.
 
 ## Início rápido
 
@@ -92,6 +93,7 @@ Referências diretas:
 - [Guia de cenários](docs/GUIA_DE_CENARIOS.md)
 - [Guia de diagnóstico](docs/GUIA_DE_DIAGNOSTICO.md)
 - [Guia de plasticidade](docs/GUIA_DE_PLASTICIDADE.md)
+- [Guia de homeostase](docs/GUIA_DE_HOMEOSTASE.md)
 - [Referência da API pública](API_REFERENCE.md)
 - [Roadmap](docs/ROADMAP.md)
 
@@ -108,8 +110,12 @@ mingw32-make test-analyzer
 mingw32-make test-long
 mingw32-make test-plasticity-long
 mingw32-make test-plot-plasticity
+mingw32-make test-homeostasis
+mingw32-make test-homeostasis-long
+mingw32-make test-plot-homeostasis
 mingw32-make test-run-reports
 mingw32-make check-c1
+mingw32-make check-c15
 mingw32-make check-v02
 ```
 
@@ -122,7 +128,8 @@ teste está em [Princípios de desenvolvimento](docs/PRINCIPIOS_DE_DESENVOLVIMEN
 
 - O único modelo neural é o LIF simplificado, sem período refratário explícito.
 - O STDP é aditivo, baseado em emissão e limitado a sinapses de origem EXC.
-- Não há homeostase, recompensa, memória ou topologia adaptativa.
+- A homeostase é um controle simplificado e opcional; não garante estabilidade.
+- Não há recompensa, memória ou topologia adaptativa.
 - O Studio depende da API Win32 e o fluxo principal de build foi validado no Windows.
 - Diagnóstico completo depende de Python, pandas e matplotlib.
 - Séries completas de tensão e corrente são gravadas para o neurônio detalhado, não para toda a rede.

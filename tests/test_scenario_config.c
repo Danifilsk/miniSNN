@@ -309,7 +309,44 @@ static int configs_match(
            a->plasticity_record_interval_steps ==
                b->plasticity_record_interval_steps &&
            a->plasticity_record_connection_limit ==
-               b->plasticity_record_connection_limit;
+               b->plasticity_record_connection_limit &&
+           a->homeostasis_enabled == b->homeostasis_enabled &&
+           a->homeostasis_intrinsic_enabled == b->homeostasis_intrinsic_enabled &&
+           double_close(a->homeostasis_target_rate, b->homeostasis_target_rate) &&
+           double_close(a->homeostasis_rate_tau, b->homeostasis_rate_tau) &&
+           a->homeostasis_update_interval_steps ==
+               b->homeostasis_update_interval_steps &&
+           double_close(a->homeostasis_threshold_eta, b->homeostasis_threshold_eta) &&
+           double_close(a->homeostasis_threshold_min, b->homeostasis_threshold_min) &&
+           double_close(a->homeostasis_threshold_max, b->homeostasis_threshold_max) &&
+           a->homeostasis_synaptic_scaling_enabled ==
+               b->homeostasis_synaptic_scaling_enabled &&
+           strcmp(a->homeostasis_scaling_target_mode,
+               b->homeostasis_scaling_target_mode) == 0 &&
+           double_close(a->homeostasis_scaling_eta, b->homeostasis_scaling_eta) &&
+           double_close(a->homeostasis_scaling_min_factor,
+               b->homeostasis_scaling_min_factor) &&
+           double_close(a->homeostasis_scaling_max_factor,
+               b->homeostasis_scaling_max_factor) &&
+           double_close(a->homeostasis_scaling_weight_min,
+               b->homeostasis_scaling_weight_min) &&
+           double_close(a->homeostasis_scaling_weight_max,
+               b->homeostasis_scaling_weight_max) &&
+           a->homeostasis_inhibitory_gain_enabled ==
+               b->homeostasis_inhibitory_gain_enabled &&
+           double_close(a->homeostasis_inhibitory_gain_initial,
+               b->homeostasis_inhibitory_gain_initial) &&
+           double_close(a->homeostasis_inhibitory_gain_eta,
+               b->homeostasis_inhibitory_gain_eta) &&
+           double_close(a->homeostasis_inhibitory_gain_min,
+               b->homeostasis_inhibitory_gain_min) &&
+           double_close(a->homeostasis_inhibitory_gain_max,
+               b->homeostasis_inhibitory_gain_max) &&
+           a->homeostasis_record_history == b->homeostasis_record_history &&
+           a->homeostasis_record_interval_steps ==
+               b->homeostasis_record_interval_steps &&
+           a->homeostasis_record_neuron_limit ==
+               b->homeostasis_record_neuron_limit;
 }
 
 static int check_save_and_reload(void)
@@ -339,6 +376,12 @@ static int check_save_and_reload(void)
     config.plasticity_record_history = 0;
     config.plasticity_record_interval_steps = 7;
     config.plasticity_record_connection_limit = 19;
+    config.homeostasis_enabled = 1;
+    config.homeostasis_target_rate = 0.1;
+    config.homeostasis_synaptic_scaling_enabled = 1;
+    config.homeostasis_inhibitory_gain_enabled = 1;
+    config.homeostasis_record_interval_steps = 7;
+    config.homeostasis_record_neuron_limit = 19;
 
     if (!scenario_config_save_file(
             TEMP_SAVE_PATH,
@@ -583,6 +626,86 @@ int main(void)
 
     if (legacy_config.plasticity_enabled != 0)
         return fail("legacy config did not default plasticity to off");
+
+    if (legacy_config.homeostasis_enabled != 0)
+        return fail("legacy config did not default homeostasis to off");
+
+    if (!load_text_expect_success(
+            "run_name = legacy_threshold\ntopology = chain\nneurons = 2\n"
+            "source_count = 1\nrecord_neuron = 0\nv_threshold = -61\n",
+            &legacy_config))
+    {
+        return fail("disabled homeostasis constrained a legacy threshold");
+    }
+
+    if (!load_text_expect_success(
+            "[homeostasis]\n"
+            "enabled = true\n"
+            "intrinsic_enabled = true\n"
+            "target_rate = 0.1\n"
+            "rate_tau = 50\n"
+            "update_interval_steps = 5\n"
+            "threshold_eta = 0.2\n"
+            "threshold_min = -60\n"
+            "threshold_max = -40\n"
+            "synaptic_scaling_enabled = true\n"
+            "scaling_target_mode = initial_incoming_sum\n"
+            "scaling_eta = 0.2\n"
+            "scaling_min_factor = 0.5\n"
+            "scaling_max_factor = 2\n"
+            "scaling_weight_min = 0\n"
+            "scaling_weight_max = 500\n"
+            "inhibitory_gain_enabled = true\n"
+            "inhibitory_gain_initial = 1\n"
+            "inhibitory_gain_eta = 0.1\n"
+            "inhibitory_gain_min = 0.25\n"
+            "inhibitory_gain_max = 4\n"
+            "record_history = true\n"
+            "record_interval_steps = 5\n"
+            "record_neuron_limit = 10\n",
+            &empty_config) ||
+        !empty_config.homeostasis_enabled ||
+        !empty_config.homeostasis_synaptic_scaling_enabled ||
+        !empty_config.homeostasis_inhibitory_gain_enabled)
+    {
+        return fail("valid homeostasis section was not loaded");
+    }
+
+    if (!load_text_expect_failure(
+            "[homeostasis]\nenabled = true\nintrinsic_enabled = false\n"
+            "synaptic_scaling_enabled = false\ninhibitory_gain_enabled = false\n",
+            "homeostasis without mechanisms was accepted") ||
+        !load_text_expect_failure(
+            "[homeostasis]\nrate_tau = 0\n",
+            "zero homeostasis rate tau was accepted") ||
+        !load_text_expect_failure(
+            "[homeostasis]\nupdate_interval_steps = 0\n",
+            "zero homeostasis interval was accepted") ||
+        !load_text_expect_failure(
+            "[homeostasis]\nthreshold_min = -40\nthreshold_max = -60\n",
+            "inverted homeostasis threshold was accepted") ||
+        !load_text_expect_failure(
+            "[homeostasis]\nscaling_target_mode = fixed\n",
+            "unknown scaling target mode was accepted") ||
+        !load_text_expect_failure(
+            "[homeostasis]\nscaling_eta = 2\n",
+            "invalid scaling eta was accepted") ||
+        !load_text_expect_failure(
+            "[homeostasis]\ninhibitory_gain_initial = 10\n",
+            "out-of-bounds inhibitory gain was accepted") ||
+        !load_text_expect_failure(
+            "[homeostasis]\nenabled = true\nenabled = false\n",
+            "duplicate homeostasis key was accepted") ||
+        !load_text_expect_failure(
+            "[homeostasis]\ntarget_rate = NaN\n",
+            "NaN homeostasis target was accepted") ||
+        !load_text_expect_failure(
+            "v_threshold = -61\n[homeostasis]\nenabled = true\n"
+            "intrinsic_enabled = true\n",
+            "active intrinsic homeostasis accepted base threshold outside bounds"))
+    {
+        return 1;
+    }
 
     if (!check_save_and_reload())
         return 1;

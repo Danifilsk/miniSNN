@@ -315,6 +315,155 @@ int minisnn_get_plasticity_traces(
     return 1;
 }
 
+MiniSNNHomeostasisConfig minisnn_default_homeostasis_config(void)
+{
+    return homeostasis_default_config();
+}
+
+int minisnn_set_homeostasis_config(
+    MiniSNN *snn,
+    const MiniSNNHomeostasisConfig *config)
+{
+    if (snn == NULL)
+        return 0;
+
+    return network_set_homeostasis_config(&snn->net, config);
+}
+
+int minisnn_get_homeostasis_config(
+    const MiniSNN *snn,
+    MiniSNNHomeostasisConfig *out_config)
+{
+    if (snn == NULL || out_config == NULL || snn->net.homeostasis == NULL)
+        return 0;
+
+    *out_config = snn->net.homeostasis->config;
+    return 1;
+}
+
+int minisnn_reset_homeostasis(MiniSNN *snn)
+{
+    if (snn == NULL)
+        return 0;
+
+    return network_reset_homeostasis(&snn->net);
+}
+
+int minisnn_get_homeostasis_stats(
+    const MiniSNN *snn,
+    MiniSNNHomeostasisStats *out_stats)
+{
+    if (snn == NULL || out_stats == NULL || snn->net.homeostasis == NULL)
+        return 0;
+
+    *out_stats = snn->net.homeostasis->stats;
+    return 1;
+}
+
+int minisnn_get_neuron_rate_trace(
+    const MiniSNN *snn,
+    int neuron_id,
+    double *out_rate_trace)
+{
+    if (!minisnn_valid_neuron_id(snn, neuron_id) ||
+        out_rate_trace == NULL || snn->net.homeostasis == NULL)
+    {
+        return 0;
+    }
+
+    *out_rate_trace = snn->net.homeostasis->config.enabled ?
+        snn->net.homeostasis->rate_trace[neuron_id] : 0.0;
+    return 1;
+}
+
+int minisnn_get_neuron_effective_threshold(
+    const MiniSNN *snn,
+    int neuron_id,
+    double *out_threshold)
+{
+    if (!minisnn_valid_neuron_id(snn, neuron_id) || out_threshold == NULL ||
+        snn->net.homeostasis == NULL)
+    {
+        return 0;
+    }
+
+    *out_threshold = homeostasis_effective_threshold(
+        snn->net.homeostasis,
+        neuron_id,
+        snn->net.lif_parameters.v_threshold);
+    return 1;
+}
+
+int minisnn_get_base_threshold(
+    const MiniSNN *snn,
+    double *out_threshold)
+{
+    if (snn == NULL || out_threshold == NULL)
+        return 0;
+
+    *out_threshold = snn->net.lif_parameters.v_threshold;
+    return 1;
+}
+
+int minisnn_get_inhibitory_gain(
+    const MiniSNN *snn,
+    double *out_gain)
+{
+    if (snn == NULL || out_gain == NULL || snn->net.homeostasis == NULL)
+        return 0;
+
+    *out_gain = snn->net.homeostasis->config.enabled ?
+        snn->net.homeostasis->inhibitory_gain : 1.0;
+    return 1;
+}
+
+int minisnn_get_initial_incoming_exc_sum(
+    const MiniSNN *snn,
+    int neuron_id,
+    double *out_sum)
+{
+    if (!minisnn_valid_neuron_id(snn, neuron_id) || out_sum == NULL ||
+        snn->net.homeostasis == NULL)
+    {
+        return 0;
+    }
+
+    if (!snn->net.homeostasis->config.enabled)
+    {
+        *out_sum = 0.0;
+        return 1;
+    }
+
+    *out_sum = snn->net.homeostasis->initial_incoming_exc_sum[neuron_id];
+    return 1;
+}
+
+int minisnn_get_current_incoming_exc_sum(
+    const MiniSNN *snn,
+    int neuron_id,
+    double *out_sum)
+{
+    if (!minisnn_valid_neuron_id(snn, neuron_id) || out_sum == NULL ||
+        snn->net.homeostasis == NULL)
+    {
+        return 0;
+    }
+
+    if (!snn->net.homeostasis->config.enabled)
+    {
+        *out_sum = 0.0;
+        return 1;
+    }
+
+    return homeostasis_current_incoming_sum(
+        snn->net.homeostasis,
+        neuron_id,
+        snn->net.neurons,
+        snn->net.connections,
+        snn->net.plasticity,
+        out_sum);
+}
+
 int minisnn_set_input(
     MiniSNN *snn,
     int neuron_id,

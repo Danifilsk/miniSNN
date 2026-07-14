@@ -194,4 +194,10 @@ reprodutibilidade e execução longa. Medições locais estão em
 - aumento de peso não prova aprendizado de tarefa;
 - parâmetros e resultados exigem interpretação científica cuidadosa.
 
-Homeostase e estabilidade pertencem ao C1.5 planejado, não implementado aqui.
+## Relação com a homeostase C1.5
+
+Quando ambos estão ativos, o STDP atualiza primeiro os pesos EXC elegíveis e o
+scaling atua depois sobre o resultado. Estatísticas STDP contam somente STDP;
+estatísticas homeostáticas contam scaling. `weights_final.csv` mostra o efeito
+líquido e o relatório de pesos distingue os dois mecanismos. Consulte o
+[Guia de homeostase](GUIA_DE_HOMEOSTASE.md).

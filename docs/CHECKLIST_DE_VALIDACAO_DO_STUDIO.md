@@ -56,3 +56,17 @@ passou apenas porque a suíte automatizada compilou.
 - [ ] Mensagens de erro são compreensíveis.
 
 Status C1: **VALIDAÇÃO MANUAL PENDENTE**.
+
+## C1.5 — homeostase
+
+- [ ] Config antiga abre com homeostase OFF.
+- [ ] Modal `HOMEOSTASE` abre e cancelar preserva valores.
+- [ ] Threshold, scaling e ganho podem ser ativados separadamente.
+- [ ] Campos inválidos são recusados e save/load preserva valores.
+- [ ] Os três demos homeostáticos rodam.
+- [ ] CSVs, `GRAFICO HOMEOSTASE` e `ABRIR HOMEOSTASE` funcionam.
+- [ ] `ABRIR METRICAS` e `ABRIR PESOS` distinguem homeostase e STDP.
+- [ ] STDP, histórico, diagnóstico, comparação e nomes únicos continuam funcionando.
+- [ ] Python ausente e cancelamentos produzem mensagens claras sem travar.
+
+Status C1.5: **VALIDAÇÃO MANUAL PENDENTE**.

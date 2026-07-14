@@ -38,6 +38,7 @@ static void print_summary(
     printf("last_active_step: %d\n", result->last_active_step);
     printf("diagnostics_level: %s\n", config->diagnostics_level);
     printf("plasticity_enabled: %s\n", config->plasticity_enabled ? "true" : "false");
+    printf("homeostasis_enabled: %s\n", config->homeostasis_enabled ? "true" : "false");
 }
 
 int main(int argc, char **argv)
@@ -111,6 +112,19 @@ int main(int argc, char **argv)
 
         printf("- %s/plasticity_metrics.csv\n", result.output_directory);
         printf("- %s/stdp_report.txt\n", result.output_directory);
+    }
+
+    if (scenario.homeostasis_enabled)
+    {
+        printf("- %s/homeostasis_metrics.csv\n", result.output_directory);
+        if (scenario.homeostasis_record_history)
+        {
+            printf("- %s/homeostasis_history.csv\n", result.output_directory);
+            printf("- %s/threshold_history.csv\n", result.output_directory);
+        }
+        printf("- %s/homeostasis_neurons.csv\n", result.output_directory);
+        printf("- %s/homeostasis_report.txt\n", result.output_directory);
+        printf("- %s/homeostasis_report.html\n", result.output_directory);
     }
 
     return 0;

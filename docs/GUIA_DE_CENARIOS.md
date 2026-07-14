@@ -461,3 +461,32 @@ e limite, inteiros positivos. Sem a seção, STDP fica desligado.
 
 Exemplos prontos: `configs/stdp_ltp_demo.ini`, `configs/stdp_ltd_demo.ini` e
 `configs/stdp_mixed_demo.ini`. Veja o [Guia de plasticidade](GUIA_DE_PLASTICIDADE.md).
+
+## Seção `[homeostasis]`
+
+Sem a seção, a homeostase fica desligada. As chaves são:
+
+- `enabled`: ativação global.
+- `intrinsic_enabled`: threshold adaptativo.
+- `target_rate`: taxa-alvo por unidade de `dt`.
+- `rate_tau`: tau do rate trace.
+- `update_interval_steps`: intervalo de atualização.
+- `threshold_eta`, `threshold_min`, `threshold_max`: passo e limites do limiar.
+- `synaptic_scaling_enabled`: scaling das entradas EXC.
+- `scaling_target_mode`: somente `initial_incoming_sum`.
+- `scaling_eta`: aproximação do fator desejado, entre 0 e 1.
+- `scaling_min_factor`, `scaling_max_factor`: clamp do fator.
+- `scaling_weight_min`, `scaling_weight_max`: clamp dos pesos EXC.
+- `inhibitory_gain_enabled`: ganho global INH.
+- `inhibitory_gain_initial`, `inhibitory_gain_eta`: início e passo do ganho.
+- `inhibitory_gain_min`, `inhibitory_gain_max`: limites positivos do ganho.
+- `record_history`: grava séries homeostáticas.
+- `record_interval_steps`: intervalo de gravação.
+- `record_neuron_limit`: limite da amostra determinística.
+
+Booleanos inválidos, NaN, infinito, limites invertidos, intervalos zero e
+configuração ativa sem mecanismo são rejeitados. Exemplos prontos:
+`configs/homeostasis_silence_recovery_demo.ini`,
+`configs/homeostasis_explosion_control_demo.ini` e
+`configs/homeostasis_stdp_scaling_demo.ini`. Consulte o
+[Guia de homeostase](GUIA_DE_HOMEOSTASE.md).

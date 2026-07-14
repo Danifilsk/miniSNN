@@ -66,9 +66,25 @@ int lif_update_with_parameters(
     double current,
     const LIFParameters *parameters)
 {
+    if (parameters == NULL)
+        return 0;
+
+    return lif_update_with_threshold(
+        neuron, current, parameters, parameters->v_threshold);
+}
+
+int lif_update_with_threshold(
+    LIFNeuron *neuron,
+    double current,
+    const LIFParameters *parameters,
+    double effective_threshold)
+{
     double dV;
 
-    if (neuron == NULL || !lif_parameters_are_valid(parameters))
+    if (neuron == NULL || !lif_parameters_are_valid(parameters) ||
+        !isfinite(effective_threshold) ||
+        parameters->v_rest >= effective_threshold ||
+        parameters->v_reset >= effective_threshold)
         return 0;
 
     dV = (-(neuron->V - parameters->v_rest) +
@@ -77,7 +93,7 @@ int lif_update_with_parameters(
 
     neuron->V += parameters->dt * dV;
 
-    if (neuron->V >= parameters->v_threshold)
+    if (neuron->V >= effective_threshold)
     {
         neuron->V = parameters->v_reset;
         neuron->spike = 1;
