@@ -345,12 +345,79 @@ static int check_homeostasis_reproducibility(void)
     return 1;
 }
 
+static int check_reward_reproducibility(void)
+{
+    ScenarioConfig config;
+    ScenarioRunResult first;
+    ScenarioRunResult second;
+    char error[256];
+    const char *files[] = {
+        "population.csv",
+        "raster.csv",
+        "weights_final.csv",
+        "reward_metrics.csv",
+        "reward_events.csv",
+        "reward_history.csv",
+        "eligibility_history.csv",
+        "reward_connections.csv"
+    };
+    unsigned long long hashes[8];
+    int ok;
+
+    if (!scenario_config_load_file(
+            "configs/reward_mixed_demo.ini", &config, error, sizeof(error)))
+        return fail("could not load reward reproducibility config");
+    snprintf(config.run_name, sizeof(config.run_name),
+        "test_reproducibility_reward");
+    config.history_enabled = 0;
+    cleanup_run(config.run_name);
+    if (!scenario_runner_execute(&config, NULL, &first, error, sizeof(error)))
+        return fail("first reward reproducibility run failed");
+
+    for (size_t i = 0; i < sizeof(files) / sizeof(files[0]); i++)
+    {
+        char path[320];
+        snprintf(path, sizeof(path), "results/scenarios/%s/%s",
+            config.run_name, files[i]);
+        hashes[i] = hash_file(path, &ok);
+        if (!ok)
+        {
+            cleanup_run(config.run_name);
+            return fail("could not hash first reward output");
+        }
+    }
+
+    if (!scenario_runner_execute(&config, NULL, &second, error, sizeof(error)) ||
+        first.topology_signature != second.topology_signature ||
+        first.spikes_total != second.spikes_total)
+    {
+        cleanup_run(config.run_name);
+        return fail("same reward config changed topology or spikes");
+    }
+
+    for (size_t i = 0; i < sizeof(files) / sizeof(files[0]); i++)
+    {
+        char path[320];
+        snprintf(path, sizeof(path), "results/scenarios/%s/%s",
+            config.run_name, files[i]);
+        if (hashes[i] != hash_file(path, &ok) || !ok)
+        {
+            cleanup_run(config.run_name);
+            return fail("same reward config changed normalized outputs");
+        }
+    }
+
+    cleanup_run(config.run_name);
+    return 1;
+}
+
 int main(void)
 {
     if (!check_same_seed_same_run() ||
         !check_seed_effects() ||
         !check_plasticity_reproducibility() ||
-        !check_homeostasis_reproducibility())
+        !check_homeostasis_reproducibility() ||
+        !check_reward_reproducibility())
         return 1;
 
     printf("Runner reproducibility validation OK\n");

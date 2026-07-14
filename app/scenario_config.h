@@ -7,7 +7,17 @@
 #define SCENARIO_TOPOLOGY_MAX 32
 #define SCENARIO_DIAGNOSTICS_LEVEL_MAX 8
 #define SCENARIO_PLASTICITY_RULE_MAX 32
+#define SCENARIO_LEARNING_MODE_MAX 32
 #define SCENARIO_SCALING_TARGET_MODE_MAX 32
+#define SCENARIO_REWARD_MODE_MAX 16
+#define SCENARIO_MAX_REWARD_EVENTS 256
+
+typedef struct
+{
+    int index;
+    int step;
+    double value;
+} ScenarioRewardEvent;
 
 typedef struct
 {
@@ -59,6 +69,7 @@ typedef struct
 
     int plasticity_enabled;
     char plasticity_rule[SCENARIO_PLASTICITY_RULE_MAX];
+    char plasticity_learning_mode[SCENARIO_LEARNING_MODE_MAX];
     double plasticity_a_plus;
     double plasticity_a_minus;
     double plasticity_tau_plus;
@@ -94,6 +105,21 @@ typedef struct
     int homeostasis_record_history;
     int homeostasis_record_interval_steps;
     int homeostasis_record_neuron_limit;
+
+    int reward_enabled;
+    char reward_mode[SCENARIO_REWARD_MODE_MAX];
+    double reward_learning_rate;
+    double reward_eligibility_tau;
+    double reward_eligibility_min;
+    double reward_eligibility_max;
+    double reward_min;
+    double reward_max;
+    int reward_clip;
+    int reward_record_history;
+    int reward_record_interval_steps;
+    int reward_record_connection_limit;
+    int reward_event_count;
+    ScenarioRewardEvent reward_events[SCENARIO_MAX_REWARD_EVENTS];
 } ScenarioConfig;
 
 void scenario_config_default(ScenarioConfig *config);

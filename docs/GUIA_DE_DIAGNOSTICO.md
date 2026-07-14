@@ -1,5 +1,14 @@
 # Guia de diagnóstico da miniSNN
 
+## R-STDP no diagnóstico
+
+Quando `reward_metrics.csv` existe, `analyze_run.py` mostra a seção
+`RECOMPENSA, PUNICAO E ELEGIBILIDADE` e integra os totais estáveis às métricas.
+Runs antigas continuam válidas. O diagnóstico informa o sinal externo,
+eventos, elegibilidades e mudanças observadas; não conclui causalidade nem
+aprendizado de tarefa. `metrics_report.html` cria links para o relatório e os
+CSVs de reward.
+
 [Voltar ao índice da documentação](INDICE_DA_DOCUMENTACAO.md)
 
 As contagens são métricas diretas; estatísticas são derivadas; regimes,

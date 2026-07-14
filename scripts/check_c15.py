@@ -167,9 +167,11 @@ def main() -> int:
     roadmap = (ROOT / "docs" / "ROADMAP.md").read_text(encoding="utf-8")
     if "C1.5" not in roadmap or "conclu" not in roadmap.lower():
         errors.append("roadmap does not mark C1.5 as concluded")
-    if ("C2" not in roadmap or
+    if "C2" not in roadmap or "conclu" not in roadmap.lower():
+        errors.append("roadmap does not retain the concluded C2 milestone")
+    if ("C3" not in roadmap or
             ("proxim" not in roadmap.lower() and "próxim" not in roadmap.lower())):
-        errors.append("roadmap does not identify C2 as next")
+        errors.append("roadmap does not identify the current next milestone")
 
     if not RUNNER.is_file():
         errors.append("build/minisnn_runner.exe is missing")

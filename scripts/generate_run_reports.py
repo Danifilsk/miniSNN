@@ -6,6 +6,7 @@ import argparse
 from html_report_common import (
     ReportGenerationError,
     generate_metrics_report,
+    generate_reward_report,
     generate_weights_report,
 )
 
@@ -18,7 +19,8 @@ def main() -> int:
     mode = parser.add_mutually_exclusive_group(required=True)
     mode.add_argument("--metrics", action="store_true", help="gera metrics_report.html")
     mode.add_argument("--weights", action="store_true", help="gera weights_report.html")
-    mode.add_argument("--all", action="store_true", help="gera os dois relatorios")
+    mode.add_argument("--reward", action="store_true", help="gera reward_report.html")
+    mode.add_argument("--all", action="store_true", help="gera todos os relatorios disponiveis")
     args = parser.parse_args()
     run_dir = Path(args.run_directory)
 
@@ -28,6 +30,8 @@ def main() -> int:
             outputs.append(generate_metrics_report(run_dir))
         if args.weights or args.all:
             outputs.append(generate_weights_report(run_dir))
+        if args.reward or (args.all and (run_dir / "reward_metrics.csv").is_file()):
+            outputs.append(generate_reward_report(run_dir))
     except (ReportGenerationError, OSError, UnicodeError) as error:
         print(f"Erro: {error}")
         return 1

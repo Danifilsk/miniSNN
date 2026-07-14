@@ -11,6 +11,8 @@ from urllib.parse import quote
 
 METRICS_REPORT_FILENAME = "metrics_report.html"
 WEIGHTS_REPORT_FILENAME = "weights_report.html"
+REWARD_REPORT_FILENAME = "reward_report.html"
+HISTORY_REPORT_FILENAME = "history.html"
 WEIGHT_TABLE_LIMIT = 500
 RANKING_LIMIT = 10
 
@@ -177,6 +179,14 @@ td.value {{ white-space:normal; overflow-wrap:anywhere; }}
 .increase {{ border-left:3px solid var(--green); }} .decrease {{ border-left:3px solid var(--red); }}
 .neutral {{ border-left:3px solid var(--line); }} .secondary {{ opacity:.72; }}
 .up {{ color:var(--green); }} .down {{ color:var(--red); }}
+.history-controls {{ display:flex; flex-wrap:wrap; gap:10px; margin:18px 0; align-items:end; }}
+.history-controls label {{ display:grid; gap:5px; color:var(--muted); font-size:.78rem; text-transform:uppercase; }}
+.history-controls input,.history-controls select {{ min-width:180px; padding:9px 10px; color:var(--text); background:#0d1116; border:1px solid var(--line); font:inherit; }}
+.status-ok,.status-error {{ display:inline-block; border:1px solid currentColor; padding:2px 6px; font-weight:bold; }}
+.status-ok {{ color:var(--green); }} .status-error {{ color:var(--red); }}
+.artifact-links {{ display:flex; flex-wrap:wrap; gap:6px; max-width:520px; white-space:normal; }}
+.artifact-links a {{ border:1px solid var(--line); padding:3px 6px; text-decoration:none; }}
+.history-empty {{ padding:18px; border:1px dashed var(--line); color:var(--muted); }}
 a {{ color:var(--cyan); }} a:focus,a:hover {{ outline:1px solid var(--cyan); }}
 .files {{ display:flex; flex-wrap:wrap; gap:8px; padding:0; list-style:none; }}
 .files a {{ display:block; border:1px solid var(--line); padding:7px 9px; text-decoration:none; }}
@@ -255,6 +265,8 @@ def _metric_category(key: str) -> str:
         return "12. Plasticidade"
     if key.startswith("homeostasis_"):
         return "13. Homeostase"
+    if key.startswith("reward_"):
+        return "14. Recompensa, punicao e elegibilidade"
     if key.startswith("performance_"):
         return "14. Desempenho"
     if key.startswith(("exc_", "inh_", "exc_inh_")):
@@ -316,7 +328,11 @@ def _update_manifest(run_dir: Path) -> None:
             kept.pop()
         reports = [
             filename
-            for filename in (METRICS_REPORT_FILENAME, WEIGHTS_REPORT_FILENAME)
+            for filename in (
+                METRICS_REPORT_FILENAME,
+                WEIGHTS_REPORT_FILENAME,
+                REWARD_REPORT_FILENAME,
+            )
             if (run_dir / filename).is_file()
         ]
         kept.extend(["", "[html_reports]", "report_files=" + ";".join(reports)])
@@ -344,6 +360,12 @@ def generate_metrics_report(run_directory: Path | str) -> Path:
         for key, value in homeostasis.items():
             if key not in metrics or metrics[key].strip() in {"", "NA"}:
                 metrics[key] = value
+    reward_path = run_dir / "reward_metrics.csv"
+    if reward_path.is_file():
+        reward = read_single_row_csv(reward_path)
+        for key, value in reward.items():
+            if key not in metrics or metrics[key].strip() in {"", "NA"}:
+                metrics[key] = value
     manifest = read_key_values(run_dir / "run_manifest.txt")
 
     cards = [
@@ -363,6 +385,10 @@ def generate_metrics_report(run_directory: Path | str) -> Path:
         or manifest.get("homeostasis_enabled", "false")
     )
     cards.append(("Homeostase", "ON" if homeostasis_enabled else "OFF"))
+    reward_enabled = _flag(
+        _first(metrics, "reward_enabled") or manifest.get("reward_enabled", "false")
+    )
+    cards.append(("Reward", "ON" if reward_enabled else "OFF"))
 
     sections: dict[str, list[tuple[str, object]]] = {}
     for key, value in metrics.items():
@@ -371,6 +397,8 @@ def generate_metrics_report(run_directory: Path | str) -> Path:
         if key.startswith("plasticity_") and enabled is False and key != "plasticity_enabled":
             continue
         if key.startswith("homeostasis_") and homeostasis_enabled is False and key != "homeostasis_enabled":
+            continue
+        if key.startswith("reward_") and reward_enabled is False and key != "reward_enabled":
             continue
         sections.setdefault(_metric_category(key), []).append((key, value))
 
@@ -381,7 +409,8 @@ def generate_metrics_report(run_directory: Path | str) -> Path:
         "5. Neuronios", "6. EXC/INH", "7. Bursts",
         "8. Distribuicao e concentracao", "9. Variabilidade e sincronia aproximada",
         "10. Neuronio detalhado", "11. Conectividade", "12. Plasticidade",
-        "13. Homeostase", "14. Desempenho", "15. Metricas adicionais",
+        "13. Homeostase", "14. Recompensa, punicao e elegibilidade",
+        "14. Desempenho", "15. Metricas adicionais",
     ):
         rows = sections.get(title, [])
         if title == "12. Plasticidade" and enabled is False:
@@ -407,14 +436,19 @@ def generate_metrics_report(run_directory: Path | str) -> Path:
         "threshold_history.csv", "homeostasis_neurons.csv",
         "homeostasis_report.txt", "homeostasis_report.html",
         "homeostasis_overview.png",
+        "reward_metrics.csv", "reward_events.csv", "reward_history.csv",
+        "eligibility_history.csv", "reward_connections.csv",
+        "reward_report.txt", REWARD_REPORT_FILENAME, "reward_overview.png",
     ))
     body += _preview_images(run_dir, (
         "diagnostics_overview.png", "plasticity_overview.png",
         "homeostasis_overview.png",
+        "reward_overview.png",
     ))
     for filename, title in (
         ("metrics_report.txt", "Relatorio textual"),
         ("homeostasis_report.txt", "Relatorio homeostatico textual"),
+        ("reward_report.txt", "Relatorio textual de recompensa"),
     ):
         text_report = run_dir / filename
         if text_report.is_file():
@@ -641,6 +675,8 @@ def generate_weights_report(run_directory: Path | str) -> Path:
         metrics.update(read_single_row_csv(run_dir / "plasticity_metrics.csv"))
     if (run_dir / "homeostasis_metrics.csv").is_file():
         metrics.update(read_single_row_csv(run_dir / "homeostasis_metrics.csv"))
+    if (run_dir / "reward_metrics.csv").is_file():
+        metrics.update(read_single_row_csv(run_dir / "reward_metrics.csv"))
     weight_min = _decimal(manifest.get("plasticity_weight_min", ""))
     weight_max = _decimal(manifest.get("plasticity_weight_max", ""))
     streamed = _stream_weights(final_path, weight_min, weight_max)
@@ -674,6 +710,7 @@ def generate_weights_report(run_directory: Path | str) -> Path:
         ("topology", _first(metrics, "topology") or manifest.get("topology") or "NA"),
         ("plasticity_enabled", "ON" if enabled else "OFF"),
         ("plasticity_rule", _first(metrics, "plasticity_rule") or manifest.get("plasticity_rule") or "NA"),
+        ("plasticity_learning_mode", _first(metrics, "plasticity_learning_mode") or manifest.get("plasticity_learning_mode") or "direct_stdp"),
         ("total_connections", total_connections_text or "NA"),
         ("eligible_connections", eligible_text or streamed["eligible_count"]),
         ("registered_connections", registered),
@@ -681,6 +718,16 @@ def generate_weights_report(run_directory: Path | str) -> Path:
     ]
 
     body = _cards(cards)
+    mechanisms = []
+    learning_mode = str(identification[4][1])
+    if learning_mode == "reward_modulated_stdp":
+        mechanisms.append("Reward-Modulated STDP")
+    elif enabled:
+        mechanisms.append("Direct STDP")
+    if _flag(_first(metrics, "homeostasis_synaptic_scaling_enabled") or manifest.get("homeostasis_synaptic_scaling_enabled", "false")):
+        mechanisms.append("Synaptic scaling")
+    if mechanisms:
+        body += '<div class="notice">Mecanismos ativos: ' + escaped(", ".join(mechanisms)) + ". As estatisticas de cada mecanismo permanecem separadas.</div>"
     if _flag(_first(metrics, "homeostasis_enabled") or manifest.get("homeostasis_enabled", "false")):
         body += (
             '<div class="notice">Os deltas STDP e de scaling sao contabilizados '
@@ -719,8 +766,9 @@ def generate_weights_report(run_directory: Path | str) -> Path:
         "weights_initial.csv", "weights_final.csv", "plasticity_metrics.csv",
         "weight_history.csv", "stdp_report.txt", "plasticity_overview.png",
         "metrics.csv", METRICS_REPORT_FILENAME, "run_manifest.txt",
+        "reward_metrics.csv", "reward_connections.csv", REWARD_REPORT_FILENAME,
     ))
-    body += _preview_images(run_dir, ("plasticity_overview.png",))
+    body += _preview_images(run_dir, ("plasticity_overview.png", "reward_overview.png"))
     stdp_report = run_dir / "stdp_report.txt"
     if stdp_report.is_file():
         try:
@@ -732,4 +780,316 @@ def generate_weights_report(run_directory: Path | str) -> Path:
     output = run_dir / WEIGHTS_REPORT_FILENAME
     _atomic_write(output, _document("MINISNN — RELATORIO DE PESOS E PLASTICIDADE", f"Execucao: {actual}", body))
     _update_manifest(run_dir)
+    return output
+
+
+def _read_csv_rows(path: Path, limit: int = 500) -> tuple[list[str], list[dict[str, str]]]:
+    if not path.is_file():
+        raise ReportGenerationError(f"arquivo obrigatorio ausente: {path.name}")
+    rows: list[dict[str, str]] = []
+    try:
+        with path.open("r", encoding="utf-8-sig", newline="") as file:
+            reader = csv.DictReader(file)
+            headers = _validate_headers(path, reader.fieldnames)
+            for line, raw in enumerate(reader, start=2):
+                row = _validate_row(path, raw, line)
+                if len(rows) < limit:
+                    rows.append(row)
+        return headers, rows
+    except (OSError, UnicodeError, csv.Error) as error:
+        raise ReportGenerationError(f"nao foi possivel ler {path.name}: {error}") from error
+
+
+def _generic_table(headers: list[str], rows: list[dict[str, str]]) -> str:
+    if not rows:
+        return '<p class="muted">Nenhum registro nesta categoria.</p>'
+    head = "".join(f"<th>{escaped(name)}</th>" for name in headers)
+    body = "".join(
+        "<tr>" + "".join(f"<td>{escaped(row.get(name, ''))}</td>" for name in headers) + "</tr>"
+        for row in rows
+    )
+    return f'<div class="table-wrap"><table><thead><tr>{head}</tr></thead><tbody>{body}</tbody></table></div>'
+
+
+def generate_reward_report(run_directory: Path | str) -> Path:
+    run_dir = Path(run_directory)
+    if not run_dir.is_dir():
+        raise ReportGenerationError(f"pasta da execucao inexistente: {run_dir}")
+    metrics = read_single_row_csv(run_dir / "reward_metrics.csv")
+    if _flag(metrics.get("reward_enabled", "false")) is not True:
+        raise ReportGenerationError("esta execucao nao possui reward ativo")
+    manifest = read_key_values(run_dir / "run_manifest.txt")
+    event_headers, events = _read_csv_rows(run_dir / "reward_events.csv")
+    connection_headers, connections = _read_csv_rows(run_dir / "reward_connections.csv")
+
+    cards = [
+        ("Reward total", format_value("reward_cumulative_applied", metrics.get("reward_cumulative_applied", "NA"))),
+        ("Reward positivo", format_value("reward_cumulative_positive", metrics.get("reward_cumulative_positive", "NA"))),
+        ("Punicao total", format_value("reward_cumulative_negative", metrics.get("reward_cumulative_negative", "NA"))),
+        ("Eventos", format_value("reward_event_count", metrics.get("reward_event_count", "NA"))),
+        ("Elegibilidade media final", format_value("reward_eligibility_final_mean", metrics.get("reward_eligibility_final_mean", "NA"))),
+        ("Conexoes modificadas", format_value("reward_modified_connection_count", metrics.get("reward_modified_connection_count", "NA"))),
+        ("Mudanca total de peso", format_value("reward_weight_total_signed_change", metrics.get("reward_weight_total_signed_change", "NA"))),
+        ("STDP mode", manifest.get("plasticity_learning_mode", "reward_modulated_stdp")),
+        ("Homeostase", "ON" if _flag(manifest.get("homeostasis_enabled", "false")) else "OFF"),
+    ]
+    configuration_keys = (
+        "reward_mode", "reward_learning_rate", "reward_eligibility_tau",
+        "reward_eligibility_min", "reward_eligibility_max", "reward_signal_min",
+        "reward_signal_max", "reward_clip_enabled",
+    )
+    eligibility_keys = tuple(key for key in metrics if "eligibility" in key)
+    weight_keys = tuple(key for key in metrics if key.startswith("reward_weight_"))
+    reward_keys = tuple(key for key in metrics if key.startswith("reward_cumulative_"))
+
+    body = _cards(cards)
+    body += "<h2>Resumo</h2><div class=\"notice\">O reward e um sinal escalar externo. A mudanca observada segue a regra R-STDP configurada e nao prova aprendizado de uma tarefa.</div>"
+    body += "<h2>Configuracao</h2>" + _key_value_table([(key, metrics.get(key, "NA")) for key in configuration_keys])
+    body += "<h2>Eventos</h2>" + _generic_table(event_headers, events)
+    body += "<h2>Elegibilidade</h2>" + _key_value_table([(key, metrics[key]) for key in eligibility_keys])
+    body += "<h2>Mudancas de peso</h2>" + _key_value_table([(key, metrics[key]) for key in weight_keys])
+    body += "<h2>Recompensas e punicoes</h2>" + _key_value_table([(key, metrics[key]) for key in reward_keys])
+    body += "<h2>Interacao com STDP</h2><p>A correlacao temporal gera elegibilidade; nao altera o peso imediatamente neste modo.</p>"
+    body += "<h2>Interacao com homeostase</h2><p>R-STDP e aplicado antes do synaptic scaling. As estatisticas sao mantidas separadamente.</p>"
+    body += "<h2>Rankings</h2>" + _generic_table(connection_headers, connections)
+    body += "<h2>Historico e arquivos cientificos</h2>" + _existing_file_links(run_dir, (
+        "reward_metrics.csv", "reward_events.csv", "reward_history.csv",
+        "eligibility_history.csv", "reward_connections.csv", "reward_report.txt",
+        "reward_overview.png", METRICS_REPORT_FILENAME, WEIGHTS_REPORT_FILENAME,
+    ))
+    body += _preview_images(run_dir, ("reward_overview.png",))
+    body += "<h2>Limitacoes</h2><div class=\"notice\">Nao ha previsao de recompensa, politica, agente ou dopamina biologicamente detalhada. Punicao e reward negativo matematico.</div>"
+
+    actual = manifest.get("actual_run_name", run_dir.name)
+    output = run_dir / REWARD_REPORT_FILENAME
+    _atomic_write(output, _document("MINISNN - RECOMPENSA, PUNICAO E ELEGIBILIDADE", f"Execucao: {actual}", body))
+    _update_manifest(run_dir)
+    return output
+
+
+SCENARIO_HISTORY_COLUMNS = (
+    "timestamp",
+    "run_name",
+    "actual_run_name",
+    "run_path",
+    "config_path",
+    "topology",
+    "num_neurons",
+    "steps",
+    "dt",
+    "seed",
+    "recorded_neuron",
+    "total_connections",
+    "total_spikes",
+    "first_active_step",
+    "last_active_step",
+    "status",
+)
+
+SCENARIO_HISTORY_ARTIFACTS = (
+    ("Metricas", "metrics_report.html"),
+    ("Resumo", "summary.txt"),
+    ("Manifesto", "run_manifest.txt"),
+    ("Config usada", "config_used.ini"),
+    ("Pesos", "weights_report.html"),
+    ("STDP", "plasticity_overview.png"),
+    ("Homeostase", "homeostasis_report.html"),
+    ("Reward", "reward_report.html"),
+)
+
+
+def _read_scenario_history(path: Path) -> list[dict[str, str]]:
+    if not path.is_file():
+        raise ReportGenerationError(f"arquivo obrigatorio ausente: {path.name}")
+    try:
+        with path.open("r", encoding="utf-8-sig", newline="") as file:
+            reader = csv.DictReader(file)
+            headers = _validate_headers(path, reader.fieldnames)
+            missing = [name for name in SCENARIO_HISTORY_COLUMNS if name not in headers]
+            if missing:
+                raise ReportGenerationError(
+                    f"{path.name}: colunas obrigatorias ausentes: {', '.join(missing)}"
+                )
+            return [
+                _validate_row(path, raw, line)
+                for line, raw in enumerate(reader, start=2)
+            ]
+    except (OSError, UnicodeError, csv.Error) as error:
+        raise ReportGenerationError(
+            f"nao foi possivel ler {path.name}: {error}"
+        ) from error
+
+
+def _safe_history_run_directory(
+    scenarios_directory: Path,
+    raw_path: str,
+) -> Path | None:
+    text = raw_path.strip()
+    if not text:
+        return None
+
+    root = scenarios_directory.resolve()
+    source = Path(text)
+    candidates = [source] if source.is_absolute() else [
+        root / source,
+        root.parent.parent / source,
+    ]
+    for candidate in candidates:
+        try:
+            resolved = candidate.resolve()
+            resolved.relative_to(root)
+        except (OSError, ValueError):
+            continue
+        if resolved != root and resolved.is_dir():
+            return resolved
+    return None
+
+
+def _history_artifact_links(
+    scenarios_directory: Path,
+    run_directory: Path | None,
+) -> str:
+    if run_directory is None:
+        return '<span class="muted">arquivos indisponiveis</span>'
+
+    relative_directory = run_directory.relative_to(scenarios_directory.resolve())
+    relative_text = relative_directory.as_posix()
+    links: list[str] = []
+    for label, filename in SCENARIO_HISTORY_ARTIFACTS:
+        if (run_directory / filename).is_file():
+            href = quote(f"{relative_text}/{filename}", safe="/")
+            links.append(
+                f'<a href="{escaped(href)}">{escaped(label)}</a>'
+            )
+    links.append(
+        f'<a href="{escaped(quote(relative_text + "/", safe="/"))}">Pasta</a>'
+    )
+    return '<span class="artifact-links">' + "".join(links) + "</span>"
+
+
+def generate_scenario_history_report(
+    scenarios_directory: Path | str,
+    output_filename: str = HISTORY_REPORT_FILENAME,
+) -> Path:
+    scenarios_dir = Path(scenarios_directory)
+    if not scenarios_dir.is_dir():
+        raise ReportGenerationError(
+            f"pasta de cenarios inexistente: {scenarios_dir}"
+        )
+    if (Path(output_filename).name != output_filename or
+            not output_filename or
+            Path(output_filename).suffix.lower() != ".html"):
+        raise ReportGenerationError("nome de saida invalido")
+
+    index_path = scenarios_dir / "index.csv"
+    rows = _read_scenario_history(index_path)
+    indexed_rows = list(enumerate(rows))
+    indexed_rows.sort(
+        key=lambda item: (item[1]["timestamp"], item[0]),
+        reverse=True,
+    )
+    ordered_rows = [row for _, row in indexed_rows]
+
+    ok_count = sum(row["status"].strip().upper() == "OK" for row in rows)
+    run_names = {row["run_name"] for row in rows}
+    topologies = {row["topology"] for row in rows}
+    latest = ordered_rows[0]["timestamp"] if ordered_rows else "Nenhuma"
+    body = _cards([
+        ("Total de execucoes", len(rows)),
+        ("Execucoes OK", ok_count),
+        ("Execucoes com erro", len(rows) - ok_count),
+        ("Run names distintos", len(run_names)),
+        ("Topologias distintas", len(topologies)),
+        ("Ultima execucao", latest),
+    ])
+    body += '<p><a href="index.csv">Abrir index.csv bruto</a></p>'
+
+    if not ordered_rows:
+        body += (
+            '<div class="history-empty">Nenhuma execucao foi registrada ainda. '
+            "Rode um cenario com history_enabled=true.</div>"
+        )
+    else:
+        topology_options = "".join(
+            f'<option value="{escaped(value)}">{escaped(value)}</option>'
+            for value in sorted(topologies)
+        )
+        body += f"""
+<div class="history-controls">
+  <label>BUSCAR EXECUCOES<input id="history-search" type="search" placeholder="run, topologia, status ou data"></label>
+  <label>STATUS<select id="history-status"><option value="">TODOS</option><option value="OK">OK</option><option value="ERRO">ERRO</option></select></label>
+  <label>TOPOLOGIA<select id="history-topology"><option value="">TODAS</option>{topology_options}</select></label>
+</div>
+"""
+        table_rows: list[str] = []
+        for row in ordered_rows:
+            status_ok = row["status"].strip().upper() == "OK"
+            status_group = "OK" if status_ok else "ERRO"
+            status_text = "OK" if status_ok else f'ERRO: {row["status"] or "status ausente"}'
+            status_html = (
+                f'<span class="status-ok">{escaped(status_text)}</span>'
+                if status_ok else
+                f'<span class="status-error">{escaped(status_text)}</span>'
+            )
+            search_text = " ".join(
+                row[key] for key in
+                ("run_name", "actual_run_name", "topology", "status", "timestamp")
+            ).lower()
+            run_directory = _safe_history_run_directory(
+                scenarios_dir,
+                row["run_path"],
+            )
+            artifacts = _history_artifact_links(scenarios_dir, run_directory)
+            values = (
+                row["timestamp"], row["run_name"], row["actual_run_name"],
+                row["topology"], row["num_neurons"], row["total_connections"],
+                row["steps"], row["dt"], row["seed"], row["total_spikes"],
+                row["first_active_step"], row["last_active_step"],
+            )
+            cells = "".join(
+                f'<td title="{escaped(value)}">{escaped(value)}</td>'
+                for value in values
+            )
+            table_rows.append(
+                '<tr class="history-row" '
+                f'data-search="{escaped(search_text)}" '
+                f'data-status="{status_group}" '
+                f'data-topology="{escaped(row["topology"])}">'
+                f"{cells}<td>{status_html}</td><td>{artifacts}</td></tr>"
+            )
+        body += """
+<div class="table-wrap"><table id="history-table">
+<thead><tr><th>Data/hora</th><th>Run solicitada</th><th>Run real</th><th>Topologia</th><th>Neuronios</th><th>Conexoes</th><th>Steps</th><th>dt</th><th>Seed</th><th>Spikes</th><th>Primeiro ativo</th><th>Ultimo ativo</th><th>Status</th><th>Arquivos</th></tr></thead>
+<tbody>""" + "".join(table_rows) + """</tbody></table></div>
+<script>
+(() => {
+  const search = document.getElementById('history-search');
+  const status = document.getElementById('history-status');
+  const topology = document.getElementById('history-topology');
+  const rows = Array.from(document.querySelectorAll('.history-row'));
+  const apply = () => {
+    const query = search.value.trim().toLowerCase();
+    for (const row of rows) {
+      const matchesSearch = !query || row.dataset.search.includes(query);
+      const matchesStatus = !status.value || row.dataset.status === status.value;
+      const matchesTopology = !topology.value || row.dataset.topology === topology.value;
+      row.hidden = !(matchesSearch && matchesStatus && matchesTopology);
+    }
+  };
+  search.addEventListener('input', apply);
+  status.addEventListener('change', apply);
+  topology.addEventListener('change', apply);
+})();
+</script>
+"""
+
+    output = scenarios_dir / output_filename
+    _atomic_write(
+        output,
+        _document(
+            "MINISNN — HISTORICO DE EXECUCOES",
+            "Fonte: index.csv append-only",
+            body,
+        ),
+    )
     return output

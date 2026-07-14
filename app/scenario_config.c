@@ -47,6 +47,7 @@ typedef enum
     FIELD_SAMPLE_STRIDE,
     FIELD_PLASTICITY_ENABLED,
     FIELD_PLASTICITY_RULE,
+    FIELD_PLASTICITY_LEARNING_MODE,
     FIELD_PLASTICITY_A_PLUS,
     FIELD_PLASTICITY_A_MINUS,
     FIELD_PLASTICITY_TAU_PLUS,
@@ -81,6 +82,18 @@ typedef enum
     FIELD_HOMEOSTASIS_RECORD_HISTORY,
     FIELD_HOMEOSTASIS_RECORD_INTERVAL_STEPS,
     FIELD_HOMEOSTASIS_RECORD_NEURON_LIMIT,
+    FIELD_REWARD_ENABLED,
+    FIELD_REWARD_MODE,
+    FIELD_REWARD_LEARNING_RATE,
+    FIELD_REWARD_ELIGIBILITY_TAU,
+    FIELD_REWARD_ELIGIBILITY_MIN,
+    FIELD_REWARD_ELIGIBILITY_MAX,
+    FIELD_REWARD_MIN,
+    FIELD_REWARD_MAX,
+    FIELD_REWARD_CLIP,
+    FIELD_REWARD_RECORD_HISTORY,
+    FIELD_REWARD_RECORD_INTERVAL_STEPS,
+    FIELD_REWARD_RECORD_CONNECTION_LIMIT,
     FIELD_COUNT
 } ScenarioField;
 
@@ -130,6 +143,7 @@ static const KeyMap KEY_MAP[] =
     {"sample_stride", FIELD_SAMPLE_STRIDE},
     {"enabled", FIELD_PLASTICITY_ENABLED},
     {"rule", FIELD_PLASTICITY_RULE},
+    {"learning_mode", FIELD_PLASTICITY_LEARNING_MODE},
     {"a_plus", FIELD_PLASTICITY_A_PLUS},
     {"a_minus", FIELD_PLASTICITY_A_MINUS},
     {"tau_plus", FIELD_PLASTICITY_TAU_PLUS},
@@ -269,6 +283,37 @@ static int find_field(
         return 1;
     }
 
+    if (strcmp(section, "reward") == 0)
+    {
+        if (strcmp(key, "enabled") == 0)
+            *out_field = FIELD_REWARD_ENABLED;
+        else if (strcmp(key, "mode") == 0)
+            *out_field = FIELD_REWARD_MODE;
+        else if (strcmp(key, "learning_rate") == 0)
+            *out_field = FIELD_REWARD_LEARNING_RATE;
+        else if (strcmp(key, "eligibility_tau") == 0)
+            *out_field = FIELD_REWARD_ELIGIBILITY_TAU;
+        else if (strcmp(key, "eligibility_min") == 0)
+            *out_field = FIELD_REWARD_ELIGIBILITY_MIN;
+        else if (strcmp(key, "eligibility_max") == 0)
+            *out_field = FIELD_REWARD_ELIGIBILITY_MAX;
+        else if (strcmp(key, "reward_min") == 0)
+            *out_field = FIELD_REWARD_MIN;
+        else if (strcmp(key, "reward_max") == 0)
+            *out_field = FIELD_REWARD_MAX;
+        else if (strcmp(key, "clip_reward") == 0)
+            *out_field = FIELD_REWARD_CLIP;
+        else if (strcmp(key, "record_history") == 0)
+            *out_field = FIELD_REWARD_RECORD_HISTORY;
+        else if (strcmp(key, "record_interval_steps") == 0)
+            *out_field = FIELD_REWARD_RECORD_INTERVAL_STEPS;
+        else if (strcmp(key, "record_connection_limit") == 0)
+            *out_field = FIELD_REWARD_RECORD_CONNECTION_LIMIT;
+        else
+            return 0;
+        return 1;
+    }
+
     for (size_t i = 0; i < count; i++)
     {
         if (strcmp(key, KEY_MAP[i].key) == 0)
@@ -352,6 +397,60 @@ static int parse_double_value(const char *text, double *out_value)
 
     *out_value = value;
     return 1;
+}
+
+static int parse_reward_event_key(const char *key, int *out_index)
+{
+    if (key == NULL || out_index == NULL || strncmp(key, "event_", 6) != 0 ||
+        key[6] == '\0')
+    {
+        return 0;
+    }
+
+    return parse_int_value(key + 6, out_index) && *out_index >= 0;
+}
+
+static int parse_reward_event_value(
+    const char *value,
+    int *out_step,
+    double *out_reward)
+{
+    char step_text[64];
+    char reward_text[128];
+    const char *comma;
+    size_t step_length;
+
+    if (value == NULL || out_step == NULL || out_reward == NULL)
+        return 0;
+
+    comma = strchr(value, ',');
+    if (comma == NULL || strchr(comma + 1, ',') != NULL)
+        return 0;
+
+    step_length = (size_t)(comma - value);
+    if (step_length == 0 || step_length >= sizeof(step_text) ||
+        strlen(comma + 1) >= sizeof(reward_text))
+    {
+        return 0;
+    }
+
+    memcpy(step_text, value, step_length);
+    step_text[step_length] = '\0';
+    snprintf(reward_text, sizeof(reward_text), "%s", comma + 1);
+    return parse_int_value(trim(step_text), out_step) && *out_step >= 0 &&
+        parse_double_value(trim(reward_text), out_reward);
+}
+
+static int reward_event_compare(const void *left, const void *right)
+{
+    const ScenarioRewardEvent *a = left;
+    const ScenarioRewardEvent *b = right;
+
+    if (a->step != b->step)
+        return a->step < b->step ? -1 : 1;
+    if (a->index != b->index)
+        return a->index < b->index ? -1 : 1;
+    return 0;
 }
 
 static int text_equals_ignore_case(const char *a, const char *b)
@@ -480,6 +579,36 @@ static int assign_value(
         }
         return 1;
 
+    case FIELD_PLASTICITY_LEARNING_MODE:
+        if (!copy_string_value(
+                config->plasticity_learning_mode,
+                sizeof(config->plasticity_learning_mode),
+                value))
+        {
+            set_line_error(
+                error_message,
+                error_message_size,
+                line_number,
+                "learning_mode muito longo");
+            return 0;
+        }
+        return 1;
+
+    case FIELD_REWARD_MODE:
+        if (!copy_string_value(
+                config->reward_mode,
+                sizeof(config->reward_mode),
+                value))
+        {
+            set_line_error(
+                error_message,
+                error_message_size,
+                line_number,
+                "modo de reward muito longo");
+            return 0;
+        }
+        return 1;
+
     case FIELD_HOMEOSTASIS_SCALING_TARGET_MODE:
         if (!copy_string_value(
                 config->homeostasis_scaling_target_mode,
@@ -520,6 +649,9 @@ static int assign_value(
     case FIELD_HOMEOSTASIS_SCALING_ENABLED:
     case FIELD_HOMEOSTASIS_INHIBITORY_GAIN_ENABLED:
     case FIELD_HOMEOSTASIS_RECORD_HISTORY:
+    case FIELD_REWARD_ENABLED:
+    case FIELD_REWARD_CLIP:
+    case FIELD_REWARD_RECORD_HISTORY:
         if (!parse_bool_value(value, &bool_value))
         {
             set_line_error(
@@ -552,8 +684,14 @@ static int assign_value(
             config->homeostasis_synaptic_scaling_enabled = bool_value;
         else if (field == FIELD_HOMEOSTASIS_INHIBITORY_GAIN_ENABLED)
             config->homeostasis_inhibitory_gain_enabled = bool_value;
-        else
+        else if (field == FIELD_HOMEOSTASIS_RECORD_HISTORY)
             config->homeostasis_record_history = bool_value;
+        else if (field == FIELD_REWARD_ENABLED)
+            config->reward_enabled = bool_value;
+        else if (field == FIELD_REWARD_CLIP)
+            config->reward_clip = bool_value;
+        else
+            config->reward_record_history = bool_value;
 
         return 1;
 
@@ -576,6 +714,8 @@ static int assign_value(
     case FIELD_HOMEOSTASIS_UPDATE_INTERVAL_STEPS:
     case FIELD_HOMEOSTASIS_RECORD_INTERVAL_STEPS:
     case FIELD_HOMEOSTASIS_RECORD_NEURON_LIMIT:
+    case FIELD_REWARD_RECORD_INTERVAL_STEPS:
+    case FIELD_REWARD_RECORD_CONNECTION_LIMIT:
         if (!parse_int_value(value, &int_value))
         {
             set_line_error(
@@ -622,6 +762,10 @@ static int assign_value(
             config->homeostasis_record_interval_steps = int_value;
         else if (field == FIELD_HOMEOSTASIS_RECORD_NEURON_LIMIT)
             config->homeostasis_record_neuron_limit = int_value;
+        else if (field == FIELD_REWARD_RECORD_INTERVAL_STEPS)
+            config->reward_record_interval_steps = int_value;
+        else if (field == FIELD_REWARD_RECORD_CONNECTION_LIMIT)
+            config->reward_record_connection_limit = int_value;
         else
             config->record_neuron = int_value;
 
@@ -662,6 +806,12 @@ static int assign_value(
     case FIELD_HOMEOSTASIS_INHIBITORY_GAIN_ETA:
     case FIELD_HOMEOSTASIS_INHIBITORY_GAIN_MIN:
     case FIELD_HOMEOSTASIS_INHIBITORY_GAIN_MAX:
+    case FIELD_REWARD_LEARNING_RATE:
+    case FIELD_REWARD_ELIGIBILITY_TAU:
+    case FIELD_REWARD_ELIGIBILITY_MIN:
+    case FIELD_REWARD_ELIGIBILITY_MAX:
+    case FIELD_REWARD_MIN:
+    case FIELD_REWARD_MAX:
         if (!parse_double_value(value, &double_value))
         {
             set_line_error(
@@ -740,8 +890,20 @@ static int assign_value(
             config->homeostasis_inhibitory_gain_eta = double_value;
         else if (field == FIELD_HOMEOSTASIS_INHIBITORY_GAIN_MIN)
             config->homeostasis_inhibitory_gain_min = double_value;
-        else
+        else if (field == FIELD_HOMEOSTASIS_INHIBITORY_GAIN_MAX)
             config->homeostasis_inhibitory_gain_max = double_value;
+        else if (field == FIELD_REWARD_LEARNING_RATE)
+            config->reward_learning_rate = double_value;
+        else if (field == FIELD_REWARD_ELIGIBILITY_TAU)
+            config->reward_eligibility_tau = double_value;
+        else if (field == FIELD_REWARD_ELIGIBILITY_MIN)
+            config->reward_eligibility_min = double_value;
+        else if (field == FIELD_REWARD_ELIGIBILITY_MAX)
+            config->reward_eligibility_max = double_value;
+        else if (field == FIELD_REWARD_MIN)
+            config->reward_min = double_value;
+        else
+            config->reward_max = double_value;
 
         return 1;
 
@@ -841,6 +1003,10 @@ void scenario_config_default(ScenarioConfig *config)
         config->plasticity_rule,
         sizeof(config->plasticity_rule),
         "stdp_pair_trace");
+    snprintf(
+        config->plasticity_learning_mode,
+        sizeof(config->plasticity_learning_mode),
+        "direct_stdp");
     config->plasticity_a_plus = 1.0;
     config->plasticity_a_minus = 1.05;
     config->plasticity_tau_plus = 20.0;
@@ -879,6 +1045,20 @@ void scenario_config_default(ScenarioConfig *config)
     config->homeostasis_record_history = 1;
     config->homeostasis_record_interval_steps = 10;
     config->homeostasis_record_neuron_limit = 256;
+
+    config->reward_enabled = 0;
+    snprintf(config->reward_mode, sizeof(config->reward_mode), "rstdp");
+    config->reward_learning_rate = 1.0;
+    config->reward_eligibility_tau = 100.0;
+    config->reward_eligibility_min = -200.0;
+    config->reward_eligibility_max = 200.0;
+    config->reward_min = -1.0;
+    config->reward_max = 1.0;
+    config->reward_clip = 1;
+    config->reward_record_history = 1;
+    config->reward_record_interval_steps = 10;
+    config->reward_record_connection_limit = 256;
+    config->reward_event_count = 0;
 }
 
 int scenario_config_validate(
@@ -935,6 +1115,15 @@ int scenario_config_validate(
     if (strcmp(config->plasticity_rule, "stdp_pair_trace") != 0)
     {
         set_error(error_message, error_message_size, "plasticity rule invalida");
+        return 0;
+    }
+
+    if (strcmp(config->plasticity_learning_mode, "direct_stdp") != 0 &&
+        strcmp(
+            config->plasticity_learning_mode,
+            "reward_modulated_stdp") != 0)
+    {
+        set_error(error_message, error_message_size, "learning_mode invalido");
         return 0;
     }
 
@@ -1051,6 +1240,47 @@ int scenario_config_validate(
         return 0;
     }
 
+    if ((config->reward_enabled != 0 && config->reward_enabled != 1) ||
+        (config->reward_clip != 0 && config->reward_clip != 1) ||
+        (config->reward_record_history != 0 &&
+         config->reward_record_history != 1) ||
+        strcmp(config->reward_mode, "rstdp") != 0 ||
+        !isfinite(config->reward_learning_rate) ||
+        config->reward_learning_rate < 0.0 ||
+        !isfinite(config->reward_eligibility_tau) ||
+        config->reward_eligibility_tau <= 0.0 ||
+        !isfinite(config->reward_eligibility_min) ||
+        config->reward_eligibility_min >= 0.0 ||
+        !isfinite(config->reward_eligibility_max) ||
+        config->reward_eligibility_max <= 0.0 ||
+        config->reward_eligibility_max <= config->reward_eligibility_min ||
+        !isfinite(config->reward_min) || config->reward_min > 0.0 ||
+        !isfinite(config->reward_max) || config->reward_max < 0.0 ||
+        config->reward_max <= config->reward_min ||
+        config->reward_record_interval_steps <= 0 ||
+        config->reward_record_connection_limit <= 0)
+    {
+        set_error(error_message, error_message_size, "parametros de reward invalidos");
+        return 0;
+    }
+
+    if ((config->reward_enabled &&
+         (!config->plasticity_enabled ||
+          strcmp(
+              config->plasticity_learning_mode,
+              "reward_modulated_stdp") != 0)) ||
+        (!config->reward_enabled &&
+         strcmp(
+             config->plasticity_learning_mode,
+             "reward_modulated_stdp") == 0))
+    {
+        set_error(
+            error_message,
+            error_message_size,
+            "combinacao incompativel entre plasticity e reward");
+        return 0;
+    }
+
     if (config->neurons < 1 || config->neurons > 1000)
     {
         set_error(error_message, error_message_size, "neurons deve estar entre 1 e 1000");
@@ -1060,6 +1290,46 @@ int scenario_config_validate(
     if (config->steps <= 0)
     {
         set_error(error_message, error_message_size, "steps deve ser maior que zero");
+        return 0;
+    }
+
+    if (config->reward_event_count < 0 ||
+        config->reward_event_count > SCENARIO_MAX_REWARD_EVENTS)
+    {
+        set_error(error_message, error_message_size, "quantidade de reward_events invalida");
+        return 0;
+    }
+
+    {
+        unsigned char seen_events[SCENARIO_MAX_REWARD_EVENTS] = {0};
+
+        for (int i = 0; i < config->reward_event_count; i++)
+        {
+            const ScenarioRewardEvent *event = &config->reward_events[i];
+
+            if (event->index < 0 || event->index >= config->reward_event_count ||
+                seen_events[event->index] || event->step < 0 ||
+                event->step >= config->steps || !isfinite(event->value))
+            {
+                set_error(error_message, error_message_size, "reward_event invalido");
+                return 0;
+            }
+            seen_events[event->index] = 1U;
+        }
+
+        for (int i = 0; i < config->reward_event_count; i++)
+        {
+            if (!seen_events[i])
+            {
+                set_error(error_message, error_message_size, "indice de reward_event ausente");
+                return 0;
+            }
+        }
+    }
+
+    if (config->reward_event_count > 0 && !config->reward_enabled)
+    {
+        set_error(error_message, error_message_size, "reward_events sem reward habilitado");
         return 0;
     }
 
@@ -1297,6 +1567,51 @@ int scenario_config_load_file(
             return 0;
         }
 
+        if (strcmp(current_section, "reward_events") == 0)
+        {
+            ScenarioRewardEvent event;
+
+            if (!parse_reward_event_key(key, &event.index) ||
+                !parse_reward_event_value(value, &event.step, &event.value))
+            {
+                fclose(file);
+                set_line_error(
+                    error_message,
+                    error_message_size,
+                    line_number,
+                    "reward_event malformado");
+                return 0;
+            }
+
+            if (config.reward_event_count >= SCENARIO_MAX_REWARD_EVENTS)
+            {
+                fclose(file);
+                set_line_error(
+                    error_message,
+                    error_message_size,
+                    line_number,
+                    "limite de reward_events excedido");
+                return 0;
+            }
+
+            for (int i = 0; i < config.reward_event_count; i++)
+            {
+                if (config.reward_events[i].index == event.index)
+                {
+                    fclose(file);
+                    set_line_error(
+                        error_message,
+                        error_message_size,
+                        line_number,
+                        "indice de reward_event duplicado");
+                    return 0;
+                }
+            }
+
+            config.reward_events[config.reward_event_count++] = event;
+            continue;
+        }
+
         if (!find_field(current_section, key, &field))
         {
             char message[160];
@@ -1331,6 +1646,15 @@ int scenario_config_load_file(
     }
 
     fclose(file);
+
+    if (config.reward_event_count > 1)
+    {
+        qsort(
+            config.reward_events,
+            (size_t)config.reward_event_count,
+            sizeof(config.reward_events[0]),
+            reward_event_compare);
+    }
 
     if (!scenario_config_validate(&config, error_message, error_message_size))
         return 0;
@@ -1425,6 +1749,7 @@ int scenario_config_save_file(
             "[plasticity]\n"
             "enabled = %s\n"
             "rule = %s\n"
+            "learning_mode = %s\n"
             "a_plus = %.17g\n"
             "a_minus = %.17g\n"
             "tau_plus = %.17g\n"
@@ -1474,6 +1799,7 @@ int scenario_config_save_file(
             config->sample_stride,
             config->plasticity_enabled ? "true" : "false",
             config->plasticity_rule,
+            config->plasticity_learning_mode,
             config->plasticity_a_plus,
             config->plasticity_a_minus,
             config->plasticity_tau_plus,
@@ -1545,6 +1871,69 @@ int scenario_config_save_file(
         fclose(file);
         set_error(error_message, error_message_size, "erro ao escrever homeostase");
         return 0;
+    }
+
+    if (fprintf(
+            file,
+            "\n"
+            "[reward]\n"
+            "enabled = %s\n"
+            "mode = %s\n"
+            "learning_rate = %.17g\n"
+            "eligibility_tau = %.17g\n"
+            "eligibility_min = %.17g\n"
+            "eligibility_max = %.17g\n"
+            "reward_min = %.17g\n"
+            "reward_max = %.17g\n"
+            "clip_reward = %s\n"
+            "record_history = %s\n"
+            "record_interval_steps = %d\n"
+            "record_connection_limit = %d\n",
+            config->reward_enabled ? "true" : "false",
+            config->reward_mode,
+            config->reward_learning_rate,
+            config->reward_eligibility_tau,
+            config->reward_eligibility_min,
+            config->reward_eligibility_max,
+            config->reward_min,
+            config->reward_max,
+            config->reward_clip ? "true" : "false",
+            config->reward_record_history ? "true" : "false",
+            config->reward_record_interval_steps,
+            config->reward_record_connection_limit) < 0 ||
+        fprintf(file, "\n[reward_events]\n") < 0)
+    {
+        fclose(file);
+        set_error(error_message, error_message_size, "erro ao escrever reward");
+        return 0;
+    }
+
+    for (int event_index = 0; event_index < config->reward_event_count;
+         event_index++)
+    {
+        const ScenarioRewardEvent *event = NULL;
+
+        for (int i = 0; i < config->reward_event_count; i++)
+        {
+            if (config->reward_events[i].index == event_index)
+            {
+                event = &config->reward_events[i];
+                break;
+            }
+        }
+
+        if (event == NULL ||
+            fprintf(
+                file,
+                "event_%d = %d,%.17g\n",
+                event->index,
+                event->step,
+                event->value) < 0)
+        {
+            fclose(file);
+            set_error(error_message, error_message_size, "erro ao escrever reward_events");
+            return 0;
+        }
     }
 
     if (fclose(file) != 0)

@@ -1,5 +1,15 @@
 # Mapa do projeto
 
+## C2 — recompensa
+
+- `src/reward.c` e `src/reward.h`: elegibilidade, sinal pendente, aplicação e reset;
+- `scripts/plot_reward.py`: `reward_overview.png` a partir dos CSVs;
+- `scripts/check_c2.py`: fechamento automatizado do bloco;
+- `scripts/run_benchmarks_c2.py`: comparação dos sete modos do benchmark;
+- `tests/test_reward.c` e `tests/test_reward_long.c`: matemática e robustez;
+- `configs/reward_*_demo.ini` e `configs/punishment_negative_demo.ini`: demos;
+- `docs/GUIA_DE_RECOMPENSA.md`: semântica científica e operacional.
+
 Este documento responde: “qual arquivo cuida de quê?”.
 
 ## Arquivos e pastas principais

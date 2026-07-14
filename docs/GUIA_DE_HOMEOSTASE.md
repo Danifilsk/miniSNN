@@ -1,5 +1,13 @@
 # Guia de homeostase
 
+## Interação com R-STDP
+
+Quando ambos estão ativos, o step transmite com pesos antigos, atualiza
+elegibilidades, aplica o reward e só então executa scaling no intervalo
+homeostático. `reward_metrics.csv` contabiliza apenas R-STDP;
+`homeostasis_metrics.csv` contabiliza apenas scaling; `weights_final.csv`
+mostra o efeito líquido. O reset de reward preserva todo o estado homeostático.
+
 [Voltar ao índice](INDICE_DA_DOCUMENTACAO.md)
 
 ## 1. Objetivo e limites

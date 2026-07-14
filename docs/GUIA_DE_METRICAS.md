@@ -1,5 +1,18 @@
 # Guia de métricas da miniSNN
 
+## Métricas de recompensa
+
+`reward_metrics.csv` registra reward bruto/aplicado, componentes, conexões com
+elegibilidade ativa, conexões modificadas, distribuição das elegibilidades e
+mudança de peso exclusiva do R-STDP. `reward_events.csv` preserva os eventos
+componentes e o agregado do step. `reward_connections.csv` contém o estado
+final por conexão elegível.
+
+`total_signed_weight_change` pode cancelar aumentos e reduções; use também
+`total_absolute_weight_change`. Mudança R-STDP não inclui scaling. Para o efeito
+líquido final consulte `weights_final.csv`. Reward negativo é punição apenas no
+sentido matemático da regra, não uma avaliação semântica da rede.
+
 [Voltar ao índice da documentação](INDICE_DA_DOCUMENTACAO.md)
 
 ## Natureza das métricas

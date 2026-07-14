@@ -115,6 +115,49 @@ int minisnn_get_plasticity_traces(
     double *out_pre_trace,
     double *out_post_trace);
 
+/* Aprendizado modulado por recompensa */
+MiniSNNRewardConfig minisnn_default_reward_config(void);
+
+int minisnn_set_reward_config(
+    MiniSNN *snn,
+    const MiniSNNRewardConfig *config);
+
+int minisnn_get_reward_config(
+    const MiniSNN *snn,
+    MiniSNNRewardConfig *out_config);
+
+int minisnn_queue_reward(MiniSNN *snn, double value);
+
+int minisnn_get_pending_reward(
+    const MiniSNN *snn,
+    double *out_value);
+
+int minisnn_clear_pending_reward(MiniSNN *snn);
+
+int minisnn_get_last_applied_reward(
+    const MiniSNN *snn,
+    double *out_value);
+
+int minisnn_reset_reward_learning(MiniSNN *snn);
+
+int minisnn_get_reward_stats(
+    const MiniSNN *snn,
+    MiniSNNRewardStats *out_stats);
+
+int minisnn_get_connection_eligibility(
+    const MiniSNN *snn,
+    size_t connection_id,
+    double *out_eligibility);
+
+int minisnn_get_reward_connection_stats(
+    const MiniSNN *snn,
+    size_t connection_id,
+    MiniSNNRewardConnectionStats *out_stats);
+
+int minisnn_reward_eligible_connection_count(
+    const MiniSNN *snn,
+    size_t *out_count);
+
 /* Homeostase neural simplificada */
 MiniSNNHomeostasisConfig minisnn_default_homeostasis_config(void);
 

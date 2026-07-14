@@ -1,5 +1,13 @@
 # Guia de plasticidade sináptica
 
+## Modos de aprendizagem no C2
+
+`learning_mode = direct_stdp` preserva a atualização imediata deste guia.
+`learning_mode = reward_modulated_stdp` usa a mesma correlação pré/pós como
+incremento de elegibilidade e só modifica pesos ao consumir reward. Não há dois
+caminhos simultâneos. Consulte [Recompensa e R-STDP](GUIA_DE_RECOMPENSA.md)
+para fórmulas, API, eventos, outputs e limitações.
+
 O Bloco C1 adiciona à miniSNN uma primeira regra experimental de plasticidade:
 STDP aditivo baseado em pares e traces exponenciais. A implementação é
 simplificada, não representa toda a plasticidade biológica e não demonstra

@@ -77,6 +77,23 @@ typedef struct
     double final_threshold_mean;
 } HomeostasisRunData;
 
+typedef struct
+{
+    int enabled;
+    FILE *events_file;
+    FILE *history_file;
+    FILE *eligibility_file;
+    int last_history_step;
+    size_t total_connections;
+    size_t sample_count;
+    size_t *sample_ids;
+    double *initial_weights;
+    MiniSNNRewardStats stats;
+    int scheduled_step_count;
+    int first_event_step;
+    int last_event_step;
+} RewardRunData;
+
 static void topology_hash_value(
     unsigned long long *hash,
     unsigned long long value)
@@ -1961,6 +1978,502 @@ static int homeostasis_run_data_finalize(
         write_homeostasis_reports(config, result, data);
 }
 
+static void reward_run_data_close(RewardRunData *data)
+{
+    if (data == NULL)
+        return;
+
+    if (data->events_file != NULL)
+        fclose(data->events_file);
+    if (data->history_file != NULL)
+        fclose(data->history_file);
+    if (data->eligibility_file != NULL)
+        fclose(data->eligibility_file);
+    free(data->sample_ids);
+    free(data->initial_weights);
+    memset(data, 0, sizeof(*data));
+}
+
+static int write_reward_history_step(
+    const MiniSNN *snn,
+    RewardRunData *data,
+    int step)
+{
+    MiniSNNRewardStats stats;
+    double pending_reward;
+    double last_applied_reward;
+
+    if (data->history_file == NULL || data->eligibility_file == NULL)
+        return 1;
+    if (data->last_history_step == step)
+        return 1;
+
+    if (!minisnn_get_reward_stats(snn, &stats) ||
+        !minisnn_get_pending_reward(snn, &pending_reward) ||
+        !minisnn_get_last_applied_reward(snn, &last_applied_reward) ||
+        fprintf(
+            data->history_file,
+            "%d,%.17g,%.17g,%.17g,%.17g,%.17g,%.17g,%.17g,%.17g,%zu,%.17g,%.17g\n",
+            step,
+            pending_reward,
+            last_applied_reward,
+            stats.cumulative_applied_reward,
+            stats.cumulative_absolute_reward,
+            stats.eligibility_final_mean,
+            stats.eligibility_final_min,
+            stats.eligibility_final_max,
+            stats.eligibility_final_mean_absolute,
+            stats.modified_connection_count,
+            stats.total_signed_weight_change,
+            stats.total_absolute_weight_change) < 0)
+    {
+        return 0;
+    }
+
+    for (size_t i = 0; i < data->sample_count; i++)
+    {
+        size_t connection_id = data->sample_ids[i];
+        MiniSNNConnectionInfo connection;
+        MiniSNNRewardConnectionStats reward_connection;
+
+        if (!minisnn_get_connection(snn, connection_id, &connection) ||
+            !minisnn_get_reward_connection_stats(
+                snn, connection_id, &reward_connection) ||
+            fprintf(
+                data->eligibility_file,
+                "%d,%zu,%zu,%zu,%.17g,1\n",
+                step,
+                connection_id,
+                connection.source,
+                connection.target,
+                reward_connection.eligibility) < 0)
+        {
+            return 0;
+        }
+    }
+
+    data->last_history_step = step;
+    return 1;
+}
+
+static int reward_run_data_prepare(
+    const MiniSNN *snn,
+    const ScenarioConfig *config,
+    const char *output_dir,
+    RewardRunData *data)
+{
+    char path[SCENARIO_OUTPUT_PATH_MAX];
+    size_t *eligible_ids = NULL;
+    size_t eligible_count = 0;
+
+    memset(data, 0, sizeof(*data));
+    data->enabled = config->reward_enabled;
+    data->last_history_step = -1;
+    data->first_event_step = -1;
+    data->last_event_step = -1;
+
+    if (!data->enabled)
+        return 1;
+
+    data->total_connections = minisnn_connection_count(snn);
+    if (data->total_connections > 0)
+    {
+        data->initial_weights = malloc(
+            data->total_connections * sizeof(*data->initial_weights));
+        eligible_ids = malloc(
+            data->total_connections * sizeof(*eligible_ids));
+        if (data->initial_weights == NULL || eligible_ids == NULL)
+            goto fail;
+    }
+
+    for (size_t i = 0; i < data->total_connections; i++)
+    {
+        MiniSNNRewardConnectionStats reward_connection;
+
+        if (!minisnn_get_connection_weight(snn, i, &data->initial_weights[i]) ||
+            !minisnn_get_reward_connection_stats(
+                snn, i, &reward_connection))
+        {
+            goto fail;
+        }
+        if (reward_connection.eligible)
+            eligible_ids[eligible_count++] = i;
+    }
+
+    data->sample_count = eligible_count <
+            (size_t)config->reward_record_connection_limit ?
+        eligible_count : (size_t)config->reward_record_connection_limit;
+    if (data->sample_count > 0)
+    {
+        data->sample_ids = malloc(
+            data->sample_count * sizeof(*data->sample_ids));
+        if (data->sample_ids == NULL)
+            goto fail;
+
+        for (size_t i = 0; i < data->sample_count; i++)
+        {
+            size_t position = distributed_sample_id(
+                eligible_count,
+                data->sample_count,
+                i);
+            data->sample_ids[i] = eligible_ids[position];
+        }
+    }
+    free(eligible_ids);
+    eligible_ids = NULL;
+
+    for (int i = 0; i < config->reward_event_count; i++)
+    {
+        int step = config->reward_events[i].step;
+
+        if (data->first_event_step < 0 || step < data->first_event_step)
+            data->first_event_step = step;
+        if (step > data->last_event_step)
+            data->last_event_step = step;
+        if (i == 0 || step != config->reward_events[i - 1].step)
+            data->scheduled_step_count++;
+    }
+
+    if (!make_path(path, output_dir, "reward_events.csv"))
+        goto fail;
+    data->events_file = fopen(path, "w");
+    if (data->events_file == NULL || fprintf(
+            data->events_file,
+            "step,raw_reward,applied_reward,event_component_count,active_eligibility_count,modified_connection_count,weight_signed_change,weight_absolute_change,weight_clamp_min_count,weight_clamp_max_count\n") < 0)
+    {
+        goto fail;
+    }
+
+    if (!make_path(path, output_dir, "reward_history.csv"))
+        goto fail;
+    data->history_file = fopen(path, "w");
+    if (data->history_file == NULL || fprintf(
+            data->history_file,
+            "step,pending_reward,last_applied_reward,cumulative_reward,cumulative_absolute_reward,eligibility_mean,eligibility_min,eligibility_max,eligibility_mean_absolute,modified_connection_count_cumulative,weight_signed_change_cumulative,weight_absolute_change_cumulative\n") < 0)
+    {
+        goto fail;
+    }
+
+    if (!make_path(path, output_dir, "eligibility_history.csv"))
+        goto fail;
+    data->eligibility_file = fopen(path, "w");
+    if (data->eligibility_file == NULL || fprintf(
+            data->eligibility_file,
+            "step,connection_id,source,target,eligibility,sampled\n") < 0 ||
+        !write_reward_history_step(snn, data, 0))
+    {
+        goto fail;
+    }
+
+    return 1;
+
+fail:
+    free(eligible_ids);
+    reward_run_data_close(data);
+    return 0;
+}
+
+static int write_reward_event_step(
+    const MiniSNN *snn,
+    RewardRunData *data,
+    int step,
+    int event_component_count)
+{
+    MiniSNNRewardStats stats;
+
+    if (data->events_file == NULL ||
+        !minisnn_get_reward_stats(snn, &stats))
+    {
+        return 0;
+    }
+
+    return fprintf(
+        data->events_file,
+        "%d,%.17g,%.17g,%u,%zu,%zu,%.17g,%.17g,%llu,%llu\n",
+        step,
+        stats.last_raw_reward,
+        stats.last_applied_reward,
+        (unsigned int)event_component_count,
+        stats.last_active_eligibility_count,
+        stats.last_modified_connection_count,
+        stats.last_weight_signed_change,
+        stats.last_weight_absolute_change,
+        stats.last_weight_clamp_min_count,
+        stats.last_weight_clamp_max_count) >= 0;
+}
+
+static int write_reward_connections(
+    const MiniSNN *snn,
+    const ScenarioRunResult *result,
+    const RewardRunData *data)
+{
+    char path[SCENARIO_OUTPUT_PATH_MAX];
+    FILE *file;
+
+    if (!make_path(path, result->output_directory, "reward_connections.csv"))
+        return 0;
+    file = fopen(path, "w");
+    if (file == NULL || fprintf(
+            file,
+            "connection_id,source,target,source_type,target_type,eligible,sampled,initial_weight,final_weight,net_weight_change,final_eligibility,max_absolute_eligibility,reward_update_count,reward_signed_change,reward_absolute_change\n") < 0)
+    {
+        if (file != NULL)
+            fclose(file);
+        return 0;
+    }
+
+    for (size_t i = 0; i < data->total_connections; i++)
+    {
+        MiniSNNConnectionInfo connection;
+        MiniSNNRewardConnectionStats reward_connection;
+        int sampled = 0;
+
+        for (size_t j = 0; j < data->sample_count; j++)
+        {
+            if (data->sample_ids[j] == i)
+            {
+                sampled = 1;
+                break;
+            }
+        }
+
+        if (!minisnn_get_connection(snn, i, &connection) ||
+            !minisnn_get_reward_connection_stats(
+                snn, i, &reward_connection) ||
+            fprintf(
+                file,
+                "%zu,%zu,%zu,%s,%s,%d,%d,%.17g,%.17g,%.17g,%.17g,%.17g,%llu,%.17g,%.17g\n",
+                i,
+                connection.source,
+                connection.target,
+                connection.source_type == MINISNN_NEURON_INHIBITORY ?
+                    "INH" : "EXC",
+                connection.target_type == MINISNN_NEURON_INHIBITORY ?
+                    "INH" : "EXC",
+                reward_connection.eligible,
+                sampled,
+                data->initial_weights[i],
+                connection.weight,
+                connection.weight - data->initial_weights[i],
+                reward_connection.eligibility,
+                reward_connection.max_absolute_eligibility,
+                reward_connection.reward_update_count,
+                reward_connection.reward_signed_change,
+                reward_connection.reward_absolute_change) < 0)
+        {
+            fclose(file);
+            return 0;
+        }
+    }
+
+    return fclose(file) == 0;
+}
+
+static int write_reward_metrics(
+    const MiniSNN *snn,
+    const ScenarioConfig *config,
+    const ScenarioRunResult *result,
+    RewardRunData *data)
+{
+    char path[SCENARIO_OUTPUT_PATH_MAX];
+    FILE *file;
+    double modified_fraction;
+    double mean_absolute_reward;
+    double mean_signed_change;
+    double mean_absolute_change;
+
+    if (!minisnn_get_reward_stats(snn, &data->stats))
+        return 0;
+
+    modified_fraction = data->stats.eligible_connection_count > 0 ?
+        (double)data->stats.modified_connection_count /
+            (double)data->stats.eligible_connection_count : 0.0;
+    mean_absolute_reward = data->stats.reward_event_count > 0 ?
+        data->stats.cumulative_absolute_reward /
+            (double)data->stats.reward_event_count : 0.0;
+    mean_signed_change = data->stats.modified_connection_count > 0 ?
+        data->stats.total_signed_weight_change /
+            (double)data->stats.modified_connection_count : 0.0;
+    mean_absolute_change = data->stats.modified_connection_count > 0 ?
+        data->stats.total_absolute_weight_change /
+            (double)data->stats.modified_connection_count : 0.0;
+
+    if (!make_path(path, result->output_directory, "reward_metrics.csv"))
+        return 0;
+    file = fopen(path, "w");
+    if (file == NULL || fprintf(
+            file,
+            "reward_enabled,reward_mode,reward_learning_rate,reward_eligibility_tau,reward_eligibility_min,reward_eligibility_max,reward_signal_min,reward_signal_max,reward_clip_enabled,reward_event_count,reward_positive_event_count,reward_negative_event_count,reward_zero_event_count,reward_cumulative_raw,reward_cumulative_applied,reward_cumulative_positive,reward_cumulative_negative,reward_cumulative_absolute,reward_mean_absolute,reward_last_raw,reward_last_applied,reward_eligible_connection_count,reward_modified_connection_count,reward_modified_connection_fraction,reward_eligibility_final_mean,reward_eligibility_final_min,reward_eligibility_final_max,reward_eligibility_final_mean_absolute,reward_eligibility_max_absolute_observed,reward_eligibility_potentiation_events,reward_eligibility_depression_events,reward_eligibility_clamp_min_events,reward_eligibility_clamp_max_events,reward_weight_potentiation_events,reward_weight_depression_events,reward_weight_total_signed_change,reward_weight_total_absolute_change,reward_weight_mean_signed_change,reward_weight_mean_absolute_change,reward_weight_max_absolute_change,reward_weight_clamp_min_events,reward_weight_clamp_max_events,reward_scheduled_event_count,reward_scheduled_step_count,reward_first_event_step,reward_last_event_step\n"
+            "true,rstdp,%.17g,%.17g,%.17g,%.17g,%.17g,%.17g,%s,%llu,%llu,%llu,%llu,%.17g,%.17g,%.17g,%.17g,%.17g,%.17g,%.17g,%.17g,%zu,%zu,%.17g,%.17g,%.17g,%.17g,%.17g,%.17g,%llu,%llu,%llu,%llu,%llu,%llu,%.17g,%.17g,%.17g,%.17g,%.17g,%llu,%llu,%d,%d,%d,%d\n",
+            config->reward_learning_rate,
+            config->reward_eligibility_tau,
+            config->reward_eligibility_min,
+            config->reward_eligibility_max,
+            config->reward_min,
+            config->reward_max,
+            config->reward_clip ? "true" : "false",
+            data->stats.reward_event_count,
+            data->stats.positive_reward_event_count,
+            data->stats.negative_reward_event_count,
+            data->stats.zero_reward_event_count,
+            data->stats.cumulative_raw_reward,
+            data->stats.cumulative_applied_reward,
+            data->stats.cumulative_positive_reward,
+            data->stats.cumulative_negative_reward,
+            data->stats.cumulative_absolute_reward,
+            mean_absolute_reward,
+            data->stats.last_raw_reward,
+            data->stats.last_applied_reward,
+            data->stats.eligible_connection_count,
+            data->stats.modified_connection_count,
+            modified_fraction,
+            data->stats.eligibility_final_mean,
+            data->stats.eligibility_final_min,
+            data->stats.eligibility_final_max,
+            data->stats.eligibility_final_mean_absolute,
+            data->stats.eligibility_max_absolute_observed,
+            data->stats.eligibility_potentiation_events,
+            data->stats.eligibility_depression_events,
+            data->stats.eligibility_clamp_min_events,
+            data->stats.eligibility_clamp_max_events,
+            data->stats.reward_potentiation_events,
+            data->stats.reward_depression_events,
+            data->stats.total_signed_weight_change,
+            data->stats.total_absolute_weight_change,
+            mean_signed_change,
+            mean_absolute_change,
+            data->stats.max_absolute_weight_change,
+            data->stats.weight_clamp_min_events,
+            data->stats.weight_clamp_max_events,
+            config->reward_event_count,
+            data->scheduled_step_count,
+            data->first_event_step,
+            data->last_event_step) < 0)
+    {
+        if (file != NULL)
+            fclose(file);
+        return 0;
+    }
+
+    return fclose(file) == 0;
+}
+
+static int write_reward_reports(
+    const ScenarioConfig *config,
+    const ScenarioRunResult *result,
+    const RewardRunData *data)
+{
+    char path[SCENARIO_OUTPUT_PATH_MAX];
+    FILE *file;
+    const char *limitation =
+        "A mudanca nao prova aprendizado de uma tarefa; o reward foi fornecido "
+        "externamente e nao existe previsao de recompensa.";
+
+    if (!make_path(path, result->output_directory, "reward_report.txt"))
+        return 0;
+    file = fopen(path, "w");
+    if (file == NULL || fprintf(
+            file,
+            "MINISNN - RELATORIO DE RECOMPENSA E PUNICAO\n\n"
+            "1. Identificacao da execucao\nrun_name=%s\n\n"
+            "2. Configuracao de aprendizado\nmode=reward_modulated_stdp learning_rate=%.17g\n\n"
+            "3. Convencao temporal\nO evento do step k e enfileirado antes do step; elegibilidade e atualizada antes do reward.\n\n"
+            "4. Eventos de recompensa\n%llu\n\n"
+            "5. Eventos de punicao\n%llu\n\n"
+            "6. Elegibilidades\nmedia_final=%.17g max_abs=%.17g\n\n"
+            "7. Alteracoes de peso por reward\nsigned=%.17g absolute=%.17g\n\n"
+            "8. Relacao com STDP\nA correlacao temporal gera elegibilidade; nao altera diretamente o peso.\n\n"
+            "9. Relacao com homeostase\nR-STDP ocorre antes do scaling homeostatico. homeostasis=%s\n\n"
+            "10. Clamps e limites\nweight_min=%.17g weight_max=%.17g clamp_min_events=%llu clamp_max_events=%llu\n\n"
+            "11. Conexoes mais afetadas\nConsulte reward_connections.csv.\n\n"
+            "12. Amostragem\n%zu de %zu conexoes elegiveis.\n\n"
+            "13. Desempenho\nConsulte metrics.csv.\n\n"
+            "14. Avisos e limitacoes\n%s\n",
+            result->actual_run_name,
+            config->reward_learning_rate,
+            data->stats.positive_reward_event_count,
+            data->stats.negative_reward_event_count,
+            data->stats.eligibility_final_mean,
+            data->stats.eligibility_max_absolute_observed,
+            data->stats.total_signed_weight_change,
+            data->stats.total_absolute_weight_change,
+            config->homeostasis_enabled ? "ON" : "OFF",
+            config->plasticity_weight_min,
+            config->plasticity_weight_max,
+            data->stats.weight_clamp_min_events,
+            data->stats.weight_clamp_max_events,
+            data->sample_count,
+            data->stats.eligible_connection_count,
+            limitation) < 0)
+    {
+        if (file != NULL)
+            fclose(file);
+        return 0;
+    }
+    if (fclose(file) != 0)
+        return 0;
+
+    if (!make_path(path, result->output_directory, "reward_report.html"))
+        return 0;
+    file = fopen(path, "w");
+    if (file == NULL || fprintf(
+            file,
+            "<!doctype html><html lang=\"pt-BR\"><meta charset=\"utf-8\">"
+            "<title>miniSNN - Recompensa</title><body>"
+            "<h1>Relatorio de recompensa e punicao</h1>"
+            "<p><strong>Execucao:</strong> %s</p>"
+            "<p>Reward aplicado: %.17g; punicao acumulada: %.17g.</p>"
+            "<p>Conexoes modificadas: %zu; mudanca total: %.17g.</p>"
+            "<p>Modo STDP: reward_modulated_stdp; homeostase: %s.</p>"
+            "<p>%s</p><p><a href=\"reward_metrics.csv\">Metricas</a> | "
+            "<a href=\"reward_events.csv\">Eventos</a> | "
+            "<a href=\"reward_connections.csv\">Conexoes</a></p>"
+            "</body></html>\n",
+            result->actual_run_name,
+            data->stats.cumulative_positive_reward,
+            data->stats.cumulative_negative_reward,
+            data->stats.modified_connection_count,
+            data->stats.total_signed_weight_change,
+            config->homeostasis_enabled ? "ON" : "OFF",
+            limitation) < 0)
+    {
+        if (file != NULL)
+            fclose(file);
+        return 0;
+    }
+    return fclose(file) == 0;
+}
+
+static int reward_run_data_finalize(
+    const MiniSNN *snn,
+    const ScenarioConfig *config,
+    const ScenarioRunResult *result,
+    RewardRunData *data)
+{
+    if (!data->enabled)
+        return 1;
+
+    if (data->last_history_step != config->steps &&
+        !write_reward_history_step(snn, data, config->steps))
+    {
+        return 0;
+    }
+
+    if (data->events_file != NULL && fclose(data->events_file) != 0)
+        return 0;
+    data->events_file = NULL;
+    if (data->history_file != NULL && fclose(data->history_file) != 0)
+        return 0;
+    data->history_file = NULL;
+    if (data->eligibility_file != NULL && fclose(data->eligibility_file) != 0)
+        return 0;
+    data->eligibility_file = NULL;
+
+    return write_reward_connections(snn, result, data) &&
+        write_reward_metrics(snn, config, result, data) &&
+        write_reward_reports(config, result, data);
+}
+
 static int open_output_files(
     const ScenarioConfig *config,
     const char *output_dir,
@@ -2038,7 +2551,8 @@ static int write_summary(
     const ScenarioConfig *config,
     const ScenarioRunResult *result,
     const PlasticityRunData *plasticity_data,
-    const HomeostasisRunData *homeostasis_data)
+    const HomeostasisRunData *homeostasis_data,
+    const RewardRunData *reward_data)
 {
     return fprintf(
                file,
@@ -2064,13 +2578,20 @@ static int write_summary(
                "last_active_step=%d\n"
                "plasticity_enabled=%s\n"
                "plasticity_rule=%s\n"
+               "plasticity_learning_mode=%s\n"
                "plasticity_eligible_connections=%llu\n"
                "plasticity_modified_connections=%llu\n"
                "plasticity_total_signed_change=%.17g\n"
                "homeostasis_enabled=%s\n"
                "homeostasis_update_count=%llu\n"
                "homeostasis_population_rate_final=%.17g\n"
-               "homeostasis_inhibitory_gain_final=%.17g\n",
+               "homeostasis_inhibitory_gain_final=%.17g\n"
+               "reward_enabled=%s\n"
+               "reward_mode=%s\n"
+               "reward_event_count=%llu\n"
+               "reward_cumulative_applied=%.17g\n"
+               "reward_modified_connections=%zu\n"
+               "reward_weight_total_signed_change=%.17g\n",
                config->run_name,
                result->actual_run_name,
                config->topology,
@@ -2093,6 +2614,7 @@ static int write_summary(
                result->last_active_step,
                config->plasticity_enabled ? "true" : "false",
                config->plasticity_rule,
+               config->plasticity_learning_mode,
                (unsigned long long)plasticity_data->stats.eligible_connections,
                (unsigned long long)plasticity_data->stats.modified_connections,
                plasticity_data->stats.total_signed_change,
@@ -2100,7 +2622,13 @@ static int write_summary(
                homeostasis_data->stats.update_count,
                homeostasis_data->stats.final_population_rate,
                config->homeostasis_enabled ?
-                   homeostasis_data->stats.final_inhibitory_gain : 1.0) >= 0;
+                   homeostasis_data->stats.final_inhibitory_gain : 1.0,
+               config->reward_enabled ? "true" : "false",
+               config->reward_mode,
+               reward_data->stats.reward_event_count,
+               reward_data->stats.cumulative_applied_reward,
+               reward_data->stats.modified_connection_count,
+               reward_data->stats.total_signed_weight_change) >= 0;
 }
 
 static int append_scenario_history(
@@ -2242,12 +2770,15 @@ static int write_basic_metrics(
     const char *population_path,
     const char *raster_path,
     const PlasticityRunData *plasticity_data,
-    const HomeostasisRunData *homeostasis_data)
+    const HomeostasisRunData *homeostasis_data,
+    const RewardRunData *reward_data)
 {
     char path[SCENARIO_OUTPUT_PATH_MAX];
     char timestamp[32];
     char homeostasis_metrics[512] = "";
     const char *homeostasis_header = "";
+    char reward_metrics[768] = "";
+    const char *reward_header = "";
     FILE *file;
     double activity_fraction;
     double silence_fraction;
@@ -2355,13 +2886,59 @@ static int write_basic_metrics(
         }
     }
 
+    if (config->reward_enabled)
+    {
+        int written;
+        double modified_fraction =
+            reward_data->stats.eligible_connection_count > 0 ?
+            (double)reward_data->stats.modified_connection_count /
+                (double)reward_data->stats.eligible_connection_count : 0.0;
+        double mean_absolute_change =
+            reward_data->stats.modified_connection_count > 0 ?
+            reward_data->stats.total_absolute_weight_change /
+                (double)reward_data->stats.modified_connection_count : 0.0;
+
+        reward_header =
+            ",reward_enabled,reward_learning_mode,reward_event_count,"
+            "reward_positive_event_count,reward_negative_event_count,"
+            "reward_cumulative_applied,reward_cumulative_absolute,"
+            "reward_modified_connection_fraction,"
+            "reward_eligibility_final_mean_absolute,"
+            "reward_eligibility_max_absolute_observed,"
+            "reward_weight_total_signed_change,"
+            "reward_weight_total_absolute_change,"
+            "reward_weight_mean_absolute_change";
+        written = snprintf(
+            reward_metrics,
+            sizeof(reward_metrics),
+            ",true,%s,%llu,%llu,%llu,%.17g,%.17g,%.17g,%.17g,%.17g,%.17g,%.17g,%.17g",
+            config->plasticity_learning_mode,
+            reward_data->stats.reward_event_count,
+            reward_data->stats.positive_reward_event_count,
+            reward_data->stats.negative_reward_event_count,
+            reward_data->stats.cumulative_applied_reward,
+            reward_data->stats.cumulative_absolute_reward,
+            modified_fraction,
+            reward_data->stats.eligibility_final_mean_absolute,
+            reward_data->stats.eligibility_max_absolute_observed,
+            reward_data->stats.total_signed_weight_change,
+            reward_data->stats.total_absolute_weight_change,
+            mean_absolute_change);
+        if (written < 0 || (size_t)written >= sizeof(reward_metrics))
+        {
+            fclose(file);
+            return 0;
+        }
+    }
+
     if (fprintf(
             file,
-            "run_name,actual_run_name,run_path,timestamp,topology,network_num_neurons,run_steps,run_dt,run_simulation_duration,run_seed,run_recorded_neuron,diagnostics_level,network_total_connections,network_excitatory_neuron_count,network_inhibitory_neuron_count,activity_total_spikes,activity_mean_spikes_per_step,activity_min_spikes_per_step,activity_max_spikes_per_step,activity_active_timesteps,activity_silent_timesteps,activity_fraction,silence_fraction,activity_first_active_step,activity_last_active_step,activity_peak_step,activity_peak_value,activity_has_late_activity,neuron_mean_spikes,exc_total_spikes,inh_total_spikes,network_connection_density,network_self_connection_count,network_excitatory_connection_count,network_inhibitory_connection_count,network_weight_mean,network_weight_min,network_weight_max,network_weight_std,network_delay_mean,network_delay_min,network_delay_max,network_delay_std,network_indegree_mean,network_indegree_min,network_indegree_max,network_indegree_std,network_outdegree_mean,network_outdegree_min,network_outdegree_max,network_outdegree_std,performance_simulation_time_seconds,performance_wall_time_seconds,performance_steps_per_second,performance_neuron_updates_per_second,performance_spikes_per_second_processed,performance_population_csv_size_bytes,performance_raster_csv_size_bytes,plasticity_enabled,plasticity_modified_connection_fraction,plasticity_initial_weight_mean,plasticity_final_weight_mean,plasticity_mean_absolute_change,plasticity_total_signed_change,plasticity_potentiation_events,plasticity_depression_events%s\n",
-            homeostasis_header) < 0 ||
+            "run_name,actual_run_name,run_path,timestamp,topology,network_num_neurons,run_steps,run_dt,run_simulation_duration,run_seed,run_recorded_neuron,diagnostics_level,network_total_connections,network_excitatory_neuron_count,network_inhibitory_neuron_count,activity_total_spikes,activity_mean_spikes_per_step,activity_min_spikes_per_step,activity_max_spikes_per_step,activity_active_timesteps,activity_silent_timesteps,activity_fraction,silence_fraction,activity_first_active_step,activity_last_active_step,activity_peak_step,activity_peak_value,activity_has_late_activity,neuron_mean_spikes,exc_total_spikes,inh_total_spikes,network_connection_density,network_self_connection_count,network_excitatory_connection_count,network_inhibitory_connection_count,network_weight_mean,network_weight_min,network_weight_max,network_weight_std,network_delay_mean,network_delay_min,network_delay_max,network_delay_std,network_indegree_mean,network_indegree_min,network_indegree_max,network_indegree_std,network_outdegree_mean,network_outdegree_min,network_outdegree_max,network_outdegree_std,performance_simulation_time_seconds,performance_wall_time_seconds,performance_steps_per_second,performance_neuron_updates_per_second,performance_spikes_per_second_processed,performance_population_csv_size_bytes,performance_raster_csv_size_bytes,plasticity_enabled,plasticity_modified_connection_fraction,plasticity_initial_weight_mean,plasticity_final_weight_mean,plasticity_mean_absolute_change,plasticity_total_signed_change,plasticity_potentiation_events,plasticity_depression_events%s%s\n",
+            homeostasis_header,
+            reward_header) < 0 ||
         fprintf(
             file,
-            "%s,%s,%s,%s,%s,%d,%d,%.12g,%.12g,%u,%d,%s,%d,%d,%d,%d,%.12g,%d,%d,%d,%d,%.12g,%.12g,%d,%d,%d,%d,%s,%.12g,%d,%d,%.12g,%d,%d,%d,%.12g,%.12g,%.12g,%.12g,%.12g,%d,%d,%.12g,%.12g,%d,%d,%.12g,%.12g,%d,%d,%.12g,%.12g,%.12g,%.12g,%.12g,%.12g,%llu,%llu,%s,%.17g,%.17g,%.17g,%.17g,%.17g,%llu,%llu%s\n",
+            "%s,%s,%s,%s,%s,%d,%d,%.12g,%.12g,%u,%d,%s,%d,%d,%d,%d,%.12g,%d,%d,%d,%d,%.12g,%.12g,%d,%d,%d,%d,%s,%.12g,%d,%d,%.12g,%d,%d,%d,%.12g,%.12g,%.12g,%.12g,%.12g,%d,%d,%.12g,%.12g,%d,%d,%.12g,%.12g,%d,%d,%.12g,%.12g,%.12g,%.12g,%.12g,%.12g,%llu,%llu,%s,%.17g,%.17g,%.17g,%.17g,%.17g,%llu,%llu%s%s\n",
             config->run_name,
             result->actual_run_name,
             result->output_directory,
@@ -2429,7 +3006,8 @@ static int write_basic_metrics(
             plasticity_data->stats.total_signed_change,
             plasticity_data->stats.potentiation_events,
             plasticity_data->stats.depression_events,
-            homeostasis_metrics) < 0)
+            homeostasis_metrics,
+            reward_metrics) < 0)
     {
         fclose(file);
         return 0;
@@ -2451,6 +3029,7 @@ static int write_run_manifest(
     char git_status[32] = "NA";
     char plasticity_files[256] = "NA";
     char homeostasis_files[384] = "NA";
+    char reward_files[384] = "NA";
     FILE *pipe;
 
     if (!make_path(path, result->output_directory, "run_manifest.txt"))
@@ -2482,6 +3061,14 @@ static int write_run_manifest(
             homeostasis_files,
             sizeof(homeostasis_files),
             "homeostasis_metrics.csv;homeostasis_neurons.csv;homeostasis_report.txt;homeostasis_report.html;homeostasis_history.csv;threshold_history.csv");
+    }
+
+    if (config->reward_enabled)
+    {
+        snprintf(
+            reward_files,
+            sizeof(reward_files),
+            "reward_metrics.csv;reward_events.csv;reward_history.csv;eligibility_history.csv;reward_connections.csv;reward_report.txt;reward_report.html");
     }
 
     pipe = _popen("git rev-parse --short HEAD 2>NUL", "r");
@@ -2532,6 +3119,7 @@ static int write_run_manifest(
             "diagnostics_level=%s\n"
             "plasticity_enabled=%s\n"
             "plasticity_rule=%s\n"
+            "plasticity_learning_mode=%s\n"
             "plasticity_a_plus=%.17g\n"
             "plasticity_a_minus=%.17g\n"
             "plasticity_tau_plus=%.17g\n"
@@ -2556,6 +3144,26 @@ static int write_run_manifest(
             "homeostasis_record_interval_steps=%d\n"
             "homeostasis_record_neuron_limit=%d\n"
             "homeostasis_output_files=%s\n"
+            "reward_enabled=%s\n"
+            "reward_mode=%s\n"
+            "reward_learning_rate=%.17g\n"
+            "reward_eligibility_tau=%.17g\n"
+            "reward_eligibility_min=%.17g\n"
+            "reward_eligibility_max=%.17g\n"
+            "reward_min=%.17g\n"
+            "reward_max=%.17g\n"
+            "reward_clip_enabled=%s\n"
+            "reward_scheduled_event_count=%d\n"
+            "reward_event_timing=queued_before_step_applied_after_eligibility\n"
+            "reward_record_history=%s\n"
+            "reward_record_interval_steps=%d\n"
+            "reward_record_connection_limit=%d\n"
+            "reward_output_files=%s\n"
+            "eligibility_reset_on_reward=false\n"
+            "pending_reward_consumption=one-shot\n"
+            "reward_timing_reference=spike_emission\n"
+            "inhibitory_reward_plasticity=disabled\n"
+            "reward_homeostasis_order=reward_then_scaling\n"
             "python=NA\n"
             "python_version=NA\n"
             "pandas_version=NA\n"
@@ -2585,6 +3193,7 @@ static int write_run_manifest(
             config->diagnostics_level,
             config->plasticity_enabled ? "true" : "false",
             config->plasticity_rule,
+            config->plasticity_learning_mode,
             config->plasticity_a_plus,
             config->plasticity_a_minus,
             config->plasticity_tau_plus,
@@ -2607,6 +3216,20 @@ static int write_run_manifest(
             config->homeostasis_record_interval_steps,
             config->homeostasis_record_neuron_limit,
             homeostasis_files,
+            config->reward_enabled ? "true" : "false",
+            config->reward_mode,
+            config->reward_learning_rate,
+            config->reward_eligibility_tau,
+            config->reward_eligibility_min,
+            config->reward_eligibility_max,
+            config->reward_min,
+            config->reward_max,
+            config->reward_clip ? "true" : "false",
+            config->reward_event_count,
+            config->reward_record_history ? "true" : "false",
+            config->reward_record_interval_steps,
+            config->reward_record_connection_limit,
+            reward_files,
             config->record_neuron,
             metrics_generated ? ";metrics.csv" : "") < 0)
     {
@@ -2626,7 +3249,8 @@ static int run_simulation(
     FILE *neuron_file,
     ScenarioRunResult *result,
     PlasticityRunData *plasticity_data,
-    HomeostasisRunData *homeostasis_data)
+    HomeostasisRunData *homeostasis_data,
+    RewardRunData *reward_data)
 {
     result->spikes_total = 0;
     result->spikes_exc = 0;
@@ -2653,6 +3277,29 @@ static int run_simulation(
             config->record_neuron < config->source_count ?
             config->input_current :
             0.0;
+        double scheduled_reward = 0.0;
+        int reward_component_count = 0;
+
+        if (reward_data->enabled)
+        {
+            for (int i = 0; i < config->reward_event_count; i++)
+            {
+                if (config->reward_events[i].step == step)
+                {
+                    scheduled_reward += config->reward_events[i].value;
+                    reward_component_count++;
+                }
+            }
+
+            if (!isfinite(scheduled_reward))
+                return 0;
+
+            if (reward_component_count > 0 &&
+                !minisnn_queue_reward(snn, scheduled_reward))
+            {
+                return 0;
+            }
+        }
 
         minisnn_clear_inputs(snn);
 
@@ -2786,6 +3433,22 @@ static int run_simulation(
         {
             return 0;
         }
+
+        if (reward_data->enabled && reward_component_count > 0 &&
+            (!write_reward_event_step(
+                 snn, reward_data, step, reward_component_count) ||
+             !write_reward_history_step(snn, reward_data, step + 1)))
+        {
+            return 0;
+        }
+
+        if (reward_data->enabled && config->reward_record_history &&
+            (((step + 1) % config->reward_record_interval_steps) == 0 ||
+             step + 1 == config->steps) &&
+            !write_reward_history_step(snn, reward_data, step + 1))
+        {
+            return 0;
+        }
     }
 
     return 1;
@@ -2814,6 +3477,7 @@ int scenario_runner_execute(
     ConnectivityStats connectivity;
     PlasticityRunData plasticity_data;
     HomeostasisRunData homeostasis_data;
+    RewardRunData reward_data;
     ULONGLONG wall_start;
     ULONGLONG simulation_start;
     double simulation_seconds;
@@ -2831,6 +3495,7 @@ int scenario_runner_execute(
     memset(&connectivity, 0, sizeof(connectivity));
     memset(&plasticity_data, 0, sizeof(plasticity_data));
     memset(&homeostasis_data, 0, sizeof(homeostasis_data));
+    memset(&reward_data, 0, sizeof(reward_data));
 
     if (!scenario_config_validate(config, error_message, error_message_size))
         return 0;
@@ -2923,6 +3588,12 @@ int scenario_runner_execute(
 
         plasticity_config.enabled = config->plasticity_enabled;
         plasticity_config.rule = MINISNN_PLASTICITY_STDP_PAIR_TRACE;
+        plasticity_config.learning_mode =
+            strcmp(
+                config->plasticity_learning_mode,
+                "reward_modulated_stdp") == 0 ?
+                MINISNN_LEARNING_MODE_REWARD_MODULATED_STDP :
+                MINISNN_LEARNING_MODE_DIRECT_STDP;
         plasticity_config.a_plus = config->plasticity_a_plus;
         plasticity_config.a_minus = config->plasticity_a_minus;
         plasticity_config.tau_plus = config->plasticity_tau_plus;
@@ -2934,6 +3605,27 @@ int scenario_runner_execute(
         if (!minisnn_set_plasticity_config(snn, &plasticity_config))
         {
             set_error(error_message, error_message_size, "erro ao configurar plasticidade");
+            minisnn_destroy(&snn);
+            return 0;
+        }
+    }
+
+    {
+        MiniSNNRewardConfig reward_config = minisnn_default_reward_config();
+
+        reward_config.enabled = config->reward_enabled;
+        reward_config.mode = MINISNN_REWARD_MODE_RSTDP;
+        reward_config.learning_rate = config->reward_learning_rate;
+        reward_config.eligibility_tau = config->reward_eligibility_tau;
+        reward_config.eligibility_min = config->reward_eligibility_min;
+        reward_config.eligibility_max = config->reward_eligibility_max;
+        reward_config.reward_min = config->reward_min;
+        reward_config.reward_max = config->reward_max;
+        reward_config.clip_reward = config->reward_clip;
+
+        if (!minisnn_set_reward_config(snn, &reward_config))
+        {
+            set_error(error_message, error_message_size, "erro ao configurar reward");
             minisnn_destroy(&snn);
             return 0;
         }
@@ -3006,6 +3698,20 @@ int scenario_runner_execute(
         return 0;
     }
 
+    if (!reward_run_data_prepare(
+            snn,
+            config,
+            result.output_directory,
+            &reward_data))
+    {
+        set_error(error_message, error_message_size, "erro ao preparar saidas de reward");
+        plasticity_run_data_close(&plasticity_data);
+        homeostasis_run_data_close(&homeostasis_data);
+        reward_run_data_close(&reward_data);
+        minisnn_destroy(&snn);
+        return 0;
+    }
+
     if (!open_output_files(
             config,
             result.output_directory,
@@ -3025,6 +3731,7 @@ int scenario_runner_execute(
         close_file_if_open(summary_file);
         plasticity_run_data_close(&plasticity_data);
         homeostasis_run_data_close(&homeostasis_data);
+        reward_run_data_close(&reward_data);
         minisnn_destroy(&snn);
         return 0;
     }
@@ -3040,7 +3747,8 @@ int scenario_runner_execute(
             neuron_file,
             &result,
             &plasticity_data,
-            &homeostasis_data))
+            &homeostasis_data,
+            &reward_data))
     {
         set_error(error_message, error_message_size, "erro durante simulacao");
         close_file_if_open(population_file);
@@ -3049,6 +3757,7 @@ int scenario_runner_execute(
         close_file_if_open(summary_file);
         plasticity_run_data_close(&plasticity_data);
         homeostasis_run_data_close(&homeostasis_data);
+        reward_run_data_close(&reward_data);
         minisnn_destroy(&snn);
         return 0;
     }
@@ -3070,6 +3779,7 @@ int scenario_runner_execute(
         close_file_if_open(summary_file);
         plasticity_run_data_close(&plasticity_data);
         homeostasis_run_data_close(&homeostasis_data);
+        reward_run_data_close(&reward_data);
         minisnn_destroy(&snn);
         return 0;
     }
@@ -3087,6 +3797,25 @@ int scenario_runner_execute(
         close_file_if_open(summary_file);
         plasticity_run_data_close(&plasticity_data);
         homeostasis_run_data_close(&homeostasis_data);
+        reward_run_data_close(&reward_data);
+        minisnn_destroy(&snn);
+        return 0;
+    }
+
+    if (!reward_run_data_finalize(
+            snn,
+            config,
+            &result,
+            &reward_data))
+    {
+        set_error(error_message, error_message_size, "erro ao finalizar saidas de reward");
+        close_file_if_open(population_file);
+        close_file_if_open(raster_file);
+        close_file_if_open(neuron_file);
+        close_file_if_open(summary_file);
+        plasticity_run_data_close(&plasticity_data);
+        homeostasis_run_data_close(&homeostasis_data);
+        reward_run_data_close(&reward_data);
         minisnn_destroy(&snn);
         return 0;
     }
@@ -3096,7 +3825,8 @@ int scenario_runner_execute(
             config,
             &result,
             &plasticity_data,
-            &homeostasis_data))
+            &homeostasis_data,
+            &reward_data))
     {
         set_error(error_message, error_message_size, "erro ao escrever summary.txt");
         close_file_if_open(population_file);
@@ -3105,6 +3835,7 @@ int scenario_runner_execute(
         close_file_if_open(summary_file);
         plasticity_run_data_close(&plasticity_data);
         homeostasis_run_data_close(&homeostasis_data);
+        reward_run_data_close(&reward_data);
         minisnn_destroy(&snn);
         return 0;
     }
@@ -3128,11 +3859,13 @@ int scenario_runner_execute(
                 population_path,
                 raster_path,
                 &plasticity_data,
-                &homeostasis_data))
+                &homeostasis_data,
+                &reward_data))
         {
             set_error(error_message, error_message_size, "erro ao escrever metrics.csv");
             plasticity_run_data_close(&plasticity_data);
             homeostasis_run_data_close(&homeostasis_data);
+            reward_run_data_close(&reward_data);
             return 0;
         }
 
@@ -3148,6 +3881,7 @@ int scenario_runner_execute(
         set_error(error_message, error_message_size, "erro ao escrever run_manifest.txt");
         plasticity_run_data_close(&plasticity_data);
         homeostasis_run_data_close(&homeostasis_data);
+        reward_run_data_close(&reward_data);
         return 0;
     }
 
@@ -3157,11 +3891,13 @@ int scenario_runner_execute(
         set_error(error_message, error_message_size, "erro ao atualizar historico de cenarios");
         plasticity_run_data_close(&plasticity_data);
         homeostasis_run_data_close(&homeostasis_data);
+        reward_run_data_close(&reward_data);
         return 0;
     }
 
     plasticity_run_data_close(&plasticity_data);
     homeostasis_run_data_close(&homeostasis_data);
+    reward_run_data_close(&reward_data);
 
     *out_result = result;
     return 1;

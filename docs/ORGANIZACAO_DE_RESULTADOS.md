@@ -1,5 +1,13 @@
 # Organização de resultados da miniSNN
 
+## Arquivos de recompensa
+
+Runs R-STDP mantêm `reward_metrics.csv`, `reward_events.csv`,
+`reward_history.csv`, `eligibility_history.csv`, `reward_connections.csv`,
+`reward_report.txt`, `reward_report.html` e `reward_overview.png` na própria
+pasta real da execução. `auto_unique_run` e o histórico usam
+`actual_run_name`; os botões do Studio também apontam para essa pasta.
+
 [Voltar ao índice da documentação](INDICE_DA_DOCUMENTACAO.md)
 
 Este guia explica onde a miniSNN grava resultados locais e como evitar
@@ -77,6 +85,18 @@ results/scenarios/index.csv
 Esse arquivo e append-only e local. Ele registra `timestamp`, `run_name`,
 `actual_run_name`, caminho, topologia, passos, seed, conexoes, spikes e status.
 
+O comando abaixo lê o CSV sem modificá-lo e gera uma apresentação local:
+
+```powershell
+mingw32-make report-history
+```
+
+O arquivo `results/scenarios/history.html` mostra as runs mais recentes
+primeiro, oferece busca e filtros e cria links somente para artefatos que ainda
+existem. Runs removidas continuam listadas como dados históricos, sem links. O
+HTML é regenerado sob demanda, funciona sem internet e mantém um link para o
+`index.csv` bruto.
+
 ## 6. Historico de comparacoes
 
 `scripts/compare_runs.py` tambem evita sobrescrita por padrao. Ao repetir:
@@ -103,7 +123,7 @@ Botoes uteis:
 
 - `ABRIR RESULTADOS`: abre `results/`.
 - `ABRIR ULTIMA`: abre a pasta real da ultima execucao.
-- `ABRIR HISTORICO`: abre `results/scenarios/index.csv`.
+- `ABRIR HISTORICO`: gera e abre `results/scenarios/history.html`.
 - `COMPARAR EXECUCOES`: compara pastas em `results/scenarios/`.
 - `ABRIR COMPARACAO`: abre a ultima comparacao gerada.
 

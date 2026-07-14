@@ -5,6 +5,7 @@
 #include "connection.h"
 #include "plasticity.h"
 #include "homeostasis.h"
+#include "reward.h"
 
 typedef struct
 {
@@ -43,6 +44,7 @@ typedef struct
 
     PlasticityState *plasticity;
     HomeostasisState *homeostasis;
+    RewardState *reward;
 
 } Network;
 
@@ -113,6 +115,12 @@ int network_set_homeostasis_config(
     const MiniSNNHomeostasisConfig *config);
 
 int network_reset_homeostasis(Network *net);
+
+int network_set_reward_config(
+    Network *net,
+    const MiniSNNRewardConfig *config);
+
+int network_reset_reward_learning(Network *net);
 
 void network_clear_connections(Network *net);
 

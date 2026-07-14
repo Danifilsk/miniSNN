@@ -315,6 +315,144 @@ int minisnn_get_plasticity_traces(
     return 1;
 }
 
+MiniSNNRewardConfig minisnn_default_reward_config(void)
+{
+    return reward_default_config();
+}
+
+int minisnn_set_reward_config(
+    MiniSNN *snn,
+    const MiniSNNRewardConfig *config)
+{
+    if (snn == NULL)
+        return 0;
+
+    return network_set_reward_config(&snn->net, config);
+}
+
+int minisnn_get_reward_config(
+    const MiniSNN *snn,
+    MiniSNNRewardConfig *out_config)
+{
+    if (snn == NULL || out_config == NULL || snn->net.reward == NULL)
+        return 0;
+
+    *out_config = snn->net.reward->config;
+    return 1;
+}
+
+int minisnn_queue_reward(MiniSNN *snn, double value)
+{
+    if (snn == NULL || snn->net.reward == NULL)
+        return 0;
+
+    return reward_state_queue(snn->net.reward, value);
+}
+
+int minisnn_get_pending_reward(
+    const MiniSNN *snn,
+    double *out_value)
+{
+    if (snn == NULL || out_value == NULL || snn->net.reward == NULL)
+        return 0;
+
+    *out_value = snn->net.reward->pending_raw_reward;
+    return 1;
+}
+
+int minisnn_clear_pending_reward(MiniSNN *snn)
+{
+    if (snn == NULL || snn->net.reward == NULL)
+        return 0;
+
+    return reward_state_clear_pending(snn->net.reward);
+}
+
+int minisnn_get_last_applied_reward(
+    const MiniSNN *snn,
+    double *out_value)
+{
+    if (snn == NULL || out_value == NULL || snn->net.reward == NULL)
+        return 0;
+
+    *out_value = snn->net.reward->stats.last_applied_reward;
+    return 1;
+}
+
+int minisnn_reset_reward_learning(MiniSNN *snn)
+{
+    if (snn == NULL)
+        return 0;
+
+    return network_reset_reward_learning(&snn->net);
+}
+
+static unsigned long long minisnn_reward_observation_step(
+    const MiniSNN *snn)
+{
+    return snn->net.step > 0 ?
+        (unsigned long long)snn->net.step - 1ULL : 0ULL;
+}
+
+int minisnn_get_reward_stats(
+    const MiniSNN *snn,
+    MiniSNNRewardStats *out_stats)
+{
+    if (snn == NULL || out_stats == NULL || snn->net.reward == NULL)
+        return 0;
+
+    return reward_state_get_stats(
+        snn->net.reward,
+        minisnn_reward_observation_step(snn),
+        snn->net.lif_parameters.dt,
+        out_stats);
+}
+
+int minisnn_get_connection_eligibility(
+    const MiniSNN *snn,
+    size_t connection_id,
+    double *out_eligibility)
+{
+    MiniSNNRewardConnectionStats stats;
+
+    if (out_eligibility == NULL ||
+        !minisnn_get_reward_connection_stats(snn, connection_id, &stats))
+    {
+        return 0;
+    }
+
+    *out_eligibility = stats.eligibility;
+    return 1;
+}
+
+int minisnn_get_reward_connection_stats(
+    const MiniSNN *snn,
+    size_t connection_id,
+    MiniSNNRewardConnectionStats *out_stats)
+{
+    if (snn == NULL || out_stats == NULL || snn->net.reward == NULL)
+        return 0;
+
+    return reward_state_get_connection_stats(
+        snn->net.reward,
+        connection_id,
+        minisnn_reward_observation_step(snn),
+        snn->net.lif_parameters.dt,
+        out_stats);
+}
+
+int minisnn_reward_eligible_connection_count(
+    const MiniSNN *snn,
+    size_t *out_count)
+{
+    if (snn == NULL || out_count == NULL || snn->net.reward == NULL)
+        return 0;
+
+    *out_count = snn->net.reward->config.enabled ?
+        snn->net.reward->stats.eligible_connection_count : 0;
+    return 1;
+}
+
 MiniSNNHomeostasisConfig minisnn_default_homeostasis_config(void)
 {
     return homeostasis_default_config();

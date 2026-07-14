@@ -1,5 +1,17 @@
 # Arquitetura do Core
 
+## R-STDP opcional
+
+`src/plasticity.c` continua sendo a fonte única do candidato temporal do STDP.
+No modo direto ele altera o peso; no modo R-STDP o candidato segue para
+`src/reward.c`, que mantém estado paralelo opcional por conexão, decaimento
+preguiçoso, reward pendente e estatísticas. `src/network.c` coordena a ordem:
+transmissão com peso antigo, correlação/elegibilidade, reward, rate traces e
+homeostase. Com reward desligado, o estado por conexão não é alocado.
+
+O runner agenda `[reward_events]` antes do step e grava os artefatos; Python
+apenas analisa e apresenta os CSVs, sem reimplementar a dinâmica.
+
 ## Visão geral
 
 O fluxo de um cenário é:

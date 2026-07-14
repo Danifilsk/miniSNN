@@ -1,5 +1,39 @@
 # Guia de cenários da miniSNN
 
+## R-STDP e eventos de reward
+
+O modo C2 usa `learning_mode = reward_modulated_stdp` em `[plasticity]` e as
+chaves de `[reward]`: `enabled`, `mode`, `learning_rate`, `eligibility_tau`,
+`eligibility_min`, `eligibility_max`, `reward_min`, `reward_max`,
+`clip_reward`, `record_history`, `record_interval_steps` e
+`record_connection_limit`.
+
+Valores válidos: `mode = rstdp`; learning rate finito e não negativo; tau
+positiva; limites de elegibilidade contendo zero; limites de reward contendo
+zero; intervalos e limites inteiros positivos. `learning_mode` aceita
+`direct_stdp` ou `reward_modulated_stdp`. Reward ativo requer plasticidade ativa
+no segundo modo.
+
+Eventos usam uma seção opcional:
+
+```ini
+[reward_events]
+event_0 = 300,1.0
+event_1 = 600,-1.0
+```
+
+Cada `event_N` contém `step,reward`. Índices devem ser contíguos a partir de
+zero, steps devem pertencer à execução e valores devem ser finitos. Eventos no
+mesmo step são somados na ordem determinística do índice. Exemplos completos:
+`configs/reward_positive_demo.ini`, `configs/punishment_negative_demo.ini`,
+`configs/reward_delayed_demo.ini` e `configs/reward_mixed_demo.ini`.
+
+```powershell
+mingw32-make scenario-reward-positive
+```
+
+Veja o [Guia de recompensa](GUIA_DE_RECOMPENSA.md).
+
 [Voltar ao índice da documentação](INDICE_DA_DOCUMENTACAO.md)
 
 ## 1. O que sao cenarios
@@ -226,8 +260,14 @@ Cada execucao concluida com `history_enabled = true` adiciona uma linha em:
 results/scenarios/index.csv
 ```
 
+O CSV permanece append-only e é a fonte autoritativa. Para uma apresentação
+legível, execute `mingw32-make report-history`; o comando gera
+`results/scenarios/history.html` sem reordenar ou reescrever o CSV. O HTML
+mostra as runs mais recentes primeiro, funciona sem internet e mantém runs
+antigas mesmo quando suas pastas já foram removidas.
+
 No Studio, nome unico fica ativo automaticamente para evitar sobrescrita
-acidental.
+acidental. `ABRIR HISTORICO` regenera e abre o HTML sob demanda.
 
 ## 7.2. Diagnóstico
 

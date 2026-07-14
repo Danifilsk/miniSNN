@@ -1,5 +1,24 @@
 # Compatibilidade
 
+## Compatibilidade C2
+
+`learning_mode` ausente equivale a `direct_stdp`. Uma seção `[reward]` ausente
+ou com `enabled = false` preserva STDP direto, homeostase, spikes, pesos e
+thresholds anteriores. Os CSVs de reward só existem em runs com R-STDP ativo;
+diagnóstico, comparação e relatórios aceitam runs antigas sem esses arquivos.
+
+Combinações sem efeito são recusadas: reward ativo exige plasticidade ativa em
+`reward_modulated_stdp`, e esse learning mode exige reward ativo. A API
+existente não mudou de assinatura.
+
+## Histórico HTML
+
+`ABRIR HISTORICO` agora apresenta `results/scenarios/history.html`. Essa é uma
+mudança somente de interface: o formato, a ordem append-only e a autoridade de
+`results/scenarios/index.csv` permanecem inalterados. Runs antigas continuam
+visíveis mesmo quando suas pastas já não existem, e colunas adicionais futuras
+no CSV são aceitas pelo gerador.
+
 ## Configs
 
 O parser começa com defaults e substitui apenas chaves presentes.

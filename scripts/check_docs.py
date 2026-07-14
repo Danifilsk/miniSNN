@@ -44,6 +44,8 @@ CENTRAL_DOCUMENTS = (
     "docs/BENCHMARKS_C1_STDP.md",
     "docs/GUIA_DE_HOMEOSTASE.md",
     "docs/BENCHMARKS_C15_HOMEOSTASE.md",
+    "docs/GUIA_DE_RECOMPENSA.md",
+    "docs/BENCHMARKS_C2_RECOMPENSA.md",
     "docs/CHECKLIST_DE_VALIDACAO_DO_STUDIO.md",
 )
 
@@ -62,11 +64,15 @@ IMPORTANT_FILES = (
     "scripts/plot_neuron.py",
     "scripts/plot_plasticity.py",
     "scripts/generate_run_reports.py",
+    "scripts/generate_history_report.py",
     "scripts/html_report_common.py",
     "scripts/check_c1.py",
     "scripts/plot_homeostasis.py",
     "scripts/run_benchmarks_c15.py",
     "scripts/check_c15.py",
+    "scripts/plot_reward.py",
+    "scripts/run_benchmarks_c2.py",
+    "scripts/check_c2.py",
     "scripts/check_docs.py",
     "configs/random.ini",
     "configs/small_world.ini",
@@ -76,6 +82,10 @@ IMPORTANT_FILES = (
     "configs/homeostasis_silence_recovery_demo.ini",
     "configs/homeostasis_explosion_control_demo.ini",
     "configs/homeostasis_stdp_scaling_demo.ini",
+    "configs/reward_positive_demo.ini",
+    "configs/punishment_negative_demo.ini",
+    "configs/reward_delayed_demo.ini",
+    "configs/reward_mixed_demo.ini",
     "tests/test_minisnn_api.c",
     "tests/test_topology.c",
     "tests/test_LIF.c",
@@ -93,10 +103,14 @@ IMPORTANT_FILES = (
     "tests/test_plasticity_long.c",
     "tests/test_plot_plasticity.py",
     "tests/test_run_reports.py",
+    "tests/test_history_report.py",
     "tests/test_homeostasis.c",
     "tests/test_homeostasis_runner.c",
     "tests/test_homeostasis_long.c",
     "tests/test_plot_homeostasis.py",
+    "tests/test_reward.c",
+    "tests/test_reward_long.c",
+    "tests/test_plot_reward.py",
 )
 
 REQUIRED_TARGETS = (
@@ -120,6 +134,8 @@ REQUIRED_TARGETS = (
     "test-plasticity-long",
     "test-plot-plasticity",
     "test-run-reports",
+    "test-history-report",
+    "report-history",
     "scenario-stdp-ltp",
     "scenario-stdp-ltd",
     "scenario-stdp-mixed",
@@ -135,6 +151,16 @@ REQUIRED_TARGETS = (
     "plot-homeostasis",
     "benchmark-c15",
     "check-c15",
+    "test-reward",
+    "test-reward-long",
+    "test-plot-reward",
+    "scenario-reward-positive",
+    "scenario-punishment-negative",
+    "scenario-reward-delayed",
+    "scenario-reward-mixed",
+    "plot-reward",
+    "benchmark-c2",
+    "check-c2",
 )
 
 IMPORTANT_KEYS = (
@@ -181,6 +207,15 @@ IMPORTANT_KEYS = (
     "inhibitory_gain_min",
     "inhibitory_gain_max",
     "record_neuron_limit",
+    "learning_mode",
+    "mode",
+    "learning_rate",
+    "eligibility_tau",
+    "eligibility_min",
+    "eligibility_max",
+    "reward_min",
+    "reward_max",
+    "clip_reward",
 )
 
 STUDIO_BUTTONS = (
@@ -202,6 +237,9 @@ STUDIO_BUTTONS = (
     "HOMEOSTASE",
     "GRAFICO HOMEOSTASE",
     "ABRIR HOMEOSTASE",
+    "RECOMPENSA",
+    "GRAFICO RECOMPENSA",
+    "ABRIR RECOMPENSA",
 )
 
 
@@ -289,8 +327,60 @@ def validate_docs(root: Path) -> list[str]:
         errors.append("Studio não aponta ABRIR METRICAS para metrics_report.html")
     if '"weights_report.html"' not in studio_source:
         errors.append("Studio não aponta ABRIR PESOS para weights_report.html")
+    if '"reward_report.html"' not in studio_source:
+        errors.append("Studio não aponta ABRIR RECOMPENSA para reward_report.html")
+    if '"results\\\\scenarios\\\\history.html"' not in studio_source:
+        errors.append("Studio não aponta ABRIR HISTORICO para history.html")
+    if '"scripts\\\\generate_history_report.py"' not in studio_source:
+        errors.append("Studio não executa generate_history_report.py")
+
+    reward_guide = texts.get(root / "docs" / "GUIA_DE_RECOMPENSA.md", "")
+    for token in (
+        "[reward]",
+        "[reward_events]",
+        "learning_mode",
+        "direct_stdp",
+        "reward_modulated_stdp",
+        "minisnn_queue_reward",
+        "scripts/plot_reward.py",
+        "reward_report.html",
+        "floor(k * (E - 1) / (L - 1))",
+        "sampled",
+    ):
+        if token not in reward_guide:
+            errors.append(f"guia de recompensa sem contrato C2: {token}")
+    for obsolete in (
+        "primeiras conexões elegíveis",
+        "primeiras conexoes elegiveis",
+        "first eligible connections",
+    ):
+        if obsolete in reward_guide.lower():
+            errors.append(f"guia de recompensa mantém amostragem obsoleta: {obsolete}")
+
+    runner_test = (root / "tests" / "test_scenario_runner.c").read_text(
+        encoding="utf-8"
+    )
+    for sample_id in ("0U", "4U", "9U", "14U", "19U"):
+        if sample_id not in runner_test:
+            errors.append(f"teste distribuído de reward sem ID esperado: {sample_id}")
 
     documentation_text = "\n".join(texts.values())
+    for token in (
+        "results/scenarios/index.csv",
+        "results/scenarios/history.html",
+        "scripts/generate_history_report.py",
+        "mingw32-make report-history",
+        "mingw32-make test-history-report",
+    ):
+        if token not in documentation_text:
+            errors.append(f"histórico HTML não documentado: {token}")
+
+    roadmap = texts.get(root / "docs" / "ROADMAP.md", "")
+    if "C2 — recompensa e punição (concluído)" not in roadmap:
+        errors.append("roadmap não marca C2 como concluído")
+    if "C3 — neuroevolução (próximo; não implementado)" not in roadmap:
+        errors.append("roadmap não identifica C3 como próximo e não implementado")
+
     for required_output in (
         "metrics_report.html",
         "weights_report.html",
@@ -299,6 +389,15 @@ def validate_docs(root: Path) -> list[str]:
         "homeostasis_metrics.csv",
         "homeostasis_report.html",
         "homeostasis_overview.png",
+        "reward_metrics.csv",
+        "reward_events.csv",
+        "reward_history.csv",
+        "eligibility_history.csv",
+        "reward_connections.csv",
+        "reward_report.txt",
+        "reward_report.html",
+        "reward_overview.png",
+        "history.html",
     ):
         if required_output not in documentation_text:
             errors.append(f"saída central não documentada: {required_output}")

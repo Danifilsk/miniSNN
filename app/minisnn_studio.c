@@ -16,13 +16,15 @@
 #define APP_TITLE "miniSNN Studio"
 #define TEXT_BUFFER_SIZE 128
 #define STATUS_BUFFER_SIZE 1024
+#define SUMMARY_BUFFER_SIZE 2048
 #define PYTHON_COMMAND_BUFFER_SIZE 2400
 #define PYTHON_MESSAGE_BUFFER_SIZE 6000
 #define STUDIO_FIELD_COUNT 21
-#define STUDIO_BUTTON_COUNT 21
+#define STUDIO_BUTTON_COUNT 23
+#define REWARD_EVENTS_TEXT_SIZE 4096
 
 #define STUDIO_MIN_CLIENT_WIDTH 1320
-#define STUDIO_MIN_CLIENT_HEIGHT 900
+#define STUDIO_MIN_CLIENT_HEIGHT 980
 #define STUDIO_INITIAL_CLIENT_WIDTH STUDIO_MIN_CLIENT_WIDTH
 #define STUDIO_INITIAL_CLIENT_HEIGHT STUDIO_MIN_CLIENT_HEIGHT
 
@@ -101,6 +103,9 @@
 #define IDC_BTN_HOMEOSTASIS 2022
 #define IDC_BTN_PLOT_HOMEOSTASIS 2023
 #define IDC_BTN_OPEN_HOMEOSTASIS 2024
+#define IDC_BTN_REWARD 2025
+#define IDC_BTN_PLOT_REWARD 2026
+#define IDC_BTN_OPEN_REWARD 2027
 
 #define IDC_STATUS 3001
 #define IDC_SUMMARY 3002
@@ -132,6 +137,7 @@
 #define IDC_PLASTICITY_LIMIT 5013
 #define IDC_PLASTICITY_APPLY 5014
 #define IDC_PLASTICITY_CANCEL 5015
+#define IDC_PLASTICITY_LEARNING_MODE 5016
 
 #define IDC_HOME_ENABLED 6001
 #define IDC_HOME_INTRINSIC 6002
@@ -157,6 +163,22 @@
 #define IDC_HOME_RECORD_LIMIT 6022
 #define IDC_HOME_APPLY 6023
 #define IDC_HOME_CANCEL 6024
+
+#define IDC_REWARD_ENABLED 7001
+#define IDC_REWARD_MODE 7002
+#define IDC_REWARD_LEARNING_RATE 7003
+#define IDC_REWARD_ELIGIBILITY_TAU 7004
+#define IDC_REWARD_ELIGIBILITY_MIN 7005
+#define IDC_REWARD_ELIGIBILITY_MAX 7006
+#define IDC_REWARD_MIN 7007
+#define IDC_REWARD_MAX 7008
+#define IDC_REWARD_CLIP 7009
+#define IDC_REWARD_RECORD_HISTORY 7010
+#define IDC_REWARD_RECORD_INTERVAL 7011
+#define IDC_REWARD_RECORD_LIMIT 7012
+#define IDC_REWARD_EVENTS 7013
+#define IDC_REWARD_APPLY 7014
+#define IDC_REWARD_CANCEL 7015
 
 #define STUDIO_INIT_TIMER_ID 1
 
@@ -200,6 +222,7 @@ typedef struct
     HWND topology_options_button;
     HWND plasticity_button;
     HWND homeostasis_button;
+    HWND reward_button;
     HWND status_label;
     HWND summary_box;
     HWND execution_section_label;
@@ -244,6 +267,7 @@ typedef struct
     ScenarioConfig working_config;
     HWND enabled_checkbox;
     HWND rule_combo;
+    HWND learning_mode_combo;
     HWND a_plus_edit;
     HWND a_minus_edit;
     HWND tau_plus_edit;
@@ -285,10 +309,30 @@ typedef struct
     HWND record_limit_edit;
 } HomeostasisDialog;
 
+typedef struct
+{
+    HWND window;
+    ScenarioConfig working_config;
+    HWND enabled_checkbox;
+    HWND mode_combo;
+    HWND learning_rate_edit;
+    HWND eligibility_tau_edit;
+    HWND eligibility_min_edit;
+    HWND eligibility_max_edit;
+    HWND reward_min_edit;
+    HWND reward_max_edit;
+    HWND clip_checkbox;
+    HWND record_history_checkbox;
+    HWND record_interval_edit;
+    HWND record_limit_edit;
+    HWND events_edit;
+} RewardDialog;
+
 static StudioState g_app;
 static TopologyOptionsDialog g_options;
 static PlasticityDialog g_plasticity;
 static HomeostasisDialog g_homeostasis;
+static RewardDialog g_reward;
 
 static void draw_button(const DRAWITEMSTRUCT *item);
 static LRESULT handle_color(HDC hdc, HWND hwnd);
@@ -1427,7 +1471,7 @@ static void update_summary(
     const ScenarioConfig *config,
     const ScenarioRunResult *result)
 {
-    char text[STATUS_BUFFER_SIZE];
+    char text[SUMMARY_BUFFER_SIZE];
 
     snprintf(
         text,
@@ -1438,6 +1482,7 @@ static void update_summary(
         "Pasta real: %s\r\n"
         "Topologia: %s\r\n"
         "STDP: %s\r\n"
+        "Reward: %s\r\n"
         "Homeostase: %s\r\n"
         "Numero de neuronios: %d\r\n"
         "Numero de conexoes: %d\r\n"
@@ -1452,6 +1497,7 @@ static void update_summary(
         result->actual_run_name,
         config->topology,
         config->plasticity_enabled ? "ON" : "OFF",
+        config->reward_enabled ? "ON (R-STDP)" : "OFF",
         config->homeostasis_enabled ? "ON" : "OFF",
         config->neurons,
         result->connection_count,
@@ -1478,6 +1524,9 @@ static void set_result_buttons_enabled(BOOL enabled)
         EnableWindow(g_app.buttons[i], enabled);
 
     for (int i = 19; i <= 20; i++)
+        EnableWindow(g_app.buttons[i], enabled);
+
+    for (int i = 21; i <= 22; i++)
         EnableWindow(g_app.buttons[i], enabled);
 }
 
@@ -2024,14 +2073,81 @@ static int ensure_scenario_history_file(char *history_path, size_t history_path_
 
 static void open_scenario_history(void)
 {
+    char index_path[MAX_PATH];
     char history_path[MAX_PATH];
+    char scenarios_path[MAX_PATH];
+    char python_path[MAX_PATH];
+    char script_path[MAX_PATH];
+    char command[PYTHON_COMMAND_BUFFER_SIZE];
+    DWORD exit_code = 1;
     HINSTANCE result;
 
-    if (!ensure_scenario_history_file(history_path, sizeof(history_path)))
+    if (!ensure_scenario_history_file(index_path, sizeof(index_path)) ||
+        !scenarios_directory_path(scenarios_path, sizeof(scenarios_path)) ||
+        !project_path(
+            history_path,
+            sizeof(history_path),
+            "results\\scenarios\\history.html") ||
+        !project_path(
+            script_path,
+            sizeof(script_path),
+            "scripts\\generate_history_report.py"))
     {
         show_error(
             "Historico indisponivel",
             "Historico ainda nao existe e nao foi possivel cria-lo. Rode um cenario primeiro.");
+        return;
+    }
+
+    if (resolve_python_executable(python_path, sizeof(python_path)))
+    {
+        snprintf(
+            command,
+            sizeof(command),
+            g_app.resolved_python_uses_py_launcher ?
+                "\"%s\" -3 \"%s\" \"%s\"" :
+                "\"%s\" \"%s\" \"%s\"",
+            python_path,
+            script_path,
+            scenarios_path);
+        set_status("GERANDO HISTORICO HTML...");
+        UpdateWindow(g_app.window);
+        if (!run_hidden_process(command, &exit_code) ||
+            exit_code != 0 ||
+            !file_exists(history_path))
+        {
+            char message[PYTHON_MESSAGE_BUFFER_SIZE];
+            snprintf(
+                message,
+                sizeof(message),
+                "Nao foi possivel gerar o historico HTML.\n\n"
+                "Python usado:\n%s\n\n"
+                "Execute manualmente:\n%s\n\n"
+                "Codigo de saida: %lu",
+                python_path,
+                command,
+                (unsigned long)exit_code);
+            show_error("Erro ao gerar historico", message);
+            set_status("ERRO AO GERAR HISTORICO HTML");
+            return;
+        }
+    }
+    else if (file_exists(history_path))
+    {
+        show_info(
+            "Python nao encontrado",
+            "Python nao foi encontrado.\n"
+            "O ultimo historico HTML existente sera aberto e pode estar\n"
+            "desatualizado em relacao ao index.csv.");
+    }
+    else
+    {
+        show_error(
+            "Historico HTML indisponivel",
+            "Nao foi possivel gerar o historico HTML.\n\n"
+            "Verifique o Python ou execute manualmente:\n\n"
+            "python scripts/generate_history_report.py results/scenarios");
+        set_status("HISTORICO HTML INDISPONIVEL");
         return;
     }
 
@@ -2058,7 +2174,7 @@ static void open_scenario_history(void)
         return;
     }
 
-    set_status("HISTORICO DE EXECUCOES ABERTO");
+    set_status("HISTORICO HTML ABERTO");
 }
 
 static int get_detailed_neuron_id(int *out_neuron_id)
@@ -2621,6 +2737,136 @@ static void open_homeostasis_report(void)
         "Homeostase nao encontrada",
         "Esta execucao nao possui dados homeostaticos.\nA homeostase pode estar desligada.",
         "RELATORIO DE HOMEOSTASE ABERTO");
+}
+
+static void generate_reward_graph(void)
+{
+    char python_path[MAX_PATH];
+    char script_path[MAX_PATH];
+    char output_path[MAX_PATH];
+    char metrics_path[MAX_PATH];
+    char png_path[MAX_PATH];
+    char command[PYTHON_COMMAND_BUFFER_SIZE];
+    char status[STATUS_BUFFER_SIZE];
+    char old_backend[TEXT_BUFFER_SIZE];
+    DWORD old_backend_length;
+    DWORD exit_code = 1;
+    int had_old_backend;
+
+    if (!g_app.has_result)
+    {
+        show_error("Sem resultados", "Rode uma simulacao antes de gerar o grafico de recompensa.");
+        return;
+    }
+    if (!build_run_artifact_path(metrics_path, sizeof(metrics_path), "reward_metrics.csv") ||
+        !build_run_artifact_path(png_path, sizeof(png_path), "reward_overview.png"))
+    {
+        show_error("Erro interno", "Nao foi possivel montar os caminhos de recompensa.");
+        return;
+    }
+    if (!file_exists(metrics_path))
+    {
+        show_error(
+            "Recompensa nao encontrada",
+            "Esta execucao nao possui dados de recompensa.\n"
+            "O aprendizado por recompensa pode estar desligado.");
+        return;
+    }
+    if (!resolve_python_executable(python_path, sizeof(python_path)))
+    {
+        show_error("Python nao encontrado", "Nao foi encontrado um Python compativel com pandas e matplotlib.");
+        return;
+    }
+    if (!project_path(script_path, sizeof(script_path), "scripts\\plot_reward.py") ||
+        !project_path(output_path, sizeof(output_path), g_app.last_result.output_directory))
+    {
+        show_error("Erro interno", "Nao foi possivel montar o comando do grafico de recompensa.");
+        return;
+    }
+    snprintf(
+        command,
+        sizeof(command),
+        g_app.resolved_python_uses_py_launcher ?
+            "\"%s\" -3 \"%s\" \"%s\"" :
+            "\"%s\" \"%s\" \"%s\"",
+        python_path,
+        script_path,
+        output_path);
+
+    old_backend_length = GetEnvironmentVariableA("MPLBACKEND", old_backend, sizeof(old_backend));
+    had_old_backend = old_backend_length > 0 && old_backend_length < sizeof(old_backend);
+    SetEnvironmentVariableA("MPLBACKEND", "Agg");
+    set_status("GERANDO GRAFICO RECOMPENSA...");
+    UpdateWindow(g_app.window);
+    if (!run_hidden_process(command, &exit_code))
+        exit_code = 1;
+    if (had_old_backend)
+        SetEnvironmentVariableA("MPLBACKEND", old_backend);
+    else
+        SetEnvironmentVariableA("MPLBACKEND", NULL);
+
+    if (exit_code != 0 || !file_exists(png_path))
+    {
+        char message[PYTHON_MESSAGE_BUFFER_SIZE];
+        snprintf(
+            message,
+            sizeof(message),
+            "O grafico de recompensa nao foi gerado.\n\nPython usado:\n%s\n\n"
+            "Pandas e matplotlib podem estar ausentes.\n\nTeste manual:\n%s",
+            python_path,
+            command);
+        show_error("Erro ao gerar recompensa", message);
+        set_status("ERRO AO GERAR GRAFICO RECOMPENSA");
+        return;
+    }
+
+    if (!ensure_run_report(
+            "reward_report.html",
+            "reward_metrics.csv",
+            "--reward",
+            "Esta execucao nao possui dados de recompensa.\n"
+            "O aprendizado por recompensa pode estar desligado.",
+            "Nao foi possivel atualizar o relatorio de recompensa."))
+    {
+        return;
+    }
+
+    snprintf(status, sizeof(status), "GRAFICO RECOMPENSA GERADO: %s", png_path);
+    show_info("Grafico de recompensa", "reward_overview.png foi criado na ultima execucao.");
+    set_status(status);
+}
+
+static void open_reward_report(void)
+{
+    char path[MAX_PATH];
+
+    if (!g_app.has_result)
+    {
+        show_error("Sem resultados", "Rode uma simulacao antes de abrir a recompensa.");
+        return;
+    }
+    if (!ensure_run_report(
+            "reward_report.html",
+            "reward_metrics.csv",
+            "--reward",
+            "Esta execucao nao possui dados de recompensa.\n"
+            "O aprendizado por recompensa pode estar desligado.",
+            "Nao foi possivel gerar o relatorio de recompensa.\n"
+            "Verifique o Python e os arquivos da execucao."))
+    {
+        return;
+    }
+    if (!build_run_artifact_path(path, sizeof(path), "reward_report.html"))
+    {
+        show_error("Erro interno", "Nao foi possivel montar o caminho da recompensa.");
+        return;
+    }
+    open_existing_file(
+        path,
+        "Recompensa nao encontrada",
+        "Esta execucao nao possui dados de recompensa.\n"
+        "O aprendizado por recompensa pode estar desligado.",
+        "RELATORIO DE RECOMPENSA ABERTO");
 }
 
 static void open_neuron_csv(void)
@@ -3715,6 +3961,11 @@ static void plasticity_to_controls(void)
         CB_SELECTSTRING,
         (WPARAM)-1,
         (LPARAM)config->plasticity_rule);
+    SendMessageA(
+        g_plasticity.learning_mode_combo,
+        CB_SELECTSTRING,
+        (WPARAM)-1,
+        (LPARAM)config->plasticity_learning_mode);
     set_window_double(g_plasticity.a_plus_edit, config->plasticity_a_plus);
     set_window_double(g_plasticity.a_minus_edit, config->plasticity_a_minus);
     set_window_double(g_plasticity.tau_plus_edit, config->plasticity_tau_plus);
@@ -3767,6 +4018,22 @@ static int apply_plasticity_options(void)
         g_plasticity.rule_combo,
         candidate.plasticity_rule,
         sizeof(candidate.plasticity_rule));
+    GetWindowTextA(
+        g_plasticity.learning_mode_combo,
+        candidate.plasticity_learning_mode,
+        sizeof(candidate.plasticity_learning_mode));
+
+    if (strcmp(candidate.plasticity_learning_mode,
+               "reward_modulated_stdp") == 0)
+    {
+        candidate.plasticity_enabled = 1;
+        candidate.reward_enabled = 1;
+    }
+    else if (candidate.reward_enabled)
+    {
+        candidate.reward_enabled = 0;
+        candidate.reward_event_count = 0;
+    }
 
     if (!parse_double_from_window(
             g_plasticity.a_plus_edit,
@@ -3881,43 +4148,64 @@ static LRESULT CALLBACK plasticity_options_proc(
             0,
             (LPARAM)"stdp_pair_trace");
 
-        create_static(hwnd, "A+", 24, 110, 180, 24, 0);
-        g_plasticity.a_plus_edit = create_edit(hwnd, IDC_PLASTICITY_A_PLUS, 190, 106, 120, 28);
-        create_static(hwnd, "A-", 330, 110, 180, 24, 0);
-        g_plasticity.a_minus_edit = create_edit(hwnd, IDC_PLASTICITY_A_MINUS, 480, 106, 120, 28);
-        create_static(hwnd, "TAU+", 24, 150, 180, 24, 0);
-        g_plasticity.tau_plus_edit = create_edit(hwnd, IDC_PLASTICITY_TAU_PLUS, 190, 146, 120, 28);
-        create_static(hwnd, "TAU-", 330, 150, 180, 24, 0);
-        g_plasticity.tau_minus_edit = create_edit(hwnd, IDC_PLASTICITY_TAU_MINUS, 480, 146, 120, 28);
-        create_static(hwnd, "TRACE INC", 24, 190, 180, 24, 0);
-        g_plasticity.trace_increment_edit = create_edit(hwnd, IDC_PLASTICITY_TRACE_INCREMENT, 190, 186, 120, 28);
-        create_static(hwnd, "PESO MIN", 24, 230, 180, 24, 0);
-        g_plasticity.weight_min_edit = create_edit(hwnd, IDC_PLASTICITY_WEIGHT_MIN, 190, 226, 120, 28);
-        create_static(hwnd, "PESO MAX", 330, 230, 180, 24, 0);
-        g_plasticity.weight_max_edit = create_edit(hwnd, IDC_PLASTICITY_WEIGHT_MAX, 480, 226, 120, 28);
+        create_static(hwnd, "MODO DE APRENDIZADO", 24, 94, 190, 24, 0);
+        g_plasticity.learning_mode_combo = CreateWindowExA(
+            0,
+            "COMBOBOX",
+            "",
+            WS_CHILD | WS_VISIBLE | CBS_DROPDOWNLIST,
+            215,
+            90,
+            385,
+            120,
+            hwnd,
+            (HMENU)(INT_PTR)IDC_PLASTICITY_LEARNING_MODE,
+            GetModuleHandleA(NULL),
+            NULL);
+        SendMessageA(g_plasticity.learning_mode_combo, WM_SETFONT,
+            (WPARAM)g_app.edit_font, TRUE);
+        SendMessageA(g_plasticity.learning_mode_combo, CB_ADDSTRING, 0,
+            (LPARAM)"direct_stdp");
+        SendMessageA(g_plasticity.learning_mode_combo, CB_ADDSTRING, 0,
+            (LPARAM)"reward_modulated_stdp");
 
-        create_static(hwnd, "REGISTRO", 24, 286, 220, 24, 0);
+        create_static(hwnd, "A+", 24, 150, 180, 24, 0);
+        g_plasticity.a_plus_edit = create_edit(hwnd, IDC_PLASTICITY_A_PLUS, 190, 146, 120, 28);
+        create_static(hwnd, "A-", 330, 150, 180, 24, 0);
+        g_plasticity.a_minus_edit = create_edit(hwnd, IDC_PLASTICITY_A_MINUS, 480, 146, 120, 28);
+        create_static(hwnd, "TAU+", 24, 190, 180, 24, 0);
+        g_plasticity.tau_plus_edit = create_edit(hwnd, IDC_PLASTICITY_TAU_PLUS, 190, 186, 120, 28);
+        create_static(hwnd, "TAU-", 330, 190, 180, 24, 0);
+        g_plasticity.tau_minus_edit = create_edit(hwnd, IDC_PLASTICITY_TAU_MINUS, 480, 186, 120, 28);
+        create_static(hwnd, "TRACE INC", 24, 230, 180, 24, 0);
+        g_plasticity.trace_increment_edit = create_edit(hwnd, IDC_PLASTICITY_TRACE_INCREMENT, 190, 226, 120, 28);
+        create_static(hwnd, "PESO MIN", 24, 270, 180, 24, 0);
+        g_plasticity.weight_min_edit = create_edit(hwnd, IDC_PLASTICITY_WEIGHT_MIN, 190, 266, 120, 28);
+        create_static(hwnd, "PESO MAX", 330, 270, 180, 24, 0);
+        g_plasticity.weight_max_edit = create_edit(hwnd, IDC_PLASTICITY_WEIGHT_MAX, 480, 266, 120, 28);
+
+        create_static(hwnd, "REGISTRO", 24, 326, 220, 24, 0);
         g_plasticity.record_weights_checkbox = create_checkbox(
-            hwnd, "", IDC_PLASTICITY_RECORD_WEIGHTS, 26, 322, 24, 24);
-        create_static(hwnd, "REGISTRAR PESOS", 58, 324, 220, 24, 0);
+            hwnd, "", IDC_PLASTICITY_RECORD_WEIGHTS, 26, 362, 24, 24);
+        create_static(hwnd, "REGISTRAR PESOS", 58, 364, 220, 24, 0);
         g_plasticity.record_history_checkbox = create_checkbox(
-            hwnd, "", IDC_PLASTICITY_RECORD_HISTORY, 330, 322, 24, 24);
-        create_static(hwnd, "REGISTRAR HISTORICO", 362, 324, 238, 24, 0);
-        create_static(hwnd, "INTERVALO", 24, 372, 180, 24, 0);
-        g_plasticity.interval_edit = create_edit(hwnd, IDC_PLASTICITY_INTERVAL, 190, 368, 120, 28);
-        create_static(hwnd, "LIMITE DE CONEXOES", 330, 372, 200, 24, 0);
-        g_plasticity.limit_edit = create_edit(hwnd, IDC_PLASTICITY_LIMIT, 480, 368, 120, 28);
+            hwnd, "", IDC_PLASTICITY_RECORD_HISTORY, 330, 362, 24, 24);
+        create_static(hwnd, "REGISTRAR HISTORICO", 362, 364, 238, 24, 0);
+        create_static(hwnd, "INTERVALO", 24, 412, 180, 24, 0);
+        g_plasticity.interval_edit = create_edit(hwnd, IDC_PLASTICITY_INTERVAL, 190, 408, 120, 28);
+        create_static(hwnd, "LIMITE DE CONEXOES", 330, 412, 200, 24, 0);
+        g_plasticity.limit_edit = create_edit(hwnd, IDC_PLASTICITY_LIMIT, 480, 408, 120, 28);
 
         create_static(
             hwnd,
             "STDP aditivo por traces; apenas sinapses de origem EXC sao plasticas.",
             24,
-            428,
+            468,
             576,
             24,
             0);
-        create_button(hwnd, "APLICAR", IDC_PLASTICITY_APPLY, 170, 476, 130, 36);
-        create_button(hwnd, "CANCELAR", IDC_PLASTICITY_CANCEL, 330, 476, 130, 36);
+        create_button(hwnd, "APLICAR", IDC_PLASTICITY_APPLY, 170, 516, 130, 36);
+        create_button(hwnd, "CANCELAR", IDC_PLASTICITY_CANCEL, 330, 516, 130, 36);
         plasticity_to_controls();
         enable_dark_title_bar(hwnd);
         return 0;
@@ -4018,7 +4306,7 @@ static void open_plasticity_options(void)
         CW_USEDEFAULT,
         CW_USEDEFAULT,
         650,
-        570,
+        620,
         g_app.window,
         NULL,
         GetModuleHandleA(NULL),
@@ -4340,6 +4628,402 @@ static void open_homeostasis_options(void)
     SetActiveWindow(g_app.window);
 }
 
+static char *trim_reward_token(char *text)
+{
+    char *end;
+
+    while (*text != '\0' && isspace((unsigned char)*text))
+        text++;
+    end = text + strlen(text);
+    while (end > text && isspace((unsigned char)end[-1]))
+        end--;
+    *end = '\0';
+    return text;
+}
+
+static int reward_events_to_text(
+    const ScenarioConfig *config,
+    char *buffer,
+    size_t buffer_size)
+{
+    size_t used = 0;
+    int index;
+
+    if (config == NULL || buffer == NULL || buffer_size == 0)
+        return 0;
+    buffer[0] = '\0';
+    for (index = 0; index < config->reward_event_count; index++)
+    {
+        int written = snprintf(
+            buffer + used,
+            buffer_size - used,
+            "%s%d:%.17g",
+            index == 0 ? "" : "; ",
+            config->reward_events[index].step,
+            config->reward_events[index].value);
+        if (written < 0 || (size_t)written >= buffer_size - used)
+            return 0;
+        used += (size_t)written;
+    }
+    return 1;
+}
+
+static int parse_reward_events_text(
+    HWND edit,
+    ScenarioConfig *config,
+    char *error,
+    size_t error_size)
+{
+    char text[REWARD_EVENTS_TEXT_SIZE];
+    char *token;
+    int length;
+    int count = 0;
+
+    length = GetWindowTextLengthA(edit);
+    if (length < 0 || length >= (int)sizeof(text))
+    {
+        snprintf(error, error_size, "Lista de eventos excede o limite seguro.");
+        return 0;
+    }
+    GetWindowTextA(edit, text, sizeof(text));
+    token = strtok(text, ";");
+    while (token != NULL)
+    {
+        char *entry = trim_reward_token(token);
+        char *separator = strchr(entry, ':');
+        char *step_end;
+        char *value_end;
+        long step;
+        double value;
+        int previous;
+
+        if (*entry == '\0')
+        {
+            snprintf(error, error_size, "Evento vazio na lista de recompensa.");
+            return 0;
+        }
+        if (separator == NULL || strchr(separator + 1, ':') != NULL)
+        {
+            snprintf(error, error_size,
+                "Evento invalido: use STEP:VALOR separado por ponto e virgula.");
+            return 0;
+        }
+        *separator = '\0';
+        entry = trim_reward_token(entry);
+        separator = trim_reward_token(separator + 1);
+        errno = 0;
+        step = strtol(entry, &step_end, 10);
+        step_end = trim_reward_token(step_end);
+        if (errno != 0 || *entry == '\0' || *step_end != '\0' ||
+            step < 0 || step >= config->steps)
+        {
+            snprintf(error, error_size,
+                "Step de reward invalido; use 0 ate %d.", config->steps - 1);
+            return 0;
+        }
+        errno = 0;
+        value = strtod(separator, &value_end);
+        value_end = trim_reward_token(value_end);
+        if (errno != 0 || *separator == '\0' || *value_end != '\0' ||
+            !isfinite(value))
+        {
+            snprintf(error, error_size, "Valor de reward invalido.");
+            return 0;
+        }
+        if (count >= SCENARIO_MAX_REWARD_EVENTS)
+        {
+            snprintf(error, error_size, "Limite de %d eventos excedido.",
+                SCENARIO_MAX_REWARD_EVENTS);
+            return 0;
+        }
+        for (previous = 0; previous < count; previous++)
+        {
+            if (config->reward_events[previous].step == (int)step &&
+                config->reward_events[previous].value == value)
+            {
+                snprintf(error, error_size,
+                    "Evento duplicado: %ld:%.17g.", step, value);
+                return 0;
+            }
+        }
+        config->reward_events[count].index = count;
+        config->reward_events[count].step = (int)step;
+        config->reward_events[count].value = value;
+        count++;
+        token = strtok(NULL, ";");
+    }
+    config->reward_event_count = count;
+    return 1;
+}
+
+static void reward_to_controls(void)
+{
+    const ScenarioConfig *config = &g_reward.working_config;
+    char text[REWARD_EVENTS_TEXT_SIZE];
+
+    SendMessageA(g_reward.enabled_checkbox, BM_SETCHECK,
+        config->reward_enabled ? BST_CHECKED : BST_UNCHECKED, 0);
+    SendMessageA(g_reward.clip_checkbox, BM_SETCHECK,
+        config->reward_clip ? BST_CHECKED : BST_UNCHECKED, 0);
+    SendMessageA(g_reward.record_history_checkbox, BM_SETCHECK,
+        config->reward_record_history ? BST_CHECKED : BST_UNCHECKED, 0);
+    SendMessageA(g_reward.mode_combo, CB_SELECTSTRING, (WPARAM)-1,
+        (LPARAM)config->reward_mode);
+    set_window_double(g_reward.learning_rate_edit, config->reward_learning_rate);
+    set_window_double(g_reward.eligibility_tau_edit, config->reward_eligibility_tau);
+    set_window_double(g_reward.eligibility_min_edit, config->reward_eligibility_min);
+    set_window_double(g_reward.eligibility_max_edit, config->reward_eligibility_max);
+    set_window_double(g_reward.reward_min_edit, config->reward_min);
+    set_window_double(g_reward.reward_max_edit, config->reward_max);
+    snprintf(text, sizeof(text), "%d", config->reward_record_interval_steps);
+    SetWindowTextA(g_reward.record_interval_edit, text);
+    snprintf(text, sizeof(text), "%d", config->reward_record_connection_limit);
+    SetWindowTextA(g_reward.record_limit_edit, text);
+    if (reward_events_to_text(config, text, sizeof(text)))
+        SetWindowTextA(g_reward.events_edit, text);
+}
+
+static int apply_reward_options(void)
+{
+    ScenarioConfig candidate = g_reward.working_config;
+    char error[256];
+
+    candidate.reward_enabled =
+        SendMessageA(g_reward.enabled_checkbox, BM_GETCHECK, 0, 0) == BST_CHECKED;
+    candidate.reward_clip =
+        SendMessageA(g_reward.clip_checkbox, BM_GETCHECK, 0, 0) == BST_CHECKED;
+    candidate.reward_record_history =
+        SendMessageA(g_reward.record_history_checkbox, BM_GETCHECK, 0, 0) == BST_CHECKED;
+    GetWindowTextA(g_reward.mode_combo, candidate.reward_mode,
+        sizeof(candidate.reward_mode));
+
+    if (!parse_double_from_window(g_reward.learning_rate_edit, "LEARNING RATE",
+            &candidate.reward_learning_rate, error, sizeof(error)) ||
+        !parse_double_from_window(g_reward.eligibility_tau_edit, "TAU ELIGIBILIDADE",
+            &candidate.reward_eligibility_tau, error, sizeof(error)) ||
+        !parse_double_from_window(g_reward.eligibility_min_edit, "ELIGIBILIDADE MIN",
+            &candidate.reward_eligibility_min, error, sizeof(error)) ||
+        !parse_double_from_window(g_reward.eligibility_max_edit, "ELIGIBILIDADE MAX",
+            &candidate.reward_eligibility_max, error, sizeof(error)) ||
+        !parse_double_from_window(g_reward.reward_min_edit, "REWARD MIN",
+            &candidate.reward_min, error, sizeof(error)) ||
+        !parse_double_from_window(g_reward.reward_max_edit, "REWARD MAX",
+            &candidate.reward_max, error, sizeof(error)) ||
+        !parse_int_from_window(g_reward.record_interval_edit, "INTERVALO",
+            &candidate.reward_record_interval_steps, error, sizeof(error)) ||
+        !parse_int_from_window(g_reward.record_limit_edit, "LIMITE DE CONEXOES",
+            &candidate.reward_record_connection_limit, error, sizeof(error)) ||
+        !parse_reward_events_text(g_reward.events_edit, &candidate,
+            error, sizeof(error)))
+    {
+        show_error("Recompensa invalida", error);
+        return 0;
+    }
+
+    if (candidate.reward_enabled)
+    {
+        candidate.plasticity_enabled = 1;
+        snprintf(candidate.plasticity_learning_mode,
+            sizeof(candidate.plasticity_learning_mode),
+            "reward_modulated_stdp");
+    }
+    else if (strcmp(candidate.plasticity_learning_mode,
+                    "reward_modulated_stdp") == 0)
+    {
+        snprintf(candidate.plasticity_learning_mode,
+            sizeof(candidate.plasticity_learning_mode), "direct_stdp");
+        candidate.reward_event_count = 0;
+    }
+
+    if (!scenario_config_validate(&candidate, error, sizeof(error)))
+    {
+        show_error("Recompensa invalida", error);
+        return 0;
+    }
+    g_app.current_config = candidate;
+    g_reward.working_config = candidate;
+    set_status(candidate.reward_enabled ? "RECOMPENSA R-STDP ATIVADA" :
+        "RECOMPENSA DESATIVADA");
+    DestroyWindow(g_reward.window);
+    return 1;
+}
+
+static LRESULT CALLBACK reward_options_proc(
+    HWND hwnd, UINT message, WPARAM wparam, LPARAM lparam)
+{
+    (void)lparam;
+    switch (message)
+    {
+    case WM_CREATE:
+        g_reward.window = hwnd;
+        create_static(hwnd, "RECOMPENSA", 24, 16, 300, 28, 0);
+        g_reward.enabled_checkbox = create_checkbox(hwnd, "", IDC_REWARD_ENABLED,
+            26, 50, 24, 24);
+        create_static(hwnd, "RECOMPENSA: OFF / ON", 58, 52, 250, 24, 0);
+        create_static(hwnd, "MODO", 410, 52, 80, 24, 0);
+        g_reward.mode_combo = CreateWindowExA(0, "COMBOBOX", "",
+            WS_CHILD | WS_VISIBLE | CBS_DROPDOWNLIST,
+            490, 48, 240, 100, hwnd, (HMENU)(INT_PTR)IDC_REWARD_MODE,
+            GetModuleHandleA(NULL), NULL);
+        SendMessageA(g_reward.mode_combo, WM_SETFONT,
+            (WPARAM)g_app.edit_font, TRUE);
+        SendMessageA(g_reward.mode_combo, CB_ADDSTRING, 0, (LPARAM)"rstdp");
+
+        create_static(hwnd, "LEARNING RATE", 24, 104, 170, 24, 0);
+        g_reward.learning_rate_edit = create_edit(hwnd,
+            IDC_REWARD_LEARNING_RATE, 190, 100, 120, 28);
+        create_static(hwnd, "TAU ELIGIBILIDADE", 390, 104, 190, 24, 0);
+        g_reward.eligibility_tau_edit = create_edit(hwnd,
+            IDC_REWARD_ELIGIBILITY_TAU, 580, 100, 150, 28);
+        create_static(hwnd, "ELIGIBILIDADE MIN", 24, 150, 170, 24, 0);
+        g_reward.eligibility_min_edit = create_edit(hwnd,
+            IDC_REWARD_ELIGIBILITY_MIN, 190, 146, 120, 28);
+        create_static(hwnd, "ELIGIBILIDADE MAX", 390, 150, 190, 24, 0);
+        g_reward.eligibility_max_edit = create_edit(hwnd,
+            IDC_REWARD_ELIGIBILITY_MAX, 580, 146, 150, 28);
+        create_static(hwnd, "REWARD MIN", 24, 196, 170, 24, 0);
+        g_reward.reward_min_edit = create_edit(hwnd, IDC_REWARD_MIN,
+            190, 192, 120, 28);
+        create_static(hwnd, "REWARD MAX", 390, 196, 190, 24, 0);
+        g_reward.reward_max_edit = create_edit(hwnd, IDC_REWARD_MAX,
+            580, 192, 150, 28);
+        g_reward.clip_checkbox = create_checkbox(hwnd, "", IDC_REWARD_CLIP,
+            26, 240, 24, 24);
+        create_static(hwnd, "CLIP REWARD", 58, 242, 190, 24, 0);
+
+        g_reward.record_history_checkbox = create_checkbox(hwnd, "",
+            IDC_REWARD_RECORD_HISTORY, 26, 290, 24, 24);
+        create_static(hwnd, "REGISTRAR HISTORICO", 58, 292, 230, 24, 0);
+        create_static(hwnd, "INTERVALO", 310, 292, 130, 24, 0);
+        g_reward.record_interval_edit = create_edit(hwnd,
+            IDC_REWARD_RECORD_INTERVAL, 430, 288, 100, 28);
+        create_static(hwnd, "LIMITE", 550, 292, 90, 24, 0);
+        g_reward.record_limit_edit = create_edit(hwnd,
+            IDC_REWARD_RECORD_LIMIT, 630, 288, 100, 28);
+
+        create_static(hwnd, "EVENTOS (STEP:VALOR; STEP:VALOR)",
+            24, 342, 520, 24, 0);
+        g_reward.events_edit = CreateWindowExA(WS_EX_CLIENTEDGE, "EDIT", "",
+            WS_CHILD | WS_VISIBLE | WS_TABSTOP | ES_MULTILINE |
+            ES_AUTOVSCROLL | WS_VSCROLL,
+            24, 372, 706, 120, hwnd,
+            (HMENU)(INT_PTR)IDC_REWARD_EVENTS, GetModuleHandleA(NULL), NULL);
+        SendMessageA(g_reward.events_edit, WM_SETFONT,
+            (WPARAM)g_app.edit_font, TRUE);
+        SendMessageA(g_reward.events_edit, EM_SETLIMITTEXT,
+            REWARD_EVENTS_TEXT_SIZE - 1, 0);
+        create_static(hwnd,
+            "O reward do step k e aplicado depois da elegibilidade do proprio step.",
+            24, 510, 706, 24, 0);
+        create_button(hwnd, "APLICAR", IDC_REWARD_APPLY, 230, 554, 130, 36);
+        create_button(hwnd, "CANCELAR", IDC_REWARD_CANCEL, 390, 554, 130, 36);
+        reward_to_controls();
+        enable_dark_title_bar(hwnd);
+        return 0;
+    case WM_COMMAND:
+        if (HIWORD(wparam) == BN_CLICKED)
+        {
+            if (LOWORD(wparam) == IDC_REWARD_APPLY)
+            {
+                apply_reward_options();
+                return 0;
+            }
+            if (LOWORD(wparam) == IDC_REWARD_CANCEL)
+            {
+                DestroyWindow(hwnd);
+                return 0;
+            }
+        }
+        break;
+    case WM_CTLCOLORSTATIC:
+        return handle_color((HDC)wparam, (HWND)lparam);
+    case WM_CTLCOLOREDIT:
+    case WM_CTLCOLORLISTBOX:
+        return handle_edit_color((HDC)wparam);
+    case WM_DRAWITEM:
+        draw_button((const DRAWITEMSTRUCT *)lparam);
+        return TRUE;
+    case WM_ERASEBKGND:
+    {
+        RECT rect;
+        GetClientRect(hwnd, &rect);
+        FillRect((HDC)wparam, &rect, g_app.background_brush);
+        return 1;
+    }
+    case WM_CLOSE:
+        DestroyWindow(hwnd);
+        return 0;
+    case WM_DESTROY:
+        g_reward.window = NULL;
+        return 0;
+    default:
+        break;
+    }
+    return DefWindowProcA(hwnd, message, wparam, lparam);
+}
+
+static int ensure_reward_class_registered(void)
+{
+    static int registered = 0;
+    WNDCLASSA window_class;
+    if (registered)
+        return 1;
+    memset(&window_class, 0, sizeof(window_class));
+    window_class.lpfnWndProc = reward_options_proc;
+    window_class.hInstance = GetModuleHandleA(NULL);
+    window_class.lpszClassName = "MiniSNNRewardOptionsWindow";
+    window_class.hCursor = LoadCursor(NULL, IDC_ARROW);
+    window_class.hbrBackground = g_app.background_brush;
+    if (!RegisterClassA(&window_class))
+        return 0;
+    registered = 1;
+    return 1;
+}
+
+static void open_reward_options(void)
+{
+    ScenarioConfig config;
+    char error[256];
+    HWND dialog;
+    MSG message;
+
+    if (!controls_to_config(&config, error, sizeof(error)))
+    {
+        show_error("Configuracao invalida", error);
+        return;
+    }
+    if (!ensure_reward_class_registered())
+    {
+        show_error("Erro interno", "Nao foi possivel criar a janela de recompensa.");
+        return;
+    }
+    memset(&g_reward, 0, sizeof(g_reward));
+    g_reward.working_config = config;
+    dialog = CreateWindowExA(WS_EX_DLGMODALFRAME,
+        "MiniSNNRewardOptionsWindow", "RECOMPENSA",
+        WS_POPUP | WS_CAPTION | WS_SYSMENU,
+        CW_USEDEFAULT, CW_USEDEFAULT, 780, 640, g_app.window,
+        NULL, GetModuleHandleA(NULL), NULL);
+    if (dialog == NULL)
+    {
+        show_error("Erro interno", "Nao foi possivel abrir a janela de recompensa.");
+        return;
+    }
+    EnableWindow(g_app.window, FALSE);
+    ShowWindow(dialog, SW_SHOW);
+    UpdateWindow(dialog);
+    while (g_reward.window != NULL && GetMessageA(&message, NULL, 0, 0) > 0)
+    {
+        if (!IsDialogMessageA(dialog, &message))
+        {
+            TranslateMessage(&message);
+            DispatchMessageA(&message);
+        }
+    }
+    EnableWindow(g_app.window, TRUE);
+    SetActiveWindow(g_app.window);
+}
+
 static void add_field(
     HWND parent,
     int id,
@@ -4503,6 +5187,14 @@ static void create_controls(HWND hwnd)
         y + 16 * STUDIO_ROW_HEIGHT + 2,
         280,
         STUDIO_BUTTON_HEIGHT);
+    g_app.reward_button = create_button(
+        hwnd,
+        "RECOMPENSA",
+        IDC_BTN_REWARD,
+        x2,
+        y + 17 * STUDIO_ROW_HEIGHT + 2,
+        280,
+        STUDIO_BUTTON_HEIGHT);
 
     g_app.execution_section_label = create_static(
         hwnd,
@@ -4561,14 +5253,16 @@ static void create_controls(HWND hwnd)
     g_app.buttons[18] = create_button(hwnd, "ABRIR STDP", IDC_BTN_OPEN_STDP, right_x + STUDIO_BUTTON_WIDTH_LEFT + STUDIO_BUTTON_GAP, 116 + 10 * STUDIO_BUTTON_ROW_HEIGHT, STUDIO_BUTTON_WIDTH_RIGHT, STUDIO_BUTTON_HEIGHT);
     g_app.buttons[19] = create_button(hwnd, "GRAFICO HOMEOSTASE", IDC_BTN_PLOT_HOMEOSTASIS, right_x, 116 + 11 * STUDIO_BUTTON_ROW_HEIGHT, STUDIO_BUTTON_WIDTH_LEFT, STUDIO_BUTTON_HEIGHT);
     g_app.buttons[20] = create_button(hwnd, "ABRIR HOMEOSTASE", IDC_BTN_OPEN_HOMEOSTASIS, right_x + STUDIO_BUTTON_WIDTH_LEFT + STUDIO_BUTTON_GAP, 116 + 11 * STUDIO_BUTTON_ROW_HEIGHT, STUDIO_BUTTON_WIDTH_RIGHT, STUDIO_BUTTON_HEIGHT);
-    g_app.status_label = create_static(hwnd, "PRONTO PARA EXECUTAR", right_x, 668, 340, 42, IDC_STATUS);
+    g_app.buttons[21] = create_button(hwnd, "GRAFICO RECOMPENSA", IDC_BTN_PLOT_REWARD, right_x, 116 + 12 * STUDIO_BUTTON_ROW_HEIGHT, STUDIO_BUTTON_WIDTH_LEFT, STUDIO_BUTTON_HEIGHT);
+    g_app.buttons[22] = create_button(hwnd, "ABRIR RECOMPENSA", IDC_BTN_OPEN_REWARD, right_x + STUDIO_BUTTON_WIDTH_LEFT + STUDIO_BUTTON_GAP, 116 + 12 * STUDIO_BUTTON_ROW_HEIGHT, STUDIO_BUTTON_WIDTH_RIGHT, STUDIO_BUTTON_HEIGHT);
+    g_app.status_label = create_static(hwnd, "PRONTO PARA EXECUTAR", right_x, 714, 340, 42, IDC_STATUS);
     g_app.summary_box = CreateWindowExA(
         WS_EX_CLIENTEDGE,
         "EDIT",
         "",
         WS_CHILD | WS_VISIBLE | ES_MULTILINE | ES_READONLY | ES_AUTOVSCROLL | WS_VSCROLL,
         right_x,
-        720,
+        766,
         340,
         145,
         hwnd,
@@ -4595,7 +5289,7 @@ static void layout_controls(HWND hwnd)
     height = rect.bottom - rect.top;
     right_x = right_content_left(width);
     content_width = STUDIO_RIGHT_PANEL_WIDTH - 2 * STUDIO_RIGHT_CONTENT_PADDING;
-    summary_height = height - 740;
+    summary_height = height - 786;
 
     if (summary_height < 140)
         summary_height = 140;
@@ -4603,8 +5297,8 @@ static void layout_controls(HWND hwnd)
     MoveWindow(g_app.execution_section_label, right_x, 92, 174, 24, TRUE);
     MoveWindow(g_app.diagnostics_label, right_x + 178, 94, 54, 24, TRUE);
     MoveWindow(g_app.diagnostics_combo, right_x + 230, 90, 110, 120, TRUE);
-    MoveWindow(g_app.status_label, right_x, 668, content_width, 42, TRUE);
-    MoveWindow(g_app.summary_box, right_x, 720, content_width, summary_height, TRUE);
+    MoveWindow(g_app.status_label, right_x, 714, content_width, 42, TRUE);
+    MoveWindow(g_app.summary_box, right_x, 766, content_width, summary_height, TRUE);
 
     MoveWindow(g_app.buttons[0], right_x, 116, STUDIO_BUTTON_WIDTH_LEFT, STUDIO_BUTTON_HEIGHT, TRUE);
     MoveWindow(g_app.buttons[1], right_x + STUDIO_BUTTON_WIDTH_LEFT + STUDIO_BUTTON_GAP, 116, STUDIO_BUTTON_WIDTH_RIGHT, STUDIO_BUTTON_HEIGHT, TRUE);
@@ -4627,6 +5321,8 @@ static void layout_controls(HWND hwnd)
     MoveWindow(g_app.buttons[18], right_x + STUDIO_BUTTON_WIDTH_LEFT + STUDIO_BUTTON_GAP, 116 + 10 * STUDIO_BUTTON_ROW_HEIGHT, STUDIO_BUTTON_WIDTH_RIGHT, STUDIO_BUTTON_HEIGHT, TRUE);
     MoveWindow(g_app.buttons[19], right_x, 116 + 11 * STUDIO_BUTTON_ROW_HEIGHT, STUDIO_BUTTON_WIDTH_LEFT, STUDIO_BUTTON_HEIGHT, TRUE);
     MoveWindow(g_app.buttons[20], right_x + STUDIO_BUTTON_WIDTH_LEFT + STUDIO_BUTTON_GAP, 116 + 11 * STUDIO_BUTTON_ROW_HEIGHT, STUDIO_BUTTON_WIDTH_RIGHT, STUDIO_BUTTON_HEIGHT, TRUE);
+    MoveWindow(g_app.buttons[21], right_x, 116 + 12 * STUDIO_BUTTON_ROW_HEIGHT, STUDIO_BUTTON_WIDTH_LEFT, STUDIO_BUTTON_HEIGHT, TRUE);
+    MoveWindow(g_app.buttons[22], right_x + STUDIO_BUTTON_WIDTH_LEFT + STUDIO_BUTTON_GAP, 116 + 12 * STUDIO_BUTTON_ROW_HEIGHT, STUDIO_BUTTON_WIDTH_RIGHT, STUDIO_BUTTON_HEIGHT, TRUE);
 
     InvalidateRect(hwnd, NULL, TRUE);
 }
@@ -4867,6 +5563,9 @@ static LRESULT CALLBACK window_proc(
             case IDC_BTN_HOMEOSTASIS:
                 open_homeostasis_options();
                 return 0;
+            case IDC_BTN_REWARD:
+                open_reward_options();
+                return 0;
             case IDC_BTN_PLOT_PLASTICITY:
                 generate_plasticity_graph();
                 return 0;
@@ -4881,6 +5580,12 @@ static LRESULT CALLBACK window_proc(
                 return 0;
             case IDC_BTN_OPEN_HOMEOSTASIS:
                 open_homeostasis_report();
+                return 0;
+            case IDC_BTN_PLOT_REWARD:
+                generate_reward_graph();
+                return 0;
+            case IDC_BTN_OPEN_REWARD:
+                open_reward_report();
                 return 0;
             default:
                 break;

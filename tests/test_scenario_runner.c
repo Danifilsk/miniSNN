@@ -23,6 +23,11 @@
 #define TEST_STDP_MIXED_RUN_NAME "test_scenario_runner_stdp_mixed"
 #define TEST_STDP_SAMPLE_RUN_NAME "test_scenario_runner_stdp_sample"
 #define TEST_STDP_EMPTY_RUN_NAME "test_scenario_runner_stdp_empty"
+#define TEST_REWARD_RUN_NAME "test_scenario_runner_reward"
+#define TEST_PUNISHMENT_RUN_NAME "test_scenario_runner_punishment"
+#define TEST_DELAYED_RUN_NAME "test_scenario_runner_reward_delayed"
+#define TEST_REWARD_SAME_STEP_RUN_NAME "test_scenario_runner_reward_same_step"
+#define TEST_REWARD_SAMPLE_RUN_NAME "test_scenario_runner_reward_sample"
 
 static int fail(const char *message)
 {
@@ -41,6 +46,11 @@ static int fail(const char *message)
     system("if exist results\\scenarios\\test_scenario_runner_stdp_mixed rmdir /S /Q results\\scenarios\\test_scenario_runner_stdp_mixed");
     system("if exist results\\scenarios\\test_scenario_runner_stdp_sample rmdir /S /Q results\\scenarios\\test_scenario_runner_stdp_sample");
     system("if exist results\\scenarios\\test_scenario_runner_stdp_empty rmdir /S /Q results\\scenarios\\test_scenario_runner_stdp_empty");
+    system("if exist results\\scenarios\\test_scenario_runner_reward rmdir /S /Q results\\scenarios\\test_scenario_runner_reward");
+    system("if exist results\\scenarios\\test_scenario_runner_punishment rmdir /S /Q results\\scenarios\\test_scenario_runner_punishment");
+    system("if exist results\\scenarios\\test_scenario_runner_reward_delayed rmdir /S /Q results\\scenarios\\test_scenario_runner_reward_delayed");
+    system("if exist results\\scenarios\\test_scenario_runner_reward_same_step rmdir /S /Q results\\scenarios\\test_scenario_runner_reward_same_step");
+    system("if exist results\\scenarios\\test_scenario_runner_reward_sample rmdir /S /Q results\\scenarios\\test_scenario_runner_reward_sample");
     printf("FAIL: %s\n", message);
     return 0;
 }
@@ -808,6 +818,183 @@ static int check_deterministic_plasticity_sampling(void)
     return 1;
 }
 
+static int read_reward_history_step_zero_ids(
+    const char *path,
+    size_t *ids,
+    size_t capacity)
+{
+    FILE *file = fopen(path, "r");
+    char line[1024];
+    size_t count = 0;
+
+    if (file == NULL || fgets(line, sizeof(line), file) == NULL)
+    {
+        if (file != NULL)
+            fclose(file);
+        return -1;
+    }
+
+    while (fgets(line, sizeof(line), file) != NULL)
+    {
+        int step;
+        unsigned long long connection_id;
+        unsigned long long source;
+        unsigned long long target;
+        double eligibility;
+        int sampled;
+
+        if (sscanf(
+                line,
+                "%d,%llu,%llu,%llu,%lf,%d",
+                &step,
+                &connection_id,
+                &source,
+                &target,
+                &eligibility,
+                &sampled) != 6)
+        {
+            fclose(file);
+            return -1;
+        }
+
+        if (step == 0)
+        {
+            if (count >= capacity || sampled != 1)
+            {
+                fclose(file);
+                return -1;
+            }
+            ids[count++] = (size_t)connection_id;
+        }
+    }
+
+    fclose(file);
+    return (int)count;
+}
+
+static int sampled_reward_connections_are_excitatory(
+    const char *path,
+    const size_t *expected,
+    size_t expected_count)
+{
+    FILE *file = fopen(path, "r");
+    char line[2048];
+    size_t found = 0;
+
+    if (file == NULL || fgets(line, sizeof(line), file) == NULL)
+    {
+        if (file != NULL)
+            fclose(file);
+        return 0;
+    }
+
+    while (fgets(line, sizeof(line), file) != NULL)
+    {
+        unsigned long long connection_id;
+        unsigned long long source;
+        unsigned long long target;
+        char source_type[8];
+        char target_type[8];
+        int eligible;
+        int sampled;
+
+        if (sscanf(
+                line,
+                "%llu,%llu,%llu,%7[^,],%7[^,],%d,%d,",
+                &connection_id,
+                &source,
+                &target,
+                source_type,
+                target_type,
+                &eligible,
+                &sampled) != 7)
+        {
+            fclose(file);
+            return 0;
+        }
+
+        if (sampled)
+        {
+            if (found >= expected_count ||
+                (size_t)connection_id != expected[found] ||
+                strcmp(source_type, "EXC") != 0 ||
+                eligible != 1)
+            {
+                fclose(file);
+                return 0;
+            }
+            found++;
+        }
+    }
+
+    fclose(file);
+    return found == expected_count;
+}
+
+static int check_distributed_reward_sampling(void)
+{
+    ScenarioConfig config;
+    ScenarioRunResult result;
+    char error[256];
+    size_t first[5];
+    size_t second[5];
+    const size_t expected[5] = {0U, 4U, 9U, 14U, 19U};
+    const char *history_path =
+        "results/scenarios/test_scenario_runner_reward_sample/eligibility_history.csv";
+    const char *connections_path =
+        "results/scenarios/test_scenario_runner_reward_sample/reward_connections.csv";
+
+    scenario_config_default(&config);
+    snprintf(config.run_name, sizeof(config.run_name), TEST_REWARD_SAMPLE_RUN_NAME);
+    snprintf(config.topology, sizeof(config.topology), "all_to_all");
+    config.neurons = 5;
+    config.inhibitory_fraction = 0.0;
+    config.allow_self_connections = 0;
+    config.source_count = 1;
+    config.input_current = 0.0;
+    config.steps = 1;
+    config.record_neuron = 0;
+    config.auto_unique_run = 0;
+    config.history_enabled = 0;
+    config.plasticity_enabled = 1;
+    snprintf(
+        config.plasticity_learning_mode,
+        sizeof(config.plasticity_learning_mode),
+        "reward_modulated_stdp");
+    config.plasticity_weight_max = 300.0;
+    config.reward_enabled = 1;
+    config.reward_record_history = 1;
+    config.reward_record_connection_limit = 5;
+
+    system("if exist results\\scenarios\\test_scenario_runner_reward_sample rmdir /S /Q results\\scenarios\\test_scenario_runner_reward_sample");
+    if (!scenario_runner_execute(&config, NULL, &result, error, sizeof(error)) ||
+        result.connection_count != 20 ||
+        read_reward_history_step_zero_ids(history_path, first, 5) != 5 ||
+        !sampled_reward_connections_are_excitatory(
+            connections_path, expected, 5))
+    {
+        return 0;
+    }
+
+    system("if exist results\\scenarios\\test_scenario_runner_reward_sample rmdir /S /Q results\\scenarios\\test_scenario_runner_reward_sample");
+    if (!scenario_runner_execute(&config, NULL, &result, error, sizeof(error)) ||
+        read_reward_history_step_zero_ids(history_path, second, 5) != 5)
+    {
+        return 0;
+    }
+
+    for (size_t i = 0; i < 5; i++)
+    {
+        if (first[i] != expected[i] || second[i] != expected[i] ||
+            (i > 0 && (first[i] <= first[i - 1] || second[i] <= second[i - 1])))
+        {
+            return 0;
+        }
+    }
+
+    return 1;
+}
+
 static int check_empty_plasticity_run(void)
 {
     ScenarioConfig config;
@@ -872,6 +1059,136 @@ static int check_empty_plasticity_run(void)
     return eligible == 0;
 }
 
+static int read_first_double_column(
+    const char *path,
+    int requested_column,
+    double *out_value)
+{
+    FILE *file = fopen(path, "r");
+    char line[4096];
+    char *token;
+    int column = 0;
+
+    if (file == NULL || fgets(line, sizeof(line), file) == NULL ||
+        fgets(line, sizeof(line), file) == NULL)
+    {
+        if (file != NULL)
+            fclose(file);
+        return 0;
+    }
+    fclose(file);
+    token = strtok(line, ",");
+    while (token != NULL)
+    {
+        if (column == requested_column)
+        {
+            *out_value = strtod(token, NULL);
+            return isfinite(*out_value);
+        }
+        column++;
+        token = strtok(NULL, ",");
+    }
+    return 0;
+}
+
+static int check_reward_runner_outputs(void)
+{
+    const char *configs[] = {
+        "configs/reward_positive_demo.ini",
+        "configs/punishment_negative_demo.ini",
+        "configs/reward_delayed_demo.ini"
+    };
+    const char *names[] = {
+        TEST_REWARD_RUN_NAME,
+        TEST_PUNISHMENT_RUN_NAME,
+        TEST_DELAYED_RUN_NAME
+    };
+    double changes[3];
+    int case_index;
+
+    for (case_index = 0; case_index < 3; case_index++)
+    {
+        ScenarioConfig config;
+        ScenarioRunResult result;
+        char error[256];
+        char directory[256];
+        char path[320];
+
+        if (!scenario_config_load_file(
+                configs[case_index], &config, error, sizeof(error)))
+            return 0;
+        snprintf(config.run_name, sizeof(config.run_name), "%s", names[case_index]);
+        config.history_enabled = 0;
+        config.auto_unique_run = 0;
+        if (!scenario_runner_execute(&config, NULL, &result, error, sizeof(error)))
+            return 0;
+
+        snprintf(directory, sizeof(directory), "results/scenarios/%s", names[case_index]);
+        snprintf(path, sizeof(path), "%s/reward_connections.csv", directory);
+        if (!file_exists(path) || !read_first_double_column(path, 9, &changes[case_index]))
+            return 0;
+        snprintf(path, sizeof(path), "%s/reward_metrics.csv", directory);
+        if (!file_exists(path) || !csv_header_contains(path, "reward_event_count"))
+            return 0;
+        snprintf(path, sizeof(path), "%s/reward_events.csv", directory);
+        if (!file_exists(path))
+            return 0;
+        snprintf(path, sizeof(path), "%s/reward_history.csv", directory);
+        if (!history_ends_at_step(path, config.steps))
+            return 0;
+        snprintf(path, sizeof(path), "%s/eligibility_history.csv", directory);
+        if (!file_exists(path))
+            return 0;
+        snprintf(path, sizeof(path), "%s/reward_report.txt", directory);
+        if (report_has_non_finite_token(path))
+            return 0;
+        snprintf(path, sizeof(path), "%s/reward_report.html", directory);
+        if (!file_exists(path))
+            return 0;
+    }
+
+    if (!(changes[0] > 0.0 && changes[1] < 0.0 && changes[2] > 0.0 &&
+          changes[2] < changes[0]))
+    {
+        return 0;
+    }
+
+    {
+        ScenarioConfig config;
+        ScenarioRunResult result;
+        char error[256];
+        double raw_reward;
+        double component_count;
+
+        if (!scenario_config_load_file(
+                "configs/reward_positive_demo.ini", &config, error, sizeof(error)))
+            return 0;
+        snprintf(config.run_name, sizeof(config.run_name),
+            TEST_REWARD_SAME_STEP_RUN_NAME);
+        config.history_enabled = 0;
+        config.reward_event_count = 2;
+        config.reward_events[0].index = 0;
+        config.reward_events[0].step = 900;
+        config.reward_events[0].value = 0.6;
+        config.reward_events[1].index = 1;
+        config.reward_events[1].step = 900;
+        config.reward_events[1].value = 0.4;
+        if (!scenario_runner_execute(&config, NULL, &result, error, sizeof(error)) ||
+            !read_first_double_column(
+                "results/scenarios/test_scenario_runner_reward_same_step/reward_events.csv",
+                1, &raw_reward) ||
+            !read_first_double_column(
+                "results/scenarios/test_scenario_runner_reward_same_step/reward_events.csv",
+                3, &component_count) ||
+            fabs(raw_reward - 1.0) > 1e-12 || component_count != 2.0)
+        {
+            return 0;
+        }
+    }
+
+    return 1;
+}
+
 int main(void)
 {
     ScenarioConfig config;
@@ -920,7 +1237,8 @@ int main(void)
     }
 
     if (file_exists(TEST_OUTPUT_DIR "/weights_initial.csv") ||
-        file_exists(TEST_OUTPUT_DIR "/plasticity_metrics.csv"))
+        file_exists(TEST_OUTPUT_DIR "/plasticity_metrics.csv") ||
+        file_exists(TEST_OUTPUT_DIR "/reward_metrics.csv"))
     {
         return fail("plasticity outputs were created while STDP was off");
     }
@@ -1012,11 +1330,22 @@ int main(void)
     if (!check_empty_plasticity_run())
         return fail("silent plasticity run with zero eligible connections failed");
 
+    if (!check_reward_runner_outputs())
+        return fail("reward runner outputs, aggregation, or delayed reward failed");
+
+    if (!check_distributed_reward_sampling())
+        return fail("reward history sample IDs differ from 0,4,9,14,19");
+
     system("if exist results\\scenarios\\test_scenario_runner_temp rmdir /S /Q results\\scenarios\\test_scenario_runner_temp");
     system("if exist results\\scenarios\\test_scenario_runner_stdp_ltd rmdir /S /Q results\\scenarios\\test_scenario_runner_stdp_ltd");
     system("if exist results\\scenarios\\test_scenario_runner_stdp_mixed rmdir /S /Q results\\scenarios\\test_scenario_runner_stdp_mixed");
     system("if exist results\\scenarios\\test_scenario_runner_stdp_sample rmdir /S /Q results\\scenarios\\test_scenario_runner_stdp_sample");
     system("if exist results\\scenarios\\test_scenario_runner_stdp_empty rmdir /S /Q results\\scenarios\\test_scenario_runner_stdp_empty");
+    system("if exist results\\scenarios\\test_scenario_runner_reward rmdir /S /Q results\\scenarios\\test_scenario_runner_reward");
+    system("if exist results\\scenarios\\test_scenario_runner_punishment rmdir /S /Q results\\scenarios\\test_scenario_runner_punishment");
+    system("if exist results\\scenarios\\test_scenario_runner_reward_delayed rmdir /S /Q results\\scenarios\\test_scenario_runner_reward_delayed");
+    system("if exist results\\scenarios\\test_scenario_runner_reward_same_step rmdir /S /Q results\\scenarios\\test_scenario_runner_reward_same_step");
+    system("if exist results\\scenarios\\test_scenario_runner_reward_sample rmdir /S /Q results\\scenarios\\test_scenario_runner_reward_sample");
     printf("Scenario runner validation OK\n");
     return 0;
 }

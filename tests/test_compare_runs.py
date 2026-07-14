@@ -176,6 +176,27 @@ def write_homeostasis_metrics(path: Path) -> None:
         )
 
 
+def write_reward_metrics(path: Path) -> None:
+    values = {
+        "reward_enabled": "true",
+        "reward_event_count": 2,
+        "reward_positive_event_count": 1,
+        "reward_negative_event_count": 1,
+        "reward_cumulative_applied": 0.5,
+        "reward_cumulative_absolute": 1.5,
+        "reward_modified_connection_fraction": 0.5,
+        "reward_eligibility_final_mean_absolute": 0.25,
+        "reward_eligibility_max_absolute_observed": 1.0,
+        "reward_weight_total_signed_change": 0.3,
+        "reward_weight_total_absolute_change": 0.7,
+        "reward_weight_mean_absolute_change": 0.35,
+    }
+    with (path / "reward_metrics.csv").open("w", encoding="utf-8", newline="") as file:
+        writer = csv.DictWriter(file, fieldnames=list(values))
+        writer.writeheader()
+        writer.writerow(values)
+
+
 def main() -> int:
     temp_root = PROJECT_ROOT / "build" / "test_compare_runs_temp"
     comparisons_root = temp_root / "comparisons"
@@ -199,6 +220,7 @@ def main() -> int:
         write_stored_metrics(run_a, "run_a")
         write_plasticity_metrics(run_a)
         write_homeostasis_metrics(run_a)
+        write_reward_metrics(run_a)
 
         output_dir = compare_runs(
             [run_a, run_b],
@@ -279,12 +301,21 @@ def main() -> int:
         if stored["homeostasis_metrics_source"] != "homeostasis_metrics.csv":
             print("FAIL: homeostasis_metrics.csv was not reused")
             return 1
+        close(stored["reward_weight_total_signed_change"], 0.3,
+              "reward signed change")
+        if stored["reward_metrics_source"] != "reward_metrics.csv":
+            print("FAIL: reward_metrics.csv was not reused")
+            return 1
         report = (output_dir / "comparison_report.txt").read_text(encoding="utf-8")
         if "Plasticidade:" not in report or "plasticity_final_weight_mean" not in report:
             print("FAIL: comparison report lacks plasticity evidence")
             return 1
         if "Homeostase:" not in report or "homeostasis_population_rate_final" not in report:
             print("FAIL: comparison report lacks homeostasis evidence")
+            return 1
+        if ("Recompensa, punicao e elegibilidade:" not in report or
+                "reward_weight_total_signed_change" not in report):
+            print("FAIL: reward comparison section missing")
             return 1
 
         close(derived["total_spikes"], 5.0, "derived total")

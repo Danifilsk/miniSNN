@@ -255,6 +255,21 @@ static int configs_match(
     const ScenarioConfig *a,
     const ScenarioConfig *b)
 {
+    int event_index;
+
+    if (a->reward_event_count != b->reward_event_count)
+        return 0;
+    for (event_index = 0; event_index < a->reward_event_count; event_index++)
+    {
+        if (a->reward_events[event_index].index != b->reward_events[event_index].index ||
+            a->reward_events[event_index].step != b->reward_events[event_index].step ||
+            !double_close(a->reward_events[event_index].value,
+                          b->reward_events[event_index].value))
+        {
+            return 0;
+        }
+    }
+
     return strcmp(a->run_name, b->run_name) == 0 &&
            strcmp(a->topology, b->topology) == 0 &&
            a->neurons == b->neurons &&
@@ -295,6 +310,8 @@ static int configs_match(
            a->sample_stride == b->sample_stride &&
            a->plasticity_enabled == b->plasticity_enabled &&
            strcmp(a->plasticity_rule, b->plasticity_rule) == 0 &&
+           strcmp(a->plasticity_learning_mode,
+               b->plasticity_learning_mode) == 0 &&
            double_close(a->plasticity_a_plus, b->plasticity_a_plus) &&
            double_close(a->plasticity_a_minus, b->plasticity_a_minus) &&
            double_close(a->plasticity_tau_plus, b->plasticity_tau_plus) &&
@@ -346,7 +363,19 @@ static int configs_match(
            a->homeostasis_record_interval_steps ==
                b->homeostasis_record_interval_steps &&
            a->homeostasis_record_neuron_limit ==
-               b->homeostasis_record_neuron_limit;
+               b->homeostasis_record_neuron_limit &&
+           a->reward_enabled == b->reward_enabled &&
+           strcmp(a->reward_mode, b->reward_mode) == 0 &&
+           double_close(a->reward_learning_rate, b->reward_learning_rate) &&
+           double_close(a->reward_eligibility_tau, b->reward_eligibility_tau) &&
+           double_close(a->reward_eligibility_min, b->reward_eligibility_min) &&
+           double_close(a->reward_eligibility_max, b->reward_eligibility_max) &&
+           double_close(a->reward_min, b->reward_min) &&
+           double_close(a->reward_max, b->reward_max) &&
+           a->reward_clip == b->reward_clip &&
+           a->reward_record_history == b->reward_record_history &&
+           a->reward_record_interval_steps == b->reward_record_interval_steps &&
+           a->reward_record_connection_limit == b->reward_record_connection_limit;
 }
 
 static int check_save_and_reload(void)
@@ -372,6 +401,8 @@ static int check_save_and_reload(void)
     config.history_enabled = 0;
     snprintf(config.diagnostics_level, sizeof(config.diagnostics_level), "full");
     config.plasticity_enabled = 1;
+    snprintf(config.plasticity_learning_mode,
+        sizeof(config.plasticity_learning_mode), "reward_modulated_stdp");
     config.plasticity_a_plus = 0.75;
     config.plasticity_record_history = 0;
     config.plasticity_record_interval_steps = 7;
@@ -382,6 +413,18 @@ static int check_save_and_reload(void)
     config.homeostasis_inhibitory_gain_enabled = 1;
     config.homeostasis_record_interval_steps = 7;
     config.homeostasis_record_neuron_limit = 19;
+    config.reward_enabled = 1;
+    config.reward_learning_rate = 0.75;
+    config.reward_eligibility_tau = 80.0;
+    config.reward_record_interval_steps = 7;
+    config.reward_record_connection_limit = 19;
+    config.reward_event_count = 2;
+    config.reward_events[0].index = 0;
+    config.reward_events[0].step = 10;
+    config.reward_events[0].value = 1.0;
+    config.reward_events[1].index = 1;
+    config.reward_events[1].step = 20;
+    config.reward_events[1].value = -0.5;
 
     if (!scenario_config_save_file(
             TEMP_SAVE_PATH,
@@ -629,6 +672,90 @@ int main(void)
 
     if (legacy_config.homeostasis_enabled != 0)
         return fail("legacy config did not default homeostasis to off");
+
+    if (legacy_config.reward_enabled != 0 ||
+        strcmp(legacy_config.plasticity_learning_mode, "direct_stdp") != 0)
+    {
+        return fail("legacy config did not default reward off and direct STDP");
+    }
+
+    if (!load_text_expect_success(
+            "steps = 100\n[plasticity]\nenabled = true\n"
+            "learning_mode = reward_modulated_stdp\n"
+            "[reward]\nenabled = true\nmode = rstdp\nlearning_rate = 0.5\n"
+            "eligibility_tau = 50\neligibility_min = -10\neligibility_max = 10\n"
+            "reward_min = -2\nreward_max = 2\nclip_reward = true\n"
+            "record_history = true\nrecord_interval_steps = 5\n"
+            "record_connection_limit = 8\n"
+            "[reward_events]\nevent_1 = 20,-0.5\nevent_0 = 10,1.0\n",
+            &empty_config) ||
+        !empty_config.reward_enabled || empty_config.reward_event_count != 2 ||
+        empty_config.reward_events[0].index != 0 ||
+        empty_config.reward_events[0].step != 10 ||
+        empty_config.reward_events[1].index != 1 ||
+        empty_config.reward_events[1].step != 20)
+    {
+        return fail("valid reward section/events were not loaded and sorted");
+    }
+
+    if (!load_text_expect_failure(
+            "[reward]\nenabled = true\n",
+            "reward enabled with plasticity off was accepted") ||
+        !load_text_expect_failure(
+            "[plasticity]\nenabled = true\nlearning_mode = direct_stdp\n"
+            "[reward]\nenabled = true\n",
+            "reward enabled with direct STDP was accepted") ||
+        !load_text_expect_failure(
+            "[plasticity]\nenabled = true\nlearning_mode = reward_modulated_stdp\n",
+            "R-STDP with reward off was accepted") ||
+        !load_text_expect_failure(
+            "[reward]\nmode = dopamine\n",
+            "unknown reward mode was accepted") ||
+        !load_text_expect_failure(
+            "[reward]\nlearning_rate = NaN\n",
+            "non-finite reward learning rate was accepted") ||
+        !load_text_expect_failure(
+            "[reward]\neligibility_tau = 0\n",
+            "zero eligibility tau was accepted") ||
+        !load_text_expect_failure(
+            "[reward]\neligibility_min = 0\n",
+            "non-negative eligibility minimum was accepted") ||
+        !load_text_expect_failure(
+            "[reward]\nreward_min = 1\n",
+            "positive reward minimum was accepted") ||
+        !load_text_expect_failure(
+            "[reward]\nclip_reward = talvez\n",
+            "invalid reward boolean was accepted") ||
+        !load_text_expect_failure(
+            "[reward]\nrecord_interval_steps = 0\n",
+            "zero reward record interval was accepted") ||
+        !load_text_expect_failure(
+            "[reward]\nunknown = 1\n",
+            "unknown reward key was accepted") ||
+        !load_text_expect_failure(
+            "[reward]\nmode = rstdp\nmode = rstdp\n",
+            "duplicate reward key was accepted") ||
+        !load_text_expect_failure(
+            "[reward_events]\nevent_0 = 10,1.0\nevent_0 = 20,-1.0\n",
+            "duplicate reward event index was accepted") ||
+        !load_text_expect_failure(
+            "[reward_events]\nevent_1 = 10,1.0\n",
+            "reward event index gap was accepted") ||
+        !load_text_expect_failure(
+            "[reward_events]\nevent_0 = -1,1.0\n",
+            "negative reward event step was accepted") ||
+        !load_text_expect_failure(
+            "[reward_events]\nevent_0 = 10,NaN\n",
+            "non-finite reward event was accepted") ||
+        !load_text_expect_failure(
+            "steps = 10\n[reward_events]\nevent_0 = 10,1.0\n",
+            "reward event outside run was accepted") ||
+        !load_text_expect_failure(
+            "[reward_events]\nevent_0 = 10,1.0,extra\n",
+            "reward event trailing text was accepted"))
+    {
+        return 1;
+    }
 
     if (!load_text_expect_success(
             "run_name = legacy_threshold\ntopology = chain\nneurons = 2\n"

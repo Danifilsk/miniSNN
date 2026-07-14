@@ -18,11 +18,16 @@ static void plasticity_free_index(PlasticityState *state)
     free(state->incoming);
     free(state->source_offsets);
     free(state->deltas);
+    free(state->candidate_ids);
+    free(state->candidate_active);
     free(state->modified);
 
     state->incoming = NULL;
     state->source_offsets = NULL;
     state->deltas = NULL;
+    state->candidate_ids = NULL;
+    state->candidate_active = NULL;
+    state->candidate_count = 0;
     state->modified = NULL;
     state->connection_count = 0;
     state->index_valid = 0;
@@ -58,6 +63,7 @@ MiniSNNPlasticityConfig plasticity_default_config(void)
 
     config.enabled = 0;
     config.rule = MINISNN_PLASTICITY_STDP_PAIR_TRACE;
+    config.learning_mode = MINISNN_LEARNING_MODE_DIRECT_STDP;
     config.a_plus = 1.0;
     config.a_minus = 1.05;
     config.tau_plus = 20.0;
@@ -77,6 +83,12 @@ int plasticity_config_is_valid(
 
     if (config->rule != MINISNN_PLASTICITY_NONE &&
         config->rule != MINISNN_PLASTICITY_STDP_PAIR_TRACE)
+    {
+        return 0;
+    }
+
+    if (config->learning_mode != MINISNN_LEARNING_MODE_DIRECT_STDP &&
+        config->learning_mode != MINISNN_LEARNING_MODE_REWARD_MODULATED_STDP)
     {
         return 0;
     }
@@ -168,6 +180,8 @@ int plasticity_state_rebuild_index(
     PlasticityIncomingList *incoming = NULL;
     size_t *source_offsets = NULL;
     double *deltas = NULL;
+    size_t *candidate_ids = NULL;
+    unsigned char *candidate_active = NULL;
     unsigned char *modified = NULL;
     size_t *fill_counts = NULL;
     size_t total_connections = 0;
@@ -238,9 +252,14 @@ int plasticity_state_rebuild_index(
     if (total_connections > 0)
     {
         deltas = calloc(total_connections, sizeof(*deltas));
+        candidate_ids = malloc(total_connections * sizeof(*candidate_ids));
+        candidate_active = calloc(
+            total_connections,
+            sizeof(*candidate_active));
         modified = calloc(total_connections, sizeof(*modified));
 
-        if (deltas == NULL || modified == NULL)
+        if (deltas == NULL || candidate_ids == NULL ||
+            candidate_active == NULL || modified == NULL)
             goto fail;
     }
 
@@ -263,6 +282,9 @@ int plasticity_state_rebuild_index(
     state->incoming = incoming;
     state->source_offsets = source_offsets;
     state->deltas = deltas;
+    state->candidate_ids = candidate_ids;
+    state->candidate_active = candidate_active;
+    state->candidate_count = 0;
     state->modified = modified;
     state->connection_count = total_connections;
     state->stats.eligible_connections = eligible_connections;
@@ -278,6 +300,8 @@ fail:
     free(incoming);
     free(source_offsets);
     free(deltas);
+    free(candidate_ids);
+    free(candidate_active);
     free(modified);
     free(fill_counts);
     return 0;
@@ -325,6 +349,30 @@ static int plasticity_decay_traces(PlasticityState *state, double dt)
     return 1;
 }
 
+static int plasticity_add_candidate(
+    PlasticityState *state,
+    size_t connection_id,
+    double delta)
+{
+    if (state == NULL || connection_id >= state->connection_count ||
+        !isfinite(delta))
+    {
+        return 0;
+    }
+
+    if (delta == 0.0)
+        return 1;
+
+    if (!state->candidate_active[connection_id])
+    {
+        state->candidate_active[connection_id] = 1U;
+        state->candidate_ids[state->candidate_count++] = connection_id;
+    }
+
+    state->deltas[connection_id] += delta;
+    return isfinite(state->deltas[connection_id]);
+}
+
 static int plasticity_accumulate_deltas(
     PlasticityState *state,
     const LIFNeuron *neurons,
@@ -362,7 +410,8 @@ static int plasticity_accumulate_deltas(
             if (!isfinite(delta))
                 return 0;
 
-            state->deltas[connection_id] += delta;
+            if (!plasticity_add_candidate(state, connection_id, delta))
+                return 0;
             if (delta != 0.0)
                 state->stats.depression_events++;
         }
@@ -402,7 +451,8 @@ static int plasticity_accumulate_deltas(
             if (!isfinite(delta))
                 return 0;
 
-            state->deltas[connection_id] += delta;
+            if (!plasticity_add_candidate(state, connection_id, delta))
+                return 0;
             if (delta != 0.0)
                 state->stats.potentiation_events++;
         }
@@ -532,13 +582,14 @@ int plasticity_apply_step(
         return 0;
     }
 
-    if (state->connection_count > 0)
+    for (size_t i = 0; i < state->candidate_count; i++)
     {
-        memset(
-            state->deltas,
-            0,
-            state->connection_count * sizeof(*state->deltas));
+        size_t connection_id = state->candidate_ids[i];
+
+        state->deltas[connection_id] = 0.0;
+        state->candidate_active[connection_id] = 0U;
     }
+    state->candidate_count = 0;
 
     if (!plasticity_decay_traces(state, dt) ||
         !plasticity_accumulate_deltas(
@@ -546,7 +597,8 @@ int plasticity_apply_step(
             neurons,
             connections,
             spikes) ||
-        !plasticity_apply_deltas(state, neurons, connections) ||
+        (state->config.learning_mode == MINISNN_LEARNING_MODE_DIRECT_STDP &&
+         !plasticity_apply_deltas(state, neurons, connections)) ||
         !plasticity_increment_traces(state, spikes))
     {
         return 0;

@@ -15,7 +15,8 @@ validada.
 decaimento, sete topologias configuráveis, API pública opaca, cenários INI,
 Studio Win32, CSVs, gráficos, comparação, histórico e diagnóstico
 `off/basic/full`, inspeção de conexões, STDP aditivo por traces para sinapses
-de origem EXC e homeostase opcional de threshold, scaling EXC e ganho INH.
+de origem EXC, homeostase opcional de threshold, scaling EXC e ganho INH, e
+R-STDP opcional com elegibilidade e sinal externo de recompensa/punição.
 
 **Experimental:** métricas de regime, sincronia aproximada e `stability_score`.
 O STDP do C1 também é uma regra experimental simplificada. Esses recursos não
@@ -23,8 +24,8 @@ são verdades biológicas nem prova de aprendizado de tarefa.
 
 **Estado da v0.2:** auditoria automática concluída; revisão manual do Studio e
 revisão humana de release permanecem pendentes. O C1 foi implementado sobre
-essa base; o C1.5 de homeostase foi implementado localmente. Recompensa e
-miniSNN Worlds ainda não estão implementados.
+essa base; C1.5 e C2 foram implementados localmente. miniSNN Worlds e
+neuroevolução ainda não estão implementados.
 
 ## Início rápido
 
@@ -55,12 +56,29 @@ como dados brutos:
 ```powershell
 mingw32-make report-metrics RUN=results/scenarios/random_demo
 mingw32-make report-weights RUN=results/scenarios/stdp_ltp_demo
+mingw32-make report-history
 ```
 
 Os comandos criam `metrics_report.html` e `weights_report.html` dentro da
 própria run. No Studio, `ABRIR METRICAS` e `ABRIR PESOS` abrem esses HTMLs no
 navegador padrão; os links internos continuam dando acesso a `metrics.csv`,
 `weights_final.csv` e aos demais artefatos científicos.
+
+`report-history` gera `results/scenarios/history.html` a partir do
+`index.csv` append-only. O HTML funciona sem internet, mostra as execuções mais
+recentes primeiro e oferece busca, filtros e links para artefatos existentes.
+
+Para executar os cenários de aprendizado modulado por recompensa:
+
+```powershell
+mingw32-make scenario-reward-positive
+mingw32-make scenario-punishment-negative
+mingw32-make scenario-reward-delayed
+mingw32-make scenario-reward-mixed
+```
+
+Cada run ativa gera CSVs de reward, `reward_report.txt`,
+`reward_report.html` e `reward_overview.png`.
 
 ## Estrutura
 
@@ -94,6 +112,7 @@ Referências diretas:
 - [Guia de diagnóstico](docs/GUIA_DE_DIAGNOSTICO.md)
 - [Guia de plasticidade](docs/GUIA_DE_PLASTICIDADE.md)
 - [Guia de homeostase](docs/GUIA_DE_HOMEOSTASE.md)
+- [Guia de recompensa](docs/GUIA_DE_RECOMPENSA.md)
 - [Referência da API pública](API_REFERENCE.md)
 - [Roadmap](docs/ROADMAP.md)
 
@@ -113,9 +132,14 @@ mingw32-make test-plot-plasticity
 mingw32-make test-homeostasis
 mingw32-make test-homeostasis-long
 mingw32-make test-plot-homeostasis
+mingw32-make test-reward
+mingw32-make test-reward-long
+mingw32-make test-plot-reward
 mingw32-make test-run-reports
+mingw32-make test-history-report
 mingw32-make check-c1
 mingw32-make check-c15
+mingw32-make check-c2
 mingw32-make check-v02
 ```
 
@@ -129,7 +153,8 @@ teste está em [Princípios de desenvolvimento](docs/PRINCIPIOS_DE_DESENVOLVIMEN
 - O único modelo neural é o LIF simplificado, sem período refratário explícito.
 - O STDP é aditivo, baseado em emissão e limitado a sinapses de origem EXC.
 - A homeostase é um controle simplificado e opcional; não garante estabilidade.
-- Não há recompensa, memória ou topologia adaptativa.
+- O reward é um escalar externo; não há política, agente, reward prediction error ou garantia de aprendizado de tarefa.
+- Não há memória, neuroevolução ou topologia adaptativa.
 - O Studio depende da API Win32 e o fluxo principal de build foi validado no Windows.
 - Diagnóstico completo depende de Python, pandas e matplotlib.
 - Séries completas de tensão e corrente são gravadas para o neurônio detalhado, não para toda a rede.

@@ -169,6 +169,57 @@ def read_homeostasis_metrics(
     return result
 
 
+REWARD_METRIC_FIELDS = (
+    "reward_event_count",
+    "reward_positive_event_count",
+    "reward_negative_event_count",
+    "reward_cumulative_applied",
+    "reward_cumulative_absolute",
+    "reward_modified_connection_fraction",
+    "reward_eligibility_final_mean_absolute",
+    "reward_eligibility_max_absolute_observed",
+    "reward_weight_total_signed_change",
+    "reward_weight_total_absolute_change",
+    "reward_weight_mean_absolute_change",
+)
+
+
+def read_reward_metrics(
+    run_path: Path,
+    config: ConfigParser,
+    warnings: list[str],
+) -> dict[str, object]:
+    enabled = str(cfg(config, "reward", "enabled", "false")).lower() in {
+        "true", "yes", "sim", "1"
+    }
+    result: dict[str, object] = {
+        "reward_enabled": enabled,
+        "reward_metrics_source": "config (reward off)" if not enabled else "indisponivel",
+    }
+    metrics_path = run_path / "reward_metrics.csv"
+    if metrics_path.exists():
+        try:
+            data = pd.read_csv(metrics_path)
+            if len(data.index) != 1:
+                raise ValueError("esperada exatamente uma linha")
+            for key, value in data.iloc[0].to_dict().items():
+                if pd.notna(value):
+                    if isinstance(value, (int, float, np.number)) and not math.isfinite(float(value)):
+                        raise ValueError(f"valor nao finito em {key}")
+                    result[str(key)] = value
+            result["reward_enabled"] = str(result.get("reward_enabled", enabled)).lower() in {
+                "true", "yes", "sim", "1"
+            }
+            result["reward_metrics_source"] = "reward_metrics.csv"
+        except Exception as error:
+            warnings.append(f"reward_metrics.csv invalido: {error}")
+    elif enabled:
+        warnings.append("Reward ativo, mas reward_metrics.csv esta ausente.")
+    for key in REWARD_METRIC_FIELDS:
+        result.setdefault(key, NA)
+    return result
+
+
 def longest_streak(mask: np.ndarray) -> int:
     best = current = 0
     for value in mask.astype(bool):
@@ -488,6 +539,7 @@ def basic_metrics(run_path: Path, level: str | None = None, keep_events: bool = 
 
     metrics.update(read_plasticity_metrics(run_path, config, warnings))
     metrics.update(read_homeostasis_metrics(run_path, config, warnings))
+    metrics.update(read_reward_metrics(run_path, config, warnings))
 
     if population is None or population.empty:
         spikes = np.zeros(steps, dtype=float)

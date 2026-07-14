@@ -133,6 +133,40 @@ def add_homeostasis_outputs(run: Path) -> None:
         )
 
 
+def add_reward_outputs(run: Path) -> None:
+    fields = [
+        "reward_enabled",
+        "reward_event_count",
+        "reward_positive_event_count",
+        "reward_negative_event_count",
+        "reward_cumulative_applied",
+        "reward_cumulative_absolute",
+        "reward_modified_connection_fraction",
+        "reward_eligibility_final_mean_absolute",
+        "reward_eligibility_max_absolute_observed",
+        "reward_weight_total_signed_change",
+        "reward_weight_total_absolute_change",
+        "reward_weight_mean_absolute_change",
+    ]
+    with (run / "reward_metrics.csv").open("w", encoding="utf-8", newline="") as file:
+        writer = csv.DictWriter(file, fieldnames=fields)
+        writer.writeheader()
+        writer.writerow({
+            "reward_enabled": "true",
+            "reward_event_count": 2,
+            "reward_positive_event_count": 1,
+            "reward_negative_event_count": 1,
+            "reward_cumulative_applied": 0.5,
+            "reward_cumulative_absolute": 1.5,
+            "reward_modified_connection_fraction": 0.5,
+            "reward_eligibility_final_mean_absolute": 0.25,
+            "reward_eligibility_max_absolute_observed": 1.0,
+            "reward_weight_total_signed_change": 0.3,
+            "reward_weight_total_absolute_change": 0.7,
+            "reward_weight_mean_absolute_change": 0.35,
+        })
+
+
 def check(condition: bool, message: str) -> None:
     if not condition:
         raise AssertionError(message)
@@ -168,6 +202,7 @@ def main() -> int:
         sustained = write_run("sustained", sustained_events)
         add_plasticity_outputs(sustained)
         add_homeostasis_outputs(sustained)
+        add_reward_outputs(sustained)
         sustained_metrics = analyze(sustained, "full")
         check(sustained_metrics["activity_total_spikes"] == 30, "sustained total")
         close(sustained_metrics["activity_mean_spikes_per_step"], 1.5, "sustained mean")
@@ -200,14 +235,21 @@ def main() -> int:
               "homeostasis enabled")
         close(sustained_metrics["homeostasis_population_rate_final"], 0.04,
               "homeostasis final rate")
+        check(sustained_metrics["reward_enabled"] is True, "reward enabled")
+        close(sustained_metrics["reward_weight_total_signed_change"], 0.3,
+              "reward signed change")
         report_text = (sustained / "metrics_report.txt").read_text(encoding="utf-8")
         check("Plasticidade" in report_text, "plasticity report section")
         check("HOMEOSTASE E ESTABILIDADE" in report_text,
               "homeostasis text report section")
+        check("RECOMPENSA, PUNICAO E ELEGIBILIDADE" in report_text,
+              "reward text report section")
         html_report = (sustained / "metrics_report.html").read_text(encoding="utf-8")
         check("RELATORIO DE METRICAS" in html_report, "HTML metrics report")
         check("Plasticidade" in html_report, "HTML plasticity section")
         check("13. Homeostase" in html_report, "HTML homeostasis section")
+        check("Recompensa, punicao e elegibilidade" in html_report,
+              "HTML reward section")
 
         expected_counts = [7, 7, 6, 10]
         close(sustained_metrics["neuron_mean_spikes"], 7.5, "neuron mean")

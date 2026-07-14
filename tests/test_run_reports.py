@@ -15,6 +15,7 @@ from html_report_common import (  # noqa: E402
     ReportGenerationError,
     WEIGHT_TABLE_LIMIT,
     generate_metrics_report,
+    generate_reward_report,
     generate_weights_report,
 )
 
@@ -244,6 +245,67 @@ def main() -> int:
         check("deltas STDP e de scaling" in weight_text,
               "STDP and scaling distinction")
 
+        reward = TEMP_ROOT / "Reward Run With Spaces"
+        reward.mkdir()
+        write_metrics(reward, plasticity_enabled="true", reward_enabled="true")
+        reward_metrics = {
+            "reward_enabled": "true",
+            "reward_mode": "rstdp",
+            "reward_learning_rate": 1.0,
+            "reward_eligibility_tau": 100.0,
+            "reward_eligibility_min": -200.0,
+            "reward_eligibility_max": 200.0,
+            "reward_signal_min": -1.0,
+            "reward_signal_max": 1.0,
+            "reward_clip_enabled": "true",
+            "reward_event_count": 2,
+            "reward_cumulative_applied": 0.5,
+            "reward_cumulative_positive": 1.0,
+            "reward_cumulative_negative": -0.5,
+            "reward_eligibility_final_mean": 0.2,
+            "reward_modified_connection_count": 1,
+            "reward_weight_total_signed_change": 0.3,
+        }
+        write_single(reward / "reward_metrics.csv", reward_metrics)
+        (reward / "reward_events.csv").write_text(
+            "step,applied_reward\n3,1.0\n7,-0.5\n", encoding="utf-8"
+        )
+        (reward / "reward_connections.csv").write_text(
+            "connection_id,source,target,net_weight_change\n0,0,1,0.3\n",
+            encoding="utf-8",
+        )
+        (reward / "run_manifest.txt").write_text(
+            "actual_run_name=reward_run\nplasticity_learning_mode=reward_modulated_stdp\n"
+            "homeostasis_enabled=true\n",
+            encoding="utf-8",
+        )
+        (reward / "reward_report.txt").write_text(
+            "<script>alert('reward')</script>", encoding="utf-8"
+        )
+        reward_before = (reward / "reward_metrics.csv").read_bytes()
+        reward_output = generate_reward_report(reward)
+        reward_text = reward_output.read_text(encoding="utf-8")
+        check((reward / "reward_metrics.csv").read_bytes() == reward_before,
+              "reward metrics CSV changed")
+        check("RECOMPENSA, PUNICAO E ELEGIBILIDADE" in reward_text,
+              "reward title")
+        check("Reward-Modulated" not in reward_text or "reward_modulated_stdp" in reward_text,
+              "reward learning mode")
+        check('href="reward_events.csv"' in reward_text, "reward relative links")
+        check("http://" not in reward_text and "https://" not in reward_text,
+              "reward external resources")
+        check("C:\\Users" not in reward_text, "reward absolute path leaked")
+        reward_metrics_text = generate_metrics_report(reward).read_text(encoding="utf-8")
+        check("Recompensa, punicao e elegibilidade" in reward_metrics_text,
+              "reward metrics section")
+
+        cli_reward = subprocess.run(
+            [sys.executable, str(SCRIPTS_DIR / "generate_run_reports.py"),
+             str(reward), "--reward"],
+            capture_output=True, text=True, check=False,
+        )
+        check(cli_reward.returncode == 0, "reward CLI")
+
         large = TEMP_ROOT / "Large Weight Run"
         large.mkdir()
         write_weights(
@@ -293,6 +355,11 @@ def main() -> int:
             lambda: generate_weights_report(invalid),
             invalid / "weights_report.html",
             "missing weights",
+        )
+        expect_failure(
+            lambda: generate_reward_report(invalid),
+            invalid / "reward_report.html",
+            "missing reward metrics",
         )
 
         command = [

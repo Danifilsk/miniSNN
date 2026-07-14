@@ -1,5 +1,17 @@
 # Princípios de desenvolvimento
 
+## Aprendizado modulado
+
+Reward permanece opcional e por instância. A correlação temporal pertence ao
+módulo de plasticidade; elegibilidade e sinal global pertencem ao módulo de
+reward. STDP direto e R-STDP são mutuamente exclusivos. Métricas de R-STDP e
+scaling devem permanecer separadas, e qualquer descrição deve registrar que o
+sinal é externo e não implica compreensão, agência ou aprendizado de tarefa.
+
+O decaimento preguiçoso é uma otimização somente quando é matematicamente
+equivalente ao passo a passo. O caminho desligado não deve alocar elegibilidades
+nem alterar golden tests.
+
 ## Lei da miniSNN
 
 1. Teste automatizado.

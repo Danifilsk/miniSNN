@@ -16,6 +16,16 @@ def main() -> int:
         "scripts/plot_homeostasis.py",
         "scripts/check_c15.py",
         "docs/GUIA_DE_HOMEOSTASE.md",
+        "scripts/plot_reward.py",
+        "scripts/run_benchmarks_c2.py",
+        "scripts/check_c2.py",
+        "docs/GUIA_DE_RECOMPENSA.md",
+        "docs/BENCHMARKS_C2_RECOMPENSA.md",
+        "tests/test_reward.c",
+        "tests/test_reward_long.c",
+        "tests/test_plot_reward.py",
+        "scripts/generate_history_report.py",
+        "tests/test_history_report.py",
     ):
         if not (PROJECT_ROOT / relative).is_file():
             print(f"Documentation validation FAILED\n- arquivo HTML ausente: {relative}")

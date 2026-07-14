@@ -28,6 +28,9 @@ typedef struct PlasticityState
     PlasticityIncomingList *incoming;
     size_t *source_offsets;
     double *deltas;
+    size_t *candidate_ids;
+    unsigned char *candidate_active;
+    size_t candidate_count;
     unsigned char *modified;
     size_t connection_count;
     int neuron_count;

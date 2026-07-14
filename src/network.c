@@ -18,6 +18,7 @@ static void network_reset_fields(Network *net)
     net->ext_current = NULL;
     net->plasticity = NULL;
     net->homeostasis = NULL;
+    net->reward = NULL;
 
     net->lif_parameters.dt = 0.0;
     net->lif_parameters.tau = 0.0;
@@ -58,7 +59,8 @@ static int network_is_valid_for_update(Network *net)
         net->pending_current == NULL ||
         net->ext_current == NULL ||
         net->plasticity == NULL ||
-        net->homeostasis == NULL)
+        net->homeostasis == NULL ||
+        net->reward == NULL)
     {
         return 0;
     }
@@ -153,6 +155,7 @@ int network_init_with_config(
     net->ext_current = malloc(size * sizeof(double));
     net->plasticity = calloc(1, sizeof(*net->plasticity));
     net->homeostasis = calloc(1, sizeof(*net->homeostasis));
+    net->reward = calloc(1, sizeof(*net->reward));
 
     if (net->neurons == NULL ||
         net->connections == NULL ||
@@ -162,7 +165,8 @@ int network_init_with_config(
         net->pending_current == NULL ||
         net->ext_current == NULL ||
         net->plasticity == NULL ||
-        net->homeostasis == NULL)
+        net->homeostasis == NULL ||
+        net->reward == NULL)
     {
         network_destroy(net);
         return 0;
@@ -175,6 +179,12 @@ int network_init_with_config(
     }
 
     if (!homeostasis_state_init(net->homeostasis, size))
+    {
+        network_destroy(net);
+        return 0;
+    }
+
+    if (!reward_state_init(net->reward))
     {
         network_destroy(net);
         return 0;
@@ -205,11 +215,34 @@ int network_update(Network *net)
     int total_spikes = 0;
     int next_slot;
     int homeostasis_enabled;
+    int reward_enabled;
 
     if (!network_is_valid_for_update(net))
         return -1;
 
     homeostasis_enabled = net->homeostasis->config.enabled;
+    reward_enabled = net->reward->config.enabled;
+
+    if ((reward_enabled &&
+         (!net->plasticity->config.enabled ||
+          net->plasticity->config.learning_mode !=
+              MINISNN_LEARNING_MODE_REWARD_MODULATED_STDP)) ||
+        (!reward_enabled && net->plasticity->config.enabled &&
+         net->plasticity->config.learning_mode ==
+             MINISNN_LEARNING_MODE_REWARD_MODULATED_STDP))
+    {
+        return -1;
+    }
+
+    if (reward_enabled &&
+        !reward_state_ensure(
+            net->reward,
+            net->neurons,
+            net->connections,
+            net->plasticity))
+    {
+        return -1;
+    }
 
     // Limpa os spikes do passo anterior
     for (int i = 0; i < net->size; i++)
@@ -284,6 +317,23 @@ int network_update(Network *net)
             net->connections,
             net->spikes,
             net->lif_parameters.dt))
+    {
+        return -1;
+    }
+
+    if (reward_enabled &&
+        (!reward_state_accumulate_candidates(
+             net->reward,
+             net->plasticity,
+             (unsigned long long)net->step,
+             net->lif_parameters.dt) ||
+         !reward_state_apply_pending(
+             net->reward,
+             net->neurons,
+             net->connections,
+             net->plasticity,
+             (unsigned long long)net->step,
+             net->lif_parameters.dt)))
     {
         return -1;
     }
@@ -411,6 +461,7 @@ static int network_connect_delayed_impl(
 
     plasticity_state_invalidate_index(net->plasticity);
     homeostasis_state_invalidate_targets(net->homeostasis);
+    reward_state_invalidate(net->reward);
 
     return 1;
 }
@@ -503,6 +554,7 @@ int network_set_neuron_type(
     net->neurons[neuron_id].type = type;
     plasticity_state_invalidate_index(net->plasticity);
     homeostasis_state_invalidate_targets(net->homeostasis);
+    reward_state_invalidate(net->reward);
     return 1;
 }
 
@@ -589,16 +641,80 @@ int network_set_plasticity_config(
     const MiniSNNPlasticityConfig *config)
 {
     if (net == NULL || net->plasticity == NULL ||
+        net->neurons == NULL || net->connections == NULL || config == NULL)
+    {
+        return 0;
+    }
+
+    if (net->reward != NULL && net->reward->config.enabled &&
+        (!config->enabled ||
+         config->learning_mode !=
+             MINISNN_LEARNING_MODE_REWARD_MODULATED_STDP))
+    {
+        return 0;
+    }
+
+    if (!plasticity_state_configure(
+            net->plasticity,
+            config,
+            net->neurons,
+            net->connections))
+    {
+        return 0;
+    }
+
+    if (net->reward != NULL && net->reward->config.enabled)
+    {
+        return reward_state_reset(
+            net->reward,
+            net->neurons,
+            net->connections,
+            net->plasticity);
+    }
+
+    return 1;
+}
+
+int network_set_reward_config(
+    Network *net,
+    const MiniSNNRewardConfig *config)
+{
+    if (net == NULL || net->reward == NULL || net->plasticity == NULL ||
+        net->neurons == NULL || net->connections == NULL ||
+        !reward_config_is_valid(config))
+    {
+        return 0;
+    }
+
+    if (config->enabled &&
+        (!net->plasticity->config.enabled ||
+         net->plasticity->config.learning_mode !=
+             MINISNN_LEARNING_MODE_REWARD_MODULATED_STDP))
+    {
+        return 0;
+    }
+
+    return reward_state_configure(
+        net->reward,
+        config,
+        net->neurons,
+        net->connections,
+        net->plasticity);
+}
+
+int network_reset_reward_learning(Network *net)
+{
+    if (net == NULL || net->reward == NULL || net->plasticity == NULL ||
         net->neurons == NULL || net->connections == NULL)
     {
         return 0;
     }
 
-    return plasticity_state_configure(
-        net->plasticity,
-        config,
+    return reward_state_reset(
+        net->reward,
         net->neurons,
-        net->connections);
+        net->connections,
+        net->plasticity);
 }
 
 int network_set_homeostasis_config(
@@ -652,6 +768,7 @@ void network_clear_connections(Network *net)
 
     plasticity_state_invalidate_index(net->plasticity);
     homeostasis_state_invalidate_targets(net->homeostasis);
+    reward_state_invalidate(net->reward);
 }
 
 int network_set_external_current(Network *net, int neuron_id, double current)
@@ -726,6 +843,12 @@ void network_destroy(Network *net)
     {
         homeostasis_state_destroy(net->homeostasis);
         free(net->homeostasis);
+    }
+
+    if (net->reward != NULL)
+    {
+        reward_state_destroy(net->reward);
+        free(net->reward);
     }
 
     network_reset_fields(net);

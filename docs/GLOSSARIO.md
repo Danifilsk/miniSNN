@@ -1,5 +1,27 @@
 # Glossário
 
+**Recompensa:** sinal escalar externo positivo que modula elegibilidades no R-STDP.
+
+**Punição:** reward negativo; inverte matematicamente a consequência de uma elegibilidade.
+
+**Reforço:** aplicação de um sinal modulador a uma correlação ainda elegível.
+
+**R-STDP:** STDP modulado por recompensa; a correlação cria elegibilidade e o reward altera o peso.
+
+**Aprendizado de três fatores:** regra que combina atividade pré, atividade pós e sinal modulador.
+
+**Trace de elegibilidade:** memória sináptica temporária e decadente da correlação pré/pós.
+
+**Reward atrasado:** sinal aplicado em step posterior ao que criou a elegibilidade.
+
+**Sinal modulador:** valor global externo que multiplica elegibilidades.
+
+**Reward pendente:** soma bruta enfileirada para consumo no próximo step.
+
+**Reward aplicado:** valor após agregação e eventual clamp, consumido uma única vez.
+
+**Mudança de peso modulada:** `learning_rate * reward * eligibility`, antes do clamp do peso.
+
 - **SNN:** rede neural pulsada, na qual eventos discretos chamados spikes carregam atividade.
 - **Spike:** evento produzido quando o potencial cruza o limiar do modelo.
 - **Timestep:** passo discreto executado por `minisnn_step()`.

@@ -580,3 +580,164 @@ valor.
 **Erros importantes:** falha com rede nula, indice invalido ou `out_current ==
 NULL`. A corrente retornada e a corrente efetivamente usada pelo LIF no
 timestep mais recente.
+
+## MiniSNNLearningMode
+
+```c
+typedef enum {
+    MINISNN_LEARNING_MODE_DIRECT_STDP = 0,
+    MINISNN_LEARNING_MODE_REWARD_MODULATED_STDP = 1
+} MiniSNNLearningMode;
+```
+
+Seleciona entre a atualização imediata do C1 e o acúmulo de elegibilidade do
+R-STDP. O campo `learning_mode` de `MiniSNNPlasticityConfig` usa essa enumeração.
+
+## MiniSNNRewardConfig
+
+Configuração por rede do sinal modulador: `enabled`, modo `rstdp`,
+`learning_rate`, constante e limites de elegibilidade, limites de reward e
+política `clip_reward`. Todos os valores reais devem ser finitos. O modo reward
+requer plasticidade ativa em
+`MINISNN_LEARNING_MODE_REWARD_MODULATED_STDP`.
+
+## MiniSNNRewardStats
+
+Estatísticas globais de eventos positivos, negativos e zero; componentes;
+clamps; conexões elegíveis/modificadas; reward bruto/aplicado; mudanças de peso;
+e distribuição final da elegibilidade. Mudanças contabilizadas aqui são apenas
+as produzidas por reward, separadas do STDP direto e do scaling.
+
+## MiniSNNRewardConnectionStats
+
+Estado observável de uma conexão: elegibilidade atual, maior elegibilidade
+absoluta, número de atualizações por reward e mudanças de peso acumuladas. Uma
+conexão de origem INH retorna `eligible = 0`.
+
+## minisnn_default_reward_config
+
+```c
+MiniSNNRewardConfig minisnn_default_reward_config(void);
+```
+
+Retorna reward desativado, modo R-STDP, `learning_rate = 1`, tau e bounds
+seguros. A estrutura retornada pode ser editada antes de ser aplicada.
+
+## minisnn_set_reward_config
+
+```c
+int minisnn_set_reward_config(
+    MiniSNN *snn,
+    const MiniSNNRewardConfig *config);
+```
+
+Valida e configura o estado opcional por conexão. Ao reconfigurar, preserva
+pesos e estado neural e reinicia elegibilidades e estatísticas do módulo.
+Retorna `1` em sucesso e `0` para rede/configuração inválida ou combinação
+incompatível com a plasticidade.
+
+## minisnn_get_reward_config
+
+```c
+int minisnn_get_reward_config(
+    const MiniSNN *snn,
+    MiniSNNRewardConfig *out_config);
+```
+
+Copia a configuração atual para `out_config`. Retorna `0` para ponteiros
+inválidos.
+
+## minisnn_queue_reward
+
+```c
+int minisnn_queue_reward(MiniSNN *snn, double value);
+```
+
+Acumula um componente finito para o próximo step. Com clipping, o valor bruto é
+limitado uma única vez na aplicação; sem clipping, uma soma fora dos bounds é
+recusada sem alterar o pendente. Reward desativado também é recusado.
+
+## minisnn_get_pending_reward
+
+```c
+int minisnn_get_pending_reward(const MiniSNN *snn, double *out_value);
+```
+
+Retorna a soma bruta pendente. O pulso é consumido após o próximo
+`minisnn_step`.
+
+## minisnn_clear_pending_reward
+
+```c
+int minisnn_clear_pending_reward(MiniSNN *snn);
+```
+
+Descarta reward e componentes ainda não aplicados, sem alterar pesos,
+elegibilidades ou estatísticas passadas.
+
+## minisnn_get_last_applied_reward
+
+```c
+int minisnn_get_last_applied_reward(
+    const MiniSNN *snn,
+    double *out_value);
+```
+
+Retorna o sinal limitado efetivamente aplicado no último step com consumo.
+
+## minisnn_reset_reward_learning
+
+```c
+int minisnn_reset_reward_learning(MiniSNN *snn);
+```
+
+Zera eligibilidades, reward pendente/aplicado e estatísticas de reward.
+Preserva pesos, potenciais, step, configuração STDP e estado homeostático.
+
+## minisnn_get_reward_stats
+
+```c
+int minisnn_get_reward_stats(
+    const MiniSNN *snn,
+    MiniSNNRewardStats *out_stats);
+```
+
+Materializa o decaimento preguiçoso no step atual e devolve estatísticas
+globais finitas. A materialização é matematicamente equivalente ao decaimento
+passo a passo.
+
+## minisnn_get_connection_eligibility
+
+```c
+int minisnn_get_connection_eligibility(
+    const MiniSNN *snn,
+    size_t connection_id,
+    double *out_eligibility);
+```
+
+Consulta a elegibilidade pelo ID determinístico usado em
+`minisnn_get_connection`. Falha para ID inválido ou reward inativo.
+
+## minisnn_get_reward_connection_stats
+
+```c
+int minisnn_get_reward_connection_stats(
+    const MiniSNN *snn,
+    size_t connection_id,
+    MiniSNNRewardConnectionStats *out_stats);
+```
+
+Consulta elegibilidade e acumulados de uma conexão sem alterar seu resultado
+matemático futuro.
+
+## minisnn_reward_eligible_connection_count
+
+```c
+int minisnn_reward_eligible_connection_count(
+    const MiniSNN *snn,
+    size_t *out_count);
+```
+
+Retorna a quantidade de conexões de origem EXC acompanhadas pelo módulo. Em
+modo direto ou reward desligado, retorna zero em `out_count` quando a consulta
+é válida.

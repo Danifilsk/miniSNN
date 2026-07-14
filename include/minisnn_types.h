@@ -15,10 +15,17 @@ typedef enum
     MINISNN_PLASTICITY_STDP_PAIR_TRACE = 1
 } MiniSNNPlasticityRule;
 
+typedef enum
+{
+    MINISNN_LEARNING_MODE_DIRECT_STDP = 0,
+    MINISNN_LEARNING_MODE_REWARD_MODULATED_STDP = 1
+} MiniSNNLearningMode;
+
 typedef struct
 {
     int enabled;
     MiniSNNPlasticityRule rule;
+    MiniSNNLearningMode learning_mode;
     double a_plus;
     double a_minus;
     double tau_plus;
@@ -51,6 +58,74 @@ typedef struct
     double total_absolute_change;
     double max_absolute_change;
 } MiniSNNPlasticityStats;
+
+typedef enum
+{
+    MINISNN_REWARD_MODE_RSTDP = 1
+} MiniSNNRewardMode;
+
+typedef struct
+{
+    int enabled;
+    MiniSNNRewardMode mode;
+    double learning_rate;
+    double eligibility_tau;
+    double eligibility_min;
+    double eligibility_max;
+    double reward_min;
+    double reward_max;
+    int clip_reward;
+} MiniSNNRewardConfig;
+
+typedef struct
+{
+    unsigned long long reward_event_count;
+    unsigned long long positive_reward_event_count;
+    unsigned long long negative_reward_event_count;
+    unsigned long long zero_reward_event_count;
+    unsigned long long eligibility_potentiation_events;
+    unsigned long long eligibility_depression_events;
+    unsigned long long eligibility_clamp_min_events;
+    unsigned long long eligibility_clamp_max_events;
+    unsigned long long reward_potentiation_events;
+    unsigned long long reward_depression_events;
+    unsigned long long weight_clamp_min_events;
+    unsigned long long weight_clamp_max_events;
+    size_t eligible_connection_count;
+    size_t modified_connection_count;
+    size_t last_active_eligibility_count;
+    size_t last_modified_connection_count;
+    unsigned int last_reward_component_count;
+    double cumulative_raw_reward;
+    double cumulative_applied_reward;
+    double cumulative_positive_reward;
+    double cumulative_negative_reward;
+    double cumulative_absolute_reward;
+    double total_signed_weight_change;
+    double total_absolute_weight_change;
+    double max_absolute_weight_change;
+    double eligibility_final_mean;
+    double eligibility_final_min;
+    double eligibility_final_max;
+    double eligibility_final_mean_absolute;
+    double eligibility_max_absolute_observed;
+    double last_raw_reward;
+    double last_applied_reward;
+    double last_weight_signed_change;
+    double last_weight_absolute_change;
+    unsigned long long last_weight_clamp_min_count;
+    unsigned long long last_weight_clamp_max_count;
+} MiniSNNRewardStats;
+
+typedef struct
+{
+    int eligible;
+    double eligibility;
+    double max_absolute_eligibility;
+    unsigned long long reward_update_count;
+    double reward_signed_change;
+    double reward_absolute_change;
+} MiniSNNRewardConnectionStats;
 
 typedef struct
 {

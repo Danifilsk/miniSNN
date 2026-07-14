@@ -13,6 +13,7 @@ from metrics_common import (
     read_config,
     read_plasticity_metrics,
     read_homeostasis_metrics,
+    read_reward_metrics,
 )
 
 try:
@@ -196,6 +197,7 @@ def analyze_run(run_path: Path) -> tuple[dict[str, object] | None, pd.DataFrame 
     config = read_config(run_path, warnings)
     metrics.update(read_plasticity_metrics(run_path, config, warnings))
     metrics.update(read_homeostasis_metrics(run_path, config, warnings))
+    metrics.update(read_reward_metrics(run_path, config, warnings))
     aliases = {
         "num_neurons": "network_num_neurons",
         "steps": "run_steps",
@@ -336,6 +338,32 @@ def write_report(
             f"- {row['run_name']}: enabled={format_value(row.get('homeostasis_enabled'))}; "
             f"fonte={format_value(row.get('homeostasis_metrics_source'))}; "
             f"campos={', '.join(available) if available else 'nenhum'}"
+        )
+
+    lines.append("")
+    lines.append("Recompensa, punicao e elegibilidade:")
+    reward_fields = (
+        "reward_event_count",
+        "reward_positive_event_count",
+        "reward_negative_event_count",
+        "reward_cumulative_applied",
+        "reward_cumulative_absolute",
+        "reward_modified_connection_fraction",
+        "reward_eligibility_final_mean_absolute",
+        "reward_eligibility_max_absolute_observed",
+        "reward_weight_total_signed_change",
+        "reward_weight_total_absolute_change",
+        "reward_weight_mean_absolute_change",
+    )
+    for _, row in summary.iterrows():
+        available = [
+            field for field in reward_fields
+            if field in row and pd.notna(row.get(field))
+        ]
+        lines.append(
+            f"- {row['run_name']}: enabled={format_value(row.get('reward_enabled'))}; "
+            f"fonte={format_value(row.get('reward_metrics_source'))}; "
+            f"campos={', '.join(available) if available else 'NA'}"
         )
 
     def ranking(metric: str, title: str, ascending: bool = False) -> None:

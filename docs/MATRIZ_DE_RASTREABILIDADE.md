@@ -11,7 +11,7 @@
 | Studio | controles Win32 | `app/minisnn_studio.c` | compilação e smoke test manual | interface e status | [Studio](GUIA_DO_STUDIO.md) | Implementado no Windows |
 | Neurônio detalhado | `record_neuron` | runner e `plot_neuron.py` | `test_plot_neuron`, runner | `neuron_<id>.csv/png` | [Studio](GUIA_DO_STUDIO.md) | Implementado |
 | Comparação | pastas de runs | `compare_runs.py` | `test_compare_runs` | CSV, relatório e PNGs | [Métricas](GUIA_DE_METRICAS.md) | Implementado |
-| Histórico | `[output]` | runner e comparador | testes de runner/comparação | `index.csv` | [Resultados](ORGANIZACAO_DE_RESULTADOS.md) | Implementado |
+| Histórico | `[output]` | runner, `generate_history_report.py` e Studio | testes de runner, HTML e comparação | `index.csv` append-only e `history.html` | [Resultados](ORGANIZACAO_DE_RESULTADOS.md) | Implementado; HTML é apresentação local |
 | Diagnóstico | `[diagnostics]` | runner, `analyze_run.py`, `metrics_common.py` | `test_metrics_common`, `test_analyze_run` | métricas, relatório e PNGs | [Diagnóstico](GUIA_DE_DIAGNOSTICO.md) | Fórmulas validadas; classificação heurística |
 | STDP C1 | `[plasticity]` | `src/plasticity.c`, API e runner | `test_plasticity`, parser, runner, reprodutibilidade e long | pesos, histórico, métricas, relatório e PNG | [Plasticidade](GUIA_DE_PLASTICIDADE.md) | Implementado para origens EXC; experimental |
 | Relatórios HTML C1.1 | pasta de run | `generate_run_reports.py`, `html_report_common.py` e Studio | `test_run_reports`, diagnóstico, plot STDP e docs | `metrics_report.html`, `weights_report.html` e links para CSV | [Diagnóstico](GUIA_DE_DIAGNOSTICO.md) e [Plasticidade](GUIA_DE_PLASTICIDADE.md) | Apresentação local; não altera métricas ou dinâmica |
@@ -23,6 +23,8 @@
 | Scaling EXC | `src/homeostasis.c` | soma, proporção, zero e STDP | `test_homeostasis` | `homeostasis_metrics.csv` | [Homeostase](GUIA_DE_HOMEOSTASE.md) | Implementado |
 | Ganho INH | `src/homeostasis.c`, `src/network.c` | fórmula e transmissão futura | `test_homeostasis` | `homeostasis_history.csv` | [Homeostase](GUIA_DE_HOMEOSTASE.md) | Implementado |
 | Fechamento C1.5 | `scripts/check_c15.py` | arquivos, demos, regressão | `check-c15` | saída do checker | [Homeostase](GUIA_DE_HOMEOSTASE.md) | Implementado |
+| R-STDP C2 | `[plasticity]`, `[reward]`, `[reward_events]` | `src/reward.c`, plasticidade, rede, API e runner | `test_reward`, parser, runner, reprodutibilidade e long | elegibilidade, eventos, pesos, CSV, TXT, HTML e PNG | [Recompensa](GUIA_DE_RECOMPENSA.md) | Implementado para origens EXC; experimental |
+| Fechamento C2 | `scripts/check_c2.py` | arquivos, demos, regressões C1/C1.5 e documentação | `check-c2` | saída do checker | [Recompensa](GUIA_DE_RECOMPENSA.md) | Automatizado; Studio permanece manual |
 
 Esta matriz não substitui revisão científica ou validação biológica. A validação
 manual do Studio permanece separada.

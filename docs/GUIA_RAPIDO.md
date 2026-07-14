@@ -1,5 +1,16 @@
 # Guia rápido
 
+## R-STDP em um comando
+
+```powershell
+mingw32-make scenario-reward-positive
+```
+
+O resultado fica em `results/scenarios/reward_positive_demo/` e inclui
+`reward_metrics.csv`, `reward_report.html` e `reward_overview.png`. Consulte o
+[Guia de recompensa](GUIA_DE_RECOMPENSA.md) antes de interpretar o sinal como
+aprendizado: ele é um escalar externo, não uma política ou agente.
+
 ## Comece por aqui
 
 Em cinco minutos:

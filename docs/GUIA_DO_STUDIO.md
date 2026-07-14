@@ -1,5 +1,23 @@
 # Guia do miniSNN Studio
 
+## RECOMPENSA
+
+`RECOMPENSA` abre o modal de R-STDP sem sobrecarregar o painel principal. Ele
+configura ON/OFF, `R-STDP`, learning rate, tau/bounds de elegibilidade,
+bounds/clipping de reward, histórico, intervalo, limite de conexões e eventos
+como `300:1.0; 600:-1.0`. O modal `PLASTICIDADE` seleciona `DIRECT STDP` ou
+`REWARD MODULATED STDP`; combinações sem efeito são recusadas.
+
+`GRAFICO RECOMPENSA` usa `scripts/plot_reward.py` na última pasta real da run,
+gera `reward_overview.png` e atualiza `reward_report.html`. `ABRIR RECOMPENSA`
+gera o HTML sob demanda e o abre no navegador. Uma run sem reward mostra:
+"Esta execucao nao possui dados de recompensa. O aprendizado por recompensa
+pode estar desligado."
+
+Os fluxos reutilizam a detecção configurável de Python. A compilação valida a
+integração, mas abertura, cancelamento, layout e os 34 itens de interação do C2
+continuam com **VALIDAÇÃO MANUAL PENDENTE**.
+
 [Voltar ao índice da documentação](INDICE_DA_DOCUMENTACAO.md)
 
 ## 1. O que e o miniSNN Studio
@@ -202,11 +220,20 @@ Use:
 
 - `ABRIR RESULTADOS`: abre a pasta `results/`.
 - `ABRIR ULTIMA`: abre a pasta real da ultima execucao rodada.
-- `ABRIR HISTORICO`: abre `results/scenarios/index.csv`.
+- `ABRIR HISTORICO`: gera e abre `results/scenarios/history.html`.
 
 Se nenhuma simulacao foi rodada ainda, `ABRIR ULTIMA` mostra uma mensagem
-amigavel. Se o historico ainda nao existir, o Studio cria o arquivo com
-cabecalho e abre em seguida.
+amigavel. `ABRIR HISTORICO` permanece habilitado: cria o cabeçalho de
+`index.csv` quando necessário, executa `scripts/generate_history_report.py` e
+abre o HTML no navegador padrão. O CSV continua append-only e acessível pelo
+próprio relatório e por `ABRIR RESULTADOS`.
+
+O HTML é local, escuro e autossuficiente. Mostra cards, runs mais recentes
+primeiro, busca, filtros e links para artefatos existentes. Runs cujas pastas
+foram removidas permanecem visíveis sem links. Se Python não estiver disponível
+mas houver um `history.html` anterior, o Studio avisa que pode estar
+desatualizado e o abre; sem Python e sem HTML, mostra um erro claro e não abre o
+CSV silenciosamente.
 
 ## 10. Como comparar execucoes
 

@@ -572,6 +572,85 @@ static int check_connection_and_plasticity_api(void)
     return 1;
 }
 
+static int check_reward_api(void)
+{
+    MiniSNN *first = minisnn_create(2);
+    MiniSNN *second = minisnn_create(2);
+    MiniSNNPlasticityConfig plasticity = minisnn_default_plasticity_config();
+    MiniSNNRewardConfig reward = minisnn_default_reward_config();
+    MiniSNNRewardConfig loaded;
+    MiniSNNRewardStats stats;
+    MiniSNNRewardConnectionStats connection_stats;
+    double value;
+    size_t eligible;
+
+    if (first == NULL || second == NULL || reward.enabled ||
+        reward.mode != MINISNN_REWARD_MODE_RSTDP ||
+        !same_double(reward.eligibility_tau, 100.0))
+    {
+        minisnn_destroy(&first);
+        minisnn_destroy(&second);
+        return fail("reward defaults or network creation failed");
+    }
+
+    plasticity.enabled = 1;
+    plasticity.learning_mode =
+        MINISNN_LEARNING_MODE_REWARD_MODULATED_STDP;
+    reward.enabled = 1;
+    reward.learning_rate = 0.5;
+    if (!minisnn_connect(first, 0, 1, 10.0) ||
+        !minisnn_set_plasticity_config(first, &plasticity) ||
+        !minisnn_set_reward_config(first, &reward) ||
+        !minisnn_get_reward_config(first, &loaded) ||
+        !same_double(loaded.learning_rate, 0.5) ||
+        !minisnn_reward_eligible_connection_count(first, &eligible) || eligible != 1U ||
+        !minisnn_get_connection_eligibility(first, 0U, &value) ||
+        !same_double(value, 0.0) ||
+        !minisnn_get_reward_connection_stats(first, 0U, &connection_stats) ||
+        !connection_stats.eligible)
+    {
+        minisnn_destroy(&first);
+        minisnn_destroy(&second);
+        return fail("reward configuration or connection inspection failed");
+    }
+
+    if (!minisnn_queue_reward(first, 0.4) ||
+        !minisnn_queue_reward(first, -0.1) ||
+        !minisnn_get_pending_reward(first, &value) ||
+        !same_double(value, 0.3) ||
+        !minisnn_clear_pending_reward(first) ||
+        !minisnn_get_pending_reward(first, &value) || !same_double(value, 0.0) ||
+        !minisnn_get_last_applied_reward(first, &value) || !same_double(value, 0.0) ||
+        !minisnn_get_reward_stats(first, &stats) || stats.reward_event_count != 0 ||
+        !minisnn_reset_reward_learning(first))
+    {
+        minisnn_destroy(&first);
+        minisnn_destroy(&second);
+        return fail("reward queue, clear, stats, or reset failed");
+    }
+
+    loaded = reward;
+    loaded.eligibility_tau = 0.0;
+    if (minisnn_set_reward_config(first, &loaded) ||
+        minisnn_queue_reward(first, make_nan()) ||
+        minisnn_get_reward_config(NULL, &loaded) ||
+        minisnn_get_reward_config(first, NULL) ||
+        minisnn_get_reward_stats(first, NULL) ||
+        minisnn_get_connection_eligibility(first, 1U, &value) ||
+        minisnn_get_reward_connection_stats(first, 1U, &connection_stats) ||
+        minisnn_reward_eligible_connection_count(first, NULL) ||
+        minisnn_queue_reward(second, 1.0))
+    {
+        minisnn_destroy(&first);
+        minisnn_destroy(&second);
+        return fail("reward API accepted invalid input or shared state");
+    }
+
+    minisnn_destroy(&first);
+    minisnn_destroy(&second);
+    return 1;
+}
+
 int main(void)
 {
     if (!check_default_config_and_invalid_configs())
@@ -599,6 +678,9 @@ int main(void)
         return 1;
 
     if (!check_connection_and_plasticity_api())
+        return 1;
+
+    if (!check_reward_api())
         return 1;
 
     printf("MiniSNN public API validation OK\n");

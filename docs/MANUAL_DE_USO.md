@@ -1,5 +1,24 @@
 # Manual de uso da miniSNN
 
+## Aprendizado modulado por recompensa
+
+Para um fluxo reproduzível sem editar C:
+
+```powershell
+mingw32-make scenario-reward-positive
+mingw32-make scenario-punishment-negative
+```
+
+Edite `[plasticity]`, `[reward]` e `[reward_events]` em uma cópia de um dos
+arquivos `configs/reward_*_demo.ini`. O runner cria CSVs, relatório textual,
+HTML e panorama dentro de `results/scenarios/<actual_run_name>/`. No Studio,
+use `PLASTICIDADE`, `RECOMPENSA`, `GRAFICO RECOMPENSA` e
+`ABRIR RECOMPENSA`. Python com pandas e matplotlib só é necessário para a
+camada gráfica/HTML; a simulação em C não depende dele.
+
+Leia [Recompensa, punição e R-STDP](GUIA_DE_RECOMPENSA.md) para a ordem
+temporal, API, significado das métricas e limitações científicas.
+
 [Voltar ao índice da documentação](INDICE_DA_DOCUMENTACAO.md)
 
 ## O que e a miniSNN
@@ -249,7 +268,16 @@ abrir essa pasta sem digitar comandos.
 O Studio evita sobrescrita automaticamente. Ao rodar duas vezes o mesmo
 `run_name`, a segunda saida recebe timestamp. Use `ABRIR RESULTADOS` para abrir
 `results/`, `ABRIR ULTIMA` para abrir a pasta real mais recente e `ABRIR
-HISTORICO` para abrir `results/scenarios/index.csv`.
+HISTORICO` para gerar e abrir `results/scenarios/history.html`.
+
+O arquivo `results/scenarios/index.csv` continua sendo a fonte bruta
+append-only. O HTML apenas apresenta esse CSV, ordena as runs mais recentes
+primeiro e oferece busca, filtros e links relativos para arquivos existentes.
+Ele pode ser regenerado sem internet com:
+
+```powershell
+mingw32-make report-history
+```
 
 O botao `OPCOES`, ao lado da topologia, edita configuracoes menos frequentes:
 auto-conexao, conexoes `INH -> INH`, densidade, seed, delays, parametros
