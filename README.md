@@ -16,7 +16,8 @@ decaimento, sete topologias configuráveis, API pública opaca, cenários INI,
 Studio Win32, CSVs, gráficos, comparação, histórico e diagnóstico
 `off/basic/full`, inspeção de conexões, STDP aditivo por traces para sinapses
 de origem EXC, homeostase opcional de threshold, scaling EXC e ganho INH, e
-R-STDP opcional com elegibilidade e sinal externo de recompensa/punição.
+R-STDP opcional com elegibilidade e sinal externo de recompensa/punição, e
+neuroevolução C3 serial com topologia fixa, fitness configurável e checkpoint.
 
 **Experimental:** métricas de regime, sincronia aproximada e `stability_score`.
 O STDP do C1 também é uma regra experimental simplificada. Esses recursos não
@@ -24,8 +25,8 @@ são verdades biológicas nem prova de aprendizado de tarefa.
 
 **Estado da v0.2:** auditoria automática concluída; revisão manual do Studio e
 revisão humana de release permanecem pendentes. O C1 foi implementado sobre
-essa base; C1.5 e C2 foram implementados localmente. miniSNN Worlds e
-neuroevolução ainda não estão implementados.
+essa base; C1.5, C2 e C3 foram implementados localmente. miniSNN Worlds e
+evolução estrutural ainda não estão implementados.
 
 ## Início rápido
 
@@ -80,6 +81,21 @@ mingw32-make scenario-reward-mixed
 Cada run ativa gera CSVs de reward, `reward_report.txt`,
 `reward_report.html` e `reward_overview.png`.
 
+## Neuroevolução
+
+O C3 evolui pesos iniciais e parâmetros escalares mantendo topologia e delays
+fixos. O motor é serial, determinístico e usa herança darwiniana: pesos
+aprendidos por STDP/R-STDP durante a vida não substituem o genoma inicial.
+
+```powershell
+mingw32-make evolution-build
+mingw32-make evolution-weight-demo
+mingw32-make plot-evolution RUN=results/evolution/evolution_weight_target_demo
+mingw32-make report-evolution RUN=results/evolution/evolution_weight_target_demo
+```
+
+Veja o [Guia de neuroevolução](docs/GUIA_DE_NEUROEVOLUCAO.md).
+
 ## Estrutura
 
 ```text
@@ -113,6 +129,7 @@ Referências diretas:
 - [Guia de plasticidade](docs/GUIA_DE_PLASTICIDADE.md)
 - [Guia de homeostase](docs/GUIA_DE_HOMEOSTASE.md)
 - [Guia de recompensa](docs/GUIA_DE_RECOMPENSA.md)
+- [Guia de neuroevolução](docs/GUIA_DE_NEUROEVOLUCAO.md)
 - [Referência da API pública](API_REFERENCE.md)
 - [Roadmap](docs/ROADMAP.md)
 
@@ -140,6 +157,12 @@ mingw32-make test-history-report
 mingw32-make check-c1
 mingw32-make check-c15
 mingw32-make check-c2
+mingw32-make test-evolution
+mingw32-make test-evolution-runner
+mingw32-make test-evolution-long
+mingw32-make test-plot-evolution
+mingw32-make test-evolution-report
+mingw32-make check-c3
 mingw32-make check-v02
 ```
 
@@ -154,7 +177,8 @@ teste está em [Princípios de desenvolvimento](docs/PRINCIPIOS_DE_DESENVOLVIMEN
 - O STDP é aditivo, baseado em emissão e limitado a sinapses de origem EXC.
 - A homeostase é um controle simplificado e opcional; não garante estabilidade.
 - O reward é um escalar externo; não há política, agente, reward prediction error ou garantia de aprendizado de tarefa.
-- Não há memória, neuroevolução ou topologia adaptativa.
+- Não há memória, evolução de topologia/delays ou modelos estruturais C4.
+- A neuroevolução C3 otimiza apenas a fitness configurada; não garante ótimo global, inteligência geral ou convergência.
 - O Studio depende da API Win32 e o fluxo principal de build foi validado no Windows.
 - Diagnóstico completo depende de Python, pandas e matplotlib.
 - Séries completas de tensão e corrente são gravadas para o neurônio detalhado, não para toda a rede.

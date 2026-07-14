@@ -320,3 +320,22 @@ de histórico. Cancelar não altera a configuração. `GRAFICO HOMEOSTASE` gera
 `homeostasis_overview.png`; `ABRIR HOMEOSTASE` abre
 `homeostasis_report.html`. Uma run sem dados mostra que a homeostase pode estar
 desligada. A validação manual desses controles permanece no checklist do Studio.
+
+## NEUROEVOLUCAO
+
+`NEUROEVOLUCAO` abre uma janela separada para não sobrecarregar o painel de
+cenários. Ela expõe config, cenário-base, nome, população, gerações, elites,
+torneio, taxas de crossover/mutação, réplicas, seeds, genes de peso e campos
+multilinha para genes escalares e termos de fitness.
+
+`RODAR EVOLUCAO` salva e inicia `build/evolution_runner.exe` com
+`CreateProcessA`. `RETOMAR EVOLUCAO` seleciona uma pasta com checkpoint. O
+processo roda fora da thread principal; um timer atualiza o status e impede duas
+evoluções simultâneas.
+
+Após sucesso, `ABRIR EVOLUCAO`, `ABRIR RELATORIO`, `ABRIR GRAFICO` e
+`ABRIR MELHOR` usam `results/evolution/last_experiment.txt`.
+`HISTORICO EVOLUTIVO` gera/abre `results/evolution/history.html`. Python com
+pandas e matplotlib é necessário para o PNG; sem Python, um HTML anterior só é
+aberto com aviso. A compilação foi automatizada; os cliques permanecem com
+validação manual pendente.

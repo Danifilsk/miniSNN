@@ -139,3 +139,37 @@ Status C1: **VALIDAÇÃO MANUAL PENDENTE**.
 - [ ] Python ausente e cancelamentos produzem mensagens claras sem travar.
 
 Status C1.5: **VALIDAÇÃO MANUAL PENDENTE**.
+
+## C3 — NEUROEVOLUCAO
+
+- [ ] `NEUROEVOLUCAO` abre sem alterar o cenário principal.
+- [ ] Config evolutiva válida carrega e preenche todos os controles.
+- [ ] Config com caminho contendo espaços carrega e salva.
+- [ ] Genes escalares e termos de fitness preservam as linhas.
+- [ ] Bounds inválidos mostram erro claro.
+- [ ] `RODAR EVOLUCAO` não bloqueia repintura da janela principal.
+- [ ] O botão de nova evolução fica indisponível durante o processo.
+- [ ] Uma segunda evolução simultânea é rejeitada.
+- [ ] Status informa execução e conclusão.
+- [ ] Falha do runner preserva o último experimento bem-sucedido.
+- [ ] `RETOMAR EVOLUCAO` seleciona a pasta correta.
+- [ ] Resume concluído não duplica gerações nos CSVs.
+- [ ] `ABRIR EVOLUCAO` abre a pasta real.
+- [ ] `ABRIR RELATORIO` abre `evolution_report.html`.
+- [ ] `ABRIR GRAFICO` abre `evolution_overview.png`.
+- [ ] `ABRIR MELHOR` abre o relatório ou pasta `best_run/`.
+- [ ] `HISTORICO EVOLUTIVO` abre `results/evolution/history.html`.
+- [ ] Python ausente usa HTML anterior com aviso, quando disponível.
+- [ ] Python ausente sem HTML mostra erro e não abre `index.csv`.
+- [ ] PNG e HTML são gerados após uma evolução bem-sucedida.
+- [ ] Cancelar a janela não altera a config salva.
+- [ ] Fechar o Studio durante evolução não encerra o processo à força.
+- [ ] Handles são fechados após conclusão.
+- [ ] Tema escuro e fonte retro permanecem legíveis.
+- [ ] Campos longos não cortam informações críticas.
+- [ ] Demos de peso, homeostase e plasticidade abrem corretamente.
+- [ ] `last_experiment.txt` só aponta uma pasta existente após sucesso.
+- [ ] Cenários normais continuam executando após usar a janela C3.
+- [ ] Nenhum artefato é criado na raiz.
+
+Status C3: **VALIDAÇÃO MANUAL PENDENTE**.

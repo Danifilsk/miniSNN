@@ -116,3 +116,11 @@ Configs sem `[homeostasis]` e configs com `enabled = false` preservam limiar-bas
 ganho `1.0`, pesos, spikes e CSVs dinâmicos anteriores. Runs antigas continuam
 analisáveis e exibem homeostase como ausente/desligada. Ativar homeostase cria
 novos artefatos; os CSVs de pesos continuam registrando pesos brutos.
+
+## Compatibilidade C3
+
+Configs sem `[evolution]` continuam sendo cenários normais. `minisnn.h`, CSVs de
+cenários, regressões 6757/15045 e ordem temporal neural não foram alterados.
+Configs evolutivas são opt-in e usam outro runner e outra raiz de resultados.
+Checkpoints C3 usam versão textual explícita; formatos futuros devem rejeitar
+versões incompatíveis em vez de tentar adivinhar.

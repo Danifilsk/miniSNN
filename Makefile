@@ -5,14 +5,16 @@ BUILD_DIR = build
 
 API_SOURCES = src/minisnn.c src/neuron.c src/network.c src/plasticity.c src/reward.c src/homeostasis.c
 APP_SOURCES = app/scenario_config.c
-SCENARIO_RUNNER_SOURCES = app/scenario_config.c app/scenario_runner.c
+SCENARIO_RUNNER_SOURCES = app/scenario_config.c app/scenario_runtime.c app/scenario_runner.c
+EVOLUTION_SOURCES = src/evolution.c
+EVOLUTION_RUNNER_SOURCES = app/evolution_config.c app/evolution_runner.c $(SCENARIO_RUNNER_SOURCES) $(EVOLUTION_SOURCES)
 CORE_SOURCES = src/neuron.c src/network.c src/plasticity.c src/reward.c src/homeostasis.c src/topology.c src/stimulus.c src/recorder.c
 EXPERIMENT_SOURCES = src/neuron.c src/network.c src/plasticity.c src/reward.c src/homeostasis.c src/stimulus.c src/recorder.c
 SCENARIO ?= configs/random_balanced.ini
 PYTHON ?= python
 ANALYZER_CFLAGS = -std=c11 -Wall -Wextra -pedantic -fanalyzer -Wformat=2 -Wshadow -Wnull-dereference
 
-.PHONY: all help clean test test-api test-core test-lif test-plasticity test-plasticity-long test-homeostasis test-homeostasis-long test-reward test-reward-long test-scenario test-runner test-runner-topologies test-reproducibility test-regression test-memory test-long test-analyzer test-sanitize benchmark-v02 benchmark-c1 benchmark-c15 benchmark-c2 check-v02 check-c1 check-c15 check-c2 \
+.PHONY: all help clean test test-api test-core test-lif test-plasticity test-plasticity-long test-homeostasis test-homeostasis-long test-reward test-reward-long test-evolution test-evolution-runner test-evolution-resume test-evolution-long test-plot-evolution test-evolution-report evolution-build evolution-weight-demo evolution-homeostasis-demo evolution-plasticity-demo plot-evolution report-evolution report-evolution-history test-scenario test-runner test-runner-topologies test-reproducibility test-regression test-memory test-long test-analyzer test-sanitize benchmark-v02 benchmark-c1 benchmark-c15 benchmark-c2 benchmark-c3 check-v02 check-c1 check-c15 check-c2 check-c3 \
 	test-plot-neuron test-plot-plasticity test-compare-runs test-diagnostics test-run-reports test-history-report test-docs \
 	test-plot-homeostasis plot-homeostasis test-plot-reward plot-reward \
 	api-examples api-single api-chain api-exc-inh \
@@ -38,6 +40,19 @@ help:
 	@echo   make test-homeostasis-long - 20000 passos com todos os mecanismos
 	@echo   make test-reward       - validacao numerica do R-STDP
 	@echo   make test-reward-long  - execucao prolongada com reward e homeostase
+	@echo   make test-evolution    - validacao numerica do motor neuroevolutivo
+	@echo   make test-evolution-runner - blueprint, avaliacao, outputs e heranca darwiniana
+	@echo   make test-evolution-resume - retomada exata a partir de checkpoint
+	@echo   make test-evolution-long - execucao evolutiva prolongada separada
+	@echo   make evolution-build   - compila o runner de neuroevolucao
+	@echo   make evolution-weight-demo - evolui pesos para uma contagem-alvo
+	@echo   make evolution-homeostasis-demo - evolui parametros homeostaticos
+	@echo   make evolution-plasticity-demo - evolui parametros com STDP durante a vida
+	@echo   make test-plot-evolution - valida o panorama PNG evolutivo
+	@echo   make test-evolution-report - valida o relatorio HTML evolutivo
+	@echo   make plot-evolution RUN=results/evolution/experimento - gera panorama evolutivo
+	@echo   make report-evolution RUN=results/evolution/experimento - gera relatorio HTML
+	@echo   make report-evolution-history - gera historico HTML evolutivo
 	@echo   make test-scenario     - teste do parser de cenarios
 	@echo   make test-runner       - teste do executor compartilhado de cenarios
 	@echo   make test-runner-topologies - validacao estrutural das topologias do runner
@@ -51,10 +66,12 @@ help:
 	@echo   make benchmark-c1      - mede STDP off, on e custo do historico
 	@echo   make benchmark-c15     - compara cinco modos de homeostase
 	@echo   make benchmark-c2      - compara custos de R-STDP e reward
+	@echo   make benchmark-c3      - mede custos locais da neuroevolucao
 	@echo   make check-v02         - verifica prontidao automatica sem alterar Git
 	@echo   make check-c1          - verifica o fechamento automatico do Bloco C1
 	@echo   make check-c15         - verifica o fechamento automatico do Bloco C1.5
 	@echo   make check-c2          - verifica o fechamento automatico do Bloco C2
+	@echo   make check-c3          - verifica o fechamento automatico do Bloco C3
 	@echo   make test-plot-neuron  - teste Python do grafico de neuronio
 	@echo   make test-plot-plasticity - teste Python do grafico STDP
 	@echo   make test-plot-homeostasis - teste Python do panorama homeostatico
@@ -128,6 +145,18 @@ $(BUILD_DIR)/test_reward.exe: tests/test_reward.c $(API_SOURCES) | $(BUILD_DIR)
 $(BUILD_DIR)/test_reward_long.exe: tests/test_reward_long.c $(API_SOURCES) | $(BUILD_DIR)
 	$(CC) $(CFLAGS) tests/test_reward_long.c $(API_SOURCES) $(INCLUDES) -o $@
 
+$(BUILD_DIR)/test_evolution.exe: tests/test_evolution.c $(EVOLUTION_SOURCES) src/evolution.h | $(BUILD_DIR)
+	$(CC) $(CFLAGS) tests/test_evolution.c $(EVOLUTION_SOURCES) $(INCLUDES) -o $@
+
+$(BUILD_DIR)/test_evolution_runner.exe: tests/test_evolution_runner.c $(EVOLUTION_RUNNER_SOURCES) $(API_SOURCES) | $(BUILD_DIR)
+	$(CC) $(CFLAGS) -DEVOLUTION_RUNNER_NO_MAIN tests/test_evolution_runner.c $(EVOLUTION_RUNNER_SOURCES) $(API_SOURCES) $(INCLUDES) -o $@
+
+$(BUILD_DIR)/test_evolution_long.exe: tests/test_evolution_long.c $(EVOLUTION_RUNNER_SOURCES) $(API_SOURCES) | $(BUILD_DIR)
+	$(CC) $(CFLAGS) -DEVOLUTION_RUNNER_NO_MAIN tests/test_evolution_long.c $(EVOLUTION_RUNNER_SOURCES) $(API_SOURCES) $(INCLUDES) -o $@
+
+$(BUILD_DIR)/evolution_runner.exe: $(EVOLUTION_RUNNER_SOURCES) $(API_SOURCES) | $(BUILD_DIR)
+	$(CC) $(CFLAGS) $(EVOLUTION_RUNNER_SOURCES) $(API_SOURCES) $(INCLUDES) -o $@
+
 $(BUILD_DIR)/test_scenario_config.exe: tests/test_scenario_config.c $(APP_SOURCES) app/scenario_config.h | $(BUILD_DIR)
 	$(CC) $(CFLAGS) tests/test_scenario_config.c $(APP_SOURCES) $(INCLUDES) -o $@
 
@@ -178,6 +207,45 @@ test-reward: $(BUILD_DIR)/test_reward.exe
 test-reward-long: $(BUILD_DIR)/test_reward_long.exe
 	$(BUILD_DIR)/test_reward_long.exe
 
+test-evolution: $(BUILD_DIR)/test_evolution.exe
+	$(BUILD_DIR)/test_evolution.exe
+
+test-evolution-runner: $(BUILD_DIR)/test_evolution_runner.exe
+	$(BUILD_DIR)/test_evolution_runner.exe
+
+test-evolution-resume: test-evolution-runner
+
+test-evolution-long: $(BUILD_DIR)/test_evolution_long.exe
+	$(BUILD_DIR)/test_evolution_long.exe
+
+evolution-build: $(BUILD_DIR)/evolution_runner.exe
+
+evolution-weight-demo: $(BUILD_DIR)/evolution_runner.exe
+	$(BUILD_DIR)/evolution_runner.exe configs/evolution_weight_target_demo.ini
+
+evolution-homeostasis-demo: $(BUILD_DIR)/evolution_runner.exe
+	$(BUILD_DIR)/evolution_runner.exe configs/evolution_homeostasis_demo.ini
+
+evolution-plasticity-demo: $(BUILD_DIR)/evolution_runner.exe
+	$(BUILD_DIR)/evolution_runner.exe configs/evolution_plasticity_demo.ini
+
+test-plot-evolution: | $(BUILD_DIR)
+	$(PYTHON) tests/test_plot_evolution.py
+
+test-evolution-report: | $(BUILD_DIR)
+	$(PYTHON) tests/test_evolution_report.py
+
+plot-evolution:
+	@if "$(RUN)"=="" (echo Erro: informe RUN=results/evolution/nome_do_experimento & exit /B 1)
+	$(PYTHON) scripts/plot_evolution.py "$(RUN)"
+
+report-evolution:
+	@if "$(RUN)"=="" (echo Erro: informe RUN=results/evolution/nome_do_experimento & exit /B 1)
+	$(PYTHON) scripts/generate_evolution_report.py "$(RUN)"
+
+report-evolution-history:
+	$(PYTHON) scripts/generate_evolution_report.py results/evolution --history
+
 test-scenario: $(BUILD_DIR)/test_scenario_config.exe
 	$(BUILD_DIR)/test_scenario_config.exe
 
@@ -216,6 +284,12 @@ benchmark-c15: $(BUILD_DIR)/minisnn_runner.exe | $(BUILD_DIR)
 
 benchmark-c2: $(BUILD_DIR)/minisnn_runner.exe | $(BUILD_DIR)
 	$(PYTHON) scripts/run_benchmarks_c2.py
+
+benchmark-c3: $(BUILD_DIR)/minisnn_runner.exe $(BUILD_DIR)/evolution_runner.exe | $(BUILD_DIR)
+	$(PYTHON) scripts/run_benchmarks_c3.py
+
+check-c3: $(BUILD_DIR)/minisnn_runner.exe $(BUILD_DIR)/evolution_runner.exe | $(BUILD_DIR)
+	$(PYTHON) scripts/check_c3.py
 
 check-v02: | $(BUILD_DIR)
 	$(PYTHON) scripts/check_release_v02.py
@@ -368,8 +442,8 @@ report-all:
 report-history:
 	$(PYTHON) scripts/generate_history_report.py results/scenarios
 
-$(BUILD_DIR)/minisnn_studio.exe: app/minisnn_studio.c $(SCENARIO_RUNNER_SOURCES) $(API_SOURCES) include/minisnn.h include/minisnn_types.h app/scenario_config.h app/scenario_runner.h | $(BUILD_DIR)
-	$(CC) $(CFLAGS) app/minisnn_studio.c $(SCENARIO_RUNNER_SOURCES) $(API_SOURCES) $(INCLUDES) -o $@ -mwindows -lcomdlg32 -lshell32 -lgdi32 -luser32 -lole32
+$(BUILD_DIR)/minisnn_studio.exe: app/minisnn_studio.c app/evolution_config.c $(SCENARIO_RUNNER_SOURCES) $(API_SOURCES) include/minisnn.h include/minisnn_types.h app/scenario_config.h app/scenario_runner.h app/evolution_config.h | $(BUILD_DIR)
+	$(CC) $(CFLAGS) app/minisnn_studio.c app/evolution_config.c $(SCENARIO_RUNNER_SOURCES) $(API_SOURCES) $(INCLUDES) -o $@ -mwindows -lcomdlg32 -lshell32 -lgdi32 -luser32 -lole32
 
 studio-build: $(BUILD_DIR)/minisnn_studio.exe
 

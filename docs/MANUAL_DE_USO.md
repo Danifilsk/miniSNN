@@ -433,3 +433,23 @@ Os resultados ficam na pasta da run. Gere o panorama com
 `mingw32-make plot-homeostasis RUN=results/scenarios/nome`. Veja o
 [Guia de homeostase](GUIA_DE_HOMEOSTASE.md) para parâmetros, ordem temporal,
 outputs, testes e limitações.
+
+## Executar neuroevolução
+
+```powershell
+mingw32-make evolution-build
+mingw32-make evolution-weight-demo
+mingw32-make plot-evolution RUN=results/evolution/evolution_weight_target_demo
+mingw32-make report-evolution RUN=results/evolution/evolution_weight_target_demo
+mingw32-make report-evolution-history
+```
+
+Edite a config evolutiva e o cenário-base em arquivos separados. Para retomar:
+
+```powershell
+.\build\evolution_runner.exe --resume results\evolution\nome
+```
+
+No Studio, abra `NEUROEVOLUCAO`. Apenas uma execução evolutiva é aceita por
+vez. Consulte o [Guia de neuroevolução](GUIA_DE_NEUROEVOLUCAO.md) antes de
+alterar bounds ou fitness.

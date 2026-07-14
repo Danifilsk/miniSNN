@@ -85,3 +85,23 @@ Fórmulas completas estão no [Guia de diagnóstico](GUIA_DE_DIAGNOSTICO.md) e n
 - **Ganho inibitório:** multiplicador global aplicado na transmissão INH sem mudar o peso bruto.
 - **Erro de taxa:** taxa observada menos taxa-alvo.
 - **Clamp homeostático:** limite mínimo/máximo aplicado a threshold, peso, fator ou ganho.
+- **Neuroevolução:** otimização experimental de parâmetros neurais por operadores evolutivos.
+- **Indivíduo:** um genoma avaliado em uma rede reconstruída.
+- **População:** conjunto de indivíduos de uma geração.
+- **Genoma:** vetor ordenado de valores herdáveis.
+- **Fenótipo:** rede e dinâmica produzidas ao aplicar um genoma ao blueprint.
+- **Gene:** posição do genoma com tipo, bounds e baseline.
+- **Fitness:** adequação numérica somente ao objetivo configurado.
+- **Seleção:** escolha de indivíduos para reprodução.
+- **Torneio:** seleção pelo melhor de uma amostra sem reposição.
+- **Elitismo:** cópia dos melhores genomas para a próxima geração.
+- **Crossover:** combinação de genes de dois pais.
+- **Mutação:** alteração aleatória limitada de genes.
+- **Geração:** ciclo de avaliação e reprodução de uma população.
+- **Linhagem:** relação registrada entre indivíduo, pais e operação.
+- **Blueprint estrutural:** topologia, tipos e delays fixos usados por todos os indivíduos.
+- **Diversidade genética:** dispersão dos valores dos genes na população.
+- **Checkpoint evolutivo:** estado completo salvo numa fronteira de geração.
+- **Herança darwiniana:** herança do genoma inicial, não das mudanças adquiridas na vida.
+- **Herança lamarckiana:** herança de mudanças adquiridas; desativada no C3.
+- **Convergência prematura:** perda de diversidade antes de explorar soluções suficientes.

@@ -12,6 +12,7 @@ SCRIPTS_DIR = PROJECT_ROOT / "scripts"
 sys.path.insert(0, str(SCRIPTS_DIR))
 
 from html_report_common import (  # noqa: E402
+    EVOLUTION_REPORT_FILENAME,
     ReportGenerationError,
     WEIGHT_TABLE_LIMIT,
     generate_metrics_report,
@@ -110,6 +111,8 @@ def expect_failure(callback, output: Path, message: str) -> None:
 
 
 def main() -> int:
+    check(EVOLUTION_REPORT_FILENAME == "evolution_report.html",
+          "evolution report public filename")
     shutil.rmtree(TEMP_ROOT, ignore_errors=True)
     TEMP_ROOT.mkdir(parents=True)
     try:

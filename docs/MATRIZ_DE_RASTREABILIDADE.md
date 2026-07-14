@@ -25,6 +25,8 @@
 | Fechamento C1.5 | `scripts/check_c15.py` | arquivos, demos, regressão | `check-c15` | saída do checker | [Homeostase](GUIA_DE_HOMEOSTASE.md) | Implementado |
 | R-STDP C2 | `[plasticity]`, `[reward]`, `[reward_events]` | `src/reward.c`, plasticidade, rede, API e runner | `test_reward`, parser, runner, reprodutibilidade e long | elegibilidade, eventos, pesos, CSV, TXT, HTML e PNG | [Recompensa](GUIA_DE_RECOMPENSA.md) | Implementado para origens EXC; experimental |
 | Fechamento C2 | `scripts/check_c2.py` | arquivos, demos, regressões C1/C1.5 e documentação | `check-c2` | saída do checker | [Recompensa](GUIA_DE_RECOMPENSA.md) | Automatizado; Studio permanece manual |
+| Neuroevolução C3 | `[evolution]`, `[genome]`, `[fitness]` | `src/evolution.c`, `app/evolution_config.c`, `app/evolution_runner.c` | `test-evolution`, runner, resume, long, PNG e HTML | CSVs, checkpoint, best run, PNG, HTML e histórico | [Neuroevolução](GUIA_DE_NEUROEVOLUCAO.md) | Implementado com topologia fixa; experimental |
+| Fechamento C3 | `scripts/check_c3.py` | motor, runner, demos, regressões e documentação | `check-c3` | saída do checker | [Neuroevolução](GUIA_DE_NEUROEVOLUCAO.md) | Automação prevista; validação manual do Studio separada |
 
 Esta matriz não substitui revisão científica ou validação biológica. A validação
 manual do Studio permanece separada.

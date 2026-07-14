@@ -201,3 +201,11 @@ mudanças acumuladas, taxa populacional final, erro e ganho final.
 amostra determinística por neurônio. O diagnóstico e a comparação agregam esses
 campos quando presentes e usam `NA` para runs antigas. Veja o
 [Guia de homeostase](GUIA_DE_HOMEOSTASE.md).
+
+## Métricas evolutivas
+
+`generations.csv` registra fitness, dispersão entre réplicas, diversidade e
+operadores. `individuals.csv` separa fitness médio e fitness de seleção;
+`replicates.csv` mantém atividade observada por seed; `fitness_terms.csv` audita
+cada termo. Essas métricas descrevem adequação à função configurada, não
+inteligência geral. Consulte o [Guia de neuroevolução](GUIA_DE_NEUROEVOLUCAO.md).

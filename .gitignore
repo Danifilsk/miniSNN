@@ -34,3 +34,7 @@ tmp_*.csv
 # Resultados locais de benchmark (recriaveis)
 /results/benchmarks/*
 !/results/benchmarks/.gitkeep
+
+# Resultados locais gerados por neuroevolucao
+/results/evolution/*
+!/results/evolution/.gitkeep

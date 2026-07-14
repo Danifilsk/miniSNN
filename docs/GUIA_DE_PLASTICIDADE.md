@@ -209,3 +209,11 @@ scaling atua depois sobre o resultado. Estatísticas STDP contam somente STDP;
 estatísticas homeostáticas contam scaling. `weights_final.csv` mostra o efeito
 líquido e o relatório de pesos distingue os dois mecanismos. Consulte o
 [Guia de homeostase](GUIA_DE_HOMEOSTASE.md).
+
+## STDP dentro da neuroevolução
+
+Genes podem definir pesos EXC iniciais e parâmetros `a_plus`, `a_minus`,
+`tau_plus` e `tau_minus`. O STDP opera durante cada vida; seus pesos finais
+afetam a fitness, mas a descendência recebe o genoma inicial. Compare
+`best_run/weights_initial.csv` com `best_run/weights_final.csv`. Herança
+lamarckiana está desativada no C3.

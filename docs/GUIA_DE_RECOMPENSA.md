@@ -220,4 +220,11 @@ de R-STDP. Resultados locais estão documentados em
 R-STDP é uma aproximação simplificada e não garante aprendizado de tarefa.
 Parâmetros ruins podem saturar ou silenciar pesos. Homeostase não garante
 estabilidade universal. Punição é apenas reward negativo na fórmula. Não há
-plasticidade INH, poda/criação de conexões, neuroevolução ou Worlds neste bloco.
+plasticidade INH, poda/criação de conexões ou Worlds neste bloco.
+
+## R-STDP dentro da neuroevolução
+
+O C3 pode evoluir `reward.learning_rate` e `reward.eligibility_tau` quando
+R-STDP está ativo. Mudanças de peso por reward podem compor a fitness. A rede é
+descartada após cada réplica e os pesos aprendidos não são herdados. Isso não
+implementa política, agente ou previsão de recompensa.

@@ -530,3 +530,15 @@ configuração ativa sem mecanismo são rejeitados. Exemplos prontos:
 `configs/homeostasis_explosion_control_demo.ini` e
 `configs/homeostasis_stdp_scaling_demo.ini`. Consulte o
 [Guia de homeostase](GUIA_DE_HOMEOSTASE.md).
+
+## Cenários-base da neuroevolução
+
+Um cenário-base continua usando este formato e é validado pelo parser normal.
+O arquivo evolutivo separado adiciona `[evolution]`, `[genome]` e `[fitness]` e
+aponta `base_scenario` para o cenário. Não acrescente essas seções a um cenário
+executado por `minisnn_runner.exe`; use `evolution_runner.exe`.
+
+Exemplos: `configs/evolution_weight_target_base.ini`,
+`configs/evolution_homeostasis_base.ini` e
+`configs/evolution_plasticity_base.ini`. Veja o
+[Guia de neuroevolução](GUIA_DE_NEUROEVOLUCAO.md).

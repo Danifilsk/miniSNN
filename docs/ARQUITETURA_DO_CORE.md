@@ -105,3 +105,11 @@ Veja também o [Mapa do projeto](MAPA_DO_PROJETO.md) e a
 de entradas por `source` e índice de saída. Quando desligada, não há arrays por
 neurônio nem loops homeostáticos. Threshold e ganho atualizados só afetam passos
 futuros. Consulte o [Guia de homeostase](GUIA_DE_HOMEOSTASE.md).
+
+## Camada C3 de neuroevolução
+
+`src/evolution.c` implementa o motor puro e não conhece `Network`.
+`app/evolution_config.c` valida o experimento; `app/evolution_runner.c` captura
+um `ScenarioBlueprint` pelo construtor de topologias existente. O runtime
+temporal compartilhado está em `app/scenario_runtime.c`. Cada avaliação cria e
+destrói uma rede pública nova. A API C e a dinâmica neural permanecem no Core.

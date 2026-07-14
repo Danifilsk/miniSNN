@@ -13,6 +13,8 @@ METRICS_REPORT_FILENAME = "metrics_report.html"
 WEIGHTS_REPORT_FILENAME = "weights_report.html"
 REWARD_REPORT_FILENAME = "reward_report.html"
 HISTORY_REPORT_FILENAME = "history.html"
+EVOLUTION_REPORT_FILENAME = "evolution_report.html"
+EVOLUTION_HISTORY_FILENAME = "history.html"
 WEIGHT_TABLE_LIMIT = 500
 RANKING_LIMIT = 10
 
@@ -1093,3 +1095,297 @@ def generate_scenario_history_report(
         ),
     )
     return output
+
+
+EVOLUTION_HISTORY_COLUMNS = (
+    "timestamp",
+    "experiment_name",
+    "actual_experiment_name",
+    "experiment_path",
+    "config_path",
+    "base_scenario",
+    "population_size",
+    "generations",
+    "gene_count",
+    "best_fitness",
+    "best_individual_id",
+    "status",
+)
+
+EVOLUTION_HISTORY_ARTIFACTS = (
+    ("Relatorio", EVOLUTION_REPORT_FILENAME),
+    ("Grafico", "evolution_overview.png"),
+    ("Manifesto", "evolution_manifest.txt"),
+    ("Melhor genoma", "best_genome.csv"),
+    ("Melhor execucao", "best_run/metrics_report.html"),
+)
+
+
+def _read_evolution_csv_rows(
+    path: Path,
+    required_columns: tuple[str, ...],
+    *,
+    allow_empty: bool = False,
+) -> tuple[list[str], list[dict[str, str]]]:
+    if not path.is_file():
+        raise ReportGenerationError(f"arquivo obrigatorio ausente: {path.name}")
+    try:
+        with path.open("r", encoding="utf-8-sig", newline="") as file:
+            reader = csv.DictReader(file)
+            headers = _validate_headers(path, reader.fieldnames)
+            missing = [name for name in required_columns if name not in headers]
+            if missing:
+                raise ReportGenerationError(
+                    f"{path.name}: colunas obrigatorias ausentes: {', '.join(missing)}"
+                )
+            rows = [
+                _validate_row(path, raw, line)
+                for line, raw in enumerate(reader, start=2)
+            ]
+    except (OSError, UnicodeError, csv.Error) as error:
+        raise ReportGenerationError(
+            f"nao foi possivel ler {path.name}: {error}"
+        ) from error
+    if not rows and not allow_empty:
+        raise ReportGenerationError(f"{path.name}: CSV vazio")
+    return headers, rows
+
+
+def generate_evolution_report(run_directory: Path | str) -> Path:
+    run_dir = Path(run_directory)
+    if not run_dir.is_dir():
+        raise ReportGenerationError(f"pasta evolutiva inexistente: {run_dir}")
+
+    generation_headers, generations = _read_evolution_csv_rows(
+        run_dir / "generations.csv",
+        (
+            "generation", "population_size", "fitness_best", "fitness_mean",
+            "fitness_min", "fitness_max", "global_best_fitness",
+            "best_individual_id", "global_best_individual_id",
+            "diversity_mean_gene_std", "mutation_count",
+        ),
+    )
+    genome_headers, best_genome = _read_evolution_csv_rows(
+        run_dir / "best_genome.csv",
+        ("individual_id", "generation", "fitness_selection", "gene_index",
+         "gene_name", "gene_kind", "value", "minimum", "maximum"),
+    )
+    lineage_headers, lineage = _read_evolution_csv_rows(
+        run_dir / "lineage.csv",
+        ("child_generation", "child_individual_id", "operation"),
+        allow_empty=True,
+    )
+    manifest = read_key_values(run_dir / "evolution_manifest.txt")
+    evolution_config = read_key_values(run_dir / "evolution_config_used.ini")
+    base_config = read_key_values(run_dir / "base_scenario_used.ini")
+
+    initial = _decimal(generations[0]["fitness_best"])
+    best = max(
+        (_decimal(row["global_best_fitness"]) for row in generations),
+        key=lambda value: value if value is not None else Decimal("-Infinity"),
+    )
+    if initial is None or best is None:
+        raise ReportGenerationError("generations.csv: fitness invalido")
+    improvement = best - initial
+    improvement_percent = (
+        improvement / abs(initial) * Decimal("100") if initial != 0 else None
+    )
+    planned_generations = _decimal(evolution_config.get("generations", ""))
+    completed_generations = len(generations)
+    status = "COMPLETED"
+    if planned_generations is not None and completed_generations < int(planned_generations):
+        status = "CHECKPOINTED"
+
+    body = _cards([
+        ("Melhor fitness", format_value("best_fitness", best)),
+        ("Fitness inicial", format_value("initial_fitness", initial)),
+        ("Melhora absoluta", format_value("improvement", improvement)),
+        ("Melhora percentual", f"{improvement_percent:.2f}%" if improvement_percent is not None else "NA"),
+        ("Populacao", generations[-1]["population_size"]),
+        ("Geracoes", completed_generations),
+        ("Genes", len(best_genome)),
+        ("Replicas", manifest.get("replicates", "NA")),
+        ("Melhor individuo", generations[-1]["global_best_individual_id"]),
+        ("Status", status),
+    ])
+    body += (
+        "<h2>Resumo</h2><p>O genoma foi selecionado segundo a funcao de fitness "
+        "configurada. O resultado e especifico ao cenario, aos limites e as seeds.</p>"
+    )
+    body += "<h2>Configuracao</h2>" + _key_value_table(
+        [(key, value) for key, value in evolution_config.items()
+         if key != "base_scenario"]
+    )
+    body += "<h2>Cenario-base</h2>" + _key_value_table(list(base_config.items()))
+    body += "<h2>Genoma</h2>" + _generic_table(genome_headers, best_genome[:500])
+    body += (
+        "<h2>Fitness</h2><p>Fitness de selecao agrega termos ponderados e, quando "
+        "configurado, penaliza variacao entre replicas.</p>"
+    )
+    generation_columns = [
+        name for name in (
+            "generation", "fitness_best", "fitness_mean", "fitness_min",
+            "fitness_max", "global_best_fitness", "diversity_mean_gene_std",
+            "diversity_mean_pair_distance", "mutation_count",
+        ) if name in generation_headers
+    ]
+    body += "<h2>Geracoes</h2>" + _generic_table(
+        generation_columns,
+        [{name: row[name] for name in generation_columns} for row in generations],
+    )
+    body += "<h2>Melhor individuo</h2>" + _key_value_table([
+        ("individual_id", generations[-1]["global_best_individual_id"]),
+        ("fitness", best),
+        ("generation", best_genome[0]["generation"]),
+    ])
+    body += "<h2>Genes do melhor</h2>" + _generic_table(genome_headers, best_genome[:500])
+    body += "<h2>Linhagem</h2>" + (
+        _generic_table(lineage_headers, lineage[-500:])
+        if lineage else '<p class="muted">Nenhuma linha de linhagem disponivel.</p>'
+    )
+    body += (
+        "<h2>Diversidade</h2><p>As medidas registradas descrevem dispersao dos "
+        "genes na populacao; valor baixo nao prova convergencia global.</p>"
+        "<h2>Plasticidade durante a vida</h2><p>Alteracoes aprendidas durante uma "
+        "avaliacao afetam o fitness, mas nao substituem o genoma inicial. A heranca "
+        "desta versao e darwiniana.</p>"
+        "<h2>Checkpoints</h2><p>O checkpoint textual e escrito em fronteiras de "
+        "geracao e preserva o estado do PRNG.</p>"
+    )
+    body += "<h2>Arquivos cientificos</h2>" + _existing_file_links(run_dir, (
+        "generations.csv", "individuals.csv", "replicates.csv",
+        "fitness_terms.csv", "genomes.csv", "lineage.csv", "best_genome.csv",
+        "best_network_initial.csv", "evolution_overview.png",
+        "evolution_manifest.txt", "evolution_report.txt",
+        "best_run/metrics_report.html",
+    ))
+    body += _preview_images(run_dir, ("evolution_overview.png",))
+    body += (
+        '<h2>Limitacoes</h2><div class="notice">Melhor fitness nao significa '
+        "inteligencia geral nem otimo global. A topologia e os delays permanecem "
+        "fixos, a diversidade pode colapsar e a avaliacao e serial.</div>"
+    )
+
+    actual_name = manifest.get("actual_experiment_name", run_dir.name)
+    output = run_dir / EVOLUTION_REPORT_FILENAME
+    _atomic_write(output, _document(
+        "MINISNN - RELATORIO DE NEUROEVOLUCAO",
+        f"Experimento: {actual_name}",
+        body,
+    ))
+    return output
+
+
+def generate_evolution_history_report(
+    evolution_directory: Path | str,
+    output_filename: str = EVOLUTION_HISTORY_FILENAME,
+) -> Path:
+    evolution_dir = Path(evolution_directory)
+    if not evolution_dir.is_dir():
+        raise ReportGenerationError(
+            f"pasta de evolucao inexistente: {evolution_dir}"
+        )
+    if (Path(output_filename).name != output_filename or not output_filename or
+            Path(output_filename).suffix.lower() != ".html"):
+        raise ReportGenerationError("nome de saida invalido")
+
+    _, rows = _read_evolution_csv_rows(
+        evolution_dir / "index.csv",
+        EVOLUTION_HISTORY_COLUMNS,
+        allow_empty=True,
+    )
+    indexed_rows = list(enumerate(rows))
+    indexed_rows.sort(key=lambda item: (item[1]["timestamp"], item[0]), reverse=True)
+    ordered_rows = [row for _, row in indexed_rows]
+    ok_count = sum(row["status"].strip().upper() == "OK" for row in rows)
+    body = _cards([
+        ("Experimentos", len(rows)),
+        ("Concluidos", ok_count),
+        ("Outros status", len(rows) - ok_count),
+        ("Nomes distintos", len({row["experiment_name"] for row in rows})),
+        ("Ultimo registro", ordered_rows[0]["timestamp"] if ordered_rows else "Nenhum"),
+    ])
+    body += '<p><a href="index.csv">Abrir index.csv bruto</a></p>'
+    if not ordered_rows:
+        body += '<div class="history-empty">Nenhum experimento evolutivo registrado.</div>'
+    else:
+        body += """
+<div class="history-controls">
+  <label>BUSCAR EXPERIMENTOS<input id="history-search" type="search" placeholder="nome, cenario, status ou data"></label>
+  <label>STATUS<select id="history-status"><option value="">TODOS</option><option value="OK">OK</option><option value="ERRO">ERRO</option></select></label>
+</div>
+"""
+        table_rows: list[str] = []
+        for row in ordered_rows:
+            status_ok = row["status"].strip().upper() == "OK"
+            status_group = "OK" if status_ok else "ERRO"
+            status_text = "OK" if status_ok else f'ERRO: {row["status"] or "status ausente"}'
+            status_html = (
+                f'<span class="status-ok">{escaped(status_text)}</span>'
+                if status_ok else
+                f'<span class="status-error">{escaped(status_text)}</span>'
+            )
+            run_directory = _safe_history_run_directory(
+                evolution_dir, row["experiment_path"]
+            )
+            artifacts = _evolution_history_links(evolution_dir, run_directory)
+            search_text = " ".join(
+                row[key] for key in (
+                    "experiment_name", "actual_experiment_name", "base_scenario",
+                    "status", "timestamp",
+                )
+            ).lower()
+            values = (
+                row["timestamp"], row["experiment_name"],
+                row["actual_experiment_name"], Path(row["base_scenario"]).name,
+                row["population_size"], row["generations"], row["gene_count"],
+                row["best_fitness"], row["best_individual_id"],
+            )
+            cells = "".join(f"<td>{escaped(value)}</td>" for value in values)
+            table_rows.append(
+                '<tr class="history-row" '
+                f'data-search="{escaped(search_text)}" data-status="{status_group}">'
+                f"{cells}<td>{status_html}</td><td>{artifacts}</td></tr>"
+            )
+        body += """
+<div class="table-wrap"><table><thead><tr><th>Data/hora</th><th>Experimento</th><th>Nome real</th><th>Cenario-base</th><th>Populacao</th><th>Geracoes</th><th>Genes</th><th>Melhor fitness</th><th>Melhor individuo</th><th>Status</th><th>Arquivos</th></tr></thead><tbody>""" + "".join(table_rows) + """</tbody></table></div>
+<script>
+(() => {
+  const search = document.getElementById('history-search');
+  const status = document.getElementById('history-status');
+  const rows = Array.from(document.querySelectorAll('.history-row'));
+  const apply = () => {
+    const query = search.value.trim().toLowerCase();
+    for (const row of rows) {
+      row.hidden = !((!query || row.dataset.search.includes(query)) &&
+                     (!status.value || row.dataset.status === status.value));
+    }
+  };
+  search.addEventListener('input', apply);
+  status.addEventListener('change', apply);
+})();
+</script>"""
+
+    output = evolution_dir / output_filename
+    _atomic_write(output, _document(
+        "MINISNN - HISTORICO EVOLUTIVO",
+        "Fonte: index.csv append-only",
+        body,
+    ))
+    return output
+
+
+def _evolution_history_links(
+    evolution_directory: Path,
+    run_directory: Path | None,
+) -> str:
+    if run_directory is None:
+        return '<span class="muted">arquivos indisponiveis</span>'
+    relative = run_directory.relative_to(evolution_directory.resolve()).as_posix()
+    links: list[str] = []
+    for label, filename in EVOLUTION_HISTORY_ARTIFACTS:
+        if (run_directory / filename).is_file():
+            href = quote(f"{relative}/{filename}", safe="/")
+            links.append(f'<a href="{escaped(href)}">{escaped(label)}</a>')
+    links.append(f'<a href="{escaped(quote(relative + "/", safe="/"))}">Pasta</a>')
+    return '<span class="artifact-links">' + "".join(links) + "</span>"

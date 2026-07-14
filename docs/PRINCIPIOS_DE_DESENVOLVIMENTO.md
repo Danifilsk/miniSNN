@@ -104,3 +104,11 @@ Homeostase é opt-in e deve preservar bit a bit os golden tests quando desligada
 Cada mecanismo precisa de fórmula única no Core, ordem temporal explícita,
 estatística separada do STDP, limites configuráveis e linguagem científica que
 não prometa estabilidade universal.
+
+## Neuroevolução
+
+O C3 deve manter blueprint, comprimento e ordem de genes fixos. Seeds, tie-breaks,
+checkpoint e resume são parte do contrato reprodutível. Aprendizado durante a
+vida afeta fitness, mas não é herdado. Relatórios devem dizer que fitness mede
+somente o objetivo configurado e não prova inteligência, ótimo global ou
+adaptação universal. Avaliação paralela permanece trabalho futuro.

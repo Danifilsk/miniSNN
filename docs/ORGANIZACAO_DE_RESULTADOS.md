@@ -169,3 +169,15 @@ Runs ativas podem incluir `homeostasis_metrics.csv`, `homeostasis_history.csv`,
 `homeostasis_report.html` e `homeostasis_overview.png`. Eles permanecem na pasta
 da run. Benchmark C1.5 recriável fica em `results/benchmarks/` e continua
 ignorado pelo Git conforme a política local.
+
+## Resultados evolutivos
+
+Execuções C3 ficam em `results/evolution/<actual_experiment_name>/` e são
+recriáveis/ignoradas localmente. `results/evolution/index.csv` é append-only;
+`history.html` é apresentação local; `last_experiment.txt` aponta o último
+sucesso. Cada pasta contém configs usadas, manifesto, CSVs por geração,
+indivíduo, réplica, fitness, genoma e linhagem, checkpoint, melhor genoma,
+`evolution_report.html`, `evolution_overview.png` e `best_run/`.
+
+Não mova `best_run/weights_final.csv` para `best_genome.csv`: o primeiro pode
+conter aprendizado ao longo da vida e não é herdável.

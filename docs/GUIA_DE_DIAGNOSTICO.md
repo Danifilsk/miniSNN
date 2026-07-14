@@ -236,3 +236,10 @@ Quando `homeostasis_metrics.csv` existe, o relatório inclui mecanismos ativos,
 taxa-alvo, taxa final, erro, thresholds, scaling e ganho. Ausência do arquivo em
 uma run antiga não é erro. Valores não finitos são recusados. A classificação de
 regime continua heurística e não demonstra que a homeostase causou estabilidade.
+
+## Uso como fitness
+
+O C3 reutiliza métricas objetivas do runtime, mas não transforma rótulos
+heurísticos em verdade científica. Termos como atividade, spikes e erro de taxa
+devem ter target/scale explícitos. Uma melhora de fitness só vale para o
+experimento configurado e pode refletir atalhos da métrica.

@@ -208,3 +208,10 @@ Os testes cobrem fórmulas, clamps, ordem temporal, reset, isolamento entre rede
 STDP com scaling, runner, execução prolongada, valores finitos, CSV, PNG e HTML.
 O benchmark local está documentado em
 [BENCHMARKS_C15_HOMEOSTASE.md](BENCHMARKS_C15_HOMEOSTASE.md).
+
+## Homeostase dentro da neuroevolução
+
+O C3 pode evoluir `target_rate`, `rate_tau`, `threshold_eta`, `scaling_eta` e
+`inhibitory_gain_eta` quando o mecanismo correspondente está ativo no
+cenário-base. Erro de taxa pode ser fitness. O resultado depende de bounds e
+seeds; homeostase e evolução não garantem estabilidade universal.

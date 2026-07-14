@@ -79,3 +79,13 @@ detalhes ficam encapsulados nos módulos correspondentes.
 - `scripts/run_benchmarks_c15.py`: benchmark controlado.
 - `configs/homeostasis_*_demo.ini`: três demonstrações reproduzíveis.
 - `docs/GUIA_DE_HOMEOSTASE.md`: referência operacional e científica.
+
+## Bloco C3
+
+- `src/evolution.*`: PRNG, população, seleção, crossover, mutação e checkpoint.
+- `app/evolution_config.*`: parser estrito de `[evolution]`, `[genome]` e `[fitness]`.
+- `app/evolution_runner.*`: blueprint fixo, avaliações, CSVs e best run.
+- `scripts/plot_evolution.py`: `evolution_overview.png`.
+- `scripts/generate_evolution_report.py`: relatório e histórico HTML.
+- `configs/evolution_*`: três demos reproduzíveis.
+- `results/evolution/`: saídas locais ignoradas, exceto `.gitkeep`.

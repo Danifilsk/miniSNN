@@ -116,3 +116,11 @@ peso.
 Use `mingw32-make scenario-homeostasis-silence` para a primeira execução e
 `mingw32-make plot-homeostasis RUN=results/scenarios/homeostasis_silence_recovery_demo`
 para o panorama. Configs antigas permanecem com a homeostase desligada.
+
+## Neuroevolução opcional
+
+Compile com `mingw32-make evolution-build` e rode
+`mingw32-make evolution-weight-demo`. Os resultados ficam em
+`results/evolution/evolution_weight_target_demo/`. Consulte o
+[Guia de neuroevolução](GUIA_DE_NEUROEVOLUCAO.md); topologia e delays não
+evoluem nesta fase.

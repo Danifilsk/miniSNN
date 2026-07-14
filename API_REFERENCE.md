@@ -7,6 +7,12 @@
 
 Esta referência descreve a API pública atual de `minisnn.h`.
 
+O C3 não altera as assinaturas deste header. Sua superfície pública experimental
+é o executável `build/evolution_runner.exe`, os arquivos INI com `[evolution]`,
+`[genome]` e `[fitness]`, e os artefatos documentados no
+[Guia de neuroevolução](docs/GUIA_DE_NEUROEVOLUCAO.md). O motor em
+`src/evolution.h` permanece interno para preservar o encapsulamento da API C.
+
 `MiniSNN` e um tipo opaco. O usuario cria, usa e destroi redes por funcoes
 publicas, sem acessar campos internos.
 

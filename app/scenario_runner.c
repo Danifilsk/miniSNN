@@ -8,6 +8,7 @@
 #include <windows.h>
 
 #include "minisnn.h"
+#include "scenario_runtime.h"
 
 #define COMMAND_BUFFER_SIZE 640
 #define SCENARIO_MAX_NEURONS 1000
@@ -3240,6 +3241,73 @@ static int write_run_manifest(
     return fclose(file) == 0;
 }
 
+int scenario_runner_capture_blueprint(
+    const ScenarioConfig *config,
+    ScenarioBlueprint *out_blueprint,
+    char *error_message,
+    size_t error_message_size)
+{
+    MiniSNNConfig minisnn_config;
+    MiniSNN *snn = NULL;
+    ConnectivityStats connectivity;
+    int neuron_is_inhibitory[SCENARIO_MAX_NEURONS];
+    int inhibitory_count;
+    int ok;
+
+    if (config == NULL || out_blueprint == NULL ||
+        !scenario_config_validate(config, error_message, error_message_size))
+    {
+        return 0;
+    }
+
+    memset(&connectivity, 0, sizeof(connectivity));
+    memset(neuron_is_inhibitory, 0, sizeof(neuron_is_inhibitory));
+    minisnn_config.neuron_count = config->neurons;
+    minisnn_config.dt = config->dt;
+    minisnn_config.tau = config->tau;
+    minisnn_config.v_rest = config->v_rest;
+    minisnn_config.v_reset = config->v_reset;
+    minisnn_config.v_threshold = config->v_threshold;
+    minisnn_config.resistance = config->resistance;
+    minisnn_config.synaptic_decay = config->synaptic_decay;
+    minisnn_config.max_synaptic_delay = config->max_synaptic_delay;
+
+    snn = minisnn_create_with_config(&minisnn_config);
+    if (snn == NULL)
+    {
+        set_error(error_message, error_message_size, "erro ao criar rede do blueprint");
+        return 0;
+    }
+
+    inhibitory_count = calculate_inhibitory_count(config);
+    ok = set_neuron_types(
+             snn,
+             config,
+             inhibitory_count,
+             neuron_is_inhibitory) &&
+         build_topology(
+             snn,
+             config,
+             neuron_is_inhibitory,
+             &connectivity) &&
+         scenario_runtime_capture_network(
+             snn,
+             inhibitory_count,
+             connectivity.topology_signature,
+             out_blueprint,
+             error_message,
+             error_message_size);
+
+    if (!ok && error_message != NULL && error_message_size > 0 &&
+        error_message[0] == '\0')
+    {
+        set_error(error_message, error_message_size, "erro ao capturar blueprint");
+    }
+
+    minisnn_destroy(&snn);
+    return ok;
+}
+
 static int run_simulation(
     MiniSNN *snn,
     const ScenarioConfig *config,
@@ -3264,85 +3332,43 @@ static int run_simulation(
 
     for (int step = 0; step < config->steps; step++)
     {
-        int step_spikes;
-        int spikes_total = 0;
-        int spikes_exc = 0;
-        int spikes_inh = 0;
-        double voltage_sum = 0.0;
-        double syn_current_sum = 0.0;
-        int record_spike = 0;
-        double record_voltage = 0.0;
-        double record_syn_current = 0.0;
+        ScenarioRuntimeStep runtime_step;
+        int spikes_total;
+        int spikes_exc;
+        int spikes_inh;
+        int record_spike;
+        double record_voltage;
+        double record_syn_current;
         double record_ext_current =
             config->record_neuron < config->source_count ?
             config->input_current :
             0.0;
-        double scheduled_reward = 0.0;
-        int reward_component_count = 0;
+        char runtime_error[160] = {0};
 
-        if (reward_data->enabled)
+        if (!scenario_runtime_step(
+                snn,
+                config,
+                inhibitory_count,
+                step,
+                &runtime_step,
+                runtime_error,
+                sizeof(runtime_error)))
         {
-            for (int i = 0; i < config->reward_event_count; i++)
-            {
-                if (config->reward_events[i].step == step)
-                {
-                    scheduled_reward += config->reward_events[i].value;
-                    reward_component_count++;
-                }
-            }
-
-            if (!isfinite(scheduled_reward))
-                return 0;
-
-            if (reward_component_count > 0 &&
-                !minisnn_queue_reward(snn, scheduled_reward))
-            {
-                return 0;
-            }
-        }
-
-        minisnn_clear_inputs(snn);
-
-        for (int source = 0; source < config->source_count; source++)
-        {
-            if (!minisnn_set_input(snn, source, config->input_current))
-                return 0;
-        }
-
-        step_spikes = minisnn_step(snn);
-
-        if (step_spikes < 0)
             return 0;
+        }
+
+        spikes_total = runtime_step.spikes_total;
+        spikes_exc = runtime_step.spikes_exc;
+        spikes_inh = runtime_step.spikes_inh;
+        record_spike = runtime_step.spikes[config->record_neuron];
+        record_voltage = runtime_step.voltages[config->record_neuron];
+        record_syn_current =
+            runtime_step.synaptic_currents[config->record_neuron];
 
         for (int neuron_id = 0; neuron_id < config->neurons; neuron_id++)
         {
-            int spike;
-            double voltage;
-            double syn_current;
-            int is_inh = neuron_id_is_inhibitory(
-                neuron_id,
-                config->neurons,
-                inhibitory_count);
-
-            if (!minisnn_get_spike(snn, neuron_id, &spike) ||
-                !minisnn_get_voltage(snn, neuron_id, &voltage) ||
-                !minisnn_get_synaptic_current(snn, neuron_id, &syn_current))
+            if (runtime_step.spikes[neuron_id])
             {
-                return 0;
-            }
-
-            voltage_sum += voltage;
-            syn_current_sum += syn_current;
-
-            if (spike)
-            {
-                spikes_total++;
-
-                if (is_inh)
-                    spikes_inh++;
-                else
-                    spikes_exc++;
-
                 if (fprintf(
                         raster_file,
                         "%d,%d,%s\n",
@@ -3356,17 +3382,7 @@ static int run_simulation(
                     return 0;
                 }
             }
-
-            if (neuron_id == config->record_neuron)
-            {
-                record_spike = spike;
-                record_voltage = voltage;
-                record_syn_current = syn_current;
-            }
         }
-
-        if (step_spikes != spikes_total)
-            return 0;
 
         if (spikes_total > 0)
         {
@@ -3397,8 +3413,8 @@ static int run_simulation(
                 spikes_total,
                 spikes_exc,
                 spikes_inh,
-                voltage_sum / (double)config->neurons,
-                syn_current_sum / (double)config->neurons) < 0)
+                runtime_step.voltage_sum / (double)config->neurons,
+                runtime_step.synaptic_current_sum / (double)config->neurons) < 0)
         {
             return 0;
         }
@@ -3434,9 +3450,12 @@ static int run_simulation(
             return 0;
         }
 
-        if (reward_data->enabled && reward_component_count > 0 &&
+        if (reward_data->enabled && runtime_step.reward_component_count > 0 &&
             (!write_reward_event_step(
-                 snn, reward_data, step, reward_component_count) ||
+                 snn,
+                 reward_data,
+                 step,
+                 runtime_step.reward_component_count) ||
              !write_reward_history_step(snn, reward_data, step + 1)))
         {
             return 0;
@@ -3582,97 +3601,14 @@ int scenario_runner_execute(
         connectivity.inhibitory_to_inhibitory_count;
     result.topology_signature = connectivity.topology_signature;
 
+    if (!scenario_runtime_configure_modules(
+            snn,
+            config,
+            error_message,
+            error_message_size))
     {
-        MiniSNNPlasticityConfig plasticity_config =
-            minisnn_default_plasticity_config();
-
-        plasticity_config.enabled = config->plasticity_enabled;
-        plasticity_config.rule = MINISNN_PLASTICITY_STDP_PAIR_TRACE;
-        plasticity_config.learning_mode =
-            strcmp(
-                config->plasticity_learning_mode,
-                "reward_modulated_stdp") == 0 ?
-                MINISNN_LEARNING_MODE_REWARD_MODULATED_STDP :
-                MINISNN_LEARNING_MODE_DIRECT_STDP;
-        plasticity_config.a_plus = config->plasticity_a_plus;
-        plasticity_config.a_minus = config->plasticity_a_minus;
-        plasticity_config.tau_plus = config->plasticity_tau_plus;
-        plasticity_config.tau_minus = config->plasticity_tau_minus;
-        plasticity_config.trace_increment = config->plasticity_trace_increment;
-        plasticity_config.weight_min = config->plasticity_weight_min;
-        plasticity_config.weight_max = config->plasticity_weight_max;
-
-        if (!minisnn_set_plasticity_config(snn, &plasticity_config))
-        {
-            set_error(error_message, error_message_size, "erro ao configurar plasticidade");
-            minisnn_destroy(&snn);
-            return 0;
-        }
-    }
-
-    {
-        MiniSNNRewardConfig reward_config = minisnn_default_reward_config();
-
-        reward_config.enabled = config->reward_enabled;
-        reward_config.mode = MINISNN_REWARD_MODE_RSTDP;
-        reward_config.learning_rate = config->reward_learning_rate;
-        reward_config.eligibility_tau = config->reward_eligibility_tau;
-        reward_config.eligibility_min = config->reward_eligibility_min;
-        reward_config.eligibility_max = config->reward_eligibility_max;
-        reward_config.reward_min = config->reward_min;
-        reward_config.reward_max = config->reward_max;
-        reward_config.clip_reward = config->reward_clip;
-
-        if (!minisnn_set_reward_config(snn, &reward_config))
-        {
-            set_error(error_message, error_message_size, "erro ao configurar reward");
-            minisnn_destroy(&snn);
-            return 0;
-        }
-    }
-
-    {
-        MiniSNNHomeostasisConfig homeostasis_config =
-            minisnn_default_homeostasis_config();
-
-        homeostasis_config.enabled = config->homeostasis_enabled;
-        homeostasis_config.intrinsic_enabled =
-            config->homeostasis_intrinsic_enabled;
-        homeostasis_config.target_rate = config->homeostasis_target_rate;
-        homeostasis_config.rate_tau = config->homeostasis_rate_tau;
-        homeostasis_config.update_interval_steps =
-            (unsigned int)config->homeostasis_update_interval_steps;
-        homeostasis_config.threshold_eta = config->homeostasis_threshold_eta;
-        homeostasis_config.threshold_min = config->homeostasis_threshold_min;
-        homeostasis_config.threshold_max = config->homeostasis_threshold_max;
-        homeostasis_config.synaptic_scaling_enabled =
-            config->homeostasis_synaptic_scaling_enabled;
-        homeostasis_config.scaling_eta = config->homeostasis_scaling_eta;
-        homeostasis_config.scaling_min_factor =
-            config->homeostasis_scaling_min_factor;
-        homeostasis_config.scaling_max_factor =
-            config->homeostasis_scaling_max_factor;
-        homeostasis_config.scaling_weight_min =
-            config->homeostasis_scaling_weight_min;
-        homeostasis_config.scaling_weight_max =
-            config->homeostasis_scaling_weight_max;
-        homeostasis_config.inhibitory_gain_enabled =
-            config->homeostasis_inhibitory_gain_enabled;
-        homeostasis_config.inhibitory_gain_initial =
-            config->homeostasis_inhibitory_gain_initial;
-        homeostasis_config.inhibitory_gain_eta =
-            config->homeostasis_inhibitory_gain_eta;
-        homeostasis_config.inhibitory_gain_min =
-            config->homeostasis_inhibitory_gain_min;
-        homeostasis_config.inhibitory_gain_max =
-            config->homeostasis_inhibitory_gain_max;
-
-        if (!minisnn_set_homeostasis_config(snn, &homeostasis_config))
-        {
-            set_error(error_message, error_message_size, "erro ao configurar homeostase");
-            minisnn_destroy(&snn);
-            return 0;
-        }
+        minisnn_destroy(&snn);
+        return 0;
     }
 
     if (!plasticity_run_data_prepare(

@@ -11,7 +11,11 @@ import sys
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / "scripts"))
 
-from html_report_common import SCENARIO_HISTORY_COLUMNS  # noqa: E402
+from html_report_common import (  # noqa: E402
+    EVOLUTION_HISTORY_COLUMNS,
+    SCENARIO_HISTORY_COLUMNS,
+    generate_evolution_history_report,
+)
 
 
 TEMP = ROOT / "build" / "test_history_report"
@@ -238,6 +242,59 @@ def test_large_history() -> None:
     check("querySelectorAll" in content, "local search script missing")
 
 
+def test_evolution_history() -> None:
+    directory = TEMP / "evolution history" / "results" / "evolution"
+    directory.mkdir(parents=True)
+    valid_run = directory / "experiment with spaces"
+    valid_run.mkdir()
+    for filename in (
+        "evolution_report.html", "evolution_overview.png",
+        "evolution_manifest.txt", "best_genome.csv",
+    ):
+        (valid_run / filename).write_text(filename, encoding="utf-8")
+
+    rows = []
+    for index in range(1000):
+        rows.append({
+            "timestamp": f"2026{(index % 12) + 1:02d}{(index % 28) + 1:02d}_{index % 24:02d}0000",
+            "experiment_name": "<script>alert(1)</script>" if index == 0 else f"experiment_{index:04d}",
+            "actual_experiment_name": f"actual_{index:04d}",
+            "experiment_path": (
+                str(valid_run) if index == 1 else
+                "../../outside" if index == 0 else
+                str(directory / f"missing_{index:04d}")
+            ),
+            "config_path": f"configs/evolution_{index}.ini",
+            "base_scenario": "configs/base.ini",
+            "population_size": "20", "generations": "10", "gene_count": "8",
+            "best_fitness": "0.75", "best_individual_id": str(index),
+            "status": "OK" if index % 3 else "ERROR",
+        })
+    index_path = directory / "index.csv"
+    with index_path.open("w", encoding="utf-8", newline="") as file:
+        writer = csv.DictWriter(file, fieldnames=EVOLUTION_HISTORY_COLUMNS)
+        writer.writeheader()
+        writer.writerows(rows)
+    original = index_path.read_bytes()
+
+    output = generate_evolution_history_report(directory)
+    content = output.read_text(encoding="utf-8")
+    check(index_path.read_bytes() == original, "evolution index changed")
+    check(content.count('class="history-row"') == 1000,
+          "evolution history lost rows")
+    check("BUSCAR EXPERIMENTOS" in content, "evolution search missing")
+    check("experiment%20with%20spaces/evolution_report.html" in content,
+          "evolution relative report link missing")
+    check("&lt;script&gt;alert(1)&lt;/script&gt;" in content,
+          "evolution hostile text not escaped")
+    check("<script>alert(1)</script>" not in content,
+          "evolution script injection")
+    check("../" not in content and "file:///" not in content.lower(),
+          "evolution path traversal leaked")
+    check("http://" not in content and "https://" not in content,
+          "evolution external dependency")
+
+
 def main() -> int:
     shutil.rmtree(TEMP, ignore_errors=True)
     TEMP.mkdir(parents=True)
@@ -247,6 +304,7 @@ def main() -> int:
         test_removed_and_hostile_runs()
         test_invalid_csv_preserves_previous_report()
         test_large_history()
+        test_evolution_history()
     finally:
         shutil.rmtree(TEMP, ignore_errors=True)
     print("History HTML report validation OK")

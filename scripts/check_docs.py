@@ -46,6 +46,8 @@ CENTRAL_DOCUMENTS = (
     "docs/BENCHMARKS_C15_HOMEOSTASE.md",
     "docs/GUIA_DE_RECOMPENSA.md",
     "docs/BENCHMARKS_C2_RECOMPENSA.md",
+    "docs/GUIA_DE_NEUROEVOLUCAO.md",
+    "docs/BENCHMARKS_C3_NEUROEVOLUCAO.md",
     "docs/CHECKLIST_DE_VALIDACAO_DO_STUDIO.md",
 )
 
@@ -73,6 +75,17 @@ IMPORTANT_FILES = (
     "scripts/plot_reward.py",
     "scripts/run_benchmarks_c2.py",
     "scripts/check_c2.py",
+    "scripts/plot_evolution.py",
+    "scripts/generate_evolution_report.py",
+    "scripts/run_benchmarks_c3.py",
+    "scripts/check_c3.py",
+    "src/evolution.c",
+    "src/evolution.h",
+    "app/evolution_config.c",
+    "app/evolution_runner.c",
+    "configs/evolution_weight_target_demo.ini",
+    "configs/evolution_homeostasis_demo.ini",
+    "configs/evolution_plasticity_demo.ini",
     "scripts/check_docs.py",
     "configs/random.ini",
     "configs/small_world.ini",
@@ -111,6 +124,11 @@ IMPORTANT_FILES = (
     "tests/test_reward.c",
     "tests/test_reward_long.c",
     "tests/test_plot_reward.py",
+    "tests/test_evolution.c",
+    "tests/test_evolution_runner.c",
+    "tests/test_evolution_long.c",
+    "tests/test_plot_evolution.py",
+    "tests/test_evolution_report.py",
 )
 
 REQUIRED_TARGETS = (
@@ -161,6 +179,21 @@ REQUIRED_TARGETS = (
     "plot-reward",
     "benchmark-c2",
     "check-c2",
+    "evolution-build",
+    "test-evolution",
+    "test-evolution-runner",
+    "test-evolution-resume",
+    "test-evolution-long",
+    "test-plot-evolution",
+    "test-evolution-report",
+    "evolution-weight-demo",
+    "evolution-homeostasis-demo",
+    "evolution-plasticity-demo",
+    "plot-evolution",
+    "report-evolution",
+    "report-evolution-history",
+    "benchmark-c3",
+    "check-c3",
 )
 
 IMPORTANT_KEYS = (
@@ -240,6 +273,14 @@ STUDIO_BUTTONS = (
     "RECOMPENSA",
     "GRAFICO RECOMPENSA",
     "ABRIR RECOMPENSA",
+    "NEUROEVOLUCAO",
+    "RODAR EVOLUCAO",
+    "RETOMAR EVOLUCAO",
+    "ABRIR EVOLUCAO",
+    "ABRIR RELATORIO",
+    "ABRIR GRAFICO",
+    "ABRIR MELHOR",
+    "HISTORICO EVOLUTIVO",
 )
 
 
@@ -357,6 +398,19 @@ def validate_docs(root: Path) -> list[str]:
         if obsolete in reward_guide.lower():
             errors.append(f"guia de recompensa mantém amostragem obsoleta: {obsolete}")
 
+    evolution_guide = texts.get(root / "docs" / "GUIA_DE_NEUROEVOLUCAO.md", "")
+    for token in (
+        "[evolution]", "[genome]", "[fitness]", "blueprint estrutural fixo",
+        "baseline_plus_mutation", "tournament", "uniform_delta", "PCG32",
+        "darwinian", "lamarckian_inheritance = disabled", "checkpoint.txt",
+        "--resume", "best_run/", "results/evolution/index.csv",
+        "evolution_report.html", "evolution_overview.png",
+        "Melhor fitness nao significa inteligencia geral",
+        "paralelismo e trabalho futuro",
+    ):
+        if token not in evolution_guide:
+            errors.append(f"guia de neuroevolução sem contrato C3: {token}")
+
     runner_test = (root / "tests" / "test_scenario_runner.c").read_text(
         encoding="utf-8"
     )
@@ -379,7 +433,11 @@ def validate_docs(root: Path) -> list[str]:
     if "C2 — recompensa e punição (concluído)" not in roadmap:
         errors.append("roadmap não marca C2 como concluído")
     if "C3 — neuroevolução (próximo; não implementado)" not in roadmap:
-        errors.append("roadmap não identifica C3 como próximo e não implementado")
+        errors.append("roadmap não preserva o estado histórico do fechamento C2")
+    if "C3 — neuroevolução (concluído)" not in roadmap:
+        errors.append("roadmap não marca C3 como concluído")
+    if "C4 — topologia adaptativa e evolução estrutural (próximo; não implementado)" not in roadmap:
+        errors.append("roadmap não mantém C4 como próximo")
 
     for required_output in (
         "metrics_report.html",
@@ -398,6 +456,16 @@ def validate_docs(root: Path) -> list[str]:
         "reward_report.html",
         "reward_overview.png",
         "history.html",
+        "generations.csv",
+        "individuals.csv",
+        "replicates.csv",
+        "fitness_terms.csv",
+        "genomes.csv",
+        "lineage.csv",
+        "best_genome.csv",
+        "best_network_initial.csv",
+        "evolution_report.html",
+        "evolution_overview.png",
     ):
         if required_output not in documentation_text:
             errors.append(f"saída central não documentada: {required_output}")

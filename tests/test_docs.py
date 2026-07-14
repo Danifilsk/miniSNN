@@ -26,6 +26,20 @@ def main() -> int:
         "tests/test_plot_reward.py",
         "scripts/generate_history_report.py",
         "tests/test_history_report.py",
+        "src/evolution.c",
+        "app/evolution_config.c",
+        "app/evolution_runner.c",
+        "scripts/plot_evolution.py",
+        "scripts/generate_evolution_report.py",
+        "scripts/run_benchmarks_c3.py",
+        "scripts/check_c3.py",
+        "docs/GUIA_DE_NEUROEVOLUCAO.md",
+        "docs/BENCHMARKS_C3_NEUROEVOLUCAO.md",
+        "tests/test_evolution.c",
+        "tests/test_evolution_runner.c",
+        "tests/test_evolution_long.c",
+        "tests/test_plot_evolution.py",
+        "tests/test_evolution_report.py",
     ):
         if not (PROJECT_ROOT / relative).is_file():
             print(f"Documentation validation FAILED\n- arquivo HTML ausente: {relative}")

@@ -4,6 +4,7 @@
 #include <stddef.h>
 
 #include "scenario_config.h"
+#include "scenario_runtime.h"
 
 #define SCENARIO_OUTPUT_PATH_MAX 512
 #define SCENARIO_ACTUAL_RUN_NAME_MAX 128
@@ -38,6 +39,12 @@ int scenario_runner_execute(
     const ScenarioConfig *config,
     const char *source_config_path,
     ScenarioRunResult *out_result,
+    char *error_message,
+    size_t error_message_size);
+
+int scenario_runner_capture_blueprint(
+    const ScenarioConfig *config,
+    ScenarioBlueprint *out_blueprint,
     char *error_message,
     size_t error_message_size);
 

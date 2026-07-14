@@ -12,6 +12,7 @@
 
 #include "scenario_config.h"
 #include "scenario_runner.h"
+#include "evolution_config.h"
 
 #define APP_TITLE "miniSNN Studio"
 #define TEXT_BUFFER_SIZE 128
@@ -22,6 +23,7 @@
 #define STUDIO_FIELD_COUNT 21
 #define STUDIO_BUTTON_COUNT 23
 #define REWARD_EVENTS_TEXT_SIZE 4096
+#define EVOLUTION_TEXT_SIZE 4096
 
 #define STUDIO_MIN_CLIENT_WIDTH 1320
 #define STUDIO_MIN_CLIENT_HEIGHT 980
@@ -106,6 +108,7 @@
 #define IDC_BTN_REWARD 2025
 #define IDC_BTN_PLOT_REWARD 2026
 #define IDC_BTN_OPEN_REWARD 2027
+#define IDC_BTN_EVOLUTION 2028
 
 #define IDC_STATUS 3001
 #define IDC_SUMMARY 3002
@@ -180,7 +183,40 @@
 #define IDC_REWARD_APPLY 7014
 #define IDC_REWARD_CANCEL 7015
 
+#define IDC_EVO_CONFIG_PATH 8001
+#define IDC_EVO_BASE_SCENARIO 8002
+#define IDC_EVO_NAME 8003
+#define IDC_EVO_POPULATION 8004
+#define IDC_EVO_GENERATIONS 8005
+#define IDC_EVO_ELITES 8006
+#define IDC_EVO_TOURNAMENT 8007
+#define IDC_EVO_CROSSOVER_RATE 8008
+#define IDC_EVO_MUTATION_RATE 8009
+#define IDC_EVO_MUTATION_SCALE 8010
+#define IDC_EVO_REPLICATES 8011
+#define IDC_EVO_SEED 8012
+#define IDC_EVO_EVALUATION_SEED 8013
+#define IDC_EVO_EXC_ENABLED 8014
+#define IDC_EVO_EXC_MIN 8015
+#define IDC_EVO_EXC_MAX 8016
+#define IDC_EVO_INH_ENABLED 8017
+#define IDC_EVO_INH_MIN 8018
+#define IDC_EVO_INH_MAX 8019
+#define IDC_EVO_SCALAR_GENES 8020
+#define IDC_EVO_FITNESS_TERMS 8021
+#define IDC_EVO_LOAD 8022
+#define IDC_EVO_SAVE 8023
+#define IDC_EVO_RUN 8024
+#define IDC_EVO_RESUME 8025
+#define IDC_EVO_OPEN 8026
+#define IDC_EVO_OPEN_REPORT 8027
+#define IDC_EVO_OPEN_PLOT 8028
+#define IDC_EVO_OPEN_BEST 8029
+#define IDC_EVO_HISTORY 8030
+#define IDC_EVO_CANCEL 8031
+
 #define STUDIO_INIT_TIMER_ID 1
+#define STUDIO_EVOLUTION_TIMER_ID 2
 
 #ifndef DWMWA_USE_IMMERSIVE_DARK_MODE
 #define DWMWA_USE_IMMERSIVE_DARK_MODE 20
@@ -223,6 +259,7 @@ typedef struct
     HWND plasticity_button;
     HWND homeostasis_button;
     HWND reward_button;
+    HWND evolution_button;
     HWND status_label;
     HWND summary_box;
     HWND execution_section_label;
@@ -238,6 +275,8 @@ typedef struct
     char project_root[MAX_PATH];
     char pixel_font_face[LF_FACESIZE];
     int resolved_python_uses_py_launcher;
+    HANDLE evolution_process;
+    int evolution_active;
 } StudioState;
 
 typedef struct
@@ -328,11 +367,41 @@ typedef struct
     HWND events_edit;
 } RewardDialog;
 
+typedef struct
+{
+    HWND window;
+    EvolutionExperimentConfig config;
+    ScenarioConfig base_scenario;
+    char config_path[MAX_PATH];
+    HWND config_path_edit;
+    HWND base_scenario_edit;
+    HWND name_edit;
+    HWND population_edit;
+    HWND generations_edit;
+    HWND elites_edit;
+    HWND tournament_edit;
+    HWND crossover_rate_edit;
+    HWND mutation_rate_edit;
+    HWND mutation_scale_edit;
+    HWND replicates_edit;
+    HWND evolution_seed_edit;
+    HWND evaluation_seed_edit;
+    HWND exc_enabled_checkbox;
+    HWND exc_min_edit;
+    HWND exc_max_edit;
+    HWND inh_enabled_checkbox;
+    HWND inh_min_edit;
+    HWND inh_max_edit;
+    HWND scalar_genes_edit;
+    HWND fitness_terms_edit;
+} EvolutionDialog;
+
 static StudioState g_app;
 static TopologyOptionsDialog g_options;
 static PlasticityDialog g_plasticity;
 static HomeostasisDialog g_homeostasis;
 static RewardDialog g_reward;
+static EvolutionDialog g_evolution;
 
 static void draw_button(const DRAWITEMSTRUCT *item);
 static LRESULT handle_color(HDC hdc, HWND hwnd);
@@ -5024,6 +5093,812 @@ static void open_reward_options(void)
     SetActiveWindow(g_app.window);
 }
 
+static int parse_uint64_from_window(
+    HWND hwnd,
+    const char *field_name,
+    unsigned long long *out_value,
+    char *error_message,
+    size_t error_message_size)
+{
+    char text[TEXT_BUFFER_SIZE];
+    char *start;
+    char *end;
+    unsigned long long value;
+
+    GetWindowTextA(hwnd, text, sizeof(text));
+    start = trim_reward_token(text);
+    if (*start == '-' || *start == '+')
+    {
+        snprintf(error_message, error_message_size,
+                 "Campo invalido: %s.", field_name);
+        return 0;
+    }
+    errno = 0;
+    value = strtoull(start, &end, 10);
+    while (*end != '\0' && isspace((unsigned char)*end))
+        end++;
+    if (start == end || *end != '\0' || errno == ERANGE)
+    {
+        snprintf(error_message, error_message_size,
+                 "Campo invalido: %s.", field_name);
+        return 0;
+    }
+    *out_value = value;
+    return 1;
+}
+
+static int parse_evolution_double_token(
+    const char *text,
+    double *out_value)
+{
+    char buffer[TEXT_BUFFER_SIZE];
+    char *start;
+    char *end;
+    double value;
+
+    if (!copy_path(buffer, sizeof(buffer), text))
+        return 0;
+    start = trim_reward_token(buffer);
+    errno = 0;
+    value = strtod(start, &end);
+    while (*end != '\0' && isspace((unsigned char)*end))
+        end++;
+    if (start == end || *end != '\0' || errno == ERANGE || !isfinite(value))
+        return 0;
+    *out_value = value;
+    return 1;
+}
+
+static int split_evolution_fields(
+    char *line,
+    char **fields,
+    int expected_count)
+{
+    int count = 0;
+    char *cursor = line;
+
+    while (count < expected_count)
+    {
+        char *comma;
+        fields[count++] = trim_reward_token(cursor);
+        comma = strchr(cursor, ',');
+        if (comma == NULL)
+            break;
+        *comma = '\0';
+        cursor = comma + 1;
+    }
+    return count == expected_count && strchr(cursor, ',') == NULL;
+}
+
+static int parse_evolution_scalar_genes(
+    EvolutionExperimentConfig *config,
+    char *error_message,
+    size_t error_message_size)
+{
+    char text[EVOLUTION_TEXT_SIZE];
+    char *line;
+    int count = 0;
+
+    GetWindowTextA(g_evolution.scalar_genes_edit, text, sizeof(text));
+    line = strtok(text, "\r\n");
+    while (line != NULL)
+    {
+        char *trimmed = trim_reward_token(line);
+        if (*trimmed != '\0')
+        {
+            char *fields[4];
+            EvolutionScalarGeneConfig *gene;
+            if (count >= EVOLUTION_MAX_SCALAR_GENES ||
+                !split_evolution_fields(trimmed, fields, 4) ||
+                strlen(fields[0]) == 0 ||
+                strlen(fields[0]) > EVOLUTION_PARAMETER_PATH_MAX)
+            {
+                snprintf(error_message, error_message_size,
+                         "GENES ESCALARES: linha %d invalida.", count + 1);
+                return 0;
+            }
+            gene = &config->scalar_genes[count];
+            memset(gene, 0, sizeof(*gene));
+            gene->index = count;
+            snprintf(gene->parameter_path, sizeof(gene->parameter_path), "%s",
+                     fields[0]);
+            if (!parse_evolution_double_token(fields[1], &gene->minimum) ||
+                !parse_evolution_double_token(fields[2], &gene->maximum) ||
+                !parse_evolution_double_token(fields[3], &gene->mutation_scale))
+            {
+                snprintf(error_message, error_message_size,
+                         "GENES ESCALARES: numeros invalidos na linha %d.", count + 1);
+                return 0;
+            }
+            count++;
+        }
+        line = strtok(NULL, "\r\n");
+    }
+    config->scalar_gene_count = count;
+    return 1;
+}
+
+static int parse_evolution_fitness_terms(
+    EvolutionExperimentConfig *config,
+    char *error_message,
+    size_t error_message_size)
+{
+    char text[EVOLUTION_TEXT_SIZE];
+    char *line;
+    int count = 0;
+
+    GetWindowTextA(g_evolution.fitness_terms_edit, text, sizeof(text));
+    line = strtok(text, "\r\n");
+    while (line != NULL)
+    {
+        char *trimmed = trim_reward_token(line);
+        if (*trimmed != '\0')
+        {
+            char *fields[5];
+            EvolutionFitnessTermConfig *term;
+            char *colon;
+            if (count >= EVOLUTION_MAX_FITNESS_TERMS ||
+                !split_evolution_fields(trimmed, fields, 5) ||
+                strlen(fields[0]) == 0 ||
+                strlen(fields[0]) > EVOLUTION_METRIC_NAME_MAX)
+            {
+                snprintf(error_message, error_message_size,
+                         "FITNESS TERMS: linha %d invalida.", count + 1);
+                return 0;
+            }
+            term = &config->fitness_terms[count];
+            memset(term, 0, sizeof(*term));
+            term->index = count;
+            snprintf(term->metric, sizeof(term->metric), "%s", fields[0]);
+            if (strcmp(fields[1], "target") == 0)
+                term->goal = EVOLUTION_FITNESS_TARGET;
+            else if (strcmp(fields[1], "maximize") == 0)
+                term->goal = EVOLUTION_FITNESS_MAXIMIZE;
+            else if (strcmp(fields[1], "minimize") == 0)
+                term->goal = EVOLUTION_FITNESS_MINIMIZE;
+            else
+            {
+                snprintf(error_message, error_message_size,
+                         "FITNESS TERMS: goal invalido na linha %d.", count + 1);
+                return 0;
+            }
+            if (!parse_evolution_double_token(fields[2], &term->target) ||
+                !parse_evolution_double_token(fields[3], &term->scale) ||
+                !parse_evolution_double_token(fields[4], &term->weight))
+            {
+                snprintf(error_message, error_message_size,
+                         "FITNESS TERMS: numeros invalidos na linha %d.", count + 1);
+                return 0;
+            }
+            colon = strchr(term->metric, ':');
+            if (colon != NULL && strncmp(term->metric, "neuron_spikes:", 14) == 0)
+            {
+                char *end;
+                long neuron_id = strtol(colon + 1, &end, 10);
+                if (*end != '\0' || neuron_id < 0 || neuron_id > 1000000)
+                {
+                    snprintf(error_message, error_message_size,
+                             "FITNESS TERMS: neuronio invalido na linha %d.", count + 1);
+                    return 0;
+                }
+                term->has_neuron_id = 1;
+                term->neuron_id = (int)neuron_id;
+            }
+            count++;
+        }
+        line = strtok(NULL, "\r\n");
+    }
+    config->fitness_term_count = count;
+    return 1;
+}
+
+static void evolution_config_to_controls(void)
+{
+    char text[EVOLUTION_TEXT_SIZE];
+    size_t used = 0;
+
+    SetWindowTextA(g_evolution.config_path_edit, g_evolution.config_path);
+    SetWindowTextA(g_evolution.base_scenario_edit,
+                   g_evolution.config.base_scenario);
+    SetWindowTextA(g_evolution.name_edit, g_evolution.config.experiment_name);
+    snprintf(text, sizeof(text), "%d", g_evolution.config.population_size);
+    SetWindowTextA(g_evolution.population_edit, text);
+    snprintf(text, sizeof(text), "%d", g_evolution.config.generations);
+    SetWindowTextA(g_evolution.generations_edit, text);
+    snprintf(text, sizeof(text), "%d", g_evolution.config.elite_count);
+    SetWindowTextA(g_evolution.elites_edit, text);
+    snprintf(text, sizeof(text), "%d", g_evolution.config.tournament_size);
+    SetWindowTextA(g_evolution.tournament_edit, text);
+    set_window_double(g_evolution.crossover_rate_edit,
+                         g_evolution.config.crossover_rate);
+    set_window_double(g_evolution.mutation_rate_edit,
+                         g_evolution.config.mutation_rate);
+    set_window_double(g_evolution.mutation_scale_edit,
+                         g_evolution.config.mutation_scale);
+    snprintf(text, sizeof(text), "%d", g_evolution.config.evaluation_replicates);
+    SetWindowTextA(g_evolution.replicates_edit, text);
+    snprintf(text, sizeof(text), "%llu",
+             (unsigned long long)g_evolution.config.evolution_seed);
+    SetWindowTextA(g_evolution.evolution_seed_edit, text);
+    snprintf(text, sizeof(text), "%llu",
+             (unsigned long long)g_evolution.config.evaluation_seed_base);
+    SetWindowTextA(g_evolution.evaluation_seed_edit, text);
+    SendMessageA(g_evolution.exc_enabled_checkbox, BM_SETCHECK,
+                 g_evolution.config.evolve_exc_weights ? BST_CHECKED : BST_UNCHECKED, 0);
+    set_window_double(g_evolution.exc_min_edit,
+                         g_evolution.config.exc_weight_min);
+    set_window_double(g_evolution.exc_max_edit,
+                         g_evolution.config.exc_weight_max);
+    SendMessageA(g_evolution.inh_enabled_checkbox, BM_SETCHECK,
+                 g_evolution.config.evolve_inh_magnitudes ? BST_CHECKED : BST_UNCHECKED, 0);
+    set_window_double(g_evolution.inh_min_edit,
+                         g_evolution.config.inh_magnitude_min);
+    set_window_double(g_evolution.inh_max_edit,
+                         g_evolution.config.inh_magnitude_max);
+
+    text[0] = '\0';
+    for (int i = 0; i < g_evolution.config.scalar_gene_count; i++)
+    {
+        EvolutionScalarGeneConfig *gene = &g_evolution.config.scalar_genes[i];
+        int written = snprintf(text + used, sizeof(text) - used,
+            "%s,%.17g,%.17g,%.17g\r\n", gene->parameter_path,
+            gene->minimum, gene->maximum, gene->mutation_scale);
+        if (written < 0 || (size_t)written >= sizeof(text) - used)
+            break;
+        used += (size_t)written;
+    }
+    SetWindowTextA(g_evolution.scalar_genes_edit, text);
+
+    used = 0;
+    text[0] = '\0';
+    for (int i = 0; i < g_evolution.config.fitness_term_count; i++)
+    {
+        EvolutionFitnessTermConfig *term = &g_evolution.config.fitness_terms[i];
+        int written = snprintf(text + used, sizeof(text) - used,
+            "%s,%s,%.17g,%.17g,%.17g\r\n", term->metric,
+            evolution_fitness_goal_name(term->goal), term->target,
+            term->scale, term->weight);
+        if (written < 0 || (size_t)written >= sizeof(text) - used)
+            break;
+        used += (size_t)written;
+    }
+    SetWindowTextA(g_evolution.fitness_terms_edit, text);
+}
+
+static int evolution_controls_to_config(
+    EvolutionExperimentConfig *config,
+    ScenarioConfig *base_scenario,
+    char *error_message,
+    size_t error_message_size)
+{
+    char text[EVOLUTION_BASE_SCENARIO_MAX + 1];
+    char *trimmed;
+    unsigned long long evolution_seed;
+    unsigned long long evaluation_seed;
+
+    *config = g_evolution.config;
+    GetWindowTextA(g_evolution.name_edit, text, sizeof(text));
+    trimmed = trim_reward_token(text);
+    snprintf(config->experiment_name, sizeof(config->experiment_name), "%s", trimmed);
+    GetWindowTextA(g_evolution.base_scenario_edit, text, sizeof(text));
+    trimmed = trim_reward_token(text);
+    snprintf(config->base_scenario, sizeof(config->base_scenario), "%s", trimmed);
+
+    if (!parse_int_from_window(g_evolution.population_edit, "POPULACAO",
+            &config->population_size, error_message, error_message_size) ||
+        !parse_int_from_window(g_evolution.generations_edit, "GERACOES",
+            &config->generations, error_message, error_message_size) ||
+        !parse_int_from_window(g_evolution.elites_edit, "ELITES",
+            &config->elite_count, error_message, error_message_size) ||
+        !parse_int_from_window(g_evolution.tournament_edit, "TORNEIO",
+            &config->tournament_size, error_message, error_message_size) ||
+        !parse_double_from_window(g_evolution.crossover_rate_edit, "CROSSOVER RATE",
+            &config->crossover_rate, error_message, error_message_size) ||
+        !parse_double_from_window(g_evolution.mutation_rate_edit, "MUTATION RATE",
+            &config->mutation_rate, error_message, error_message_size) ||
+        !parse_double_from_window(g_evolution.mutation_scale_edit, "MUTATION SCALE",
+            &config->mutation_scale, error_message, error_message_size) ||
+        !parse_int_from_window(g_evolution.replicates_edit, "REPLICAS",
+            &config->evaluation_replicates, error_message, error_message_size) ||
+        !parse_uint64_from_window(g_evolution.evolution_seed_edit, "EVOLUTION SEED",
+            &evolution_seed, error_message, error_message_size) ||
+        !parse_uint64_from_window(g_evolution.evaluation_seed_edit,
+            "EVALUATION SEED BASE", &evaluation_seed,
+            error_message, error_message_size) ||
+        !parse_double_from_window(g_evolution.exc_min_edit, "PESO EXC MIN",
+            &config->exc_weight_min, error_message, error_message_size) ||
+        !parse_double_from_window(g_evolution.exc_max_edit, "PESO EXC MAX",
+            &config->exc_weight_max, error_message, error_message_size) ||
+        !parse_double_from_window(g_evolution.inh_min_edit, "MAGNITUDE INH MIN",
+            &config->inh_magnitude_min, error_message, error_message_size) ||
+        !parse_double_from_window(g_evolution.inh_max_edit, "MAGNITUDE INH MAX",
+            &config->inh_magnitude_max, error_message, error_message_size))
+        return 0;
+
+    config->evolution_seed = (uint64_t)evolution_seed;
+    config->evaluation_seed_base = (uint64_t)evaluation_seed;
+    config->evolve_exc_weights =
+        SendMessageA(g_evolution.exc_enabled_checkbox, BM_GETCHECK, 0, 0) == BST_CHECKED;
+    config->evolve_inh_magnitudes =
+        SendMessageA(g_evolution.inh_enabled_checkbox, BM_GETCHECK, 0, 0) == BST_CHECKED;
+    if (!parse_evolution_scalar_genes(config, error_message, error_message_size) ||
+        !parse_evolution_fitness_terms(config, error_message, error_message_size))
+        return 0;
+    if (!scenario_config_load_file(config->base_scenario, base_scenario,
+            error_message, error_message_size))
+        return 0;
+    return evolution_config_validate(config, base_scenario,
+                                     error_message, error_message_size);
+}
+
+static int load_evolution_config_path(const char *path)
+{
+    EvolutionExperimentConfig config;
+    ScenarioConfig base;
+    char error[512];
+
+    if (!evolution_config_load_file(path, &config, &base, error, sizeof(error)))
+    {
+        show_error("Config evolutiva invalida", error);
+        return 0;
+    }
+    g_evolution.config = config;
+    g_evolution.base_scenario = base;
+    if (!copy_path(g_evolution.config_path, sizeof(g_evolution.config_path), path))
+    {
+        show_error("Caminho invalido", "Caminho da config evolutiva muito longo.");
+        return 0;
+    }
+    if (g_evolution.window != NULL)
+        evolution_config_to_controls();
+    return 1;
+}
+
+static void choose_evolution_config(void)
+{
+    OPENFILENAMEA ofn;
+    char path[MAX_PATH] = "";
+
+    memset(&ofn, 0, sizeof(ofn));
+    ofn.lStructSize = sizeof(ofn);
+    ofn.hwndOwner = g_evolution.window;
+    ofn.lpstrFilter = "Configuracao evolutiva (*.ini)\0*.ini\0Todos (*.*)\0*.*\0";
+    ofn.lpstrFile = path;
+    ofn.nMaxFile = sizeof(path);
+    ofn.lpstrInitialDir = "configs";
+    ofn.Flags = OFN_FILEMUSTEXIST | OFN_PATHMUSTEXIST;
+    if (GetOpenFileNameA(&ofn))
+        load_evolution_config_path(path);
+}
+
+static int save_evolution_dialog_config(int choose_path)
+{
+    EvolutionExperimentConfig config;
+    ScenarioConfig base;
+    char path[MAX_PATH];
+    char error[512];
+
+    if (!evolution_controls_to_config(&config, &base, error, sizeof(error)))
+    {
+        show_error("Configuracao evolutiva invalida", error);
+        return 0;
+    }
+    if (!copy_path(path, sizeof(path), g_evolution.config_path))
+        path[0] = '\0';
+    if (choose_path || path[0] == '\0')
+    {
+        OPENFILENAMEA ofn;
+        memset(&ofn, 0, sizeof(ofn));
+        ofn.lStructSize = sizeof(ofn);
+        ofn.hwndOwner = g_evolution.window;
+        ofn.lpstrFilter = "Configuracao evolutiva (*.ini)\0*.ini\0";
+        ofn.lpstrFile = path;
+        ofn.nMaxFile = sizeof(path);
+        ofn.lpstrDefExt = "ini";
+        ofn.lpstrInitialDir = "configs";
+        ofn.Flags = OFN_OVERWRITEPROMPT | OFN_PATHMUSTEXIST;
+        if (!GetSaveFileNameA(&ofn))
+            return 0;
+    }
+    if (!evolution_config_save_file(path, &config, error, sizeof(error)))
+    {
+        show_error("Erro ao salvar", error);
+        return 0;
+    }
+    g_evolution.config = config;
+    g_evolution.base_scenario = base;
+    copy_path(g_evolution.config_path, sizeof(g_evolution.config_path), path);
+    evolution_config_to_controls();
+    set_status("CONFIG EVOLUTIVA SALVA");
+    return 1;
+}
+
+static int launch_evolution_process(const char *argument, int resume)
+{
+    STARTUPINFOA startup;
+    PROCESS_INFORMATION process;
+    char runner_path[MAX_PATH];
+    char command[PYTHON_COMMAND_BUFFER_SIZE];
+
+    if (g_app.evolution_active)
+    {
+        show_error("Evolucao em andamento",
+                   "O Studio permite apenas uma evolucao por vez.");
+        return 0;
+    }
+    if (!project_path(runner_path, sizeof(runner_path), "build\\evolution_runner.exe") ||
+        !file_exists(runner_path))
+    {
+        show_error("Runner evolutivo ausente",
+                   "Compile primeiro com: mingw32-make evolution-build");
+        return 0;
+    }
+    if (snprintf(command, sizeof(command), resume ?
+            "\"%s\" --resume \"%s\"" : "\"%s\" \"%s\"",
+            runner_path, argument) >= (int)sizeof(command))
+    {
+        show_error("Caminho invalido", "Comando evolutivo muito longo.");
+        return 0;
+    }
+    memset(&startup, 0, sizeof(startup));
+    memset(&process, 0, sizeof(process));
+    startup.cb = sizeof(startup);
+    if (!CreateProcessA(NULL, command, NULL, NULL, FALSE, CREATE_NO_WINDOW,
+            NULL, g_app.project_root, &startup, &process))
+    {
+        show_error("Erro ao iniciar evolucao",
+                   "CreateProcessA nao conseguiu iniciar evolution_runner.exe.");
+        return 0;
+    }
+    CloseHandle(process.hThread);
+    g_app.evolution_process = process.hProcess;
+    g_app.evolution_active = 1;
+    EnableWindow(g_app.evolution_button, FALSE);
+    SetTimer(g_app.window, STUDIO_EVOLUTION_TIMER_ID, 250, NULL);
+    set_status(resume ? "RETOMADA EVOLUTIVA EM EXECUCAO..." :
+                        "NEUROEVOLUCAO EM EXECUCAO...");
+    return 1;
+}
+
+static int last_evolution_directory(char *out_path, size_t out_size)
+{
+    char pointer_path[MAX_PATH];
+    char relative[MAX_PATH];
+    FILE *file;
+
+    if (!project_path(pointer_path, sizeof(pointer_path),
+                      "results\\evolution\\last_experiment.txt"))
+        return 0;
+    file = fopen(pointer_path, "r");
+    if (file == NULL)
+        return 0;
+    if (fgets(relative, sizeof(relative), file) == NULL)
+    {
+        fclose(file);
+        return 0;
+    }
+    fclose(file);
+    trim_reward_token(relative);
+    return project_path(out_path, out_size, relative) &&
+           GetFileAttributesA(out_path) != INVALID_FILE_ATTRIBUTES;
+}
+
+static int open_evolution_artifact(const char *relative_artifact, const char *status)
+{
+    char directory[MAX_PATH];
+    char path[MAX_PATH];
+    HINSTANCE result;
+
+    if (!last_evolution_directory(directory, sizeof(directory)))
+    {
+        show_error("Sem evolucao", "Nenhum experimento evolutivo concluido foi encontrado.");
+        return 0;
+    }
+    if (relative_artifact == NULL)
+    {
+        if (!copy_path(path, sizeof(path), directory))
+            return 0;
+    }
+    else if (snprintf(path, sizeof(path), "%s\\%s", directory,
+                      relative_artifact) >= (int)sizeof(path))
+        return 0;
+    if (GetFileAttributesA(path) == INVALID_FILE_ATTRIBUTES)
+    {
+        show_error("Artefato ausente", "O arquivo evolutivo solicitado ainda nao existe.");
+        return 0;
+    }
+    result = ShellExecuteA(g_app.window, "open", path, NULL,
+                           g_app.project_root, SW_SHOWNORMAL);
+    if ((INT_PTR)result <= 32)
+    {
+        show_error("Erro ao abrir", "O Windows nao conseguiu abrir o artefato evolutivo.");
+        return 0;
+    }
+    set_status(status);
+    return 1;
+}
+
+static int generate_evolution_outputs(void)
+{
+    char directory[MAX_PATH];
+    char python[MAX_PATH];
+    char plot_script[MAX_PATH];
+    char report_script[MAX_PATH];
+    char command[PYTHON_COMMAND_BUFFER_SIZE];
+    DWORD exit_code;
+
+    if (!last_evolution_directory(directory, sizeof(directory)) ||
+        !resolve_python_executable(python, sizeof(python)) ||
+        !project_path(plot_script, sizeof(plot_script), "scripts\\plot_evolution.py") ||
+        !project_path(report_script, sizeof(report_script),
+                      "scripts\\generate_evolution_report.py"))
+        return 0;
+    snprintf(command, sizeof(command), g_app.resolved_python_uses_py_launcher ?
+        "\"%s\" -3 \"%s\" \"%s\"" : "\"%s\" \"%s\" \"%s\"",
+        python, plot_script, directory);
+    if (!run_hidden_process(command, &exit_code) || exit_code != 0)
+        return 0;
+    snprintf(command, sizeof(command), g_app.resolved_python_uses_py_launcher ?
+        "\"%s\" -3 \"%s\" \"%s\"" : "\"%s\" \"%s\" \"%s\"",
+        python, report_script, directory);
+    if (!run_hidden_process(command, &exit_code) || exit_code != 0)
+        return 0;
+    return 1;
+}
+
+static void open_evolution_history(void)
+{
+    char root[MAX_PATH];
+    char history[MAX_PATH];
+    char python[MAX_PATH];
+    char script[MAX_PATH];
+    char command[PYTHON_COMMAND_BUFFER_SIZE];
+    DWORD exit_code = 1;
+
+    if (!project_path(root, sizeof(root), "results\\evolution") ||
+        !project_path(history, sizeof(history), "results\\evolution\\history.html") ||
+        !project_path(script, sizeof(script), "scripts\\generate_evolution_report.py"))
+        return;
+    if (resolve_python_executable(python, sizeof(python)))
+    {
+        snprintf(command, sizeof(command), g_app.resolved_python_uses_py_launcher ?
+            "\"%s\" -3 \"%s\" \"%s\" --history" :
+            "\"%s\" \"%s\" \"%s\" --history", python, script, root);
+        if (!run_hidden_process(command, &exit_code) || exit_code != 0)
+        {
+            show_error("Erro no historico evolutivo",
+                       "Nao foi possivel atualizar history.html.");
+            return;
+        }
+    }
+    else if (!file_exists(history))
+    {
+        show_error("Historico evolutivo indisponivel",
+                   "Python nao foi encontrado e nao existe HTML anterior.");
+        return;
+    }
+    else
+        show_info("Historico anterior",
+                  "Python nao foi encontrado; o HTML anterior sera aberto.");
+    ShellExecuteA(g_app.window, "open", history, NULL,
+                  g_app.project_root, SW_SHOWNORMAL);
+    set_status("HISTORICO EVOLUTIVO ABERTO");
+}
+
+static void run_evolution_from_dialog(void)
+{
+    if (!save_evolution_dialog_config(0))
+        return;
+    if (launch_evolution_process(g_evolution.config_path, 0))
+        DestroyWindow(g_evolution.window);
+}
+
+static void resume_evolution_from_dialog(void)
+{
+    char root[MAX_PATH];
+    char folder[MAX_PATH];
+    if (!project_path(root, sizeof(root), "results\\evolution") ||
+        !select_folder("Selecione a pasta do experimento a retomar",
+                       root, folder, sizeof(folder)))
+        return;
+    if (launch_evolution_process(folder, 1))
+        DestroyWindow(g_evolution.window);
+}
+
+static LRESULT CALLBACK evolution_window_proc(
+    HWND hwnd, UINT message, WPARAM wparam, LPARAM lparam)
+{
+    (void)lparam;
+    switch (message)
+    {
+    case WM_CREATE:
+    {
+        int left = 24;
+        int right = 490;
+        create_static(hwnd, "NEUROEVOLUCAO", 24, 14, 400, 30, 0);
+        create_static(hwnd, "CONFIG EVOLUTIVA", left, 54, 180, 24, 0);
+        g_evolution.config_path_edit = create_edit(hwnd, IDC_EVO_CONFIG_PATH,
+                                                   205, 50, 570, 28);
+        SendMessageA(g_evolution.config_path_edit, EM_SETREADONLY, TRUE, 0);
+        create_button(hwnd, "CARREGAR", IDC_EVO_LOAD, 790, 49, 130, 32);
+        create_static(hwnd, "CENARIO-BASE", left, 92, 180, 24, 0);
+        g_evolution.base_scenario_edit = create_edit(hwnd, IDC_EVO_BASE_SCENARIO,
+                                                     205, 88, 715, 28);
+        create_static(hwnd, "NOME DO EXPERIMENTO", left, 130, 180, 24, 0);
+        g_evolution.name_edit = create_edit(hwnd, IDC_EVO_NAME, 205, 126, 300, 28);
+
+#define EVO_FIELD(label, member, id, x, y) \
+        create_static(hwnd, label, x, y + 4, 190, 24, 0); \
+        g_evolution.member = create_edit(hwnd, id, x + 195, y, 120, 28)
+        EVO_FIELD("POPULACAO", population_edit, IDC_EVO_POPULATION, left, 174);
+        EVO_FIELD("GERACOES", generations_edit, IDC_EVO_GENERATIONS, right, 174);
+        EVO_FIELD("ELITES", elites_edit, IDC_EVO_ELITES, left, 212);
+        EVO_FIELD("TORNEIO", tournament_edit, IDC_EVO_TOURNAMENT, right, 212);
+        EVO_FIELD("CROSSOVER RATE", crossover_rate_edit, IDC_EVO_CROSSOVER_RATE, left, 250);
+        EVO_FIELD("MUTATION RATE", mutation_rate_edit, IDC_EVO_MUTATION_RATE, right, 250);
+        EVO_FIELD("MUTATION SCALE", mutation_scale_edit, IDC_EVO_MUTATION_SCALE, left, 288);
+        EVO_FIELD("REPLICAS", replicates_edit, IDC_EVO_REPLICATES, right, 288);
+        EVO_FIELD("EVOLUTION SEED", evolution_seed_edit, IDC_EVO_SEED, left, 326);
+        EVO_FIELD("EVALUATION SEED BASE", evaluation_seed_edit, IDC_EVO_EVALUATION_SEED, right, 326);
+#undef EVO_FIELD
+
+        g_evolution.exc_enabled_checkbox = create_checkbox(hwnd, "", IDC_EVO_EXC_ENABLED,
+                                                           left, 374, 24, 24);
+        create_static(hwnd, "EVOLUIR PESOS EXC", left + 32, 376, 190, 24, 0);
+        create_static(hwnd, "MIN", left + 235, 376, 45, 24, 0);
+        g_evolution.exc_min_edit = create_edit(hwnd, IDC_EVO_EXC_MIN,
+                                               left + 280, 372, 90, 28);
+        create_static(hwnd, "MAX", left + 380, 376, 45, 24, 0);
+        g_evolution.exc_max_edit = create_edit(hwnd, IDC_EVO_EXC_MAX,
+                                               left + 425, 372, 90, 28);
+        g_evolution.inh_enabled_checkbox = create_checkbox(hwnd, "", IDC_EVO_INH_ENABLED,
+                                                           left, 412, 24, 24);
+        create_static(hwnd, "EVOLUIR MAGNITUDES INH", left + 32, 414, 220, 24, 0);
+        create_static(hwnd, "MIN", left + 255, 414, 45, 24, 0);
+        g_evolution.inh_min_edit = create_edit(hwnd, IDC_EVO_INH_MIN,
+                                               left + 300, 410, 90, 28);
+        create_static(hwnd, "MAX", left + 400, 414, 45, 24, 0);
+        g_evolution.inh_max_edit = create_edit(hwnd, IDC_EVO_INH_MAX,
+                                               left + 445, 410, 90, 28);
+
+        create_static(hwnd, "GENES ESCALARES (path,min,max,mutation_scale)",
+                      left, 462, 430, 24, 0);
+        g_evolution.scalar_genes_edit = CreateWindowExA(WS_EX_CLIENTEDGE, "EDIT", "",
+            WS_CHILD | WS_VISIBLE | WS_TABSTOP | ES_MULTILINE | ES_AUTOVSCROLL |
+            WS_VSCROLL, left, 490, 425, 125, hwnd,
+            (HMENU)(INT_PTR)IDC_EVO_SCALAR_GENES, GetModuleHandleA(NULL), NULL);
+        create_static(hwnd, "FITNESS TERMS (metric,goal,target,scale,weight)",
+                      right, 462, 440, 24, 0);
+        g_evolution.fitness_terms_edit = CreateWindowExA(WS_EX_CLIENTEDGE, "EDIT", "",
+            WS_CHILD | WS_VISIBLE | WS_TABSTOP | ES_MULTILINE | ES_AUTOVSCROLL |
+            WS_VSCROLL, right, 490, 430, 125, hwnd,
+            (HMENU)(INT_PTR)IDC_EVO_FITNESS_TERMS, GetModuleHandleA(NULL), NULL);
+        SendMessageA(g_evolution.scalar_genes_edit, WM_SETFONT,
+                     (WPARAM)g_app.edit_font, TRUE);
+        SendMessageA(g_evolution.fitness_terms_edit, WM_SETFONT,
+                     (WPARAM)g_app.edit_font, TRUE);
+        SendMessageA(g_evolution.scalar_genes_edit, EM_SETLIMITTEXT,
+                     EVOLUTION_TEXT_SIZE - 1, 0);
+        SendMessageA(g_evolution.fitness_terms_edit, EM_SETLIMITTEXT,
+                     EVOLUTION_TEXT_SIZE - 1, 0);
+
+        create_button(hwnd, "SALVAR CONFIG", IDC_EVO_SAVE, 24, 638, 145, 36);
+        create_button(hwnd, "RODAR EVOLUCAO", IDC_EVO_RUN, 179, 638, 165, 36);
+        create_button(hwnd, "RETOMAR EVOLUCAO", IDC_EVO_RESUME, 354, 638, 180, 36);
+        create_button(hwnd, "ABRIR EVOLUCAO", IDC_EVO_OPEN, 24, 686, 165, 36);
+        create_button(hwnd, "ABRIR RELATORIO", IDC_EVO_OPEN_REPORT, 199, 686, 165, 36);
+        create_button(hwnd, "ABRIR GRAFICO", IDC_EVO_OPEN_PLOT, 374, 686, 155, 36);
+        create_button(hwnd, "ABRIR MELHOR", IDC_EVO_OPEN_BEST, 539, 686, 155, 36);
+        create_button(hwnd, "HISTORICO EVOLUTIVO", IDC_EVO_HISTORY, 704, 686, 216, 36);
+        create_static(hwnd,
+            "Topologia e delays permanecem fixos. Pesos aprendidos durante a vida nao sao herdados.",
+            24, 742, 850, 24, 0);
+        create_button(hwnd, "FECHAR", IDC_EVO_CANCEL, 390, 780, 150, 36);
+        evolution_config_to_controls();
+        enable_dark_title_bar(hwnd);
+        return 0;
+    }
+    case WM_COMMAND:
+        if (HIWORD(wparam) == BN_CLICKED)
+        {
+            switch (LOWORD(wparam))
+            {
+            case IDC_EVO_LOAD: choose_evolution_config(); return 0;
+            case IDC_EVO_SAVE: save_evolution_dialog_config(1); return 0;
+            case IDC_EVO_RUN: run_evolution_from_dialog(); return 0;
+            case IDC_EVO_RESUME: resume_evolution_from_dialog(); return 0;
+            case IDC_EVO_OPEN: open_evolution_artifact(NULL, "EVOLUCAO ABERTA"); return 0;
+            case IDC_EVO_OPEN_REPORT: open_evolution_artifact("evolution_report.html", "RELATORIO EVOLUTIVO ABERTO"); return 0;
+            case IDC_EVO_OPEN_PLOT: open_evolution_artifact("evolution_overview.png", "GRAFICO EVOLUTIVO ABERTO"); return 0;
+            case IDC_EVO_OPEN_BEST:
+                if (!open_evolution_artifact("best_run\\metrics_report.html", "MELHOR EXECUCAO ABERTA"))
+                    open_evolution_artifact("best_run", "PASTA DA MELHOR EXECUCAO ABERTA");
+                return 0;
+            case IDC_EVO_HISTORY: open_evolution_history(); return 0;
+            case IDC_EVO_CANCEL: DestroyWindow(hwnd); return 0;
+            default: break;
+            }
+        }
+        break;
+    case WM_CTLCOLORSTATIC:
+        return handle_color((HDC)wparam, (HWND)lparam);
+    case WM_CTLCOLOREDIT:
+        return handle_edit_color((HDC)wparam);
+    case WM_DRAWITEM:
+        draw_button((const DRAWITEMSTRUCT *)lparam);
+        return TRUE;
+    case WM_ERASEBKGND:
+    {
+        RECT rect;
+        GetClientRect(hwnd, &rect);
+        FillRect((HDC)wparam, &rect, g_app.background_brush);
+        return 1;
+    }
+    case WM_CLOSE:
+        DestroyWindow(hwnd);
+        return 0;
+    case WM_DESTROY:
+        g_evolution.window = NULL;
+        EnableWindow(g_app.window, TRUE);
+        SetActiveWindow(g_app.window);
+        return 0;
+    default:
+        break;
+    }
+    return DefWindowProcA(hwnd, message, wparam, lparam);
+}
+
+static void open_evolution_options(void)
+{
+    WNDCLASSA window_class;
+    HWND dialog;
+    MSG message;
+    char default_path[MAX_PATH];
+
+    if (g_app.evolution_active)
+    {
+        show_info("Evolucao em andamento",
+                  "Aguarde a conclusao antes de abrir uma nova execucao.");
+        return;
+    }
+    memset(&window_class, 0, sizeof(window_class));
+    window_class.lpfnWndProc = evolution_window_proc;
+    window_class.hInstance = GetModuleHandleA(NULL);
+    window_class.lpszClassName = "MiniSNNEvolutionWindow";
+    window_class.hCursor = LoadCursor(NULL, IDC_ARROW);
+    RegisterClassA(&window_class);
+
+    memset(&g_evolution, 0, sizeof(g_evolution));
+    if (project_path(default_path, sizeof(default_path),
+                     "configs\\evolution_weight_target_demo.ini"))
+        load_evolution_config_path(default_path);
+    dialog = CreateWindowExA(WS_EX_DLGMODALFRAME,
+        "MiniSNNEvolutionWindow", "NEUROEVOLUCAO",
+        WS_POPUP | WS_CAPTION | WS_SYSMENU,
+        CW_USEDEFAULT, CW_USEDEFAULT, 960, 870, g_app.window,
+        NULL, GetModuleHandleA(NULL), NULL);
+    if (dialog == NULL)
+    {
+        show_error("Erro interno", "Nao foi possivel abrir NEUROEVOLUCAO.");
+        return;
+    }
+    g_evolution.window = dialog;
+    evolution_config_to_controls();
+    EnableWindow(g_app.window, FALSE);
+    ShowWindow(dialog, SW_SHOW);
+    UpdateWindow(dialog);
+    while (g_evolution.window != NULL && GetMessageA(&message, NULL, 0, 0) > 0)
+    {
+        if (!IsDialogMessageA(dialog, &message))
+        {
+            TranslateMessage(&message);
+            DispatchMessageA(&message);
+        }
+    }
+    EnableWindow(g_app.window, TRUE);
+    SetActiveWindow(g_app.window);
+}
+
 static void add_field(
     HWND parent,
     int id,
@@ -5193,6 +6068,14 @@ static void create_controls(HWND hwnd)
         IDC_BTN_REWARD,
         x2,
         y + 17 * STUDIO_ROW_HEIGHT + 2,
+        280,
+        STUDIO_BUTTON_HEIGHT);
+    g_app.evolution_button = create_button(
+        hwnd,
+        "NEUROEVOLUCAO",
+        IDC_BTN_EVOLUTION,
+        x2,
+        y + 18 * STUDIO_ROW_HEIGHT + 2,
         280,
         STUDIO_BUTTON_HEIGHT);
 
@@ -5475,6 +6358,44 @@ static LRESULT CALLBACK window_proc(
             reset_to_default();
             return 0;
         }
+        if (wparam == STUDIO_EVOLUTION_TIMER_ID && g_app.evolution_active)
+        {
+            DWORD wait_result = WaitForSingleObject(g_app.evolution_process, 0);
+            if (wait_result == WAIT_OBJECT_0)
+            {
+                DWORD exit_code = 1;
+                GetExitCodeProcess(g_app.evolution_process, &exit_code);
+                CloseHandle(g_app.evolution_process);
+                g_app.evolution_process = NULL;
+                g_app.evolution_active = 0;
+                KillTimer(hwnd, STUDIO_EVOLUTION_TIMER_ID);
+                EnableWindow(g_app.evolution_button, TRUE);
+                if (exit_code == 0)
+                {
+                    if (generate_evolution_outputs())
+                    {
+                        set_status("NEUROEVOLUCAO CONCLUIDA; PNG E HTML GERADOS");
+                        show_info("Neuroevolucao concluida",
+                                  "O experimento, o grafico e o relatorio foram gerados.");
+                    }
+                    else
+                    {
+                        set_status("NEUROEVOLUCAO CONCLUIDA; PNG/HTML PENDENTES");
+                        show_info("Neuroevolucao concluida",
+                                  "O experimento terminou, mas PNG/HTML nao foram gerados.\n"
+                                  "Verifique Python, pandas e matplotlib.");
+                    }
+                }
+                else
+                {
+                    set_status("ERRO NA NEUROEVOLUCAO");
+                    show_error("Erro na neuroevolucao",
+                               "evolution_runner.exe terminou com erro.\n"
+                               "O ultimo experimento bem-sucedido foi preservado.");
+                }
+                return 0;
+            }
+        }
         break;
 
     case WM_GETMINMAXINFO:
@@ -5566,6 +6487,9 @@ static LRESULT CALLBACK window_proc(
             case IDC_BTN_REWARD:
                 open_reward_options();
                 return 0;
+            case IDC_BTN_EVOLUTION:
+                open_evolution_options();
+                return 0;
             case IDC_BTN_PLOT_PLASTICITY:
                 generate_plasticity_graph();
                 return 0;
@@ -5654,6 +6578,11 @@ static LRESULT CALLBACK window_proc(
     }
 
     case WM_DESTROY:
+        if (g_app.evolution_process != NULL)
+        {
+            CloseHandle(g_app.evolution_process);
+            g_app.evolution_process = NULL;
+        }
         if (g_app.title_font != NULL)
             destroy_studio_font(g_app.title_font);
         if (g_app.normal_font != NULL)
