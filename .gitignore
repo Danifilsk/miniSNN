@@ -1,5 +1,6 @@
 # Build local
 /build/
+/core/build/
 *.exe
 *.o
 *.obj
@@ -16,25 +17,25 @@ __pycache__/
 tmp_*.csv
 
 # Resultados reproduziveis dos exemplos publicos
-/results/api/*.csv
-/results/api/*.png
+/core/results/api/*.csv
+/core/results/api/*.png
 
 # Resultados recriaveis do demo interno
-/results/internal_demo/*.csv
-/results/internal_demo/*.png
+/core/results/internal_demo/*.csv
+/core/results/internal_demo/*.png
 
 # Resultados locais gerados pelo runner de cenarios
-/results/scenarios/*
-!/results/scenarios/.gitkeep
+/core/results/scenarios/*
+!/core/results/scenarios/.gitkeep
 
 # Resultados locais gerados por comparacoes de cenarios
-/results/comparisons/*
-!/results/comparisons/.gitkeep
+/core/results/comparisons/*
+!/core/results/comparisons/.gitkeep
 
 # Resultados locais de benchmark (recriaveis)
-/results/benchmarks/*
-!/results/benchmarks/.gitkeep
+/core/results/benchmarks/*
+!/core/results/benchmarks/.gitkeep
 
 # Resultados locais gerados por neuroevolucao
-/results/evolution/*
-!/results/evolution/.gitkeep
+/core/results/evolution/*
+!/core/results/evolution/.gitkeep
