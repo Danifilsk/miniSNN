@@ -542,3 +542,19 @@ Exemplos: `configs/evolution_weight_target_base.ini`,
 `configs/evolution_homeostasis_base.ini` e
 `configs/evolution_plasticity_base.ini`. Veja o
 [Guia de neuroevolução](GUIA_DE_NEUROEVOLUCAO.md).
+
+## Plasticidade estrutural durante o cenário
+
+A seção opcional `[structural_plasticity]` aceita: `enabled`,
+`maintenance_interval_steps`, `grace_period_steps`, `pruning_enabled`,
+`prune_weight_threshold`, `prune_activity_threshold`,
+`max_prunes_per_interval`, `growth_enabled`, `growth_candidate_count`,
+`growth_score_threshold`, `max_growth_per_interval`, `growth_seed`,
+`new_exc_weight`, `new_inh_magnitude`, `new_delay`, `min_connections`,
+`max_connections`, `record_history` e `record_interval_steps`.
+
+O runner grava topologias inicial/final, eventos, métricas e histórico. O módulo
+é desligado por padrão. Exemplos: `configs/structural_pruning_demo.ini` e
+`configs/structural_growth_demo.ini`. A seção evolutiva `[structure]` e
+`genome_mode` pertencem ao arquivo de experimento, conforme o
+[Guia de topologia adaptativa](GUIA_DE_TOPOLOGIA_ADAPTATIVA.md).

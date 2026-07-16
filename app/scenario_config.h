@@ -2,6 +2,7 @@
 #define SCENARIO_CONFIG_H
 
 #include <stddef.h>
+#include <stdint.h>
 
 #define SCENARIO_RUN_NAME_MAX 48
 #define SCENARIO_TOPOLOGY_MAX 32
@@ -105,6 +106,26 @@ typedef struct
     int homeostasis_record_history;
     int homeostasis_record_interval_steps;
     int homeostasis_record_neuron_limit;
+
+    int structural_plasticity_enabled;
+    int structural_maintenance_interval_steps;
+    int structural_grace_period_steps;
+    int structural_pruning_enabled;
+    double structural_prune_weight_threshold;
+    double structural_prune_activity_threshold;
+    int structural_max_prunes_per_interval;
+    int structural_growth_enabled;
+    int structural_growth_candidate_count;
+    double structural_growth_score_threshold;
+    int structural_max_growth_per_interval;
+    uint64_t structural_growth_seed;
+    double structural_new_exc_weight;
+    double structural_new_inh_magnitude;
+    int structural_new_delay;
+    int structural_min_connections;
+    int structural_max_connections;
+    int structural_record_history;
+    int structural_record_interval_steps;
 
     int reward_enabled;
     char reward_mode[SCENARIO_REWARD_MODE_MAX];

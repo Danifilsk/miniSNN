@@ -9,7 +9,8 @@
 #include <string.h>
 
 #define EVOLUTION_LINE_MAX 1024
-#define EVOLUTION_FIXED_KEY_COUNT 30
+#define EVOLUTION_FIXED_KEY_COUNT 31
+#define EVOLUTION_STRUCTURE_KEY_COUNT 25
 
 static void set_error(
     char *error_message,
@@ -230,12 +231,36 @@ void evolution_config_default(EvolutionExperimentConfig *config)
     config->save_best_run = 1;
     config->auto_unique_run = 1;
     config->history_enabled = 1;
+    snprintf(config->genome_mode, sizeof(config->genome_mode), "fixed_numeric");
     config->evolve_exc_weights = 1;
     config->exc_weight_min = 0.0;
     config->exc_weight_max = 500.0;
     config->evolve_inh_magnitudes = 0;
     config->inh_magnitude_min = 0.0;
     config->inh_magnitude_max = 500.0;
+    config->structure_enabled = 0;
+    config->structure_allow_add = 1;
+    config->structure_allow_remove = 1;
+    config->structure_allow_rewire = 1;
+    config->structure_evolve_delays = 1;
+    config->structure_add_rate = 0.15;
+    config->structure_remove_rate = 0.10;
+    config->structure_rewire_rate = 0.05;
+    config->structure_delay_mutation_rate = 0.10;
+    config->structure_max_mutations_per_child = 2;
+    config->structure_min_connections = 1;
+    config->structure_max_connections = 64;
+    config->structure_allow_self_connections = 0;
+    config->structure_allow_inh_to_inh = 0;
+    config->structure_delay_min = 1;
+    config->structure_delay_max = 8;
+    config->structure_delay_mutation_max_delta = 2;
+    config->structure_new_exc_weight_min = 10.0;
+    config->structure_new_exc_weight_max = 200.0;
+    config->structure_new_inh_magnitude_min = 10.0;
+    config->structure_new_inh_magnitude_max = 200.0;
+    config->structure_complexity_penalty = 0.02;
+    config->structure_preserve_required_reachability = 0;
 }
 
 const char *evolution_fitness_goal_name(EvolutionFitnessGoal goal)
@@ -341,6 +366,7 @@ enum FixedKey
     KEY_SAVE_BEST_RUN,
     KEY_AUTO_UNIQUE_RUN,
     KEY_HISTORY_ENABLED,
+    KEY_GENOME_MODE,
     KEY_EVOLVE_EXC,
     KEY_EXC_MIN,
     KEY_EXC_MAX,
@@ -437,6 +463,9 @@ static int parse_fixed_key(
         parse_bool(value, &config->auto_unique_run));
     PARSE_KEY("history_enabled", KEY_HISTORY_ENABLED,
         parse_bool(value, &config->history_enabled));
+    PARSE_KEY("genome_mode", KEY_GENOME_MODE,
+        snprintf(config->genome_mode, sizeof(config->genome_mode), "%s", value) <
+            (int)sizeof(config->genome_mode));
     PARSE_KEY("evolve_exc_weights", KEY_EVOLVE_EXC,
         parse_bool(value, &config->evolve_exc_weights));
     PARSE_KEY("exc_weight_min", KEY_EXC_MIN,
@@ -450,6 +479,161 @@ static int parse_fixed_key(
     PARSE_KEY("inh_magnitude_max", KEY_INH_MAX,
         parse_double(value, &config->inh_magnitude_max));
 #undef PARSE_KEY
+    return 0;
+}
+
+enum StructureKey
+{
+    STRUCTURE_KEY_ENABLED,
+    STRUCTURE_KEY_ALLOW_ADD,
+    STRUCTURE_KEY_ALLOW_REMOVE,
+    STRUCTURE_KEY_ALLOW_REWIRE,
+    STRUCTURE_KEY_EVOLVE_DELAYS,
+    STRUCTURE_KEY_ADD_RATE,
+    STRUCTURE_KEY_REMOVE_RATE,
+    STRUCTURE_KEY_REWIRE_RATE,
+    STRUCTURE_KEY_DELAY_RATE,
+    STRUCTURE_KEY_MAX_MUTATIONS,
+    STRUCTURE_KEY_MIN_CONNECTIONS,
+    STRUCTURE_KEY_MAX_CONNECTIONS,
+    STRUCTURE_KEY_ALLOW_SELF,
+    STRUCTURE_KEY_ALLOW_INH_INH,
+    STRUCTURE_KEY_DELAY_MIN,
+    STRUCTURE_KEY_DELAY_MAX,
+    STRUCTURE_KEY_DELAY_DELTA,
+    STRUCTURE_KEY_NEW_EXC_MIN,
+    STRUCTURE_KEY_NEW_EXC_MAX,
+    STRUCTURE_KEY_NEW_INH_MIN,
+    STRUCTURE_KEY_NEW_INH_MAX,
+    STRUCTURE_KEY_COMPLEXITY,
+    STRUCTURE_KEY_REACHABILITY,
+    STRUCTURE_KEY_REQUIRED_INPUTS,
+    STRUCTURE_KEY_REQUIRED_OUTPUTS
+};
+
+static int parse_neuron_list(
+    const char *value,
+    int *out_values,
+    int *out_count)
+{
+    char buffer[EVOLUTION_LINE_MAX];
+    char *cursor;
+    int count = 0;
+
+    if (value == NULL || out_values == NULL || out_count == NULL ||
+        snprintf(buffer, sizeof(buffer), "%s", value) >= (int)sizeof(buffer))
+    {
+        return 0;
+    }
+    cursor = trim(buffer);
+    if (cursor[0] == '\0')
+    {
+        *out_count = 0;
+        return 1;
+    }
+
+    while (cursor[0] != '\0')
+    {
+        char *comma = strchr(cursor, ',');
+        int neuron_id;
+        if (comma != NULL)
+            *comma = '\0';
+        cursor = trim(cursor);
+        if (count >= EVOLUTION_MAX_REQUIRED_NEURONS ||
+            !parse_int(cursor, &neuron_id) || neuron_id < 0)
+        {
+            return 0;
+        }
+        for (int i = 0; i < count; i++)
+        {
+            if (out_values[i] == neuron_id)
+                return 0;
+        }
+        out_values[count++] = neuron_id;
+        if (comma == NULL)
+            break;
+        cursor = comma + 1;
+    }
+    *out_count = count;
+    return 1;
+}
+
+static int parse_structure_key(
+    EvolutionExperimentConfig *config,
+    const char *key,
+    const char *value,
+    unsigned char *seen,
+    int line,
+    char *error,
+    size_t error_size)
+{
+#define PARSE_STRUCTURE_KEY(name, id, expression) \
+    if (strcmp(key, name) == 0) \
+    { \
+        if (!mark_seen(seen, id, line, error, error_size) || !(expression)) \
+        { \
+            if (error != NULL && error_size > 0 && error[0] == '\0') \
+                set_line_error(error, error_size, line, "valor estrutural invalido"); \
+            return -1; \
+        } \
+        return 1; \
+    }
+
+    PARSE_STRUCTURE_KEY("enabled", STRUCTURE_KEY_ENABLED,
+        parse_bool(value, &config->structure_enabled));
+    PARSE_STRUCTURE_KEY("allow_add", STRUCTURE_KEY_ALLOW_ADD,
+        parse_bool(value, &config->structure_allow_add));
+    PARSE_STRUCTURE_KEY("allow_remove", STRUCTURE_KEY_ALLOW_REMOVE,
+        parse_bool(value, &config->structure_allow_remove));
+    PARSE_STRUCTURE_KEY("allow_rewire", STRUCTURE_KEY_ALLOW_REWIRE,
+        parse_bool(value, &config->structure_allow_rewire));
+    PARSE_STRUCTURE_KEY("evolve_delays", STRUCTURE_KEY_EVOLVE_DELAYS,
+        parse_bool(value, &config->structure_evolve_delays));
+    PARSE_STRUCTURE_KEY("add_rate", STRUCTURE_KEY_ADD_RATE,
+        parse_double(value, &config->structure_add_rate));
+    PARSE_STRUCTURE_KEY("remove_rate", STRUCTURE_KEY_REMOVE_RATE,
+        parse_double(value, &config->structure_remove_rate));
+    PARSE_STRUCTURE_KEY("rewire_rate", STRUCTURE_KEY_REWIRE_RATE,
+        parse_double(value, &config->structure_rewire_rate));
+    PARSE_STRUCTURE_KEY("delay_mutation_rate", STRUCTURE_KEY_DELAY_RATE,
+        parse_double(value, &config->structure_delay_mutation_rate));
+    PARSE_STRUCTURE_KEY("max_structural_mutations_per_child", STRUCTURE_KEY_MAX_MUTATIONS,
+        parse_int(value, &config->structure_max_mutations_per_child));
+    PARSE_STRUCTURE_KEY("min_connections", STRUCTURE_KEY_MIN_CONNECTIONS,
+        parse_int(value, &config->structure_min_connections));
+    PARSE_STRUCTURE_KEY("max_connections", STRUCTURE_KEY_MAX_CONNECTIONS,
+        parse_int(value, &config->structure_max_connections));
+    PARSE_STRUCTURE_KEY("allow_self_connections", STRUCTURE_KEY_ALLOW_SELF,
+        parse_bool(value, &config->structure_allow_self_connections));
+    PARSE_STRUCTURE_KEY("allow_inh_to_inh", STRUCTURE_KEY_ALLOW_INH_INH,
+        parse_bool(value, &config->structure_allow_inh_to_inh));
+    PARSE_STRUCTURE_KEY("delay_min", STRUCTURE_KEY_DELAY_MIN,
+        parse_int(value, &config->structure_delay_min));
+    PARSE_STRUCTURE_KEY("delay_max", STRUCTURE_KEY_DELAY_MAX,
+        parse_int(value, &config->structure_delay_max));
+    PARSE_STRUCTURE_KEY("delay_mutation_max_delta", STRUCTURE_KEY_DELAY_DELTA,
+        parse_int(value, &config->structure_delay_mutation_max_delta));
+    PARSE_STRUCTURE_KEY("new_exc_weight_min", STRUCTURE_KEY_NEW_EXC_MIN,
+        parse_double(value, &config->structure_new_exc_weight_min));
+    PARSE_STRUCTURE_KEY("new_exc_weight_max", STRUCTURE_KEY_NEW_EXC_MAX,
+        parse_double(value, &config->structure_new_exc_weight_max));
+    PARSE_STRUCTURE_KEY("new_inh_magnitude_min", STRUCTURE_KEY_NEW_INH_MIN,
+        parse_double(value, &config->structure_new_inh_magnitude_min));
+    PARSE_STRUCTURE_KEY("new_inh_magnitude_max", STRUCTURE_KEY_NEW_INH_MAX,
+        parse_double(value, &config->structure_new_inh_magnitude_max));
+    PARSE_STRUCTURE_KEY("complexity_penalty", STRUCTURE_KEY_COMPLEXITY,
+        parse_double(value, &config->structure_complexity_penalty));
+    PARSE_STRUCTURE_KEY("preserve_required_reachability", STRUCTURE_KEY_REACHABILITY,
+        parse_bool(value, &config->structure_preserve_required_reachability));
+    PARSE_STRUCTURE_KEY("required_input_neurons", STRUCTURE_KEY_REQUIRED_INPUTS,
+        parse_neuron_list(value,
+            config->structure_required_input_neurons,
+            &config->structure_required_input_count));
+    PARSE_STRUCTURE_KEY("required_output_neurons", STRUCTURE_KEY_REQUIRED_OUTPUTS,
+        parse_neuron_list(value,
+            config->structure_required_output_neurons,
+            &config->structure_required_output_count));
+#undef PARSE_STRUCTURE_KEY
     return 0;
 }
 
@@ -550,12 +734,49 @@ static int metric_supported(
     return 0;
 }
 
+static int structure_legal_pair_count(
+    const EvolutionExperimentConfig *config,
+    const ScenarioConfig *base,
+    size_t *out_count)
+{
+    size_t neurons;
+    size_t inhibitory;
+    size_t count;
+    size_t excluded_inhibitory;
+
+    if (config == NULL || base == NULL || out_count == NULL || base->neurons < 1)
+        return 0;
+    neurons = (size_t)base->neurons;
+    inhibitory = (size_t)((double)base->neurons *
+                          base->inhibitory_fraction + 0.5);
+    if (neurons > SIZE_MAX / neurons)
+        return 0;
+    count = neurons * neurons;
+    if (!config->structure_allow_self_connections)
+        count -= neurons;
+    if (!config->structure_allow_inh_to_inh && inhibitory > 0)
+    {
+        if (inhibitory > SIZE_MAX / inhibitory)
+            return 0;
+        excluded_inhibitory = inhibitory * inhibitory;
+        if (!config->structure_allow_self_connections)
+            excluded_inhibitory -= inhibitory;
+        if (excluded_inhibitory > count)
+            return 0;
+        count -= excluded_inhibitory;
+    }
+    *out_count = count;
+    return 1;
+}
+
 int evolution_config_validate(
     const EvolutionExperimentConfig *config,
     const ScenarioConfig *base,
     char *error_message,
     size_t error_message_size)
 {
+    size_t legal_pairs = 0;
+
     if (config == NULL || base == NULL)
     {
         set_error(error_message, error_message_size, "configuracao nula");
@@ -570,6 +791,12 @@ int evolution_config_validate(
         !valid_base_path(config->base_scenario))
     {
         set_error(error_message, error_message_size, "nome ou caminho do experimento invalido");
+        return 0;
+    }
+    if (strcmp(config->genome_mode, "fixed_numeric") != 0 &&
+        strcmp(config->genome_mode, "structural_connections") != 0)
+    {
+        set_error(error_message, error_message_size, "genome_mode invalido");
         return 0;
     }
     if (config->population_size < 2 || config->generations < 1 ||
@@ -629,10 +856,122 @@ int evolution_config_validate(
         return 0;
     }
     if (!config->evolve_exc_weights && !config->evolve_inh_magnitudes &&
-        config->scalar_gene_count == 0)
+        config->scalar_gene_count == 0 && !config->structure_enabled)
     {
         set_error(error_message, error_message_size, "nenhum gene evolutivo configurado");
         return 0;
+    }
+    if ((config->structure_enabled &&
+         strcmp(config->genome_mode, "structural_connections") != 0) ||
+        (!config->structure_enabled &&
+         strcmp(config->genome_mode, "fixed_numeric") != 0))
+    {
+        set_error(error_message, error_message_size,
+                  "structure.enabled e genome_mode sao incompativeis");
+        return 0;
+    }
+    if (config->structure_enabled)
+    {
+        const double rates[] = {
+            config->structure_add_rate,
+            config->structure_remove_rate,
+            config->structure_rewire_rate,
+            config->structure_delay_mutation_rate
+        };
+        if (!config->structure_allow_add && !config->structure_allow_remove &&
+            !config->structure_allow_rewire && !config->structure_evolve_delays)
+        {
+            set_error(error_message, error_message_size,
+                      "nenhum operador estrutural habilitado");
+            return 0;
+        }
+        for (size_t i = 0; i < sizeof(rates) / sizeof(rates[0]); i++)
+        {
+            if (!isfinite(rates[i]) || rates[i] < 0.0 || rates[i] > 1.0)
+            {
+                set_error(error_message, error_message_size,
+                          "taxa estrutural invalida");
+                return 0;
+            }
+        }
+        if (config->structure_max_mutations_per_child < 1 ||
+            config->structure_min_connections < 1 ||
+            config->structure_max_connections < config->structure_min_connections ||
+            !structure_legal_pair_count(config, base, &legal_pairs) ||
+            (size_t)config->structure_max_connections > legal_pairs)
+        {
+            set_error(error_message, error_message_size,
+                      "limites estruturais invalidos ou impossiveis");
+            return 0;
+        }
+        if (config->structure_delay_min < 1 ||
+            config->structure_delay_max < config->structure_delay_min ||
+            config->structure_delay_max > base->max_synaptic_delay ||
+            config->structure_delay_mutation_max_delta < 1)
+        {
+            set_error(error_message, error_message_size,
+                      "limites de delay estrutural invalidos");
+            return 0;
+        }
+        if (!isfinite(config->structure_new_exc_weight_min) ||
+            !isfinite(config->structure_new_exc_weight_max) ||
+            config->structure_new_exc_weight_min < 0.0 ||
+            config->structure_new_exc_weight_max <=
+                config->structure_new_exc_weight_min ||
+            !isfinite(config->structure_new_inh_magnitude_min) ||
+            !isfinite(config->structure_new_inh_magnitude_max) ||
+            config->structure_new_inh_magnitude_min < 0.0 ||
+            config->structure_new_inh_magnitude_max <=
+                config->structure_new_inh_magnitude_min ||
+            !isfinite(config->structure_complexity_penalty) ||
+            config->structure_complexity_penalty < 0.0 ||
+            config->structure_complexity_penalty > 1.0)
+        {
+            set_error(error_message, error_message_size,
+                      "pesos ou penalidade estrutural invalidos");
+            return 0;
+        }
+        for (int list = 0; list < 2; list++)
+        {
+            const int *values = list == 0 ?
+                config->structure_required_input_neurons :
+                config->structure_required_output_neurons;
+            int count = list == 0 ?
+                config->structure_required_input_count :
+                config->structure_required_output_count;
+            if (count < 0 || count > EVOLUTION_MAX_REQUIRED_NEURONS)
+            {
+                set_error(error_message, error_message_size,
+                          "lista estrutural obrigatoria invalida");
+                return 0;
+            }
+            for (int i = 0; i < count; i++)
+            {
+                if (values[i] < 0 || values[i] >= base->neurons)
+                {
+                    set_error(error_message, error_message_size,
+                              "ID estrutural obrigatorio fora da rede");
+                    return 0;
+                }
+                for (int previous = 0; previous < i; previous++)
+                {
+                    if (values[previous] == values[i])
+                    {
+                        set_error(error_message, error_message_size,
+                                  "ID estrutural obrigatorio duplicado");
+                        return 0;
+                    }
+                }
+            }
+        }
+        if (config->structure_preserve_required_reachability &&
+            (config->structure_required_input_count < 1 ||
+             config->structure_required_output_count < 1))
+        {
+            set_error(error_message, error_message_size,
+                      "reachability exige entradas e saidas obrigatorias");
+            return 0;
+        }
     }
     if (config->fitness_term_count < 1)
     {
@@ -705,6 +1044,7 @@ int evolution_config_load_file(
     EvolutionExperimentConfig config;
     ScenarioConfig base;
     unsigned char seen[EVOLUTION_FIXED_KEY_COUNT] = {0};
+    unsigned char structure_seen[EVOLUTION_STRUCTURE_KEY_COUNT] = {0};
     unsigned char scalar_seen[EVOLUTION_MAX_SCALAR_GENES] = {0};
     unsigned char term_seen[EVOLUTION_MAX_FITNESS_TERMS] = {0};
     char section[32] = "";
@@ -764,7 +1104,8 @@ int evolution_config_load_file(
                 (int)sizeof(section) ||
                 (strcmp(section, "evolution") != 0 &&
                  strcmp(section, "genome") != 0 &&
-                 strcmp(section, "fitness") != 0))
+                 strcmp(section, "fitness") != 0 &&
+                 strcmp(section, "structure") != 0))
             {
                 set_line_error(error_message, error_message_size, line_number, "secao desconhecida");
                 fclose(file);
@@ -783,16 +1124,29 @@ int evolution_config_load_file(
         *equals = '\0';
         key = trim(line);
         value = trim(equals + 1);
-        if (key[0] == '\0' || value[0] == '\0')
+        if (key[0] == '\0' ||
+            (value[0] == '\0' &&
+             !(strcmp(section, "structure") == 0 &&
+               (strcmp(key, "required_input_neurons") == 0 ||
+                strcmp(key, "required_output_neurons") == 0))))
         {
             set_line_error(error_message, error_message_size, line_number, "chave ou valor vazio");
             fclose(file);
             return 0;
         }
 
-        result = parse_fixed_key(
-            &config, key, value, seen, line_number,
-            error_message, error_message_size);
+        if (strcmp(section, "structure") == 0)
+        {
+            result = parse_structure_key(
+                &config, key, value, structure_seen, line_number,
+                error_message, error_message_size);
+        }
+        else
+        {
+            result = parse_fixed_key(
+                &config, key, value, seen, line_number,
+                error_message, error_message_size);
+        }
         if (result < 0)
         {
             fclose(file);
@@ -801,7 +1155,7 @@ int evolution_config_load_file(
         if (result > 0)
             continue;
 
-        if (parse_indexed_key(
+        if (strcmp(section, "genome") == 0 && parse_indexed_key(
                 key,
                 "scalar_gene_",
                 EVOLUTION_MAX_SCALAR_GENES,
@@ -820,7 +1174,7 @@ int evolution_config_load_file(
                 config.scalar_gene_count = index + 1;
             continue;
         }
-        if (parse_indexed_key(
+        if (strcmp(section, "fitness") == 0 && parse_indexed_key(
                 key,
                 "term_",
                 EVOLUTION_MAX_FITNESS_TERMS,
@@ -920,7 +1274,8 @@ int evolution_config_save_file(
             "evolution_seed = %llu\nevaluation_replicates = %d\n"
             "evaluation_seed_base = %llu\nreplicate_std_penalty = %.17g\n"
             "checkpoint_interval_generations = %d\nsave_all_genomes = %s\n"
-            "save_best_run = %s\nauto_unique_run = %s\nhistory_enabled = %s\n\n"
+            "save_best_run = %s\nauto_unique_run = %s\nhistory_enabled = %s\n"
+            "genome_mode = %s\n\n"
             "[genome]\nevolve_exc_weights = %s\nexc_weight_min = %.17g\n"
             "exc_weight_max = %.17g\nevolve_inh_magnitudes = %s\n"
             "inh_magnitude_min = %.17g\ninh_magnitude_max = %.17g\n",
@@ -948,6 +1303,7 @@ int evolution_config_save_file(
             config->save_best_run ? "true" : "false",
             config->auto_unique_run ? "true" : "false",
             config->history_enabled ? "true" : "false",
+            config->genome_mode,
             config->evolve_exc_weights ? "true" : "false",
             config->exc_weight_min,
             config->exc_weight_max,
@@ -969,6 +1325,78 @@ int evolution_config_save_file(
             fclose(file);
             return 0;
         }
+    }
+    if (fprintf(file,
+            "\n[structure]\n"
+            "enabled = %s\nallow_add = %s\nallow_remove = %s\n"
+            "allow_rewire = %s\nevolve_delays = %s\n"
+            "add_rate = %.17g\nremove_rate = %.17g\n"
+            "rewire_rate = %.17g\ndelay_mutation_rate = %.17g\n"
+            "max_structural_mutations_per_child = %d\n"
+            "min_connections = %d\nmax_connections = %d\n"
+            "allow_self_connections = %s\nallow_inh_to_inh = %s\n"
+            "delay_min = %d\ndelay_max = %d\n"
+            "delay_mutation_max_delta = %d\n"
+            "new_exc_weight_min = %.17g\nnew_exc_weight_max = %.17g\n"
+            "new_inh_magnitude_min = %.17g\n"
+            "new_inh_magnitude_max = %.17g\n"
+            "complexity_penalty = %.17g\n"
+            "preserve_required_reachability = %s\n"
+            "required_input_neurons = ",
+            config->structure_enabled ? "true" : "false",
+            config->structure_allow_add ? "true" : "false",
+            config->structure_allow_remove ? "true" : "false",
+            config->structure_allow_rewire ? "true" : "false",
+            config->structure_evolve_delays ? "true" : "false",
+            config->structure_add_rate,
+            config->structure_remove_rate,
+            config->structure_rewire_rate,
+            config->structure_delay_mutation_rate,
+            config->structure_max_mutations_per_child,
+            config->structure_min_connections,
+            config->structure_max_connections,
+            config->structure_allow_self_connections ? "true" : "false",
+            config->structure_allow_inh_to_inh ? "true" : "false",
+            config->structure_delay_min,
+            config->structure_delay_max,
+            config->structure_delay_mutation_max_delta,
+            config->structure_new_exc_weight_min,
+            config->structure_new_exc_weight_max,
+            config->structure_new_inh_magnitude_min,
+            config->structure_new_inh_magnitude_max,
+            config->structure_complexity_penalty,
+            config->structure_preserve_required_reachability ? "true" : "false") < 0)
+    {
+        fclose(file);
+        return 0;
+    }
+    for (int i = 0; i < config->structure_required_input_count; i++)
+    {
+        if (fprintf(file, "%s%d", i == 0 ? "" : ",",
+                    config->structure_required_input_neurons[i]) < 0)
+        {
+            fclose(file);
+            return 0;
+        }
+    }
+    if (fprintf(file, "\nrequired_output_neurons = ") < 0)
+    {
+        fclose(file);
+        return 0;
+    }
+    for (int i = 0; i < config->structure_required_output_count; i++)
+    {
+        if (fprintf(file, "%s%d", i == 0 ? "" : ",",
+                    config->structure_required_output_neurons[i]) < 0)
+        {
+            fclose(file);
+            return 0;
+        }
+    }
+    if (fprintf(file, "\n") < 0)
+    {
+        fclose(file);
+        return 0;
     }
     if (fprintf(file, "\n[fitness]\n") < 0)
     {

@@ -37,3 +37,11 @@ O golden só deve ser atualizado após revisão científica explícita:
 python scripts/capture_baseline.py --write
 ```
 
+## Cobertura C4
+
+`test-structure` cobre chaves, canonicalização, patches atômicos, operadores,
+invariantes, integração neural e herança darwiniana. `test-structural-plasticity`
+cobre poda, crescimento, grace period e determinismo. `test-structure-resume`
+compara retomada exata e `test-structure-long` exercita execução prolongada.
+`test-plot-topology`, `test-docs`, `test-analyzer` e `check-c4` completam a
+validação automatizada. Interações do Studio permanecem validação manual.

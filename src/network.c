@@ -19,6 +19,7 @@ static void network_reset_fields(Network *net)
     net->plasticity = NULL;
     net->homeostasis = NULL;
     net->reward = NULL;
+    net->structural_plasticity = NULL;
 
     net->lif_parameters.dt = 0.0;
     net->lif_parameters.tau = 0.0;
@@ -348,6 +349,15 @@ int network_update(Network *net)
             net->neurons,
             net->connections,
             net->plasticity))
+    {
+        return -1;
+    }
+
+    if (net->structural_plasticity != NULL &&
+        !structural_plasticity_apply_step(
+            net->structural_plasticity,
+            net,
+            (unsigned long long)net->step + 1ULL))
     {
         return -1;
     }
@@ -717,6 +727,43 @@ int network_reset_reward_learning(Network *net)
         net->plasticity);
 }
 
+int network_set_structural_plasticity_config(
+    Network *net,
+    const MiniSNNStructuralPlasticityConfig *config)
+{
+    StructuralPlasticityState *created = NULL;
+
+    if (net == NULL || config == NULL || net->neurons == NULL ||
+        net->connections == NULL || net->size <= 0 ||
+        !structural_plasticity_config_is_valid(
+            config, net->size, net->max_synaptic_delay,
+            network_connection_count(net)))
+        return 0;
+
+    if (!config->enabled)
+    {
+        structural_plasticity_state_destroy(net->structural_plasticity);
+        net->structural_plasticity = NULL;
+        return 1;
+    }
+
+    if (!structural_plasticity_state_create(&created, net, config))
+        return 0;
+    structural_plasticity_state_destroy(net->structural_plasticity);
+    net->structural_plasticity = created;
+    return 1;
+}
+
+int network_reset_structural_plasticity(
+    Network *net,
+    MiniSNNStructuralResetMode mode)
+{
+    if (net == NULL || net->structural_plasticity == NULL)
+        return 0;
+    return structural_plasticity_reset(
+        net->structural_plasticity, net, mode);
+}
+
 int network_set_homeostasis_config(
     Network *net,
     const MiniSNNHomeostasisConfig *config)
@@ -850,6 +897,9 @@ void network_destroy(Network *net)
         reward_state_destroy(net->reward);
         free(net->reward);
     }
+
+    structural_plasticity_state_destroy(net->structural_plasticity);
+    net->structural_plasticity = NULL;
 
     network_reset_fields(net);
 }

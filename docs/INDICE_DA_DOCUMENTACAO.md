@@ -21,6 +21,7 @@ implementados, experimentais e planejados.
 - [Guia de homeostase](GUIA_DE_HOMEOSTASE.md) — threshold, scaling EXC, ganho INH e ordem temporal.
 - [Guia de recompensa](GUIA_DE_RECOMPENSA.md) — R-STDP, elegibilidade, punição, eventos e outputs.
 - [Guia de neuroevolução](GUIA_DE_NEUROEVOLUCAO.md) — genomas, fitness, operadores, checkpoint, Studio e limites C3.
+- [Guia de topologia adaptativa](GUIA_DE_TOPOLOGIA_ADAPTATIVA.md) — genoma estrutural, patches, lifetime plasticity, outputs e limites C4.
 
 Os guias de diagnóstico e plasticidade também explicam os relatórios locais
 `metrics_report.html` e `weights_report.html`. Eles são a camada de leitura;
@@ -45,6 +46,7 @@ os CSVs permanecem como fonte bruta e podem ser acessados pelos links do HTML.
 - [Benchmarks C1.5](BENCHMARKS_C15_HOMEOSTASE.md) — custo local dos mecanismos e histórico.
 - [Benchmarks C2](BENCHMARKS_C2_RECOMPENSA.md) — custo de elegibilidade, reward, histórico e relatórios.
 - [Benchmarks C3](BENCHMARKS_C3_NEUROEVOLUCAO.md) — custo local de avaliações, réplicas, serialização e relatórios.
+- [Benchmarks C4](BENCHMARKS_C4_TOPOLOGIA.md) — custo local de evolução e manutenção estrutural.
 - [Checklist do Studio](CHECKLIST_DE_VALIDACAO_DO_STUDIO.md) — validação manual separada da automação.
 - [Roadmap](ROADMAP.md) — implementado, próximo e planejado, sem prazos garantidos.
 

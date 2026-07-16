@@ -214,6 +214,59 @@
 #define IDC_EVO_OPEN_BEST 8029
 #define IDC_EVO_HISTORY 8030
 #define IDC_EVO_CANCEL 8031
+#define IDC_EVO_ADAPTIVE 8032
+#define IDC_EVO_OPEN_TOPOLOGY 8033
+#define IDC_EVO_TOPOLOGY_PLOT 8034
+#define IDC_EVO_OPEN_STRUCTURAL_EVENTS 8035
+#define IDC_EVO_OPEN_BEST_TOPOLOGY 8036
+
+#define IDC_ADAPT_GENOME_MODE 9001
+#define IDC_ADAPT_STRUCTURE_ENABLED 9002
+#define IDC_ADAPT_ALLOW_ADD 9003
+#define IDC_ADAPT_ALLOW_REMOVE 9004
+#define IDC_ADAPT_ALLOW_REWIRE 9005
+#define IDC_ADAPT_EVOLVE_DELAYS 9006
+#define IDC_ADAPT_ADD_RATE 9007
+#define IDC_ADAPT_REMOVE_RATE 9008
+#define IDC_ADAPT_REWIRE_RATE 9009
+#define IDC_ADAPT_DELAY_RATE 9010
+#define IDC_ADAPT_MAX_MUTATIONS 9011
+#define IDC_ADAPT_MIN_CONNECTIONS 9012
+#define IDC_ADAPT_MAX_CONNECTIONS 9013
+#define IDC_ADAPT_ALLOW_SELF 9014
+#define IDC_ADAPT_ALLOW_INH_INH 9015
+#define IDC_ADAPT_DELAY_MIN 9016
+#define IDC_ADAPT_DELAY_MAX 9017
+#define IDC_ADAPT_DELAY_DELTA 9018
+#define IDC_ADAPT_EXC_MIN 9019
+#define IDC_ADAPT_EXC_MAX 9020
+#define IDC_ADAPT_INH_MIN 9021
+#define IDC_ADAPT_INH_MAX 9022
+#define IDC_ADAPT_COMPLEXITY 9023
+#define IDC_ADAPT_REACHABILITY 9024
+#define IDC_ADAPT_INPUTS 9025
+#define IDC_ADAPT_OUTPUTS 9026
+#define IDC_ADAPT_LIFETIME_ENABLED 9027
+#define IDC_ADAPT_MAINTENANCE 9028
+#define IDC_ADAPT_GRACE 9029
+#define IDC_ADAPT_PRUNING 9030
+#define IDC_ADAPT_PRUNE_WEIGHT 9031
+#define IDC_ADAPT_PRUNE_ACTIVITY 9032
+#define IDC_ADAPT_MAX_PRUNES 9033
+#define IDC_ADAPT_GROWTH 9034
+#define IDC_ADAPT_CANDIDATES 9035
+#define IDC_ADAPT_GROWTH_SCORE 9036
+#define IDC_ADAPT_MAX_GROWTH 9037
+#define IDC_ADAPT_GROWTH_SEED 9038
+#define IDC_ADAPT_NEW_EXC 9039
+#define IDC_ADAPT_NEW_INH 9040
+#define IDC_ADAPT_NEW_DELAY 9041
+#define IDC_ADAPT_LIFETIME_MIN 9042
+#define IDC_ADAPT_LIFETIME_MAX 9043
+#define IDC_ADAPT_RECORD_HISTORY 9044
+#define IDC_ADAPT_RECORD_INTERVAL 9045
+#define IDC_ADAPT_APPLY 9046
+#define IDC_ADAPT_CANCEL 9047
 
 #define STUDIO_INIT_TIMER_ID 1
 #define STUDIO_EVOLUTION_TIMER_ID 2
@@ -396,12 +449,67 @@ typedef struct
     HWND fitness_terms_edit;
 } EvolutionDialog;
 
+typedef struct
+{
+    HWND window;
+    EvolutionExperimentConfig original_evolution;
+    ScenarioConfig original_scenario;
+    EvolutionExperimentConfig working_evolution;
+    ScenarioConfig working_scenario;
+    HWND genome_mode_combo;
+    HWND structure_enabled;
+    HWND allow_add;
+    HWND allow_remove;
+    HWND allow_rewire;
+    HWND evolve_delays;
+    HWND add_rate;
+    HWND remove_rate;
+    HWND rewire_rate;
+    HWND delay_rate;
+    HWND max_mutations;
+    HWND min_connections;
+    HWND max_connections;
+    HWND allow_self;
+    HWND allow_inh_inh;
+    HWND delay_min;
+    HWND delay_max;
+    HWND delay_delta;
+    HWND exc_min;
+    HWND exc_max;
+    HWND inh_min;
+    HWND inh_max;
+    HWND complexity;
+    HWND reachability;
+    HWND required_inputs;
+    HWND required_outputs;
+    HWND lifetime_enabled;
+    HWND maintenance;
+    HWND grace;
+    HWND pruning;
+    HWND prune_weight;
+    HWND prune_activity;
+    HWND max_prunes;
+    HWND growth;
+    HWND candidates;
+    HWND growth_score;
+    HWND max_growth;
+    HWND growth_seed;
+    HWND new_exc;
+    HWND new_inh;
+    HWND new_delay;
+    HWND lifetime_min;
+    HWND lifetime_max;
+    HWND record_history;
+    HWND record_interval;
+} AdaptiveTopologyDialog;
+
 static StudioState g_app;
 static TopologyOptionsDialog g_options;
 static PlasticityDialog g_plasticity;
 static HomeostasisDialog g_homeostasis;
 static RewardDialog g_reward;
 static EvolutionDialog g_evolution;
+static AdaptiveTopologyDialog g_adaptive;
 
 static void draw_button(const DRAWITEMSTRUCT *item);
 static LRESULT handle_color(HDC hdc, HWND hwnd);
@@ -5424,9 +5532,16 @@ static int evolution_controls_to_config(
     if (!parse_evolution_scalar_genes(config, error_message, error_message_size) ||
         !parse_evolution_fitness_terms(config, error_message, error_message_size))
         return 0;
-    if (!scenario_config_load_file(config->base_scenario, base_scenario,
-            error_message, error_message_size))
+    if (strcmp(config->base_scenario,
+               g_evolution.config.base_scenario) == 0)
+    {
+        *base_scenario = g_evolution.base_scenario;
+    }
+    else if (!scenario_config_load_file(config->base_scenario, base_scenario,
+                 error_message, error_message_size))
+    {
         return 0;
+    }
     return evolution_config_validate(config, base_scenario,
                                      error_message, error_message_size);
 }
@@ -5500,7 +5615,9 @@ static int save_evolution_dialog_config(int choose_path)
         if (!GetSaveFileNameA(&ofn))
             return 0;
     }
-    if (!evolution_config_save_file(path, &config, error, sizeof(error)))
+    if (!scenario_config_save_file(
+            config.base_scenario, &base, error, sizeof(error)) ||
+        !evolution_config_save_file(path, &config, error, sizeof(error)))
     {
         show_error("Erro ao salvar", error);
         return 0;
@@ -5618,6 +5735,104 @@ static int open_evolution_artifact(const char *relative_artifact, const char *st
     return 1;
 }
 
+static void open_evolution_structural_report(
+    const char *source_filename,
+    const char *report_filename,
+    const char *report_option,
+    const char *missing_source_message,
+    const char *title,
+    const char *success_status)
+{
+    char directory[MAX_PATH];
+    char source_path[MAX_PATH];
+    char report_path[MAX_PATH];
+    char python_path[MAX_PATH];
+    char script_path[MAX_PATH];
+    char command[PYTHON_COMMAND_BUFFER_SIZE];
+    char message[PYTHON_MESSAGE_BUFFER_SIZE];
+    char status[STATUS_BUFFER_SIZE];
+    DWORD exit_code = 1;
+
+    if (!last_evolution_directory(directory, sizeof(directory)))
+    {
+        show_error("Sem evolucao", "Nenhum experimento evolutivo concluido foi encontrado.");
+        return;
+    }
+    if (snprintf(source_path, sizeof(source_path), "%s\\%s", directory,
+                 source_filename) >= (int)sizeof(source_path) ||
+        snprintf(report_path, sizeof(report_path), "%s\\%s", directory,
+                 report_filename) >= (int)sizeof(report_path))
+    {
+        show_error("Erro interno", "Nao foi possivel montar os caminhos do relatorio HTML.");
+        return;
+    }
+    if (!file_exists(source_path))
+    {
+        snprintf(message, sizeof(message), "%s\n\nCaminho verificado:\n%s",
+                 missing_source_message, source_path);
+        show_error("Relatorio indisponivel", message);
+        return;
+    }
+
+    if (resolve_python_executable(python_path, sizeof(python_path)))
+    {
+        if (!project_path(script_path, sizeof(script_path),
+                          "scripts\\generate_evolution_report.py") ||
+            snprintf(command, sizeof(command),
+                     g_app.resolved_python_uses_py_launcher ?
+                         "\"%s\" -3 \"%s\" \"%s\" %s" :
+                         "\"%s\" \"%s\" \"%s\" %s",
+                     python_path, script_path, directory, report_option) >=
+                (int)sizeof(command))
+        {
+            show_error("Erro interno", "Nao foi possivel montar o comando do relatorio HTML.");
+            return;
+        }
+        snprintf(status, sizeof(status), "GERANDO %s...", report_filename);
+        set_status(status);
+        UpdateWindow(g_app.window);
+        if (!run_hidden_process(command, &exit_code) || exit_code != 0 ||
+            !file_exists(report_path))
+        {
+            snprintf(
+                message,
+                sizeof(message),
+                "Nao foi possivel gerar o relatorio HTML.\n\n"
+                "Python usado:\n%s\n\n"
+                "Pasta da evolucao:\n%s\n\n"
+                "Comando para diagnostico:\n%s\n\n"
+                "Codigo de saida: %lu",
+                python_path,
+                directory,
+                command,
+                (unsigned long)exit_code);
+            show_error("Erro ao gerar relatorio", message);
+            set_status("ERRO AO GERAR RELATORIO HTML");
+            return;
+        }
+    }
+    else if (!file_exists(report_path))
+    {
+        show_error(
+            "Python nao encontrado",
+            "Python nao foi encontrado e nao existe um relatorio HTML anterior para abrir.");
+        set_status("RELATORIO HTML INDISPONIVEL");
+        return;
+    }
+    else
+    {
+        show_info(
+            "Python nao encontrado",
+            "Python nao foi encontrado. O ultimo relatorio HTML existente sera aberto e pode estar desatualizado.");
+    }
+
+    open_existing_file(
+        report_path,
+        title,
+        "O relatorio HTML estrutural nao existe.",
+        success_status);
+}
+
 static int generate_evolution_outputs(void)
 {
     char directory[MAX_PATH];
@@ -5705,6 +5920,568 @@ static void resume_evolution_from_dialog(void)
         DestroyWindow(g_evolution.window);
 }
 
+static int adaptive_checked(HWND control)
+{
+    return SendMessageA(control, BM_GETCHECK, 0, 0) == BST_CHECKED;
+}
+
+static void adaptive_set_checked(HWND control, int value)
+{
+    SendMessageA(control, BM_SETCHECK,
+                 value ? BST_CHECKED : BST_UNCHECKED, 0);
+}
+
+static void adaptive_set_int(HWND control, int value)
+{
+    char text[TEXT_BUFFER_SIZE];
+    snprintf(text, sizeof(text), "%d", value);
+    SetWindowTextA(control, text);
+}
+
+static void adaptive_set_u64(HWND control, uint64_t value)
+{
+    char text[TEXT_BUFFER_SIZE];
+    snprintf(text, sizeof(text), "%llu", (unsigned long long)value);
+    SetWindowTextA(control, text);
+}
+
+static void adaptive_set_neuron_list(
+    HWND control,
+    const int *values,
+    int count)
+{
+    char text[EVOLUTION_TEXT_SIZE];
+    size_t used = 0;
+    text[0] = '\0';
+    for (int i = 0; i < count; i++)
+    {
+        int written = snprintf(
+            text + used, sizeof(text) - used,
+            i == 0 ? "%d" : ",%d", values[i]);
+        if (written < 0 || (size_t)written >= sizeof(text) - used)
+            break;
+        used += (size_t)written;
+    }
+    SetWindowTextA(control, text);
+}
+
+static int adaptive_parse_neuron_list(
+    HWND control,
+    const char *field_name,
+    int *values,
+    int *out_count,
+    char *error_message,
+    size_t error_message_size)
+{
+    char text[EVOLUTION_TEXT_SIZE];
+    char *token;
+    int count = 0;
+
+    GetWindowTextA(control, text, sizeof(text));
+    token = strtok(text, ",");
+    while (token != NULL)
+    {
+        char *start = trim_reward_token(token);
+        char *end = NULL;
+        long value;
+        if (*start == '\0')
+        {
+            token = strtok(NULL, ",");
+            continue;
+        }
+        errno = 0;
+        value = strtol(start, &end, 10);
+        while (*end != '\0' && isspace((unsigned char)*end))
+            end++;
+        if (start == end || *end != '\0' || errno == ERANGE || value < 0 ||
+            value > 1000000 || count >= EVOLUTION_MAX_REQUIRED_NEURONS)
+        {
+            snprintf(error_message, error_message_size,
+                     "Campo invalido: %s.", field_name);
+            return 0;
+        }
+        values[count++] = (int)value;
+        token = strtok(NULL, ",");
+    }
+    *out_count = count;
+    return 1;
+}
+
+static HWND adaptive_create_combo(HWND parent, int id, int x, int y)
+{
+    HWND combo = CreateWindowExA(
+        WS_EX_CLIENTEDGE, "COMBOBOX", "",
+        WS_CHILD | WS_VISIBLE | WS_TABSTOP | CBS_DROPDOWNLIST,
+        x, y, 190, 120, parent, (HMENU)(INT_PTR)id,
+        GetModuleHandleA(NULL), NULL);
+    SendMessageA(combo, WM_SETFONT, (WPARAM)g_app.edit_font, TRUE);
+    return combo;
+}
+
+static HWND adaptive_labeled_edit(
+    HWND parent,
+    const char *label,
+    int id,
+    int x,
+    int y)
+{
+    create_static(parent, label, x, y + 3, 220, 24, 0);
+    return create_edit(parent, id, x + 225, y, 125, 27);
+}
+
+static void adaptive_config_to_controls(void)
+{
+    EvolutionExperimentConfig *e = &g_adaptive.working_evolution;
+    ScenarioConfig *s = &g_adaptive.working_scenario;
+
+    SendMessageA(g_adaptive.genome_mode_combo, CB_SELECTSTRING, (WPARAM)-1,
+                 (LPARAM)e->genome_mode);
+    adaptive_set_checked(g_adaptive.structure_enabled, e->structure_enabled);
+    adaptive_set_checked(g_adaptive.allow_add, e->structure_allow_add);
+    adaptive_set_checked(g_adaptive.allow_remove, e->structure_allow_remove);
+    adaptive_set_checked(g_adaptive.allow_rewire, e->structure_allow_rewire);
+    adaptive_set_checked(g_adaptive.evolve_delays, e->structure_evolve_delays);
+    set_window_double(g_adaptive.add_rate, e->structure_add_rate);
+    set_window_double(g_adaptive.remove_rate, e->structure_remove_rate);
+    set_window_double(g_adaptive.rewire_rate, e->structure_rewire_rate);
+    set_window_double(g_adaptive.delay_rate, e->structure_delay_mutation_rate);
+    adaptive_set_int(g_adaptive.max_mutations,
+                     e->structure_max_mutations_per_child);
+    adaptive_set_int(g_adaptive.min_connections, e->structure_min_connections);
+    adaptive_set_int(g_adaptive.max_connections, e->structure_max_connections);
+    adaptive_set_checked(g_adaptive.allow_self,
+                         e->structure_allow_self_connections);
+    adaptive_set_checked(g_adaptive.allow_inh_inh,
+                         e->structure_allow_inh_to_inh);
+    adaptive_set_int(g_adaptive.delay_min, e->structure_delay_min);
+    adaptive_set_int(g_adaptive.delay_max, e->structure_delay_max);
+    adaptive_set_int(g_adaptive.delay_delta,
+                     e->structure_delay_mutation_max_delta);
+    set_window_double(g_adaptive.exc_min, e->structure_new_exc_weight_min);
+    set_window_double(g_adaptive.exc_max, e->structure_new_exc_weight_max);
+    set_window_double(g_adaptive.inh_min,
+                      e->structure_new_inh_magnitude_min);
+    set_window_double(g_adaptive.inh_max,
+                      e->structure_new_inh_magnitude_max);
+    set_window_double(g_adaptive.complexity,
+                      e->structure_complexity_penalty);
+    adaptive_set_checked(g_adaptive.reachability,
+                         e->structure_preserve_required_reachability);
+    adaptive_set_neuron_list(g_adaptive.required_inputs,
+                             e->structure_required_input_neurons,
+                             e->structure_required_input_count);
+    adaptive_set_neuron_list(g_adaptive.required_outputs,
+                             e->structure_required_output_neurons,
+                             e->structure_required_output_count);
+
+    adaptive_set_checked(g_adaptive.lifetime_enabled,
+                         s->structural_plasticity_enabled);
+    adaptive_set_int(g_adaptive.maintenance,
+                     s->structural_maintenance_interval_steps);
+    adaptive_set_int(g_adaptive.grace, s->structural_grace_period_steps);
+    adaptive_set_checked(g_adaptive.pruning, s->structural_pruning_enabled);
+    set_window_double(g_adaptive.prune_weight,
+                      s->structural_prune_weight_threshold);
+    set_window_double(g_adaptive.prune_activity,
+                      s->structural_prune_activity_threshold);
+    adaptive_set_int(g_adaptive.max_prunes,
+                     s->structural_max_prunes_per_interval);
+    adaptive_set_checked(g_adaptive.growth, s->structural_growth_enabled);
+    adaptive_set_int(g_adaptive.candidates,
+                     s->structural_growth_candidate_count);
+    set_window_double(g_adaptive.growth_score,
+                      s->structural_growth_score_threshold);
+    adaptive_set_int(g_adaptive.max_growth,
+                     s->structural_max_growth_per_interval);
+    adaptive_set_u64(g_adaptive.growth_seed, s->structural_growth_seed);
+    set_window_double(g_adaptive.new_exc, s->structural_new_exc_weight);
+    set_window_double(g_adaptive.new_inh, s->structural_new_inh_magnitude);
+    adaptive_set_int(g_adaptive.new_delay, s->structural_new_delay);
+    adaptive_set_int(g_adaptive.lifetime_min, s->structural_min_connections);
+    adaptive_set_int(g_adaptive.lifetime_max, s->structural_max_connections);
+    adaptive_set_checked(g_adaptive.record_history,
+                         s->structural_record_history);
+    adaptive_set_int(g_adaptive.record_interval,
+                     s->structural_record_interval_steps);
+}
+
+static int adaptive_controls_to_config(
+    EvolutionExperimentConfig *e,
+    ScenarioConfig *s,
+    char *error_message,
+    size_t error_message_size)
+{
+    char genome_mode[EVOLUTION_GENOME_MODE_MAX + 1];
+    unsigned long long growth_seed;
+
+    *e = g_adaptive.working_evolution;
+    *s = g_adaptive.working_scenario;
+    GetWindowTextA(g_adaptive.genome_mode_combo,
+                   genome_mode, sizeof(genome_mode));
+    snprintf(e->genome_mode, sizeof(e->genome_mode), "%s", genome_mode);
+    e->structure_enabled = adaptive_checked(g_adaptive.structure_enabled);
+    e->structure_allow_add = adaptive_checked(g_adaptive.allow_add);
+    e->structure_allow_remove = adaptive_checked(g_adaptive.allow_remove);
+    e->structure_allow_rewire = adaptive_checked(g_adaptive.allow_rewire);
+    e->structure_evolve_delays = adaptive_checked(g_adaptive.evolve_delays);
+    e->structure_allow_self_connections = adaptive_checked(g_adaptive.allow_self);
+    e->structure_allow_inh_to_inh = adaptive_checked(g_adaptive.allow_inh_inh);
+    e->structure_preserve_required_reachability =
+        adaptive_checked(g_adaptive.reachability);
+    if (!parse_double_from_window(g_adaptive.add_rate, "ADD RATE",
+            &e->structure_add_rate, error_message, error_message_size) ||
+        !parse_double_from_window(g_adaptive.remove_rate, "REMOVE RATE",
+            &e->structure_remove_rate, error_message, error_message_size) ||
+        !parse_double_from_window(g_adaptive.rewire_rate, "REWIRE RATE",
+            &e->structure_rewire_rate, error_message, error_message_size) ||
+        !parse_double_from_window(g_adaptive.delay_rate, "DELAY MUTATION RATE",
+            &e->structure_delay_mutation_rate, error_message,
+            error_message_size) ||
+        !parse_int_from_window(g_adaptive.max_mutations,
+            "MAX STRUCTURAL MUTATIONS", &e->structure_max_mutations_per_child,
+            error_message, error_message_size) ||
+        !parse_int_from_window(g_adaptive.min_connections, "MIN CONNECTIONS",
+            &e->structure_min_connections, error_message, error_message_size) ||
+        !parse_int_from_window(g_adaptive.max_connections, "MAX CONNECTIONS",
+            &e->structure_max_connections, error_message, error_message_size) ||
+        !parse_int_from_window(g_adaptive.delay_min, "DELAY MIN",
+            &e->structure_delay_min, error_message, error_message_size) ||
+        !parse_int_from_window(g_adaptive.delay_max, "DELAY MAX",
+            &e->structure_delay_max, error_message, error_message_size) ||
+        !parse_int_from_window(g_adaptive.delay_delta, "DELAY DELTA",
+            &e->structure_delay_mutation_max_delta,
+            error_message, error_message_size) ||
+        !parse_double_from_window(g_adaptive.exc_min, "NEW EXC WEIGHT MIN",
+            &e->structure_new_exc_weight_min, error_message,
+            error_message_size) ||
+        !parse_double_from_window(g_adaptive.exc_max, "NEW EXC WEIGHT MAX",
+            &e->structure_new_exc_weight_max, error_message,
+            error_message_size) ||
+        !parse_double_from_window(g_adaptive.inh_min, "NEW INH MAGNITUDE MIN",
+            &e->structure_new_inh_magnitude_min, error_message,
+            error_message_size) ||
+        !parse_double_from_window(g_adaptive.inh_max, "NEW INH MAGNITUDE MAX",
+            &e->structure_new_inh_magnitude_max, error_message,
+            error_message_size) ||
+        !parse_double_from_window(g_adaptive.complexity, "COMPLEXITY PENALTY",
+            &e->structure_complexity_penalty, error_message,
+            error_message_size) ||
+        !adaptive_parse_neuron_list(g_adaptive.required_inputs,
+            "INPUT NEURONS", e->structure_required_input_neurons,
+            &e->structure_required_input_count, error_message,
+            error_message_size) ||
+        !adaptive_parse_neuron_list(g_adaptive.required_outputs,
+            "OUTPUT NEURONS", e->structure_required_output_neurons,
+            &e->structure_required_output_count, error_message,
+            error_message_size))
+        return 0;
+
+    s->structural_plasticity_enabled =
+        adaptive_checked(g_adaptive.lifetime_enabled);
+    s->structural_pruning_enabled = adaptive_checked(g_adaptive.pruning);
+    s->structural_growth_enabled = adaptive_checked(g_adaptive.growth);
+    s->structural_record_history = adaptive_checked(g_adaptive.record_history);
+    s->allow_self_connections = e->structure_allow_self_connections;
+    s->allow_inh_to_inh = e->structure_allow_inh_to_inh;
+    if (!parse_int_from_window(g_adaptive.maintenance,
+            "INTERVALO DE MANUTENCAO",
+            &s->structural_maintenance_interval_steps,
+            error_message, error_message_size) ||
+        !parse_int_from_window(g_adaptive.grace, "GRACE PERIOD",
+            &s->structural_grace_period_steps,
+            error_message, error_message_size) ||
+        !parse_double_from_window(g_adaptive.prune_weight, "WEIGHT THRESHOLD",
+            &s->structural_prune_weight_threshold,
+            error_message, error_message_size) ||
+        !parse_double_from_window(g_adaptive.prune_activity,
+            "ACTIVITY THRESHOLD", &s->structural_prune_activity_threshold,
+            error_message, error_message_size) ||
+        !parse_int_from_window(g_adaptive.max_prunes, "MAX PODAS",
+            &s->structural_max_prunes_per_interval,
+            error_message, error_message_size) ||
+        !parse_int_from_window(g_adaptive.candidates, "CANDIDATES",
+            &s->structural_growth_candidate_count,
+            error_message, error_message_size) ||
+        !parse_double_from_window(g_adaptive.growth_score, "SCORE THRESHOLD",
+            &s->structural_growth_score_threshold,
+            error_message, error_message_size) ||
+        !parse_int_from_window(g_adaptive.max_growth, "MAX CRESCIMENTOS",
+            &s->structural_max_growth_per_interval,
+            error_message, error_message_size) ||
+        !parse_uint64_from_window(g_adaptive.growth_seed, "GROWTH SEED",
+            &growth_seed, error_message, error_message_size) ||
+        !parse_double_from_window(g_adaptive.new_exc, "NOVO PESO EXC",
+            &s->structural_new_exc_weight, error_message, error_message_size) ||
+        !parse_double_from_window(g_adaptive.new_inh, "NOVA MAGNITUDE INH",
+            &s->structural_new_inh_magnitude,
+            error_message, error_message_size) ||
+        !parse_int_from_window(g_adaptive.new_delay, "NOVO DELAY",
+            &s->structural_new_delay, error_message, error_message_size) ||
+        !parse_int_from_window(g_adaptive.lifetime_min, "LIFETIME MIN CONNECTIONS",
+            &s->structural_min_connections, error_message,
+            error_message_size) ||
+        !parse_int_from_window(g_adaptive.lifetime_max, "LIFETIME MAX CONNECTIONS",
+            &s->structural_max_connections, error_message,
+            error_message_size) ||
+        !parse_int_from_window(g_adaptive.record_interval,
+            "INTERVALO DE HISTORICO", &s->structural_record_interval_steps,
+            error_message, error_message_size))
+        return 0;
+    s->structural_growth_seed = (uint64_t)growth_seed;
+    if (!scenario_config_validate(s, error_message, error_message_size))
+        return 0;
+    return evolution_config_validate(e, s, error_message, error_message_size);
+}
+
+static LRESULT CALLBACK adaptive_topology_window_proc(
+    HWND hwnd, UINT message, WPARAM wparam, LPARAM lparam)
+{
+    (void)lparam;
+    switch (message)
+    {
+    case WM_CREATE:
+    {
+        int left = 22;
+        int right = 590;
+        int y = 54;
+        const int row = 31;
+        create_static(hwnd, "TOPOLOGIA ADAPTATIVA", 22, 14, 500, 28, 0);
+        create_static(hwnd, "EVOLUCAO ESTRUTURAL HERDAVEL", left, y, 420, 24, 0);
+        create_static(hwnd, "PLASTICIDADE ESTRUTURAL DURANTE A VIDA",
+                      right, y, 520, 24, 0);
+        y += 32;
+        create_static(hwnd, "GENOME MODE", left, y + 3, 220, 24, 0);
+        g_adaptive.genome_mode_combo = adaptive_create_combo(
+            hwnd, IDC_ADAPT_GENOME_MODE, left + 225, y);
+        SendMessageA(g_adaptive.genome_mode_combo, CB_ADDSTRING, 0,
+                     (LPARAM)"fixed_numeric");
+        SendMessageA(g_adaptive.genome_mode_combo, CB_ADDSTRING, 0,
+                     (LPARAM)"structural_connections");
+        g_adaptive.lifetime_enabled = create_checkbox(
+            hwnd, "PLASTICIDADE ESTRUTURAL: ON", IDC_ADAPT_LIFETIME_ENABLED,
+            right, y, 330, 25);
+        y += row;
+        g_adaptive.structure_enabled = create_checkbox(
+            hwnd, "ESTRUTURA: ON", IDC_ADAPT_STRUCTURE_ENABLED,
+            left, y, 180, 25);
+        g_adaptive.maintenance = adaptive_labeled_edit(
+            hwnd, "INTERVALO DE MANUTENCAO", IDC_ADAPT_MAINTENANCE, right, y);
+        y += row;
+        g_adaptive.allow_add = create_checkbox(hwnd, "ADD", IDC_ADAPT_ALLOW_ADD,
+                                                left, y, 90, 25);
+        g_adaptive.allow_remove = create_checkbox(hwnd, "REMOVE", IDC_ADAPT_ALLOW_REMOVE,
+                                                   left + 100, y, 110, 25);
+        g_adaptive.allow_rewire = create_checkbox(hwnd, "REWIRE", IDC_ADAPT_ALLOW_REWIRE,
+                                                   left + 220, y, 110, 25);
+        g_adaptive.evolve_delays = create_checkbox(hwnd, "EVOLVE DELAYS",
+            IDC_ADAPT_EVOLVE_DELAYS, left + 340, y, 180, 25);
+        g_adaptive.grace = adaptive_labeled_edit(
+            hwnd, "GRACE PERIOD", IDC_ADAPT_GRACE, right, y);
+        y += row;
+        g_adaptive.add_rate = adaptive_labeled_edit(
+            hwnd, "ADD RATE", IDC_ADAPT_ADD_RATE, left, y);
+        g_adaptive.pruning = create_checkbox(
+            hwnd, "PODA: ON", IDC_ADAPT_PRUNING, right, y, 180, 25);
+        y += row;
+        g_adaptive.remove_rate = adaptive_labeled_edit(
+            hwnd, "REMOVE RATE", IDC_ADAPT_REMOVE_RATE, left, y);
+        g_adaptive.prune_weight = adaptive_labeled_edit(
+            hwnd, "WEIGHT THRESHOLD", IDC_ADAPT_PRUNE_WEIGHT, right, y);
+        y += row;
+        g_adaptive.rewire_rate = adaptive_labeled_edit(
+            hwnd, "REWIRE RATE", IDC_ADAPT_REWIRE_RATE, left, y);
+        g_adaptive.prune_activity = adaptive_labeled_edit(
+            hwnd, "ACTIVITY THRESHOLD", IDC_ADAPT_PRUNE_ACTIVITY, right, y);
+        y += row;
+        g_adaptive.delay_rate = adaptive_labeled_edit(
+            hwnd, "DELAY MUTATION RATE", IDC_ADAPT_DELAY_RATE, left, y);
+        g_adaptive.max_prunes = adaptive_labeled_edit(
+            hwnd, "MAX PODAS", IDC_ADAPT_MAX_PRUNES, right, y);
+        y += row;
+        g_adaptive.max_mutations = adaptive_labeled_edit(
+            hwnd, "MAX STRUCTURAL MUTATIONS", IDC_ADAPT_MAX_MUTATIONS, left, y);
+        g_adaptive.growth = create_checkbox(
+            hwnd, "CRESCIMENTO: ON", IDC_ADAPT_GROWTH, right, y, 230, 25);
+        y += row;
+        g_adaptive.min_connections = adaptive_labeled_edit(
+            hwnd, "MIN CONNECTIONS", IDC_ADAPT_MIN_CONNECTIONS, left, y);
+        g_adaptive.candidates = adaptive_labeled_edit(
+            hwnd, "CANDIDATES", IDC_ADAPT_CANDIDATES, right, y);
+        y += row;
+        g_adaptive.max_connections = adaptive_labeled_edit(
+            hwnd, "MAX CONNECTIONS", IDC_ADAPT_MAX_CONNECTIONS, left, y);
+        g_adaptive.growth_score = adaptive_labeled_edit(
+            hwnd, "SCORE THRESHOLD", IDC_ADAPT_GROWTH_SCORE, right, y);
+        y += row;
+        g_adaptive.allow_self = create_checkbox(
+            hwnd, "ALLOW SELF", IDC_ADAPT_ALLOW_SELF, left, y, 170, 25);
+        g_adaptive.allow_inh_inh = create_checkbox(
+            hwnd, "ALLOW INH->INH", IDC_ADAPT_ALLOW_INH_INH,
+            left + 190, y, 210, 25);
+        g_adaptive.max_growth = adaptive_labeled_edit(
+            hwnd, "MAX CRESCIMENTOS", IDC_ADAPT_MAX_GROWTH, right, y);
+        y += row;
+        g_adaptive.delay_min = adaptive_labeled_edit(
+            hwnd, "DELAY MIN", IDC_ADAPT_DELAY_MIN, left, y);
+        g_adaptive.growth_seed = adaptive_labeled_edit(
+            hwnd, "GROWTH SEED", IDC_ADAPT_GROWTH_SEED, right, y);
+        y += row;
+        g_adaptive.delay_max = adaptive_labeled_edit(
+            hwnd, "DELAY MAX", IDC_ADAPT_DELAY_MAX, left, y);
+        g_adaptive.new_exc = adaptive_labeled_edit(
+            hwnd, "NOVO PESO EXC", IDC_ADAPT_NEW_EXC, right, y);
+        y += row;
+        g_adaptive.delay_delta = adaptive_labeled_edit(
+            hwnd, "DELAY DELTA", IDC_ADAPT_DELAY_DELTA, left, y);
+        g_adaptive.new_inh = adaptive_labeled_edit(
+            hwnd, "NOVA MAGNITUDE INH", IDC_ADAPT_NEW_INH, right, y);
+        y += row;
+        g_adaptive.exc_min = adaptive_labeled_edit(
+            hwnd, "NEW EXC WEIGHT MIN", IDC_ADAPT_EXC_MIN, left, y);
+        g_adaptive.new_delay = adaptive_labeled_edit(
+            hwnd, "NOVO DELAY", IDC_ADAPT_NEW_DELAY, right, y);
+        y += row;
+        g_adaptive.exc_max = adaptive_labeled_edit(
+            hwnd, "NEW EXC WEIGHT MAX", IDC_ADAPT_EXC_MAX, left, y);
+        g_adaptive.lifetime_min = adaptive_labeled_edit(
+            hwnd, "LIFETIME MIN CONNECTIONS", IDC_ADAPT_LIFETIME_MIN, right, y);
+        y += row;
+        g_adaptive.inh_min = adaptive_labeled_edit(
+            hwnd, "NEW INH MAGNITUDE MIN", IDC_ADAPT_INH_MIN, left, y);
+        g_adaptive.lifetime_max = adaptive_labeled_edit(
+            hwnd, "LIFETIME MAX CONNECTIONS", IDC_ADAPT_LIFETIME_MAX, right, y);
+        y += row;
+        g_adaptive.inh_max = adaptive_labeled_edit(
+            hwnd, "NEW INH MAGNITUDE MAX", IDC_ADAPT_INH_MAX, left, y);
+        g_adaptive.record_history = create_checkbox(
+            hwnd, "REGISTRAR HISTORICO", IDC_ADAPT_RECORD_HISTORY,
+            right, y, 270, 25);
+        y += row;
+        g_adaptive.complexity = adaptive_labeled_edit(
+            hwnd, "COMPLEXITY PENALTY", IDC_ADAPT_COMPLEXITY, left, y);
+        g_adaptive.record_interval = adaptive_labeled_edit(
+            hwnd, "INTERVALO DE HISTORICO", IDC_ADAPT_RECORD_INTERVAL,
+            right, y);
+        y += row;
+        g_adaptive.reachability = create_checkbox(
+            hwnd, "PRESERVE REACHABILITY", IDC_ADAPT_REACHABILITY,
+            left, y, 300, 25);
+        y += row;
+        g_adaptive.required_inputs = adaptive_labeled_edit(
+            hwnd, "INPUT NEURONS", IDC_ADAPT_INPUTS, left, y);
+        y += row;
+        g_adaptive.required_outputs = adaptive_labeled_edit(
+            hwnd, "OUTPUT NEURONS", IDC_ADAPT_OUTPUTS, left, y);
+
+        create_button(hwnd, "APLICAR", IDC_ADAPT_APPLY, 430, 790, 150, 36);
+        create_button(hwnd, "CANCELAR", IDC_ADAPT_CANCEL, 600, 790, 150, 36);
+        adaptive_config_to_controls();
+        enable_dark_title_bar(hwnd);
+        return 0;
+    }
+    case WM_COMMAND:
+        if (HIWORD(wparam) == BN_CLICKED)
+        {
+            if (LOWORD(wparam) == IDC_ADAPT_APPLY)
+            {
+                EvolutionExperimentConfig evolution;
+                ScenarioConfig scenario;
+                char error[512];
+                if (!adaptive_controls_to_config(
+                        &evolution, &scenario, error, sizeof(error)))
+                {
+                    show_error("Topologia adaptativa invalida", error);
+                    return 0;
+                }
+                g_adaptive.working_evolution = evolution;
+                g_adaptive.working_scenario = scenario;
+                g_evolution.config = evolution;
+                g_evolution.base_scenario = scenario;
+                evolution_config_to_controls();
+                set_status("TOPOLOGIA ADAPTATIVA ATUALIZADA");
+                DestroyWindow(hwnd);
+                return 0;
+            }
+            if (LOWORD(wparam) == IDC_ADAPT_CANCEL)
+            {
+                DestroyWindow(hwnd);
+                return 0;
+            }
+        }
+        break;
+    case WM_CTLCOLORSTATIC:
+        return handle_color((HDC)wparam, (HWND)lparam);
+    case WM_CTLCOLOREDIT:
+        return handle_edit_color((HDC)wparam);
+    case WM_DRAWITEM:
+        draw_button((const DRAWITEMSTRUCT *)lparam);
+        return TRUE;
+    case WM_ERASEBKGND:
+    {
+        RECT rect;
+        GetClientRect(hwnd, &rect);
+        FillRect((HDC)wparam, &rect, g_app.background_brush);
+        return 1;
+    }
+    case WM_CLOSE:
+        DestroyWindow(hwnd);
+        return 0;
+    case WM_DESTROY:
+        g_adaptive.window = NULL;
+        EnableWindow(g_evolution.window, TRUE);
+        SetActiveWindow(g_evolution.window);
+        return 0;
+    default:
+        break;
+    }
+    return DefWindowProcA(hwnd, message, wparam, lparam);
+}
+
+static void open_adaptive_topology_options(void)
+{
+    WNDCLASSA window_class;
+    HWND dialog;
+    MSG message;
+
+    memset(&window_class, 0, sizeof(window_class));
+    window_class.lpfnWndProc = adaptive_topology_window_proc;
+    window_class.hInstance = GetModuleHandleA(NULL);
+    window_class.lpszClassName = "MiniSNNAdaptiveTopologyWindow";
+    window_class.hCursor = LoadCursor(NULL, IDC_ARROW);
+    RegisterClassA(&window_class);
+    memset(&g_adaptive, 0, sizeof(g_adaptive));
+    g_adaptive.original_evolution = g_evolution.config;
+    g_adaptive.original_scenario = g_evolution.base_scenario;
+    g_adaptive.working_evolution = g_evolution.config;
+    g_adaptive.working_scenario = g_evolution.base_scenario;
+    dialog = CreateWindowExA(
+        WS_EX_DLGMODALFRAME, "MiniSNNAdaptiveTopologyWindow",
+        "TOPOLOGIA ADAPTATIVA", WS_POPUP | WS_CAPTION | WS_SYSMENU,
+        CW_USEDEFAULT, CW_USEDEFAULT, 1180, 880, g_evolution.window,
+        NULL, GetModuleHandleA(NULL), NULL);
+    if (dialog == NULL)
+    {
+        show_error("Erro interno",
+                   "Nao foi possivel abrir TOPOLOGIA ADAPTATIVA.");
+        return;
+    }
+    g_adaptive.window = dialog;
+    adaptive_config_to_controls();
+    EnableWindow(g_evolution.window, FALSE);
+    ShowWindow(dialog, SW_SHOW);
+    UpdateWindow(dialog);
+    while (g_adaptive.window != NULL && GetMessageA(&message, NULL, 0, 0) > 0)
+    {
+        if (!IsDialogMessageA(dialog, &message))
+        {
+            TranslateMessage(&message);
+            DispatchMessageA(&message);
+        }
+    }
+    EnableWindow(g_evolution.window, TRUE);
+    SetActiveWindow(g_evolution.window);
+}
+
 static LRESULT CALLBACK evolution_window_proc(
     HWND hwnd, UINT message, WPARAM wparam, LPARAM lparam)
 {
@@ -5785,15 +6562,25 @@ static LRESULT CALLBACK evolution_window_proc(
         create_button(hwnd, "SALVAR CONFIG", IDC_EVO_SAVE, 24, 638, 145, 36);
         create_button(hwnd, "RODAR EVOLUCAO", IDC_EVO_RUN, 179, 638, 165, 36);
         create_button(hwnd, "RETOMAR EVOLUCAO", IDC_EVO_RESUME, 354, 638, 180, 36);
+        create_button(hwnd, "TOPOLOGIA ADAPTATIVA", IDC_EVO_ADAPTIVE,
+                      544, 638, 220, 36);
         create_button(hwnd, "ABRIR EVOLUCAO", IDC_EVO_OPEN, 24, 686, 165, 36);
         create_button(hwnd, "ABRIR RELATORIO", IDC_EVO_OPEN_REPORT, 199, 686, 165, 36);
         create_button(hwnd, "ABRIR GRAFICO", IDC_EVO_OPEN_PLOT, 374, 686, 155, 36);
         create_button(hwnd, "ABRIR MELHOR", IDC_EVO_OPEN_BEST, 539, 686, 155, 36);
         create_button(hwnd, "HISTORICO EVOLUTIVO", IDC_EVO_HISTORY, 704, 686, 216, 36);
+        create_button(hwnd, "ABRIR TOPOLOGIA", IDC_EVO_OPEN_TOPOLOGY,
+                      24, 734, 180, 36);
+        create_button(hwnd, "GRAFICO TOPOLOGIA", IDC_EVO_TOPOLOGY_PLOT,
+                      214, 734, 190, 36);
+        create_button(hwnd, "ABRIR EVENTOS ESTRUTURAIS",
+                      IDC_EVO_OPEN_STRUCTURAL_EVENTS, 414, 734, 250, 36);
+        create_button(hwnd, "ABRIR MELHOR TOPOLOGIA",
+                      IDC_EVO_OPEN_BEST_TOPOLOGY, 674, 734, 246, 36);
         create_static(hwnd,
-            "Topologia e delays permanecem fixos. Pesos aprendidos durante a vida nao sao herdados.",
-            24, 742, 850, 24, 0);
-        create_button(hwnd, "FECHAR", IDC_EVO_CANCEL, 390, 780, 150, 36);
+            "C3 usa topologia fixa. C4 herda somente o genoma estrutural inicial; mudancas durante a vida nao sao herdadas.",
+            24, 784, 900, 24, 0);
+        create_button(hwnd, "FECHAR", IDC_EVO_CANCEL, 390, 820, 150, 36);
         evolution_config_to_controls();
         enable_dark_title_bar(hwnd);
         return 0;
@@ -5805,6 +6592,7 @@ static LRESULT CALLBACK evolution_window_proc(
             {
             case IDC_EVO_LOAD: choose_evolution_config(); return 0;
             case IDC_EVO_SAVE: save_evolution_dialog_config(1); return 0;
+            case IDC_EVO_ADAPTIVE: open_adaptive_topology_options(); return 0;
             case IDC_EVO_RUN: run_evolution_from_dialog(); return 0;
             case IDC_EVO_RESUME: resume_evolution_from_dialog(); return 0;
             case IDC_EVO_OPEN: open_evolution_artifact(NULL, "EVOLUCAO ABERTA"); return 0;
@@ -5815,6 +6603,32 @@ static LRESULT CALLBACK evolution_window_proc(
                     open_evolution_artifact("best_run", "PASTA DA MELHOR EXECUCAO ABERTA");
                 return 0;
             case IDC_EVO_HISTORY: open_evolution_history(); return 0;
+            case IDC_EVO_OPEN_TOPOLOGY:
+                open_evolution_artifact("evolution_report.html",
+                                        "TOPOLOGIA ABERTA");
+                return 0;
+            case IDC_EVO_TOPOLOGY_PLOT:
+                open_evolution_artifact("evolution_overview.png",
+                                        "GRAFICO DE TOPOLOGIA ABERTO");
+                return 0;
+            case IDC_EVO_OPEN_STRUCTURAL_EVENTS:
+                open_evolution_structural_report(
+                    "structural_events.csv",
+                    "structural_events_report.html",
+                    "--structural-events",
+                    "Esta evolucao nao possui eventos estruturais.",
+                    "Eventos estruturais",
+                    "RELATORIO DE EVENTOS ESTRUTURAIS ABERTO");
+                return 0;
+            case IDC_EVO_OPEN_BEST_TOPOLOGY:
+                open_evolution_structural_report(
+                    "best_topology.csv",
+                    "best_topology_report.html",
+                    "--best-topology",
+                    "Esta evolucao nao possui uma melhor topologia estrutural.",
+                    "Melhor topologia",
+                    "RELATORIO DA MELHOR TOPOLOGIA ABERTO");
+                return 0;
             case IDC_EVO_CANCEL: DestroyWindow(hwnd); return 0;
             default: break;
             }
@@ -5875,7 +6689,7 @@ static void open_evolution_options(void)
     dialog = CreateWindowExA(WS_EX_DLGMODALFRAME,
         "MiniSNNEvolutionWindow", "NEUROEVOLUCAO",
         WS_POPUP | WS_CAPTION | WS_SYSMENU,
-        CW_USEDEFAULT, CW_USEDEFAULT, 960, 870, g_app.window,
+        CW_USEDEFAULT, CW_USEDEFAULT, 960, 920, g_app.window,
         NULL, GetModuleHandleA(NULL), NULL);
     if (dialog == NULL)
     {

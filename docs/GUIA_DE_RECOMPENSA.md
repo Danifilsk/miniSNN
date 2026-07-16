@@ -228,3 +228,11 @@ O C3 pode evoluir `reward.learning_rate` e `reward.eligibility_tau` quando
 R-STDP está ativo. Mudanças de peso por reward podem compor a fitness. A rede é
 descartada após cada réplica e os pesos aprendidos não são herdados. Isso não
 implementa política, agente ou previsão de recompensa.
+
+## R-STDP com estrutura adaptativa
+
+Elegibilidade e estatísticas são preservadas por connection key nas conexões
+sobreviventes. Conexões removidas perdem seu estado; conexões novas começam com
+eligibility zero no passo de nascimento. A ordem é dinâmica neural, STDP ou
+eligibility, reward, homeostase, manutenção estrutural e registro. Mudanças de
+lifetime continuam não herdáveis.

@@ -82,6 +82,25 @@ typedef enum
     FIELD_HOMEOSTASIS_RECORD_HISTORY,
     FIELD_HOMEOSTASIS_RECORD_INTERVAL_STEPS,
     FIELD_HOMEOSTASIS_RECORD_NEURON_LIMIT,
+    FIELD_STRUCTURAL_ENABLED,
+    FIELD_STRUCTURAL_MAINTENANCE_INTERVAL_STEPS,
+    FIELD_STRUCTURAL_GRACE_PERIOD_STEPS,
+    FIELD_STRUCTURAL_PRUNING_ENABLED,
+    FIELD_STRUCTURAL_PRUNE_WEIGHT_THRESHOLD,
+    FIELD_STRUCTURAL_PRUNE_ACTIVITY_THRESHOLD,
+    FIELD_STRUCTURAL_MAX_PRUNES_PER_INTERVAL,
+    FIELD_STRUCTURAL_GROWTH_ENABLED,
+    FIELD_STRUCTURAL_GROWTH_CANDIDATE_COUNT,
+    FIELD_STRUCTURAL_GROWTH_SCORE_THRESHOLD,
+    FIELD_STRUCTURAL_MAX_GROWTH_PER_INTERVAL,
+    FIELD_STRUCTURAL_GROWTH_SEED,
+    FIELD_STRUCTURAL_NEW_EXC_WEIGHT,
+    FIELD_STRUCTURAL_NEW_INH_MAGNITUDE,
+    FIELD_STRUCTURAL_NEW_DELAY,
+    FIELD_STRUCTURAL_MIN_CONNECTIONS,
+    FIELD_STRUCTURAL_MAX_CONNECTIONS,
+    FIELD_STRUCTURAL_RECORD_HISTORY,
+    FIELD_STRUCTURAL_RECORD_INTERVAL_STEPS,
     FIELD_REWARD_ENABLED,
     FIELD_REWARD_MODE,
     FIELD_REWARD_LEARNING_RATE,
@@ -229,6 +248,51 @@ static int find_field(
     ScenarioField *out_field)
 {
     size_t count = sizeof(KEY_MAP) / sizeof(KEY_MAP[0]);
+
+    if (strcmp(section, "structural_plasticity") == 0)
+    {
+        if (strcmp(key, "enabled") == 0)
+            *out_field = FIELD_STRUCTURAL_ENABLED;
+        else if (strcmp(key, "maintenance_interval_steps") == 0)
+            *out_field = FIELD_STRUCTURAL_MAINTENANCE_INTERVAL_STEPS;
+        else if (strcmp(key, "grace_period_steps") == 0)
+            *out_field = FIELD_STRUCTURAL_GRACE_PERIOD_STEPS;
+        else if (strcmp(key, "pruning_enabled") == 0)
+            *out_field = FIELD_STRUCTURAL_PRUNING_ENABLED;
+        else if (strcmp(key, "prune_weight_threshold") == 0)
+            *out_field = FIELD_STRUCTURAL_PRUNE_WEIGHT_THRESHOLD;
+        else if (strcmp(key, "prune_activity_threshold") == 0)
+            *out_field = FIELD_STRUCTURAL_PRUNE_ACTIVITY_THRESHOLD;
+        else if (strcmp(key, "max_prunes_per_interval") == 0)
+            *out_field = FIELD_STRUCTURAL_MAX_PRUNES_PER_INTERVAL;
+        else if (strcmp(key, "growth_enabled") == 0)
+            *out_field = FIELD_STRUCTURAL_GROWTH_ENABLED;
+        else if (strcmp(key, "growth_candidate_count") == 0)
+            *out_field = FIELD_STRUCTURAL_GROWTH_CANDIDATE_COUNT;
+        else if (strcmp(key, "growth_score_threshold") == 0)
+            *out_field = FIELD_STRUCTURAL_GROWTH_SCORE_THRESHOLD;
+        else if (strcmp(key, "max_growth_per_interval") == 0)
+            *out_field = FIELD_STRUCTURAL_MAX_GROWTH_PER_INTERVAL;
+        else if (strcmp(key, "growth_seed") == 0)
+            *out_field = FIELD_STRUCTURAL_GROWTH_SEED;
+        else if (strcmp(key, "new_exc_weight") == 0)
+            *out_field = FIELD_STRUCTURAL_NEW_EXC_WEIGHT;
+        else if (strcmp(key, "new_inh_magnitude") == 0)
+            *out_field = FIELD_STRUCTURAL_NEW_INH_MAGNITUDE;
+        else if (strcmp(key, "new_delay") == 0)
+            *out_field = FIELD_STRUCTURAL_NEW_DELAY;
+        else if (strcmp(key, "min_connections") == 0)
+            *out_field = FIELD_STRUCTURAL_MIN_CONNECTIONS;
+        else if (strcmp(key, "max_connections") == 0)
+            *out_field = FIELD_STRUCTURAL_MAX_CONNECTIONS;
+        else if (strcmp(key, "record_history") == 0)
+            *out_field = FIELD_STRUCTURAL_RECORD_HISTORY;
+        else if (strcmp(key, "record_interval_steps") == 0)
+            *out_field = FIELD_STRUCTURAL_RECORD_INTERVAL_STEPS;
+        else
+            return 0;
+        return 1;
+    }
 
     if (strcmp(section, "homeostasis") == 0)
     {
@@ -379,6 +443,27 @@ static int parse_uint_value(const char *text, unsigned int *out_value)
     return 1;
 }
 
+static int parse_uint64_value(const char *text, uint64_t *out_value)
+{
+    char *end;
+    unsigned long long value;
+    const char *start = text;
+
+    while (*start != '\0' && isspace((unsigned char)*start))
+        start++;
+    if (*start == '-' || *start == '+')
+        return 0;
+    errno = 0;
+    value = strtoull(text, &end, 10);
+    if (text == end || errno != 0)
+        return 0;
+    end = trim(end);
+    if (*end != '\0')
+        return 0;
+    *out_value = (uint64_t)value;
+    return 1;
+}
+
 static int parse_double_value(const char *text, double *out_value)
 {
     char *end;
@@ -515,6 +600,7 @@ static int assign_value(
     int int_value;
     int bool_value;
     unsigned int uint_value;
+    uint64_t uint64_value;
     double double_value;
 
     switch (field)
@@ -637,6 +723,16 @@ static int assign_value(
         config->seed = uint_value;
         return 1;
 
+    case FIELD_STRUCTURAL_GROWTH_SEED:
+        if (!parse_uint64_value(value, &uint64_value))
+        {
+            set_line_error(error_message, error_message_size, line_number,
+                           "growth_seed invalido");
+            return 0;
+        }
+        config->structural_growth_seed = uint64_value;
+        return 1;
+
     case FIELD_ALLOW_SELF_CONNECTIONS:
     case FIELD_ALLOW_INH_TO_INH:
     case FIELD_AUTO_UNIQUE_RUN:
@@ -652,6 +748,10 @@ static int assign_value(
     case FIELD_REWARD_ENABLED:
     case FIELD_REWARD_CLIP:
     case FIELD_REWARD_RECORD_HISTORY:
+    case FIELD_STRUCTURAL_ENABLED:
+    case FIELD_STRUCTURAL_PRUNING_ENABLED:
+    case FIELD_STRUCTURAL_GROWTH_ENABLED:
+    case FIELD_STRUCTURAL_RECORD_HISTORY:
         if (!parse_bool_value(value, &bool_value))
         {
             set_line_error(
@@ -690,6 +790,14 @@ static int assign_value(
             config->reward_enabled = bool_value;
         else if (field == FIELD_REWARD_CLIP)
             config->reward_clip = bool_value;
+        else if (field == FIELD_STRUCTURAL_ENABLED)
+            config->structural_plasticity_enabled = bool_value;
+        else if (field == FIELD_STRUCTURAL_PRUNING_ENABLED)
+            config->structural_pruning_enabled = bool_value;
+        else if (field == FIELD_STRUCTURAL_GROWTH_ENABLED)
+            config->structural_growth_enabled = bool_value;
+        else if (field == FIELD_STRUCTURAL_RECORD_HISTORY)
+            config->structural_record_history = bool_value;
         else
             config->reward_record_history = bool_value;
 
@@ -716,6 +824,15 @@ static int assign_value(
     case FIELD_HOMEOSTASIS_RECORD_NEURON_LIMIT:
     case FIELD_REWARD_RECORD_INTERVAL_STEPS:
     case FIELD_REWARD_RECORD_CONNECTION_LIMIT:
+    case FIELD_STRUCTURAL_MAINTENANCE_INTERVAL_STEPS:
+    case FIELD_STRUCTURAL_GRACE_PERIOD_STEPS:
+    case FIELD_STRUCTURAL_MAX_PRUNES_PER_INTERVAL:
+    case FIELD_STRUCTURAL_GROWTH_CANDIDATE_COUNT:
+    case FIELD_STRUCTURAL_MAX_GROWTH_PER_INTERVAL:
+    case FIELD_STRUCTURAL_NEW_DELAY:
+    case FIELD_STRUCTURAL_MIN_CONNECTIONS:
+    case FIELD_STRUCTURAL_MAX_CONNECTIONS:
+    case FIELD_STRUCTURAL_RECORD_INTERVAL_STEPS:
         if (!parse_int_value(value, &int_value))
         {
             set_line_error(
@@ -766,6 +883,24 @@ static int assign_value(
             config->reward_record_interval_steps = int_value;
         else if (field == FIELD_REWARD_RECORD_CONNECTION_LIMIT)
             config->reward_record_connection_limit = int_value;
+        else if (field == FIELD_STRUCTURAL_MAINTENANCE_INTERVAL_STEPS)
+            config->structural_maintenance_interval_steps = int_value;
+        else if (field == FIELD_STRUCTURAL_GRACE_PERIOD_STEPS)
+            config->structural_grace_period_steps = int_value;
+        else if (field == FIELD_STRUCTURAL_MAX_PRUNES_PER_INTERVAL)
+            config->structural_max_prunes_per_interval = int_value;
+        else if (field == FIELD_STRUCTURAL_GROWTH_CANDIDATE_COUNT)
+            config->structural_growth_candidate_count = int_value;
+        else if (field == FIELD_STRUCTURAL_MAX_GROWTH_PER_INTERVAL)
+            config->structural_max_growth_per_interval = int_value;
+        else if (field == FIELD_STRUCTURAL_NEW_DELAY)
+            config->structural_new_delay = int_value;
+        else if (field == FIELD_STRUCTURAL_MIN_CONNECTIONS)
+            config->structural_min_connections = int_value;
+        else if (field == FIELD_STRUCTURAL_MAX_CONNECTIONS)
+            config->structural_max_connections = int_value;
+        else if (field == FIELD_STRUCTURAL_RECORD_INTERVAL_STEPS)
+            config->structural_record_interval_steps = int_value;
         else
             config->record_neuron = int_value;
 
@@ -812,6 +947,11 @@ static int assign_value(
     case FIELD_REWARD_ELIGIBILITY_MAX:
     case FIELD_REWARD_MIN:
     case FIELD_REWARD_MAX:
+    case FIELD_STRUCTURAL_PRUNE_WEIGHT_THRESHOLD:
+    case FIELD_STRUCTURAL_PRUNE_ACTIVITY_THRESHOLD:
+    case FIELD_STRUCTURAL_GROWTH_SCORE_THRESHOLD:
+    case FIELD_STRUCTURAL_NEW_EXC_WEIGHT:
+    case FIELD_STRUCTURAL_NEW_INH_MAGNITUDE:
         if (!parse_double_value(value, &double_value))
         {
             set_line_error(
@@ -902,6 +1042,16 @@ static int assign_value(
             config->reward_eligibility_max = double_value;
         else if (field == FIELD_REWARD_MIN)
             config->reward_min = double_value;
+        else if (field == FIELD_STRUCTURAL_PRUNE_WEIGHT_THRESHOLD)
+            config->structural_prune_weight_threshold = double_value;
+        else if (field == FIELD_STRUCTURAL_PRUNE_ACTIVITY_THRESHOLD)
+            config->structural_prune_activity_threshold = double_value;
+        else if (field == FIELD_STRUCTURAL_GROWTH_SCORE_THRESHOLD)
+            config->structural_growth_score_threshold = double_value;
+        else if (field == FIELD_STRUCTURAL_NEW_EXC_WEIGHT)
+            config->structural_new_exc_weight = double_value;
+        else if (field == FIELD_STRUCTURAL_NEW_INH_MAGNITUDE)
+            config->structural_new_inh_magnitude = double_value;
         else
             config->reward_max = double_value;
 
@@ -1045,6 +1195,26 @@ void scenario_config_default(ScenarioConfig *config)
     config->homeostasis_record_history = 1;
     config->homeostasis_record_interval_steps = 10;
     config->homeostasis_record_neuron_limit = 256;
+
+    config->structural_plasticity_enabled = 0;
+    config->structural_maintenance_interval_steps = 100;
+    config->structural_grace_period_steps = 500;
+    config->structural_pruning_enabled = 1;
+    config->structural_prune_weight_threshold = 0.50;
+    config->structural_prune_activity_threshold = 0.001;
+    config->structural_max_prunes_per_interval = 1;
+    config->structural_growth_enabled = 1;
+    config->structural_growth_candidate_count = 16;
+    config->structural_growth_score_threshold = 0.010;
+    config->structural_max_growth_per_interval = 1;
+    config->structural_growth_seed = 9001U;
+    config->structural_new_exc_weight = 5.0;
+    config->structural_new_inh_magnitude = 5.0;
+    config->structural_new_delay = 1;
+    config->structural_min_connections = 4;
+    config->structural_max_connections = 64;
+    config->structural_record_history = 1;
+    config->structural_record_interval_steps = 100;
 
     config->reward_enabled = 0;
     snprintf(config->reward_mode, sizeof(config->reward_mode), "rstdp");
@@ -1285,6 +1455,76 @@ int scenario_config_validate(
     {
         set_error(error_message, error_message_size, "neurons deve estar entre 1 e 1000");
         return 0;
+    }
+
+    if ((config->structural_plasticity_enabled != 0 &&
+         config->structural_plasticity_enabled != 1) ||
+        (config->structural_pruning_enabled != 0 &&
+         config->structural_pruning_enabled != 1) ||
+        (config->structural_growth_enabled != 0 &&
+         config->structural_growth_enabled != 1) ||
+        (config->structural_record_history != 0 &&
+         config->structural_record_history != 1))
+    {
+        set_error(error_message, error_message_size,
+                  "booleano de plasticidade estrutural invalido");
+        return 0;
+    }
+
+    if (config->structural_plasticity_enabled)
+    {
+        int inhibitory_count;
+        size_t possible = (size_t)config->neurons * (size_t)config->neurons;
+        if (!isfinite(config->inhibitory_fraction) ||
+            config->inhibitory_fraction < 0.0 ||
+            config->inhibitory_fraction > 1.0)
+        {
+            set_error(error_message, error_message_size,
+                      "inhibitory_fraction invalido");
+            return 0;
+        }
+        inhibitory_count = (int)(
+            (double)config->neurons * config->inhibitory_fraction + 0.5);
+        if (!config->allow_self_connections)
+            possible -= (size_t)config->neurons;
+        if (!config->allow_inh_to_inh)
+        {
+            size_t inh_pairs = config->allow_self_connections ?
+                (size_t)inhibitory_count * (size_t)inhibitory_count :
+                (size_t)inhibitory_count *
+                    (size_t)(inhibitory_count > 0 ? inhibitory_count - 1 : 0);
+            possible -= inh_pairs;
+        }
+        if ((!config->structural_pruning_enabled &&
+             !config->structural_growth_enabled) ||
+            config->structural_maintenance_interval_steps <= 0 ||
+            config->structural_grace_period_steps <
+                config->structural_maintenance_interval_steps ||
+            !isfinite(config->structural_prune_weight_threshold) ||
+            config->structural_prune_weight_threshold < 0.0 ||
+            !isfinite(config->structural_prune_activity_threshold) ||
+            config->structural_prune_activity_threshold < 0.0 ||
+            config->structural_max_prunes_per_interval <= 0 ||
+            config->structural_growth_candidate_count <= 0 ||
+            !isfinite(config->structural_growth_score_threshold) ||
+            config->structural_growth_score_threshold < 0.0 ||
+            config->structural_max_growth_per_interval <= 0 ||
+            !isfinite(config->structural_new_exc_weight) ||
+            config->structural_new_exc_weight < 0.0 ||
+            !isfinite(config->structural_new_inh_magnitude) ||
+            config->structural_new_inh_magnitude < 0.0 ||
+            config->structural_new_delay < 1 ||
+            config->structural_new_delay > config->max_synaptic_delay ||
+            config->structural_min_connections < 1 ||
+            config->structural_max_connections <
+                config->structural_min_connections ||
+            (size_t)config->structural_max_connections > possible ||
+            config->structural_record_interval_steps <= 0)
+        {
+            set_error(error_message, error_message_size,
+                      "parametros de plasticidade estrutural invalidos");
+            return 0;
+        }
     }
 
     if (config->steps <= 0)
@@ -1814,6 +2054,55 @@ int scenario_config_save_file(
     {
         fclose(file);
         set_error(error_message, error_message_size, "erro ao escrever arquivo de cenario");
+        return 0;
+    }
+
+    if (fprintf(
+            file,
+            "\n"
+            "[structural_plasticity]\n"
+            "enabled = %s\n"
+            "maintenance_interval_steps = %d\n"
+            "grace_period_steps = %d\n"
+            "pruning_enabled = %s\n"
+            "prune_weight_threshold = %.17g\n"
+            "prune_activity_threshold = %.17g\n"
+            "max_prunes_per_interval = %d\n"
+            "growth_enabled = %s\n"
+            "growth_candidate_count = %d\n"
+            "growth_score_threshold = %.17g\n"
+            "max_growth_per_interval = %d\n"
+            "growth_seed = %llu\n"
+            "new_exc_weight = %.17g\n"
+            "new_inh_magnitude = %.17g\n"
+            "new_delay = %d\n"
+            "min_connections = %d\n"
+            "max_connections = %d\n"
+            "record_history = %s\n"
+            "record_interval_steps = %d\n",
+            config->structural_plasticity_enabled ? "true" : "false",
+            config->structural_maintenance_interval_steps,
+            config->structural_grace_period_steps,
+            config->structural_pruning_enabled ? "true" : "false",
+            config->structural_prune_weight_threshold,
+            config->structural_prune_activity_threshold,
+            config->structural_max_prunes_per_interval,
+            config->structural_growth_enabled ? "true" : "false",
+            config->structural_growth_candidate_count,
+            config->structural_growth_score_threshold,
+            config->structural_max_growth_per_interval,
+            (unsigned long long)config->structural_growth_seed,
+            config->structural_new_exc_weight,
+            config->structural_new_inh_magnitude,
+            config->structural_new_delay,
+            config->structural_min_connections,
+            config->structural_max_connections,
+            config->structural_record_history ? "true" : "false",
+            config->structural_record_interval_steps) < 0)
+    {
+        fclose(file);
+        set_error(error_message, error_message_size,
+                  "erro ao escrever plasticidade estrutural");
         return 0;
     }
 

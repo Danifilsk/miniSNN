@@ -215,3 +215,10 @@ O C3 pode evoluir `target_rate`, `rate_tau`, `threshold_eta`, `scaling_eta` e
 `inhibitory_gain_eta` quando o mecanismo correspondente está ativo no
 cenário-base. Erro de taxa pode ser fitness. O resultado depende de bounds e
 seeds; homeostase e evolução não garantem estabilidade universal.
+
+## Homeostase com estrutura adaptativa
+
+O estado homeostático por neurônio é preservado durante um patch. Índices de
+entrada e fatores de scaling são reconstruídos para a topologia final; conexões
+novas passam a seguir o mesmo mecanismo nos timesteps futuros. Poda ou
+crescimento podem alterar a carga sináptica e não garantem estabilidade.

@@ -40,6 +40,18 @@ def main() -> int:
         "tests/test_evolution_long.c",
         "tests/test_plot_evolution.py",
         "tests/test_evolution_report.py",
+        "src/structure.c",
+        "src/structural_plasticity.c",
+        "scripts/plot_topology.py",
+        "scripts/run_benchmarks_c4.py",
+        "scripts/check_c4.py",
+        "docs/GUIA_DE_TOPOLOGIA_ADAPTATIVA.md",
+        "docs/BENCHMARKS_C4_TOPOLOGIA.md",
+        "tests/test_structure.c",
+        "tests/test_structural_plasticity.c",
+        "tests/test_structure_resume.c",
+        "tests/test_structure_long.c",
+        "tests/test_plot_topology.py",
     ):
         if not (PROJECT_ROOT / relative).is_file():
             print(f"Documentation validation FAILED\n- arquivo HTML ausente: {relative}")

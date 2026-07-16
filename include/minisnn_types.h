@@ -2,6 +2,7 @@
 #define MINISNN_TYPES_H
 
 #include <stddef.h>
+#include <stdint.h>
 
 typedef enum
 {
@@ -196,5 +197,135 @@ typedef struct
     double final_population_rate;
     double final_inhibitory_gain;
 } MiniSNNHomeostasisStats;
+
+typedef struct
+{
+    uint64_t connection_key;
+    size_t source;
+    size_t target;
+    double magnitude;
+    unsigned int delay;
+    unsigned int inherited_from;
+} MiniSNNConnectionGene;
+
+typedef enum
+{
+    MINISNN_TOPOLOGY_ADD = 0,
+    MINISNN_TOPOLOGY_REMOVE = 1,
+    MINISNN_TOPOLOGY_REWIRE = 2,
+    MINISNN_TOPOLOGY_SET_DELAY = 3
+} MiniSNNTopologyOperationType;
+
+typedef struct
+{
+    MiniSNNTopologyOperationType type;
+    size_t source;
+    size_t target;
+    size_t new_source;
+    size_t new_target;
+    double magnitude;
+    unsigned int delay;
+    int allow_self_connection;
+} MiniSNNTopologyOperation;
+
+#define MINISNN_TOPOLOGY_REASON_MAX 95
+
+typedef struct
+{
+    size_t requested_operations;
+    size_t applied_operations;
+    size_t connections_added;
+    size_t connections_removed;
+    size_t connections_rewired;
+    size_t delays_changed;
+    uint64_t signature_before;
+    uint64_t signature_after;
+    int success;
+    char reason[MINISNN_TOPOLOGY_REASON_MAX + 1];
+} MiniSNNTopologyPatchResult;
+
+typedef struct
+{
+    int enabled;
+    unsigned int maintenance_interval_steps;
+    unsigned int grace_period_steps;
+    int pruning_enabled;
+    double prune_weight_threshold;
+    double prune_activity_threshold;
+    size_t max_prunes_per_interval;
+    int growth_enabled;
+    size_t growth_candidate_count;
+    double growth_score_threshold;
+    size_t max_growth_per_interval;
+    uint64_t growth_seed;
+    double new_exc_weight;
+    double new_inh_magnitude;
+    unsigned int new_delay;
+    size_t min_connections;
+    size_t max_connections;
+    int allow_self_connections;
+    int allow_inh_to_inh;
+} MiniSNNStructuralPlasticityConfig;
+
+typedef struct
+{
+    unsigned long long maintenance_count;
+    unsigned long long add_attempt_count;
+    unsigned long long add_success_count;
+    unsigned long long add_rejected_count;
+    unsigned long long remove_attempt_count;
+    unsigned long long remove_success_count;
+    unsigned long long remove_rejected_count;
+    unsigned long long rewire_count;
+    unsigned long long delay_change_count;
+    unsigned long long rebuild_count;
+    size_t initial_connection_count;
+    size_t current_connection_count;
+    size_t minimum_connection_count_observed;
+    size_t maximum_connection_count_observed;
+    double cumulative_growth_score;
+    double cumulative_pruned_usage;
+    uint64_t initial_topology_signature;
+    uint64_t current_topology_signature;
+} MiniSNNStructuralStats;
+
+typedef struct
+{
+    uint64_t connection_key;
+    unsigned long long birth_step;
+    unsigned long long last_structural_update_step;
+    double max_absolute_weight;
+    double activity_score;
+    unsigned long long prune_candidate_count;
+    unsigned int growth_origin;
+} MiniSNNStructuralConnectionState;
+
+typedef enum
+{
+    MINISNN_STRUCTURAL_RESET_STATE = 0,
+    MINISNN_STRUCTURAL_RESTORE_INITIAL_TOPOLOGY = 1
+} MiniSNNStructuralResetMode;
+
+typedef struct
+{
+    unsigned long long step;
+    unsigned long long event_index;
+    MiniSNNTopologyOperationType type;
+    size_t source;
+    size_t target;
+    size_t new_source;
+    size_t new_target;
+    uint64_t connection_key;
+    uint64_t new_connection_key;
+    double magnitude;
+    unsigned int delay;
+    double activity_score;
+    double growth_score;
+    unsigned long long age_steps;
+    int applied;
+    char reason[MINISNN_TOPOLOGY_REASON_MAX + 1];
+    uint64_t signature_before;
+    uint64_t signature_after;
+} MiniSNNStructuralEvent;
 
 #endif

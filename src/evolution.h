@@ -119,13 +119,39 @@ typedef struct
     double *global_best_genes;
 } EvolutionEngine;
 
-void evolution_prng_seed(
+static inline uint32_t evolution_prng_next(EvolutionPrng *prng)
+{
+    uint64_t old_state;
+    uint32_t xor_shifted;
+    uint32_t rotation;
+    if (prng == NULL)
+        return 0U;
+    old_state = prng->state;
+    prng->state = old_state * 6364136223846793005ULL + prng->increment;
+    xor_shifted = (uint32_t)(((old_state >> 18U) ^ old_state) >> 27U);
+    rotation = (uint32_t)(old_state >> 59U);
+    return (xor_shifted >> rotation) |
+           (xor_shifted << ((0U - rotation) & 31U));
+}
+
+static inline void evolution_prng_seed(
     EvolutionPrng *prng,
     uint64_t initial_state,
-    uint64_t sequence);
+    uint64_t sequence)
+{
+    if (prng == NULL)
+        return;
+    prng->state = 0U;
+    prng->increment = (sequence << 1U) | 1U;
+    (void)evolution_prng_next(prng);
+    prng->state += initial_state;
+    (void)evolution_prng_next(prng);
+}
 
-uint32_t evolution_prng_next(EvolutionPrng *prng);
-double evolution_prng_unit(EvolutionPrng *prng);
+static inline double evolution_prng_unit(EvolutionPrng *prng)
+{
+    return (double)evolution_prng_next(prng) / 4294967296.0;
+}
 
 double evolution_fitness_score(
     EvolutionFitnessGoal goal,
@@ -174,6 +200,17 @@ int evolution_engine_set_evaluation(
     int valid_replicates,
     int invalid_replicates);
 
+int evolution_engine_set_evaluation_with_selection(
+    EvolutionEngine *engine,
+    size_t population_index,
+    double fitness_mean,
+    double fitness_std,
+    double fitness_min,
+    double fitness_max,
+    double fitness_selection,
+    int valid_replicates,
+    int invalid_replicates);
+
 int evolution_engine_tournament_select(
     EvolutionEngine *engine,
     size_t *out_population_index);
@@ -184,6 +221,13 @@ int evolution_engine_rank_population(
     size_t count);
 
 int evolution_engine_breed_next_generation(EvolutionEngine *engine);
+
+int evolution_engine_breed_next_generation_deferred_mutation(
+    EvolutionEngine *engine);
+
+int evolution_engine_mutate_population_individual(
+    EvolutionEngine *engine,
+    size_t population_index);
 
 int evolution_engine_write_checkpoint(
     const EvolutionEngine *engine,

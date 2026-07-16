@@ -209,3 +209,13 @@ operadores. `individuals.csv` separa fitness médio e fitness de seleção;
 `replicates.csv` mantém atividade observada por seed; `fitness_terms.csv` audita
 cada termo. Essas métricas descrevem adequação à função configurada, não
 inteligência geral. Consulte o [Guia de neuroevolução](GUIA_DE_NEUROEVOLUCAO.md).
+
+## Métricas estruturais C4
+
+`structures.csv` registra tamanho, assinaturas e diversidade topológica por
+indivíduo; `structural_events.csv` registra operadores reprodutivos; e
+`generations.csv` inclui conexões médias, complexidade e distância de Jaccard.
+Em cenários de lifetime, `structural_plasticity_metrics.csv` registra contagens
+inicial/final, tentativas e sucessos, enquanto `topology_history.csv` acompanha
+a evolução temporal. Essas medidas descrevem estrutura e heurísticas, não
+causalidade biológica nem qualidade geral da rede.

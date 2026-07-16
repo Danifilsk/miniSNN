@@ -112,3 +112,12 @@ checkpoint e resume são parte do contrato reprodutível. Aprendizado durante a
 vida afeta fitness, mas não é herdado. Relatórios devem dizer que fitness mede
 somente o objetivo configurado e não prova inteligência, ótimo global ou
 adaptação universal. Avaliação paralela permanece trabalho futuro.
+
+## Princípios estruturais do C4
+
+Connection keys, ordem canônica e PRNG explícito fazem parte do contrato
+reprodutível. Patches devem ser atômicos; o tipo da origem sempre determina o
+sinal; e limites de conexões/reachability são invariantes, não sugestões. A
+plasticidade estrutural de lifetime afeta comportamento e fitness, mas não
+retorna ao genoma. Coatividade e poda são heurísticas experimentais, não prova
+de causalidade nem reprodução completa da biologia.

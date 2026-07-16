@@ -61,6 +61,16 @@ int plasticity_state_rebuild_index(
     const LIFNeuron *neurons,
     const ConnectionList *connections);
 
+int plasticity_state_prepare_topology_rebuild(
+    const PlasticityState *current,
+    const LIFNeuron *neurons,
+    const ConnectionList *connections,
+    PlasticityState *prepared);
+
+void plasticity_state_commit_topology_rebuild(
+    PlasticityState *current,
+    PlasticityState *prepared);
+
 int plasticity_apply_step(
     PlasticityState *state,
     const LIFNeuron *neurons,

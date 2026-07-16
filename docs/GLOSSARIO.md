@@ -105,3 +105,24 @@ Fórmulas completas estão no [Guia de diagnóstico](GUIA_DE_DIAGNOSTICO.md) e n
 - **Herança darwiniana:** herança do genoma inicial, não das mudanças adquiridas na vida.
 - **Herança lamarckiana:** herança de mudanças adquiridas; desativada no C3.
 - **Convergência prematura:** perda de diversidade antes de explorar soluções suficientes.
+
+## Topologia adaptativa C4
+
+- **Topologia adaptativa:** conjunto de arestas que pode mudar sem alterar os neurônios.
+- **Evolução estrutural:** mudança herdável de arestas, magnitudes e delays entre gerações.
+- **Plasticidade estrutural:** mudança fenotípica de arestas durante uma avaliação.
+- **Genoma estrutural:** lista esparsa e ordenada de connection genes.
+- **Connection key:** identidade canônica `source * neuron_count + target`.
+- **Aresta:** conexão dirigida entre dois neurônios fixos.
+- **Crescimento sináptico:** adição heurística de uma aresta ausente.
+- **Poda sináptica:** remoção heurística de uma aresta existente.
+- **Reconexão:** remoção e adição tratadas como uma transação atômica.
+- **Delay evolutivo:** atraso inteiro herdável de um connection gene.
+- **Complexidade estrutural:** connection count normalizado entre limites configurados.
+- **Reachability:** existência de caminho dirigido entre entrada e saída obrigatórias.
+- **Distância de Jaccard:** distância entre conjuntos de connection keys.
+- **Coatividade:** produto dos rate traces; não implica causalidade.
+- **Estrutura herdável:** topologia inicial codificada no genoma.
+- **Estrutura fenotípica:** topologia efetiva durante uma avaliação.
+- **Topologia inicial:** estrutura reconstruída antes da dinâmica neural.
+- **Topologia final durante a vida:** estrutura após manutenção de lifetime; não é herdada no C4.

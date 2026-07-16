@@ -48,7 +48,7 @@ static int individual_allocate(
     individual->fitness_max = 0.0;
 
     if (gene_count == 0)
-        return 0;
+        return 1;
 
     individual->genes = calloc(gene_count, sizeof(*individual->genes));
     return individual->genes != NULL;
@@ -59,11 +59,15 @@ static int individual_copy_genes(
     const EvolutionIndividual *source)
 {
     if (destination == NULL || source == NULL ||
-        destination->gene_count != source->gene_count ||
-        destination->genes == NULL || source->genes == NULL)
+        destination->gene_count != source->gene_count)
     {
         return 0;
     }
+
+    if (source->gene_count == 0)
+        return 1;
+    if (destination->genes == NULL || source->genes == NULL)
+        return 0;
 
     memcpy(
         destination->genes,
@@ -117,10 +121,13 @@ static int update_global_best(
     if (!better)
         return 1;
 
-    memcpy(
-        engine->global_best_genes,
-        individual->genes,
-        engine->gene_count * sizeof(*individual->genes));
+    if (engine->gene_count > 0)
+    {
+        memcpy(
+            engine->global_best_genes,
+            individual->genes,
+            engine->gene_count * sizeof(*individual->genes));
+    }
     engine->has_global_best = 1;
     engine->global_best_individual_id = individual->individual_id;
     engine->global_best_generation = individual->generation;
@@ -128,43 +135,6 @@ static int update_global_best(
     engine->global_best_fitness_mean = individual->fitness_mean;
     engine->global_best_fitness_std = individual->fitness_std;
     return 1;
-}
-
-void evolution_prng_seed(
-    EvolutionPrng *prng,
-    uint64_t initial_state,
-    uint64_t sequence)
-{
-    if (prng == NULL)
-        return;
-
-    prng->state = 0U;
-    prng->increment = (sequence << 1U) | 1U;
-    (void)evolution_prng_next(prng);
-    prng->state += initial_state;
-    (void)evolution_prng_next(prng);
-}
-
-uint32_t evolution_prng_next(EvolutionPrng *prng)
-{
-    uint64_t old_state;
-    uint32_t xor_shifted;
-    uint32_t rotation;
-
-    if (prng == NULL)
-        return 0U;
-
-    old_state = prng->state;
-    prng->state = old_state * 6364136223846793005ULL + prng->increment;
-    xor_shifted = (uint32_t)(((old_state >> 18U) ^ old_state) >> 27U);
-    rotation = (uint32_t)(old_state >> 59U);
-    return (xor_shifted >> rotation) |
-           (xor_shifted << ((0U - rotation) & 31U));
-}
-
-double evolution_prng_unit(EvolutionPrng *prng)
-{
-    return (double)evolution_prng_next(prng) / 4294967296.0;
 }
 
 static double stable_sigmoid(double value)
@@ -325,7 +295,9 @@ int evolution_gene_metadata_is_valid(
     const EvolutionGeneMetadata *metadata,
     size_t count)
 {
-    if (metadata == NULL || count == 0)
+    if (count == 0)
+        return metadata == NULL;
+    if (metadata == NULL)
         return 0;
 
     for (size_t i = 0; i < count; i++)
@@ -380,18 +352,23 @@ int evolution_engine_init(
     memset(engine, 0, sizeof(*engine));
     engine->config = *config;
     engine->gene_count = gene_count;
-    engine->metadata = malloc(gene_count * sizeof(*engine->metadata));
-    engine->global_best_genes = calloc(
-        gene_count,
-        sizeof(*engine->global_best_genes));
+    if (gene_count > 0)
+    {
+        engine->metadata = malloc(gene_count * sizeof(*engine->metadata));
+        engine->global_best_genes = calloc(
+            gene_count,
+            sizeof(*engine->global_best_genes));
+    }
 
-    if (engine->metadata == NULL || engine->global_best_genes == NULL)
+    if (gene_count > 0 &&
+        (engine->metadata == NULL || engine->global_best_genes == NULL))
     {
         evolution_engine_destroy(engine);
         return 0;
     }
 
-    memcpy(engine->metadata, metadata, gene_count * sizeof(*metadata));
+    if (gene_count > 0)
+        memcpy(engine->metadata, metadata, gene_count * sizeof(*metadata));
     evolution_prng_seed(&engine->prng, config->evolution_seed, 54U);
     engine->next_individual_id = 0U;
     engine->current_generation = 0;
@@ -433,7 +410,9 @@ static int allocate_population(EvolutionEngine *engine)
 
 int evolution_engine_initialize_population(EvolutionEngine *engine)
 {
-    if (engine == NULL || engine->metadata == NULL || engine->population != NULL)
+    if (engine == NULL ||
+        (engine->gene_count > 0 && engine->metadata == NULL) ||
+        engine->population != NULL)
         return 0;
 
     if (!allocate_population(engine))
@@ -492,6 +471,30 @@ int evolution_engine_set_evaluation(
     int valid_replicates,
     int invalid_replicates)
 {
+    double selection;
+    if (engine == NULL)
+        return 0;
+    selection = clamp_value(
+        fitness_mean - engine->config.replicate_std_penalty * fitness_std,
+        0.0,
+        1.0);
+    return evolution_engine_set_evaluation_with_selection(
+        engine, population_index, fitness_mean, fitness_std,
+        fitness_min, fitness_max, selection,
+        valid_replicates, invalid_replicates);
+}
+
+int evolution_engine_set_evaluation_with_selection(
+    EvolutionEngine *engine,
+    size_t population_index,
+    double fitness_mean,
+    double fitness_std,
+    double fitness_min,
+    double fitness_max,
+    double fitness_selection,
+    int valid_replicates,
+    int invalid_replicates)
+{
     EvolutionIndividual *individual;
 
     if (engine == NULL || engine->population == NULL ||
@@ -500,6 +503,8 @@ int evolution_engine_set_evaluation(
         !isfinite(fitness_std) || fitness_std < 0.0 ||
         !isfinite(fitness_min) || fitness_min < 0.0 || fitness_min > 1.0 ||
         !isfinite(fitness_max) || fitness_max < 0.0 || fitness_max > 1.0 ||
+        !isfinite(fitness_selection) || fitness_selection < 0.0 ||
+        fitness_selection > 1.0 ||
         fitness_min > fitness_max || valid_replicates < 0 || invalid_replicates < 0 ||
         valid_replicates + invalid_replicates <= 0)
     {
@@ -511,10 +516,7 @@ int evolution_engine_set_evaluation(
     individual->fitness_std = fitness_std;
     individual->fitness_min = fitness_min;
     individual->fitness_max = fitness_max;
-    individual->fitness_selection = clamp_value(
-        fitness_mean - engine->config.replicate_std_penalty * fitness_std,
-        0.0,
-        1.0);
+    individual->fitness_selection = fitness_selection;
     individual->valid_replicates = valid_replicates;
     individual->invalid_replicates = invalid_replicates;
     individual->evaluated = 1;
@@ -656,7 +658,9 @@ static void mutate_individual(
     }
 }
 
-int evolution_engine_breed_next_generation(EvolutionEngine *engine)
+static int breed_next_generation_internal(
+    EvolutionEngine *engine,
+    int apply_mutation)
 {
     EvolutionIndividual *next_population;
     size_t *ranking;
@@ -774,13 +778,38 @@ int evolution_engine_breed_next_generation(EvolutionEngine *engine)
             child->genes_from_parent_a = engine->gene_count;
         }
 
-        mutate_individual(engine, child);
+        if (apply_mutation)
+            mutate_individual(engine, child);
     }
 
     free(ranking);
     population_destroy(engine->population, engine->config.population_size);
     engine->population = next_population;
     engine->current_generation = next_generation;
+    return 1;
+}
+
+int evolution_engine_breed_next_generation(EvolutionEngine *engine)
+{
+    return breed_next_generation_internal(engine, 1);
+}
+
+int evolution_engine_breed_next_generation_deferred_mutation(
+    EvolutionEngine *engine)
+{
+    return breed_next_generation_internal(engine, 0);
+}
+
+int evolution_engine_mutate_population_individual(
+    EvolutionEngine *engine,
+    size_t population_index)
+{
+    if (engine == NULL || engine->population == NULL ||
+        population_index >= engine->config.population_size)
+    {
+        return 0;
+    }
+    mutate_individual(engine, &engine->population[population_index]);
     return 1;
 }
 
@@ -978,7 +1007,8 @@ int evolution_engine_read_checkpoint(
     unsigned long long prng_increment;
     unsigned long long global_best_id;
 
-    if (engine == NULL || file == NULL || config == NULL || metadata == NULL ||
+    if (engine == NULL || file == NULL || config == NULL ||
+        (gene_count > 0 && metadata == NULL) ||
         expected_signature == NULL || out_next_generation == NULL ||
         out_completed == NULL)
     {

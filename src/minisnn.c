@@ -3,6 +3,8 @@
 #include "config.h"
 #include "minisnn.h"
 #include "network.h"
+#include "structure.h"
+#include "structural_plasticity.h"
 
 struct MiniSNN
 {
@@ -600,6 +602,150 @@ int minisnn_get_current_incoming_exc_sum(
         snn->net.connections,
         snn->net.plasticity,
         out_sum);
+}
+
+int minisnn_connection_key(
+    size_t neuron_count,
+    size_t source,
+    size_t target,
+    uint64_t *out_key)
+{
+    return structure_connection_key(
+        neuron_count, source, target, out_key);
+}
+
+MiniSNNStructuralPlasticityConfig
+minisnn_default_structural_plasticity_config(void)
+{
+    return structural_plasticity_default_config();
+}
+
+int minisnn_set_structural_plasticity_config(
+    MiniSNN *snn,
+    const MiniSNNStructuralPlasticityConfig *config)
+{
+    if (snn == NULL)
+        return 0;
+    return network_set_structural_plasticity_config(&snn->net, config);
+}
+
+int minisnn_get_structural_plasticity_config(
+    const MiniSNN *snn,
+    MiniSNNStructuralPlasticityConfig *out_config)
+{
+    if (snn == NULL || out_config == NULL)
+        return 0;
+    if (snn->net.structural_plasticity == NULL)
+        *out_config = structural_plasticity_default_config();
+    else
+        *out_config = snn->net.structural_plasticity->config;
+    return 1;
+}
+
+int minisnn_get_structural_stats(
+    const MiniSNN *snn,
+    MiniSNNStructuralStats *out_stats)
+{
+    if (snn == NULL || out_stats == NULL ||
+        snn->net.structural_plasticity == NULL)
+        return 0;
+    *out_stats = snn->net.structural_plasticity->stats;
+    return 1;
+}
+
+int minisnn_get_topology_signature(
+    const MiniSNN *snn,
+    uint64_t *out_signature)
+{
+    StructureGenome genome = {0};
+    uint64_t neuron_signature;
+    if (snn == NULL || out_signature == NULL ||
+        !structure_capture_network_genome(&snn->net, &genome))
+        return 0;
+    neuron_signature = structure_neuron_blueprint_signature(
+        snn->net.neurons, (size_t)snn->net.size);
+    *out_signature = structure_topology_signature(
+        &genome, neuron_signature);
+    structure_genome_destroy(&genome);
+    return *out_signature != 0U;
+}
+
+int minisnn_validate_topology_patch(
+    const MiniSNN *snn,
+    const MiniSNNTopologyOperation *operations,
+    size_t operation_count,
+    MiniSNNTopologyPatchResult *result)
+{
+    if (snn == NULL)
+        return 0;
+    return structure_validate_network_patch(
+        &snn->net, operations, operation_count, result);
+}
+
+int minisnn_apply_topology_patch(
+    MiniSNN *snn,
+    const MiniSNNTopologyOperation *operations,
+    size_t operation_count,
+    MiniSNNTopologyPatchResult *result)
+{
+    if (snn == NULL)
+        return 0;
+    return structure_apply_network_patch(
+        &snn->net, operations, operation_count, result);
+}
+
+int minisnn_get_structural_connection_state(
+    const MiniSNN *snn,
+    size_t connection_id,
+    MiniSNNStructuralConnectionState *out_state)
+{
+    MiniSNNConnectionInfo info;
+    uint64_t key;
+    StructuralPlasticityState *state;
+    if (snn == NULL || out_state == NULL ||
+        snn->net.structural_plasticity == NULL ||
+        !minisnn_get_connection(snn, connection_id, &info) ||
+        !structure_connection_key((size_t)snn->net.size, info.source,
+                                  info.target, &key))
+        return 0;
+    state = snn->net.structural_plasticity;
+    for (size_t i = 0; i < state->connection_state_count; i++)
+    {
+        if (state->connection_states[i].connection_key == key)
+        {
+            *out_state = state->connection_states[i];
+            return 1;
+        }
+    }
+    return 0;
+}
+
+size_t minisnn_structural_event_count(const MiniSNN *snn)
+{
+    return snn != NULL && snn->net.structural_plasticity != NULL ?
+        snn->net.structural_plasticity->event_count : 0U;
+}
+
+int minisnn_get_structural_event(
+    const MiniSNN *snn,
+    size_t event_index,
+    MiniSNNStructuralEvent *out_event)
+{
+    if (snn == NULL || out_event == NULL ||
+        snn->net.structural_plasticity == NULL ||
+        event_index >= snn->net.structural_plasticity->event_count)
+        return 0;
+    *out_event = snn->net.structural_plasticity->events[event_index];
+    return 1;
+}
+
+int minisnn_reset_structural_plasticity(
+    MiniSNN *snn,
+    MiniSNNStructuralResetMode mode)
+{
+    if (snn == NULL)
+        return 0;
+    return network_reset_structural_plasticity(&snn->net, mode);
 }
 
 int minisnn_set_input(

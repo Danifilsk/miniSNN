@@ -124,3 +124,11 @@ Compile com `mingw32-make evolution-build` e rode
 `results/evolution/evolution_weight_target_demo/`. Consulte o
 [Guia de neuroevolução](GUIA_DE_NEUROEVOLUCAO.md); topologia e delays não
 evoluem nesta fase.
+
+## Topologia adaptativa C4
+
+Para evolução estrutural, use `mingw32-make evolution-structure-demo`. Para
+plasticidade estrutural durante a vida, use `mingw32-make structural-pruning-demo`
+ou `mingw32-make structural-growth-demo`. O genoma estrutural herdável e a
+topologia final aprendida são saídas diferentes. Consulte o
+[Guia de topologia adaptativa](GUIA_DE_TOPOLOGIA_ADAPTATIVA.md).

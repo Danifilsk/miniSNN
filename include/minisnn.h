@@ -203,6 +203,60 @@ int minisnn_get_current_incoming_exc_sum(
     int neuron_id,
     double *out_sum);
 
+/* Topologia adaptativa e plasticidade estrutural */
+int minisnn_connection_key(
+    size_t neuron_count,
+    size_t source,
+    size_t target,
+    uint64_t *out_key);
+
+MiniSNNStructuralPlasticityConfig
+minisnn_default_structural_plasticity_config(void);
+
+int minisnn_set_structural_plasticity_config(
+    MiniSNN *snn,
+    const MiniSNNStructuralPlasticityConfig *config);
+
+int minisnn_get_structural_plasticity_config(
+    const MiniSNN *snn,
+    MiniSNNStructuralPlasticityConfig *out_config);
+
+int minisnn_get_structural_stats(
+    const MiniSNN *snn,
+    MiniSNNStructuralStats *out_stats);
+
+int minisnn_get_topology_signature(
+    const MiniSNN *snn,
+    uint64_t *out_signature);
+
+int minisnn_validate_topology_patch(
+    const MiniSNN *snn,
+    const MiniSNNTopologyOperation *operations,
+    size_t operation_count,
+    MiniSNNTopologyPatchResult *result);
+
+int minisnn_apply_topology_patch(
+    MiniSNN *snn,
+    const MiniSNNTopologyOperation *operations,
+    size_t operation_count,
+    MiniSNNTopologyPatchResult *result);
+
+int minisnn_get_structural_connection_state(
+    const MiniSNN *snn,
+    size_t connection_id,
+    MiniSNNStructuralConnectionState *out_state);
+
+size_t minisnn_structural_event_count(const MiniSNN *snn);
+
+int minisnn_get_structural_event(
+    const MiniSNN *snn,
+    size_t event_index,
+    MiniSNNStructuralEvent *out_event);
+
+int minisnn_reset_structural_plasticity(
+    MiniSNN *snn,
+    MiniSNNStructuralResetMode mode);
+
 /* Entrada externa */
 int minisnn_set_input(
     MiniSNN *snn,

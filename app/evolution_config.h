@@ -13,6 +13,8 @@
 #define EVOLUTION_MAX_SCALAR_GENES 16
 #define EVOLUTION_MAX_FITNESS_TERMS 32
 #define EVOLUTION_METRIC_NAME_MAX 95
+#define EVOLUTION_GENOME_MODE_MAX 31
+#define EVOLUTION_MAX_REQUIRED_NEURONS 256
 
 typedef struct
 {
@@ -65,12 +67,42 @@ typedef struct
     int auto_unique_run;
     int history_enabled;
 
+    char genome_mode[EVOLUTION_GENOME_MODE_MAX + 1];
+
     int evolve_exc_weights;
     double exc_weight_min;
     double exc_weight_max;
     int evolve_inh_magnitudes;
     double inh_magnitude_min;
     double inh_magnitude_max;
+
+    int structure_enabled;
+    int structure_allow_add;
+    int structure_allow_remove;
+    int structure_allow_rewire;
+    int structure_evolve_delays;
+    double structure_add_rate;
+    double structure_remove_rate;
+    double structure_rewire_rate;
+    double structure_delay_mutation_rate;
+    int structure_max_mutations_per_child;
+    int structure_min_connections;
+    int structure_max_connections;
+    int structure_allow_self_connections;
+    int structure_allow_inh_to_inh;
+    int structure_delay_min;
+    int structure_delay_max;
+    int structure_delay_mutation_max_delta;
+    double structure_new_exc_weight_min;
+    double structure_new_exc_weight_max;
+    double structure_new_inh_magnitude_min;
+    double structure_new_inh_magnitude_max;
+    double structure_complexity_penalty;
+    int structure_preserve_required_reachability;
+    int structure_required_input_count;
+    int structure_required_input_neurons[EVOLUTION_MAX_REQUIRED_NEURONS];
+    int structure_required_output_count;
+    int structure_required_output_neurons[EVOLUTION_MAX_REQUIRED_NEURONS];
 
     int scalar_gene_count;
     EvolutionScalarGeneConfig scalar_genes[EVOLUTION_MAX_SCALAR_GENES];

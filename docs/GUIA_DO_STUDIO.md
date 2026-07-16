@@ -339,3 +339,17 @@ Após sucesso, `ABRIR EVOLUCAO`, `ABRIR RELATORIO`, `ABRIR GRAFICO` e
 pandas e matplotlib é necessário para o PNG; sem Python, um HTML anterior só é
 aberto com aviso. A compilação foi automatizada; os cliques permanecem com
 validação manual pendente.
+
+## Topologia adaptativa
+
+Dentro de `NEUROEVOLUCAO`, o botão `TOPOLOGIA ADAPTATIVA` abre os campos de
+`[structure]` e da plasticidade estrutural do cenário-base. `ABRIR TOPOLOGIA`
+abre o relatório HTML, `GRAFICO TOPOLOGIA` abre o panorama PNG,
+`ABRIR EVENTOS ESTRUTURAIS` gera e abre `structural_events_report.html` e
+`ABRIR MELHOR TOPOLOGIA` gera e abre `best_topology_report.html`. Os CSVs
+`structural_events.csv` e `best_topology.csv` permanecem como dados científicos
+brutos. Sem Python, o Studio abre apenas um HTML anterior existente e avisa que
+ele pode estar desatualizado. Aplicar valida
+limites, delays e reachability; cancelar preserva os valores. A compilação foi
+validada automaticamente, mas os cliques e caminhos com espaços permanecem em
+validação manual.

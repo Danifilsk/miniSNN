@@ -181,3 +181,21 @@ indivíduo, réplica, fitness, genoma e linhagem, checkpoint, melhor genoma,
 
 Não mova `best_run/weights_final.csv` para `best_genome.csv`: o primeiro pode
 conter aprendizado ao longo da vida e não é herdável.
+
+## Resultados C4
+
+Experimentos estruturais acrescentam `structures.csv`, `structural_events.csv`,
+`best_topology.csv`, `best_topology_initial.csv`,
+`best_topology_lifetime_final.csv` e `checkpoint_structure.txt`. Cenários com
+plasticidade estrutural acrescentam `topology_initial.csv`,
+`topology_final.csv`, `structural_plasticity_events.csv`,
+`structural_plasticity_metrics.csv`, `topology_history.csv`,
+`topology_report.txt`, `topology_report.html` e, após o script,
+`topology_overview.png`. Não confunda topologia herdável com fenótipo final.
+
+Os relatórios locais `structural_events_report.html` e
+`best_topology_report.html` apresentam respectivamente os eventos estruturais e
+a topologia herdável inicial do melhor genoma. No Studio, os botões `ABRIR
+EVENTOS ESTRUTURAIS` e `ABRIR MELHOR TOPOLOGIA` geram/abrem esses HTMLs usando a
+pasta indicada por `last_experiment.txt`. Os CSVs continuam sendo a fonte
+científica bruta.

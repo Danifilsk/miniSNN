@@ -65,6 +65,10 @@ def generate(run_directory: Path | str) -> Path:
     _require_columns(generations, GENERATION_COLUMNS, "generations.csv")
     _finite(generations, GENERATION_COLUMNS, "generations.csv")
     generations = generations.sort_values("generation", kind="stable")
+    structural = (
+        "connections_best" in generations.columns
+        and pd.to_numeric(generations["connections_best"], errors="coerce").notna().any()
+    )
 
     genomes: pd.DataFrame | None = None
     if genomes_path.is_file():
@@ -91,23 +95,50 @@ def generate(run_directory: Path | str) -> Path:
     axes[0, 0].set_ylabel("Fitness")
     axes[0, 0].legend()
 
-    axes[0, 1].plot(generation, generations["diversity_mean_gene_std"],
-                    label="Media do desvio por gene")
-    axes[0, 1].plot(generation, generations["diversity_mean_pair_distance"],
-                    label="Distancia media entre pares")
-    axes[0, 1].set_title("Diversidade genetica")
+    if structural:
+        axes[0, 1].plot(generation, generations["topology_diversity_mean_distance"],
+                        label="Distancia Jaccard media")
+        axes[0, 1].plot(generation, generations["topology_unique_count"],
+                        label="Topologias unicas")
+        axes[0, 1].set_title("Diversidade topologica")
+    else:
+        axes[0, 1].plot(generation, generations["diversity_mean_gene_std"],
+                        label="Media do desvio por gene")
+        axes[0, 1].plot(generation, generations["diversity_mean_pair_distance"],
+                        label="Distancia media entre pares")
+        axes[0, 1].set_title("Diversidade genetica")
     axes[0, 1].set_xlabel("Geracao")
     axes[0, 1].legend()
 
-    axes[1, 0].plot(generation, generations["mutation_count"], label="Mutacoes")
-    axes[1, 0].plot(generation, generations["crossover_child_count"],
-                    label="Filhos com crossover")
+    if structural:
+        for column, label in [
+            ("add_count", "Add"), ("remove_count", "Remove"),
+            ("rewire_count", "Rewire"),
+            ("delay_mutation_count", "Delay"),
+        ]:
+            axes[1, 0].plot(generation, generations[column], label=label)
+    else:
+        axes[1, 0].plot(generation, generations["mutation_count"], label="Mutacoes")
+        axes[1, 0].plot(generation, generations["crossover_child_count"],
+                        label="Filhos com crossover")
     axes[1, 0].set_title("Operadores evolutivos")
     axes[1, 0].set_xlabel("Geracao")
     axes[1, 0].set_ylabel("Quantidade")
     axes[1, 0].legend()
 
-    if genomes is None:
+    if structural:
+        axes[1, 1].plot(generation, generations["connections_best"],
+                        label="Melhor")
+        axes[1, 1].plot(generation, generations["connections_mean"],
+                        label="Media")
+        axes[1, 1].fill_between(
+            generation, generations["connections_min"],
+            generations["connections_max"], alpha=0.2, label="Faixa",
+        )
+        axes[1, 1].legend(fontsize="small")
+        axes[1, 1].set_title("Conexoes por geracao")
+        axes[1, 1].set_ylabel("Conexoes")
+    elif genomes is None:
         axes[1, 1].text(0.5, 0.5, "Genomas parciais ou indisponiveis",
                         ha="center", va="center", transform=axes[1, 1].transAxes)
     else:
@@ -129,7 +160,8 @@ def generate(run_directory: Path | str) -> Path:
                 axes[1, 1].plot(rows["generation"], rows["value"], label=gene_name)
         if selected:
             axes[1, 1].legend(fontsize="small")
-    axes[1, 1].set_title("Genes selecionados do melhor da geracao")
+    if not structural:
+        axes[1, 1].set_title("Genes selecionados do melhor da geracao")
     axes[1, 1].set_xlabel("Geracao")
     axes[1, 1].set_ylabel("Valor")
 

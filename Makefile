@@ -3,18 +3,19 @@ CFLAGS = -std=c11 -Wall -Wextra -pedantic -fanalyzer
 INCLUDES = -Iinclude -Isrc -Iapp
 BUILD_DIR = build
 
-API_SOURCES = src/minisnn.c src/neuron.c src/network.c src/plasticity.c src/reward.c src/homeostasis.c
+STRUCTURE_SOURCES = src/structure.c src/structural_plasticity.c
+API_SOURCES = src/minisnn.c src/neuron.c src/network.c src/plasticity.c src/reward.c src/homeostasis.c $(STRUCTURE_SOURCES)
 APP_SOURCES = app/scenario_config.c
 SCENARIO_RUNNER_SOURCES = app/scenario_config.c app/scenario_runtime.c app/scenario_runner.c
 EVOLUTION_SOURCES = src/evolution.c
 EVOLUTION_RUNNER_SOURCES = app/evolution_config.c app/evolution_runner.c $(SCENARIO_RUNNER_SOURCES) $(EVOLUTION_SOURCES)
-CORE_SOURCES = src/neuron.c src/network.c src/plasticity.c src/reward.c src/homeostasis.c src/topology.c src/stimulus.c src/recorder.c
-EXPERIMENT_SOURCES = src/neuron.c src/network.c src/plasticity.c src/reward.c src/homeostasis.c src/stimulus.c src/recorder.c
+CORE_SOURCES = src/neuron.c src/network.c src/plasticity.c src/reward.c src/homeostasis.c $(STRUCTURE_SOURCES) src/topology.c src/stimulus.c src/recorder.c
+EXPERIMENT_SOURCES = src/neuron.c src/network.c src/plasticity.c src/reward.c src/homeostasis.c $(STRUCTURE_SOURCES) src/stimulus.c src/recorder.c
 SCENARIO ?= configs/random_balanced.ini
 PYTHON ?= python
 ANALYZER_CFLAGS = -std=c11 -Wall -Wextra -pedantic -fanalyzer -Wformat=2 -Wshadow -Wnull-dereference
 
-.PHONY: all help clean test test-api test-core test-lif test-plasticity test-plasticity-long test-homeostasis test-homeostasis-long test-reward test-reward-long test-evolution test-evolution-runner test-evolution-resume test-evolution-long test-plot-evolution test-evolution-report evolution-build evolution-weight-demo evolution-homeostasis-demo evolution-plasticity-demo plot-evolution report-evolution report-evolution-history test-scenario test-runner test-runner-topologies test-reproducibility test-regression test-memory test-long test-analyzer test-sanitize benchmark-v02 benchmark-c1 benchmark-c15 benchmark-c2 benchmark-c3 check-v02 check-c1 check-c15 check-c2 check-c3 \
+.PHONY: all help clean test test-api test-core test-lif test-plasticity test-plasticity-long test-homeostasis test-homeostasis-long test-reward test-reward-long test-evolution test-structure test-structural-plasticity test-structure-resume test-structure-long test-evolution-runner test-evolution-resume test-evolution-long test-plot-evolution test-plot-topology test-evolution-report test-structural-html evolution-build evolution-weight-demo evolution-homeostasis-demo evolution-plasticity-demo evolution-structure-demo structural-pruning-demo structural-growth-demo evolution-structure-learning-demo plot-evolution plot-topology report-evolution report-evolution-history report-structural-events report-best-topology test-scenario test-runner test-runner-topologies test-reproducibility test-regression test-memory test-long test-analyzer test-sanitize benchmark-v02 benchmark-c1 benchmark-c15 benchmark-c2 benchmark-c3 benchmark-c4 check-v02 check-c1 check-c15 check-c2 check-c3 check-c4 \
 	test-plot-neuron test-plot-plasticity test-compare-runs test-diagnostics test-run-reports test-history-report test-docs \
 	test-plot-homeostasis plot-homeostasis test-plot-reward plot-reward \
 	api-examples api-single api-chain api-exc-inh \
@@ -41,6 +42,10 @@ help:
 	@echo   make test-reward       - validacao numerica do R-STDP
 	@echo   make test-reward-long  - execucao prolongada com reward e homeostase
 	@echo   make test-evolution    - validacao numerica do motor neuroevolutivo
+	@echo   make test-structure    - validacao da evolucao estrutural e patches atomicos
+	@echo   make test-structural-plasticity - validacao de poda e crescimento durante a vida
+	@echo   make test-structure-resume - retomada exata do genoma estrutural
+	@echo   make test-structure-long - execucao C4 prolongada com resume
 	@echo   make test-evolution-runner - blueprint, avaliacao, outputs e heranca darwiniana
 	@echo   make test-evolution-resume - retomada exata a partir de checkpoint
 	@echo   make test-evolution-long - execucao evolutiva prolongada separada
@@ -48,11 +53,20 @@ help:
 	@echo   make evolution-weight-demo - evolui pesos para uma contagem-alvo
 	@echo   make evolution-homeostasis-demo - evolui parametros homeostaticos
 	@echo   make evolution-plasticity-demo - evolui parametros com STDP durante a vida
+	@echo   make evolution-structure-demo - evolui arestas e delays para uma contagem-alvo
+	@echo   make structural-pruning-demo - executa o demonstrador de poda estrutural
+	@echo   make structural-growth-demo - executa o demonstrador de crescimento estrutural
+	@echo   make evolution-structure-learning-demo - combina evolucao, STDP e crescimento
 	@echo   make test-plot-evolution - valida o panorama PNG evolutivo
+	@echo   make test-plot-topology - valida o panorama PNG da topologia adaptativa
 	@echo   make test-evolution-report - valida o relatorio HTML evolutivo
+	@echo   make test-structural-html - valida relatorios HTML de eventos e topologia estrutural
 	@echo   make plot-evolution RUN=results/evolution/experimento - gera panorama evolutivo
+	@echo   make plot-topology RUN=results/scenarios/execucao - gera panorama estrutural
 	@echo   make report-evolution RUN=results/evolution/experimento - gera relatorio HTML
 	@echo   make report-evolution-history - gera historico HTML evolutivo
+	@echo   make report-structural-events EXPERIMENT=results/evolution/experimento - gera eventos estruturais HTML
+	@echo   make report-best-topology EXPERIMENT=results/evolution/experimento - gera topologia herdavel HTML
 	@echo   make test-scenario     - teste do parser de cenarios
 	@echo   make test-runner       - teste do executor compartilhado de cenarios
 	@echo   make test-runner-topologies - validacao estrutural das topologias do runner
@@ -67,11 +81,13 @@ help:
 	@echo   make benchmark-c15     - compara cinco modos de homeostase
 	@echo   make benchmark-c2      - compara custos de R-STDP e reward
 	@echo   make benchmark-c3      - mede custos locais da neuroevolucao
+	@echo   make benchmark-c4      - mede custos locais da topologia adaptativa
 	@echo   make check-v02         - verifica prontidao automatica sem alterar Git
 	@echo   make check-c1          - verifica o fechamento automatico do Bloco C1
 	@echo   make check-c15         - verifica o fechamento automatico do Bloco C1.5
 	@echo   make check-c2          - verifica o fechamento automatico do Bloco C2
 	@echo   make check-c3          - verifica o fechamento automatico do Bloco C3
+	@echo   make check-c4          - verifica o fechamento automatico do Bloco C4
 	@echo   make test-plot-neuron  - teste Python do grafico de neuronio
 	@echo   make test-plot-plasticity - teste Python do grafico STDP
 	@echo   make test-plot-homeostasis - teste Python do panorama homeostatico
@@ -124,8 +140,8 @@ $(BUILD_DIR)/test_topology.exe: tests/test_topology.c $(CORE_SOURCES) | $(BUILD_
 $(BUILD_DIR)/test_LIF.exe: tests/test_LIF.c src/neuron.c src/neuron.h src/config.h | $(BUILD_DIR)
 	$(CC) $(CFLAGS) tests/test_LIF.c src/neuron.c $(INCLUDES) -o $@
 
-$(BUILD_DIR)/test_plasticity.exe: tests/test_plasticity.c src/neuron.c src/network.c src/plasticity.c src/reward.c src/homeostasis.c | $(BUILD_DIR)
-	$(CC) $(CFLAGS) tests/test_plasticity.c src/neuron.c src/network.c src/plasticity.c src/reward.c src/homeostasis.c $(INCLUDES) -o $@
+$(BUILD_DIR)/test_plasticity.exe: tests/test_plasticity.c $(API_SOURCES) | $(BUILD_DIR)
+	$(CC) $(CFLAGS) tests/test_plasticity.c $(API_SOURCES) $(INCLUDES) -o $@
 
 $(BUILD_DIR)/test_plasticity_long.exe: tests/test_plasticity_long.c $(API_SOURCES) | $(BUILD_DIR)
 	$(CC) $(CFLAGS) tests/test_plasticity_long.c $(API_SOURCES) $(INCLUDES) -o $@
@@ -147,6 +163,18 @@ $(BUILD_DIR)/test_reward_long.exe: tests/test_reward_long.c $(API_SOURCES) | $(B
 
 $(BUILD_DIR)/test_evolution.exe: tests/test_evolution.c $(EVOLUTION_SOURCES) src/evolution.h | $(BUILD_DIR)
 	$(CC) $(CFLAGS) tests/test_evolution.c $(EVOLUTION_SOURCES) $(INCLUDES) -o $@
+
+$(BUILD_DIR)/test_structure.exe: tests/test_structure.c $(API_SOURCES) $(EVOLUTION_SOURCES) src/structure.h | $(BUILD_DIR)
+	$(CC) $(CFLAGS) tests/test_structure.c $(API_SOURCES) $(EVOLUTION_SOURCES) $(INCLUDES) -o $@
+
+$(BUILD_DIR)/test_structural_plasticity.exe: tests/test_structural_plasticity.c $(API_SOURCES) $(EVOLUTION_SOURCES) | $(BUILD_DIR)
+	$(CC) $(CFLAGS) tests/test_structural_plasticity.c $(API_SOURCES) $(EVOLUTION_SOURCES) $(INCLUDES) -o $@
+
+$(BUILD_DIR)/test_structure_resume.exe: tests/test_structure_resume.c $(EVOLUTION_RUNNER_SOURCES) $(API_SOURCES) | $(BUILD_DIR)
+	$(CC) $(CFLAGS) -DEVOLUTION_RUNNER_NO_MAIN tests/test_structure_resume.c $(EVOLUTION_RUNNER_SOURCES) $(API_SOURCES) $(INCLUDES) -o $@
+
+$(BUILD_DIR)/test_structure_long.exe: tests/test_structure_long.c $(EVOLUTION_RUNNER_SOURCES) $(API_SOURCES) | $(BUILD_DIR)
+	$(CC) $(CFLAGS) -DEVOLUTION_RUNNER_NO_MAIN tests/test_structure_long.c $(EVOLUTION_RUNNER_SOURCES) $(API_SOURCES) $(INCLUDES) -o $@
 
 $(BUILD_DIR)/test_evolution_runner.exe: tests/test_evolution_runner.c $(EVOLUTION_RUNNER_SOURCES) $(API_SOURCES) | $(BUILD_DIR)
 	$(CC) $(CFLAGS) -DEVOLUTION_RUNNER_NO_MAIN tests/test_evolution_runner.c $(EVOLUTION_RUNNER_SOURCES) $(API_SOURCES) $(INCLUDES) -o $@
@@ -210,6 +238,18 @@ test-reward-long: $(BUILD_DIR)/test_reward_long.exe
 test-evolution: $(BUILD_DIR)/test_evolution.exe
 	$(BUILD_DIR)/test_evolution.exe
 
+test-structure: $(BUILD_DIR)/test_structure.exe
+	$(BUILD_DIR)/test_structure.exe
+
+test-structural-plasticity: $(BUILD_DIR)/test_structural_plasticity.exe
+	$(BUILD_DIR)/test_structural_plasticity.exe
+
+test-structure-resume: $(BUILD_DIR)/test_structure_resume.exe
+	$(BUILD_DIR)/test_structure_resume.exe
+
+test-structure-long: $(BUILD_DIR)/test_structure_long.exe
+	$(BUILD_DIR)/test_structure_long.exe
+
 test-evolution-runner: $(BUILD_DIR)/test_evolution_runner.exe
 	$(BUILD_DIR)/test_evolution_runner.exe
 
@@ -229,15 +269,43 @@ evolution-homeostasis-demo: $(BUILD_DIR)/evolution_runner.exe
 evolution-plasticity-demo: $(BUILD_DIR)/evolution_runner.exe
 	$(BUILD_DIR)/evolution_runner.exe configs/evolution_plasticity_demo.ini
 
+evolution-structure-demo: $(BUILD_DIR)/evolution_runner.exe
+	$(BUILD_DIR)/evolution_runner.exe configs/evolution_structure_target_demo.ini
+	$(PYTHON) scripts/plot_evolution.py results/evolution/evolution_structure_target_demo
+	$(PYTHON) scripts/generate_evolution_report.py results/evolution/evolution_structure_target_demo
+
+structural-pruning-demo: $(BUILD_DIR)/minisnn_runner.exe
+	$(BUILD_DIR)/minisnn_runner.exe configs/structural_pruning_demo.ini
+	$(PYTHON) scripts/plot_topology.py results/scenarios/structural_pruning_demo
+
+structural-growth-demo: $(BUILD_DIR)/minisnn_runner.exe
+	$(BUILD_DIR)/minisnn_runner.exe configs/structural_growth_demo.ini
+	$(PYTHON) scripts/plot_topology.py results/scenarios/structural_growth_demo
+
+evolution-structure-learning-demo: $(BUILD_DIR)/evolution_runner.exe
+	$(BUILD_DIR)/evolution_runner.exe configs/evolution_structure_learning_demo.ini
+	$(PYTHON) scripts/plot_evolution.py results/evolution/evolution_structure_learning_demo
+	$(PYTHON) scripts/generate_evolution_report.py results/evolution/evolution_structure_learning_demo
+
 test-plot-evolution: | $(BUILD_DIR)
 	$(PYTHON) tests/test_plot_evolution.py
+
+test-plot-topology: | $(BUILD_DIR)
+	$(PYTHON) tests/test_plot_topology.py
 
 test-evolution-report: | $(BUILD_DIR)
 	$(PYTHON) tests/test_evolution_report.py
 
+test-structural-html: | $(BUILD_DIR)
+	$(PYTHON) tests/test_structural_html.py
+
 plot-evolution:
 	@if "$(RUN)"=="" (echo Erro: informe RUN=results/evolution/nome_do_experimento & exit /B 1)
 	$(PYTHON) scripts/plot_evolution.py "$(RUN)"
+
+plot-topology:
+	@if "$(RUN)"=="" (echo Erro: informe RUN=results/scenarios/nome_da_execucao & exit /B 1)
+	$(PYTHON) scripts/plot_topology.py "$(RUN)"
 
 report-evolution:
 	@if "$(RUN)"=="" (echo Erro: informe RUN=results/evolution/nome_do_experimento & exit /B 1)
@@ -245,6 +313,14 @@ report-evolution:
 
 report-evolution-history:
 	$(PYTHON) scripts/generate_evolution_report.py results/evolution --history
+
+report-structural-events:
+	@if "$(EXPERIMENT)"=="" (echo Erro: informe EXPERIMENT=results/evolution/nome_do_experimento & exit /B 1)
+	$(PYTHON) scripts/generate_evolution_report.py "$(EXPERIMENT)" --structural-events
+
+report-best-topology:
+	@if "$(EXPERIMENT)"=="" (echo Erro: informe EXPERIMENT=results/evolution/nome_do_experimento & exit /B 1)
+	$(PYTHON) scripts/generate_evolution_report.py "$(EXPERIMENT)" --best-topology
 
 test-scenario: $(BUILD_DIR)/test_scenario_config.exe
 	$(BUILD_DIR)/test_scenario_config.exe
@@ -288,8 +364,14 @@ benchmark-c2: $(BUILD_DIR)/minisnn_runner.exe | $(BUILD_DIR)
 benchmark-c3: $(BUILD_DIR)/minisnn_runner.exe $(BUILD_DIR)/evolution_runner.exe | $(BUILD_DIR)
 	$(PYTHON) scripts/run_benchmarks_c3.py
 
+benchmark-c4: $(BUILD_DIR)/minisnn_runner.exe $(BUILD_DIR)/evolution_runner.exe | $(BUILD_DIR)
+	$(PYTHON) scripts/run_benchmarks_c4.py
+
 check-c3: $(BUILD_DIR)/minisnn_runner.exe $(BUILD_DIR)/evolution_runner.exe | $(BUILD_DIR)
 	$(PYTHON) scripts/check_c3.py
+
+check-c4: $(BUILD_DIR)/minisnn_runner.exe $(BUILD_DIR)/evolution_runner.exe | $(BUILD_DIR)
+	$(PYTHON) scripts/check_c4.py
 
 check-v02: | $(BUILD_DIR)
 	$(PYTHON) scripts/check_release_v02.py
@@ -340,7 +422,7 @@ test-history-report: | $(BUILD_DIR)
 test-docs: | $(BUILD_DIR)
 	$(PYTHON) tests/test_docs.py
 
-test: test-api test-core test-lif test-plasticity test-homeostasis test-reward test-scenario test-runner test-runner-topologies test-reproducibility test-memory
+test: test-api test-core test-lif test-plasticity test-homeostasis test-reward test-structure test-structural-plasticity test-scenario test-runner test-runner-topologies test-reproducibility test-memory
 
 $(BUILD_DIR)/example_api_single_neuron.exe: examples/api/example_api_single_neuron.c $(API_SOURCES) include/minisnn.h include/minisnn_types.h | $(BUILD_DIR)
 	$(CC) $(CFLAGS) examples/api/example_api_single_neuron.c $(API_SOURCES) $(INCLUDES) -o $@

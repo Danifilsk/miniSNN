@@ -243,3 +243,12 @@ O C3 reutiliza métricas objetivas do runtime, mas não transforma rótulos
 heurísticos em verdade científica. Termos como atividade, spikes e erro de taxa
 devem ter target/scale explícitos. Uma melhora de fitness só vale para o
 experimento configurado e pode refletir atalhos da métrica.
+
+## Diagnóstico estrutural C4
+
+Compare `topology_initial.csv`, `topology_final.csv` e
+`structural_plasticity_events.csv` antes de atribuir uma mudança comportamental
+à estrutura. Reachability verifica somente existência de caminho; não garante
+atividade. Coatividade orienta candidatos de crescimento, mas não prova
+causalidade. Seeds, bounds, penalidade de complexidade e falhas de patch devem
+constar no diagnóstico.

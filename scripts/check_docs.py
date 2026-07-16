@@ -48,6 +48,8 @@ CENTRAL_DOCUMENTS = (
     "docs/BENCHMARKS_C2_RECOMPENSA.md",
     "docs/GUIA_DE_NEUROEVOLUCAO.md",
     "docs/BENCHMARKS_C3_NEUROEVOLUCAO.md",
+    "docs/GUIA_DE_TOPOLOGIA_ADAPTATIVA.md",
+    "docs/BENCHMARKS_C4_TOPOLOGIA.md",
     "docs/CHECKLIST_DE_VALIDACAO_DO_STUDIO.md",
 )
 
@@ -79,8 +81,15 @@ IMPORTANT_FILES = (
     "scripts/generate_evolution_report.py",
     "scripts/run_benchmarks_c3.py",
     "scripts/check_c3.py",
+    "scripts/plot_topology.py",
+    "scripts/run_benchmarks_c4.py",
+    "scripts/check_c4.py",
     "src/evolution.c",
     "src/evolution.h",
+    "src/structure.c",
+    "src/structure.h",
+    "src/structural_plasticity.c",
+    "src/structural_plasticity.h",
     "app/evolution_config.c",
     "app/evolution_runner.c",
     "configs/evolution_weight_target_demo.ini",
@@ -129,6 +138,11 @@ IMPORTANT_FILES = (
     "tests/test_evolution_long.c",
     "tests/test_plot_evolution.py",
     "tests/test_evolution_report.py",
+    "tests/test_structure.c",
+    "tests/test_structural_plasticity.c",
+    "tests/test_structure_resume.c",
+    "tests/test_structure_long.c",
+    "tests/test_plot_topology.py",
 )
 
 REQUIRED_TARGETS = (
@@ -194,6 +208,18 @@ REQUIRED_TARGETS = (
     "report-evolution-history",
     "benchmark-c3",
     "check-c3",
+    "test-structure",
+    "test-structural-plasticity",
+    "test-structure-resume",
+    "test-structure-long",
+    "test-plot-topology",
+    "evolution-structure-demo",
+    "structural-pruning-demo",
+    "structural-growth-demo",
+    "evolution-structure-learning-demo",
+    "plot-topology",
+    "benchmark-c4",
+    "check-c4",
 )
 
 IMPORTANT_KEYS = (
@@ -249,6 +275,22 @@ IMPORTANT_KEYS = (
     "reward_min",
     "reward_max",
     "clip_reward",
+    "maintenance_interval_steps",
+    "grace_period_steps",
+    "pruning_enabled",
+    "prune_weight_threshold",
+    "prune_activity_threshold",
+    "max_prunes_per_interval",
+    "growth_enabled",
+    "growth_candidate_count",
+    "growth_score_threshold",
+    "max_growth_per_interval",
+    "growth_seed",
+    "new_exc_weight",
+    "new_inh_magnitude",
+    "new_delay",
+    "min_connections",
+    "max_connections",
 )
 
 STUDIO_BUTTONS = (
@@ -281,6 +323,11 @@ STUDIO_BUTTONS = (
     "ABRIR GRAFICO",
     "ABRIR MELHOR",
     "HISTORICO EVOLUTIVO",
+    "TOPOLOGIA ADAPTATIVA",
+    "ABRIR TOPOLOGIA",
+    "GRAFICO TOPOLOGIA",
+    "ABRIR EVENTOS ESTRUTURAIS",
+    "ABRIR MELHOR TOPOLOGIA",
 )
 
 
@@ -411,6 +458,20 @@ def validate_docs(root: Path) -> list[str]:
         if token not in evolution_guide:
             errors.append(f"guia de neuroevolução sem contrato C3: {token}")
 
+    structure_guide = texts.get(root / "docs" / "GUIA_DE_TOPOLOGIA_ADAPTATIVA.md", "")
+    for token in (
+        "[structure]", "[structural_plasticity]", "structural_connections",
+        "connection key", "add", "remove", "rewire", "delay",
+        "crossover", "complexity_penalty", "reachability",
+        "distância de Jaccard", "coatividade", "herança darwiniana",
+        "herança lamarckiana", "checkpoint_structure.txt",
+        "structures.csv", "structural_events.csv", "best_topology.csv",
+        "best_topology_lifetime_final.csv", "topology_report.html",
+        "topology_overview.png", "NEAT",
+    ):
+        if token.lower() not in structure_guide.lower():
+            errors.append(f"guia de topologia adaptativa sem contrato C4: {token}")
+
     runner_test = (root / "tests" / "test_scenario_runner.c").read_text(
         encoding="utf-8"
     )
@@ -436,8 +497,10 @@ def validate_docs(root: Path) -> list[str]:
         errors.append("roadmap não preserva o estado histórico do fechamento C2")
     if "C3 — neuroevolução (concluído)" not in roadmap:
         errors.append("roadmap não marca C3 como concluído")
-    if "C4 — topologia adaptativa e evolução estrutural (próximo; não implementado)" not in roadmap:
-        errors.append("roadmap não mantém C4 como próximo")
+    if "C4 — topologia adaptativa e evolução estrutural (concluído)" not in roadmap:
+        errors.append("roadmap não marca C4 como concluído")
+    if "C5 — próximo: modelos neurais avançados" not in roadmap:
+        errors.append("roadmap não mantém C5 como próximo")
 
     for required_output in (
         "metrics_report.html",
@@ -466,6 +529,19 @@ def validate_docs(root: Path) -> list[str]:
         "best_network_initial.csv",
         "evolution_report.html",
         "evolution_overview.png",
+        "structures.csv",
+        "structural_events.csv",
+        "best_topology.csv",
+        "best_topology_initial.csv",
+        "best_topology_lifetime_final.csv",
+        "topology_initial.csv",
+        "topology_final.csv",
+        "structural_plasticity_events.csv",
+        "structural_plasticity_metrics.csv",
+        "topology_history.csv",
+        "topology_report.txt",
+        "topology_report.html",
+        "topology_overview.png",
     ):
         if required_output not in documentation_text:
             errors.append(f"saída central não documentada: {required_output}")

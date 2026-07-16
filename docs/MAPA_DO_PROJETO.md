@@ -89,3 +89,13 @@ detalhes ficam encapsulados nos módulos correspondentes.
 - `scripts/generate_evolution_report.py`: relatório e histórico HTML.
 - `configs/evolution_*`: três demos reproduzíveis.
 - `results/evolution/`: saídas locais ignoradas, exceto `.gitkeep`.
+
+### C4 — topologia adaptativa
+
+- `src/structure.*`: representação, assinaturas, patches e operadores estruturais.
+- `src/structural_plasticity.*`: poda e crescimento durante a vida.
+- `scripts/plot_topology.py`: `topology_overview.png` de uma execução.
+- `scripts/run_benchmarks_c4.py` e `scripts/check_c4.py`: benchmark e fechamento.
+- `configs/*structure*`: demos de evolução, poda, crescimento e aprendizado.
+- `results/scenarios/<run>/`: topologia de cenário e eventos de lifetime.
+- `results/evolution/<experiment>/`: genomas, linhagem e melhores topologias.

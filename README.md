@@ -96,6 +96,27 @@ mingw32-make report-evolution RUN=results/evolution/evolution_weight_target_demo
 
 Veja o [Guia de neuroevolução](docs/GUIA_DE_NEUROEVOLUCAO.md).
 
+## Topologia adaptativa
+
+O C4 acrescenta dois mecanismos opt-in: evolução estrutural herdável e
+plasticidade estrutural durante a vida. Neurônios e tipos EXC/INH permanecem
+fixos; arestas, magnitudes e delays podem variar dentro de limites validados.
+
+```powershell
+mingw32-make evolution-structure-demo
+mingw32-make structural-pruning-demo
+mingw32-make structural-growth-demo
+mingw32-make evolution-structure-learning-demo
+```
+
+O modo C3 `fixed_numeric` permanece padrão. Veja o
+[Guia de topologia adaptativa](docs/GUIA_DE_TOPOLOGIA_ADAPTATIVA.md).
+
+No Studio, `ABRIR EVENTOS ESTRUTURAIS` gera e abre
+`structural_events_report.html`, enquanto `ABRIR MELHOR TOPOLOGIA` gera e abre
+`best_topology_report.html`. Os CSVs `structural_events.csv` e
+`best_topology.csv` continuam sendo os dados cientificos brutos.
+
 ## Estrutura
 
 ```text
@@ -130,6 +151,7 @@ Referências diretas:
 - [Guia de homeostase](docs/GUIA_DE_HOMEOSTASE.md)
 - [Guia de recompensa](docs/GUIA_DE_RECOMPENSA.md)
 - [Guia de neuroevolução](docs/GUIA_DE_NEUROEVOLUCAO.md)
+- [Guia de topologia adaptativa](docs/GUIA_DE_TOPOLOGIA_ADAPTATIVA.md)
 - [Referência da API pública](API_REFERENCE.md)
 - [Roadmap](docs/ROADMAP.md)
 
@@ -163,6 +185,13 @@ mingw32-make test-evolution-long
 mingw32-make test-plot-evolution
 mingw32-make test-evolution-report
 mingw32-make check-c3
+mingw32-make test-structure
+mingw32-make test-structural-plasticity
+mingw32-make test-structure-resume
+mingw32-make test-structure-long
+mingw32-make test-plot-topology
+mingw32-make benchmark-c4
+mingw32-make check-c4
 mingw32-make check-v02
 ```
 
@@ -177,7 +206,8 @@ teste está em [Princípios de desenvolvimento](docs/PRINCIPIOS_DE_DESENVOLVIMEN
 - O STDP é aditivo, baseado em emissão e limitado a sinapses de origem EXC.
 - A homeostase é um controle simplificado e opcional; não garante estabilidade.
 - O reward é um escalar externo; não há política, agente, reward prediction error ou garantia de aprendizado de tarefa.
-- Não há memória, evolução de topologia/delays ou modelos estruturais C4.
+- Não há memória, criação/remoção de neurônios, NEAT ou speciation. O C4 varia
+  apenas arestas entre neurônios fixos.
 - A neuroevolução C3 otimiza apenas a fitness configurada; não garante ótimo global, inteligência geral ou convergência.
 - O Studio depende da API Win32 e o fluxo principal de build foi validado no Windows.
 - Diagnóstico completo depende de Python, pandas e matplotlib.

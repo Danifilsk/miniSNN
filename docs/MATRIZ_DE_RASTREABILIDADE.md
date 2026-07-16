@@ -30,3 +30,9 @@
 
 Esta matriz não substitui revisão científica ou validação biológica. A validação
 manual do Studio permanece separada.
+
+| Requisito | Config/API | Implementação | Testes | Evidência | Guia | Estado |
+|---|---|---|---|---|---|---|
+| Genoma estrutural C4 | `genome_mode = structural_connections`, `[structure]` | `src/structure.c`, `app/evolution_runner.c` | `test-structure`, `test-structure-resume`, `test-structure-long` | `structures.csv`, `best_topology.csv`, checkpoint estrutural | [Topologia adaptativa](GUIA_DE_TOPOLOGIA_ADAPTATIVA.md) | Implementado; experimental |
+| Plasticidade estrutural | `[structural_plasticity]` | `src/structural_plasticity.c`, `app/scenario_runtime.c` | `test-structural-plasticity`, demos | eventos, métricas, topologias inicial/final | [Topologia adaptativa](GUIA_DE_TOPOLOGIA_ADAPTATIVA.md) | Implementado; não herdável |
+| Observabilidade C4 | APIs, runner e scripts | relatórios de cenário/evolução | PNG/HTML/checker C4 | `topology_report.html`, `topology_overview.png` | [Topologia adaptativa](GUIA_DE_TOPOLOGIA_ADAPTATIVA.md) | Automático; Studio manual pendente |

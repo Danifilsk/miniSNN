@@ -303,6 +303,13 @@ O Studio mostra recursos implementados no motor de cenarios, incluindo o modal
 `PLASTICIDADE` para STDP excitatório. Ele não adiciona homeostase, recompensa,
 mundo externo ou topologia adaptativa.
 
+Na janela `NEUROEVOLUCAO`, `ABRIR EVENTOS ESTRUTURAIS` gera e abre
+`structural_events_report.html`, e `ABRIR MELHOR TOPOLOGIA` gera e abre
+`best_topology_report.html`. Os CSVs `structural_events.csv` e
+`best_topology.csv` continuam sendo os dados cientificos brutos. Sem Python, o
+Studio somente abre um relatorio HTML anterior e avisa que ele pode estar
+desatualizado.
+
 ## Resultados e sobrescrita
 
 Cada execucao gera `run_manifest.txt`. Com diagnostico `basic` ou `full`, o
@@ -453,3 +460,18 @@ Edite a config evolutiva e o cenário-base em arquivos separados. Para retomar:
 No Studio, abra `NEUROEVOLUCAO`. Apenas uma execução evolutiva é aceita por
 vez. Consulte o [Guia de neuroevolução](GUIA_DE_NEUROEVOLUCAO.md) antes de
 alterar bounds ou fitness.
+
+## Executar topologia adaptativa
+
+```powershell
+mingw32-make evolution-structure-demo
+mingw32-make structural-pruning-demo
+mingw32-make structural-growth-demo
+mingw32-make evolution-structure-learning-demo
+```
+
+Use `genome_mode = structural_connections` e `[structure]` no experimento para
+estrutura herdável. Use `[structural_plasticity]` no cenário-base para poda e
+crescimento durante a vida. Consulte o
+[Guia de topologia adaptativa](GUIA_DE_TOPOLOGIA_ADAPTATIVA.md); a estrutura de
+lifetime não retorna ao genoma nesta versão.

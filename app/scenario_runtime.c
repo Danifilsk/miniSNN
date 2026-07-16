@@ -228,6 +228,7 @@ int scenario_runtime_configure_modules(
     MiniSNNPlasticityConfig plasticity;
     MiniSNNRewardConfig reward;
     MiniSNNHomeostasisConfig homeostasis;
+    MiniSNNStructuralPlasticityConfig structural;
 
     if (snn == NULL || config == NULL)
     {
@@ -299,6 +300,43 @@ int scenario_runtime_configure_modules(
     if (!minisnn_set_homeostasis_config(snn, &homeostasis))
     {
         set_error(error_message, error_message_size, "erro ao configurar homeostase");
+        return 0;
+    }
+
+    structural = minisnn_default_structural_plasticity_config();
+    structural.enabled = config->structural_plasticity_enabled;
+    structural.maintenance_interval_steps =
+        (unsigned int)config->structural_maintenance_interval_steps;
+    structural.grace_period_steps =
+        (unsigned int)config->structural_grace_period_steps;
+    structural.pruning_enabled = config->structural_pruning_enabled;
+    structural.prune_weight_threshold =
+        config->structural_prune_weight_threshold;
+    structural.prune_activity_threshold =
+        config->structural_prune_activity_threshold;
+    structural.max_prunes_per_interval =
+        (size_t)config->structural_max_prunes_per_interval;
+    structural.growth_enabled = config->structural_growth_enabled;
+    structural.growth_candidate_count =
+        (size_t)config->structural_growth_candidate_count;
+    structural.growth_score_threshold =
+        config->structural_growth_score_threshold;
+    structural.max_growth_per_interval =
+        (size_t)config->structural_max_growth_per_interval;
+    structural.growth_seed = config->structural_growth_seed;
+    structural.new_exc_weight = config->structural_new_exc_weight;
+    structural.new_inh_magnitude = config->structural_new_inh_magnitude;
+    structural.new_delay = (unsigned int)config->structural_new_delay;
+    structural.min_connections =
+        (size_t)config->structural_min_connections;
+    structural.max_connections =
+        (size_t)config->structural_max_connections;
+    structural.allow_self_connections = config->allow_self_connections;
+    structural.allow_inh_to_inh = config->allow_inh_to_inh;
+    if (!minisnn_set_structural_plasticity_config(snn, &structural))
+    {
+        set_error(error_message, error_message_size,
+                  "erro ao configurar plasticidade estrutural");
         return 0;
     }
 

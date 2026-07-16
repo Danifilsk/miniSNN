@@ -217,3 +217,10 @@ Genes podem definir pesos EXC iniciais e parâmetros `a_plus`, `a_minus`,
 afetam a fitness, mas a descendência recebe o genoma inicial. Compare
 `best_run/weights_initial.csv` com `best_run/weights_final.csv`. Herança
 lamarckiana está desativada no C3.
+
+## STDP com mudanças estruturais
+
+No C4, uma conexão sobrevivente preserva peso e usa os traces neuronais atuais;
+uma removida deixa de participar; e uma nova começa com o peso configurado e só
+atua em eventos futuros. O rebuild ocorre uma vez por patch. A topologia
+fenotípica aprendida durante a vida influencia a fitness, mas não é herdada.

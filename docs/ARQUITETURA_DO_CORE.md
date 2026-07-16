@@ -113,3 +113,12 @@ futuros. Consulte o [Guia de homeostase](GUIA_DE_HOMEOSTASE.md).
 um `ScenarioBlueprint` pelo construtor de topologias existente. O runtime
 temporal compartilhado está em `app/scenario_runtime.c`. Cada avaliação cria e
 destrói uma rede pública nova. A API C e a dinâmica neural permanecem no Core.
+
+## C4: estrutura variável
+
+`src/structure.c` mantém genes de conexão esparsos, ordenados por connection
+key, valida patches atômicos e reconstrói índices uma vez por lote.
+`src/structural_plasticity.c` executa poda/crescimento fenotípicos em intervalos
+de manutenção. `src/plasticity.c` preserva estado de conexões sobreviventes e
+inicializa conexões novas. A quantidade, identidade e tipo dos neurônios não
+mudam. Sem C4 habilitado, o fluxo fixo do C3 continua sendo usado.

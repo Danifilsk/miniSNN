@@ -17,10 +17,11 @@ O roadmap indica ordem de trabalho, não promessa de prazo.
 - [x] C1.5 — homeostase e estabilidade neural simplificadas.
 - [x] C2 — recompensa, punição e R-STDP com trace de elegibilidade.
 - [x] C3 — neuroevolução serial com topologia fixa, fitness configurável e checkpoint.
+- [x] C4 — topologia adaptativa, evolução estrutural e plasticidade estrutural de lifetime.
 
 ## Próximo
 
-- [ ] C4 — próximo: topologia adaptativa e evolução estrutural.
+- [ ] C5 — próximo: modelos neurais avançados.
 - [ ] Revisão humana do checklist do Studio.
 - [ ] Revisão de release da **Core v0.2 - Essential Lab** para E0.
 
@@ -48,8 +49,8 @@ planejados, não releases existentes.
 
 - C2 — recompensa e punição (concluído).
 - C3 — neuroevolução (concluído). No fechamento histórico do C2, o estado era: C3 — neuroevolução (próximo; não implementado).
-- C4 — topologia adaptativa e evolução estrutural (próximo; não implementado).
-- C5 — modelos neurais avançados.
+- C4 — topologia adaptativa e evolução estrutural (concluído).
+- C5 — próximo: modelos neurais avançados.
 - C6 — memória.
 - C7 — estados internos.
 - C8 — otimização iterativa automatizada.
@@ -57,6 +58,7 @@ planejados, não releases existentes.
 ## Experimental
 
 Os programas em `experiments/`, o STDP experimental do C1, a homeostase
-simplificada do C1.5, o R-STDP do C2, a neuroevolução do C3 e as heurísticas diagnósticas apoiam exploração, mas não
+simplificada do C1.5, o R-STDP do C2, a neuroevolução do C3, as heurísticas
+estruturais do C4 e as heurísticas diagnósticas apoiam exploração, mas não
 tornam Worlds ou modelos avançados implementados. Novas
 hipóteses devem entrar no roadmap antes de serem descritas como recurso.

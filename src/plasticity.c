@@ -307,6 +307,60 @@ fail:
     return 0;
 }
 
+int plasticity_state_prepare_topology_rebuild(
+    const PlasticityState *current,
+    const LIFNeuron *neurons,
+    const ConnectionList *connections,
+    PlasticityState *prepared)
+{
+    if (current == NULL || neurons == NULL || connections == NULL ||
+        prepared == NULL || current->neuron_count <= 0)
+        return 0;
+
+    memset(prepared, 0, sizeof(*prepared));
+    if (!plasticity_state_init(prepared, current->neuron_count))
+        return 0;
+    prepared->config = current->config;
+    if (!plasticity_state_rebuild_index(prepared, neurons, connections))
+    {
+        plasticity_state_destroy(prepared);
+        return 0;
+    }
+    return 1;
+}
+
+void plasticity_state_commit_topology_rebuild(
+    PlasticityState *current,
+    PlasticityState *prepared)
+{
+    if (current == NULL || prepared == NULL)
+        return;
+
+    plasticity_free_index(current);
+    current->incoming = prepared->incoming;
+    current->source_offsets = prepared->source_offsets;
+    current->deltas = prepared->deltas;
+    current->candidate_ids = prepared->candidate_ids;
+    current->candidate_active = prepared->candidate_active;
+    current->candidate_count = prepared->candidate_count;
+    current->modified = prepared->modified;
+    current->connection_count = prepared->connection_count;
+    current->index_valid = prepared->index_valid;
+    current->stats.eligible_connections =
+        prepared->stats.eligible_connections;
+
+    prepared->incoming = NULL;
+    prepared->source_offsets = NULL;
+    prepared->deltas = NULL;
+    prepared->candidate_ids = NULL;
+    prepared->candidate_active = NULL;
+    prepared->candidate_count = 0;
+    prepared->modified = NULL;
+    prepared->connection_count = 0;
+    prepared->index_valid = 0;
+    plasticity_state_destroy(prepared);
+}
+
 int plasticity_state_configure(
     PlasticityState *state,
     const MiniSNNPlasticityConfig *config,

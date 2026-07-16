@@ -124,3 +124,16 @@ cenários, regressões 6757/15045 e ordem temporal neural não foram alterados.
 Configs evolutivas são opt-in e usam outro runner e outra raiz de resultados.
 Checkpoints C3 usam versão textual explícita; formatos futuros devem rejeitar
 versões incompatíveis em vez de tentar adivinhar.
+
+## Compatibilidade C4
+
+Configs sem `[structure]` usam `genome_mode = fixed_numeric`; configs sem
+`[structural_plasticity]` deixam o módulo desligado e não alocam seu estado
+pesado. O checkpoint C3 continua em `checkpoint.txt`. Evoluções estruturais
+adicionam um sidecar versionado `checkpoint_structure.txt`; ele nunca é
+interpretado como C3.
+
+Outputs C4 são aditivos. CSVs históricos de cenário e evolução mantêm as
+colunas anteriores, e o histórico representa campos estruturais ausentes como
+`NA`. Os baselines `random_demo = 6757` e `small_world_demo = 15045` continuam
+como regressões obrigatórias.

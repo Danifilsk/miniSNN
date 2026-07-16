@@ -747,3 +747,133 @@ int minisnn_reward_eligible_connection_count(
 Retorna a quantidade de conexões de origem EXC acompanhadas pelo módulo. Em
 modo direto ou reward desligado, retorna zero em `out_count` quando a consulta
 é válida.
+
+# Topologia adaptativa C4
+
+Os tipos `MiniSNNConnectionGene`, `MiniSNNTopologyOperation`,
+`MiniSNNTopologyPatchResult`, `MiniSNNStructuralPlasticityConfig`,
+`MiniSNNStructuralStats`, `MiniSNNStructuralConnectionState` e
+`MiniSNNStructuralEvent` estão declarados em `include/minisnn_types.h`.
+
+## minisnn_connection_key
+
+```c
+int minisnn_connection_key(
+    size_t neuron_count,
+    size_t source,
+    size_t target,
+    uint64_t *out_key);
+```
+
+Calcula `source * neuron_count + target` com validação de endpoints e overflow.
+
+## minisnn_validate_topology_patch
+
+```c
+int minisnn_validate_topology_patch(
+    const MiniSNN *snn,
+    const MiniSNNTopologyOperation *operations,
+    size_t operation_count,
+    MiniSNNTopologyPatchResult *result);
+```
+
+Valida atomicamente `ADD`, `REMOVE`, `REWIRE` e `SET_DELAY` sem alterar a rede.
+
+## minisnn_apply_topology_patch
+
+```c
+int minisnn_apply_topology_patch(
+    MiniSNN *snn,
+    const MiniSNNTopologyOperation *operations,
+    size_t operation_count,
+    MiniSNNTopologyPatchResult *result);
+```
+
+Aplica o lote somente se a topologia final for válida. Sobreviventes preservam
+estado por key; conexões novas começam sem elegibilidade retroativa.
+
+## Configuração estrutural
+
+```c
+MiniSNNStructuralPlasticityConfig
+minisnn_default_structural_plasticity_config(void);
+
+int minisnn_set_structural_plasticity_config(
+    MiniSNN *snn,
+    const MiniSNNStructuralPlasticityConfig *config);
+
+int minisnn_get_structural_plasticity_config(
+    const MiniSNN *snn,
+    MiniSNNStructuralPlasticityConfig *out_config);
+```
+
+O estado estrutural de lifetime só é alocado quando a configuração habilitada é
+aplicada.
+
+## Consultas estruturais
+
+```c
+int minisnn_get_structural_stats(
+    const MiniSNN *snn,
+    MiniSNNStructuralStats *out_stats);
+
+int minisnn_get_topology_signature(
+    const MiniSNN *snn,
+    uint64_t *out_signature);
+
+int minisnn_get_structural_connection_state(
+    const MiniSNN *snn,
+    size_t connection_id,
+    MiniSNNStructuralConnectionState *out_state);
+
+size_t minisnn_structural_event_count(const MiniSNN *snn);
+
+int minisnn_get_structural_event(
+    const MiniSNN *snn,
+    size_t event_index,
+    MiniSNNStructuralEvent *out_event);
+```
+
+## minisnn_reset_structural_plasticity
+
+```c
+int minisnn_reset_structural_plasticity(
+    MiniSNN *snn,
+    MiniSNNStructuralResetMode mode);
+```
+
+`MINISNN_STRUCTURAL_RESET_STATE` preserva a topologia atual.
+`MINISNN_STRUCTURAL_RESTORE_INITIAL_TOPOLOGY` restaura arestas, pesos e delays
+capturados ao ativar o módulo.
+
+## minisnn_default_structural_plasticity_config
+
+Retorna defaults seguros para o módulo estrutural, inicialmente desabilitado.
+
+## minisnn_set_structural_plasticity_config
+
+Valida e ativa/desativa poda e crescimento; a alocação estrutural é opcional.
+
+## minisnn_get_structural_plasticity_config
+
+Copia a configuração estrutural ativa para o chamador.
+
+## minisnn_get_structural_stats
+
+Consulta manutenções, tentativas, sucessos, rebuilds e contagens de conexões.
+
+## minisnn_get_topology_signature
+
+Obtém a assinatura FNV-1a da topologia corrente, sem incluir pesos.
+
+## minisnn_get_structural_connection_state
+
+Consulta idade, uso e origem de crescimento de uma conexão enumerada.
+
+## minisnn_structural_event_count
+
+Retorna quantos eventos estruturais estão disponíveis para consulta.
+
+## minisnn_get_structural_event
+
+Copia um evento estrutural pelo índice sem expor armazenamento interno.

@@ -227,9 +227,10 @@ def main() -> int:
     roadmap = (ROOT / "docs" / "ROADMAP.md").read_text(encoding="utf-8")
     if (
         "C3 — neuroevolução (concluído)" not in roadmap or
-        "C4 — topologia adaptativa e evolução estrutural (próximo; não implementado)" not in roadmap
+        "C4 — topologia adaptativa e evolução estrutural (concluído)" not in roadmap or
+        "C5 — próximo: modelos neurais avançados" not in roadmap
     ):
-        errors.append("roadmap C3/C4 status is incorrect")
+        errors.append("roadmap C3/C4/C5 status is incorrect")
 
     generated = {".csv", ".png", ".html", ".exe", ".o", ".obj"}
     for item in ROOT.iterdir():

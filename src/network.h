@@ -6,6 +6,7 @@
 #include "plasticity.h"
 #include "homeostasis.h"
 #include "reward.h"
+#include "structural_plasticity.h"
 
 typedef struct
 {
@@ -14,7 +15,7 @@ typedef struct
     int max_synaptic_delay;
 } NetworkConfig;
 
-typedef struct
+typedef struct Network
 {
     // Vetor de neurônios
     LIFNeuron *neurons;
@@ -45,6 +46,7 @@ typedef struct
     PlasticityState *plasticity;
     HomeostasisState *homeostasis;
     RewardState *reward;
+    StructuralPlasticityState *structural_plasticity;
 
 } Network;
 
@@ -121,6 +123,14 @@ int network_set_reward_config(
     const MiniSNNRewardConfig *config);
 
 int network_reset_reward_learning(Network *net);
+
+int network_set_structural_plasticity_config(
+    Network *net,
+    const MiniSNNStructuralPlasticityConfig *config);
+
+int network_reset_structural_plasticity(
+    Network *net,
+    MiniSNNStructuralResetMode mode);
 
 void network_clear_connections(Network *net);
 

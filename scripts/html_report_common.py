@@ -15,6 +15,8 @@ REWARD_REPORT_FILENAME = "reward_report.html"
 HISTORY_REPORT_FILENAME = "history.html"
 EVOLUTION_REPORT_FILENAME = "evolution_report.html"
 EVOLUTION_HISTORY_FILENAME = "history.html"
+STRUCTURAL_EVENTS_REPORT_FILENAME = "structural_events_report.html"
+BEST_TOPOLOGY_REPORT_FILENAME = "best_topology_report.html"
 WEIGHT_TABLE_LIMIT = 500
 RANKING_LIMIT = 10
 
@@ -1110,6 +1112,12 @@ EVOLUTION_HISTORY_COLUMNS = (
     "best_fitness",
     "best_individual_id",
     "status",
+    "genome_mode",
+    "structure_enabled",
+    "best_connection_count",
+    "topology_unique_count",
+    "complexity_penalty",
+    "best_topology",
 )
 
 EVOLUTION_HISTORY_ARTIFACTS = (
@@ -1117,6 +1125,8 @@ EVOLUTION_HISTORY_ARTIFACTS = (
     ("Grafico", "evolution_overview.png"),
     ("Manifesto", "evolution_manifest.txt"),
     ("Melhor genoma", "best_genome.csv"),
+    ("Melhor topologia", "best_topology.csv"),
+    ("Eventos estruturais", "structural_events.csv"),
     ("Melhor execucao", "best_run/metrics_report.html"),
 )
 
@@ -1169,6 +1179,7 @@ def generate_evolution_report(run_directory: Path | str) -> Path:
         run_dir / "best_genome.csv",
         ("individual_id", "generation", "fitness_selection", "gene_index",
          "gene_name", "gene_kind", "value", "minimum", "maximum"),
+        allow_empty=True,
     )
     lineage_headers, lineage = _read_evolution_csv_rows(
         run_dir / "lineage.csv",
@@ -1178,6 +1189,14 @@ def generate_evolution_report(run_directory: Path | str) -> Path:
     manifest = read_key_values(run_dir / "evolution_manifest.txt")
     evolution_config = read_key_values(run_dir / "evolution_config_used.ini")
     base_config = read_key_values(run_dir / "base_scenario_used.ini")
+    structural = evolution_config.get("genome_mode") == "structural_connections"
+    topology_headers: list[str] = []
+    best_topology: list[dict[str, str]] = []
+    if structural:
+        topology_headers, best_topology = _read_evolution_csv_rows(
+            run_dir / "best_topology.csv",
+            ("connection_key", "source", "target", "magnitude", "delay"),
+        )
 
     initial = _decimal(generations[0]["fitness_best"])
     best = max(
@@ -1204,6 +1223,8 @@ def generate_evolution_report(run_directory: Path | str) -> Path:
         ("Populacao", generations[-1]["population_size"]),
         ("Geracoes", completed_generations),
         ("Genes", len(best_genome)),
+        ("Genome mode", evolution_config.get("genome_mode", "fixed_numeric")),
+        ("Conexoes do melhor", len(best_topology) if structural else "NA"),
         ("Replicas", manifest.get("replicates", "NA")),
         ("Melhor individuo", generations[-1]["global_best_individual_id"]),
         ("Status", status),
@@ -1218,6 +1239,13 @@ def generate_evolution_report(run_directory: Path | str) -> Path:
     )
     body += "<h2>Cenario-base</h2>" + _key_value_table(list(base_config.items()))
     body += "<h2>Genoma</h2>" + _generic_table(genome_headers, best_genome[:500])
+    if structural:
+        body += (
+            "<h2>Topologia herdavel inicial</h2>"
+            + _generic_table(topology_headers, best_topology[:1000])
+            + "<p>A topologia acima pertence ao genoma. A topologia final durante "
+              "a vida e registrada separadamente.</p>"
+        )
     body += (
         "<h2>Fitness</h2><p>Fitness de selecao agrega termos ponderados e, quando "
         "configurado, penaliza variacao entre replicas.</p>"
@@ -1227,6 +1255,9 @@ def generate_evolution_report(run_directory: Path | str) -> Path:
             "generation", "fitness_best", "fitness_mean", "fitness_min",
             "fitness_max", "global_best_fitness", "diversity_mean_gene_std",
             "diversity_mean_pair_distance", "mutation_count",
+            "connections_best", "connections_mean", "topology_unique_count",
+            "topology_diversity_mean_distance", "add_count", "remove_count",
+            "rewire_count", "delay_mutation_count", "complexity_penalty_best",
         ) if name in generation_headers
     ]
     body += "<h2>Geracoes</h2>" + _generic_table(
@@ -1236,7 +1267,8 @@ def generate_evolution_report(run_directory: Path | str) -> Path:
     body += "<h2>Melhor individuo</h2>" + _key_value_table([
         ("individual_id", generations[-1]["global_best_individual_id"]),
         ("fitness", best),
-        ("generation", best_genome[0]["generation"]),
+        ("generation", best_genome[0]["generation"] if best_genome else
+         generations[-1]["generation"]),
     ])
     body += "<h2>Genes do melhor</h2>" + _generic_table(genome_headers, best_genome[:500])
     body += "<h2>Linhagem</h2>" + (
@@ -1256,21 +1288,269 @@ def generate_evolution_report(run_directory: Path | str) -> Path:
         "generations.csv", "individuals.csv", "replicates.csv",
         "fitness_terms.csv", "genomes.csv", "lineage.csv", "best_genome.csv",
         "best_network_initial.csv", "evolution_overview.png",
+        "structures.csv", "structural_events.csv", "best_topology.csv",
+        "best_topology_initial.csv", "best_topology_lifetime_final.csv",
+        "checkpoint_structure.txt",
         "evolution_manifest.txt", "evolution_report.txt",
         "best_run/metrics_report.html",
     ))
     body += _preview_images(run_dir, ("evolution_overview.png",))
-    body += (
-        '<h2>Limitacoes</h2><div class="notice">Melhor fitness nao significa '
-        "inteligencia geral nem otimo global. A topologia e os delays permanecem "
-        "fixos, a diversidade pode colapsar e a avaliacao e serial.</div>"
-    )
+    if structural:
+        body += (
+            '<h2>Limitacoes</h2><div class="notice">Melhor fitness nao significa '
+            "inteligencia geral nem otimo global. Coatividade nao prova causalidade, "
+            "complexidade menor nem sempre e melhor, crossover pode destruir estruturas "
+            "uteis e a topologia final pode depender fortemente da seed. A estrutura "
+            "aprendida durante a vida nao e herdada.</div>"
+        )
+    else:
+        body += (
+            '<h2>Limitacoes</h2><div class="notice">Melhor fitness nao significa '
+            "inteligencia geral nem otimo global. A topologia e os delays permanecem "
+            "fixos, a diversidade pode colapsar e a avaliacao e serial.</div>"
+        )
 
     actual_name = manifest.get("actual_experiment_name", run_dir.name)
     output = run_dir / EVOLUTION_REPORT_FILENAME
     _atomic_write(output, _document(
         "MINISNN - RELATORIO DE NEUROEVOLUCAO",
         f"Experimento: {actual_name}",
+        body,
+    ))
+    return output
+
+
+STRUCTURAL_EVENT_COLUMNS = (
+    "generation", "child_individual_id", "event_index", "event_type",
+    "old_source", "old_target", "new_source", "new_target",
+    "old_magnitude", "new_magnitude", "old_delay", "new_delay",
+    "status", "reason",
+)
+
+BEST_TOPOLOGY_COLUMNS = (
+    "connection_key", "source", "target", "source_type", "target_type",
+    "magnitude", "applied_weight", "delay", "origin",
+)
+
+
+def _mean_decimal(values: list[Decimal]) -> Decimal | None:
+    if not values:
+        return None
+    return sum(values, Decimal("0")) / Decimal(len(values))
+
+
+def _structural_event_is_rejected_or_skipped(row: dict[str, str]) -> bool:
+    event_type = row["event_type"].strip().lower()
+    status = row["status"].strip().lower()
+    return (
+        "skip" in event_type or "reject" in event_type or
+        status not in {"applied", "ok", "success"}
+    )
+
+
+def _structural_events_table(rows: list[dict[str, str]]) -> str:
+    if not rows:
+        return '<div class="history-empty">Nenhum evento estrutural registrado.</div>'
+
+    table_rows: list[str] = []
+    for row in rows:
+        search_text = " ".join(row[column] for column in STRUCTURAL_EVENT_COLUMNS).lower()
+        cells = "".join(
+            f"<td>{escaped(row[column])}</td>" for column in STRUCTURAL_EVENT_COLUMNS
+        )
+        table_rows.append(
+            '<tr class="structural-event-row" '
+            f'data-search="{escaped(search_text)}" '
+            f'data-event-type="{escaped(row["event_type"].strip().lower())}" '
+            f'data-status="{escaped(row["status"].strip().lower())}">{cells}</tr>'
+        )
+
+    headers = "".join(f"<th>{escaped(column)}</th>" for column in STRUCTURAL_EVENT_COLUMNS)
+    event_types = sorted({row["event_type"].strip() for row in rows})
+    statuses = sorted({row["status"].strip() for row in rows})
+    event_options = "".join(
+        f'<option value="{escaped(value.lower())}">{escaped(value)}</option>'
+        for value in event_types
+    )
+    status_options = "".join(
+        f'<option value="{escaped(value.lower())}">{escaped(value)}</option>'
+        for value in statuses
+    )
+    return """
+<div class="history-controls">
+  <label>BUSCAR EVENTOS<input id="structural-event-search" type="search" placeholder="geracao, individuo, evento ou motivo"></label>
+  <label>TIPO DE EVENTO<select id="structural-event-type"><option value="">TODOS</option>""" + event_options + """</select></label>
+  <label>STATUS<select id="structural-event-status"><option value="">TODOS</option>""" + status_options + """</select></label>
+</div>
+<div class="table-wrap"><table><thead><tr>""" + headers + """</tr></thead><tbody>""" + "".join(table_rows) + """</tbody></table></div>
+<script>
+(() => {
+  const search = document.getElementById('structural-event-search');
+  const eventType = document.getElementById('structural-event-type');
+  const status = document.getElementById('structural-event-status');
+  const rows = Array.from(document.querySelectorAll('.structural-event-row'));
+  const apply = () => {
+    const query = search.value.trim().toLowerCase();
+    for (const row of rows) {
+      row.hidden = !((!query || row.dataset.search.includes(query)) &&
+                     (!eventType.value || row.dataset.eventType === eventType.value) &&
+                     (!status.value || row.dataset.status === status.value));
+    }
+  };
+  search.addEventListener('input', apply);
+  eventType.addEventListener('change', apply);
+  status.addEventListener('change', apply);
+})();
+</script>
+"""
+
+
+def generate_structural_events_report(run_directory: Path | str) -> Path:
+    run_dir = Path(run_directory)
+    if not run_dir.is_dir():
+        raise ReportGenerationError(f"pasta evolutiva inexistente: {run_dir}")
+
+    _, events = _read_evolution_csv_rows(
+        run_dir / "structural_events.csv",
+        STRUCTURAL_EVENT_COLUMNS,
+        allow_empty=True,
+    )
+    event_types = [row["event_type"].strip().lower() for row in events]
+    body = _cards([
+        ("Total de eventos", len(events)),
+        ("Adicoes", sum(value == "add" for value in event_types)),
+        ("Remocoes", sum(value == "remove" for value in event_types)),
+        ("Reconexoes", sum(value == "rewire" for value in event_types)),
+        ("Mutacoes de delay", sum(value == "delay_mutation" for value in event_types)),
+        ("Eventos rejeitados/pulados", sum(
+            _structural_event_is_rejected_or_skipped(row) for row in events
+        )),
+        ("Geracoes cobertas", len({row["generation"] for row in events})),
+        ("Individuos envolvidos", len({
+            row["child_individual_id"] for row in events
+            if row["child_individual_id"].upper() != "NA"
+        })),
+    ])
+    body += '<p><a href="structural_events.csv">Abrir structural_events.csv bruto</a></p>'
+    body += (
+        "<p class=\"muted\">A tabela preserva a ordem original de "
+        "structural_events.csv.</p>"
+    )
+    body += "<h2>Eventos estruturais</h2>" + _structural_events_table(events)
+
+    output = run_dir / STRUCTURAL_EVENTS_REPORT_FILENAME
+    _atomic_write(output, _document(
+        "MINISNN - EVENTOS ESTRUTURAIS",
+        "Fonte cientifica: structural_events.csv",
+        body,
+    ))
+    return output
+
+
+def _best_topology_table(rows: list[dict[str, str]]) -> str:
+    if not rows:
+        return '<div class="history-empty">Nenhuma conexao na topologia herdavel.</div>'
+
+    table_rows: list[str] = []
+    for row in rows:
+        search_text = " ".join(
+            row[column] for column in ("connection_key", "source", "target")
+        ).lower()
+        cells = "".join(
+            f"<td>{escaped(row[column])}</td>" for column in BEST_TOPOLOGY_COLUMNS
+        )
+        table_rows.append(
+            '<tr class="best-topology-row" '
+            f'data-search="{escaped(search_text)}" '
+            f'data-source-type="{escaped(row["source_type"].strip().upper())}">{cells}</tr>'
+        )
+
+    headers = "".join(f"<th>{escaped(column)}</th>" for column in BEST_TOPOLOGY_COLUMNS)
+    return """
+<div class="history-controls">
+  <label>BUSCAR CONEXOES<input id="best-topology-search" type="search" placeholder="source, target ou connection_key"></label>
+  <label>TIPO DA ORIGEM<select id="best-topology-type"><option value="">TODOS</option><option value="EXC">EXC</option><option value="INH">INH</option></select></label>
+</div>
+<div class="table-wrap"><table><thead><tr>""" + headers + """</tr></thead><tbody>""" + "".join(table_rows) + """</tbody></table></div>
+<script>
+(() => {
+  const search = document.getElementById('best-topology-search');
+  const sourceType = document.getElementById('best-topology-type');
+  const rows = Array.from(document.querySelectorAll('.best-topology-row'));
+  const apply = () => {
+    const query = search.value.trim().toLowerCase();
+    for (const row of rows) {
+      row.hidden = !((!query || row.dataset.search.includes(query)) &&
+                     (!sourceType.value || row.dataset.sourceType === sourceType.value));
+    }
+  };
+  search.addEventListener('input', apply);
+  sourceType.addEventListener('change', apply);
+})();
+</script>
+"""
+
+
+def generate_best_topology_report(run_directory: Path | str) -> Path:
+    run_dir = Path(run_directory)
+    if not run_dir.is_dir():
+        raise ReportGenerationError(f"pasta evolutiva inexistente: {run_dir}")
+
+    headers, raw_rows = _read_evolution_csv_rows(
+        run_dir / "best_topology.csv",
+        (
+            "connection_key", "source", "target", "source_type", "target_type",
+            "magnitude", "applied_weight", "delay",
+        ),
+        allow_empty=True,
+    )
+    origin_column = "origin" if "origin" in headers else "topology_role"
+    if origin_column not in headers:
+        raise ReportGenerationError(
+            "best_topology.csv: coluna obrigatoria ausente: origin ou topology_role"
+        )
+    rows = [
+        {**row, "origin": row[origin_column]}
+        for row in raw_rows
+    ]
+    delays = [number for row in rows if (number := _decimal(row["delay"])) is not None]
+    magnitudes = [
+        number for row in rows if (number := _decimal(row["magnitude"])) is not None
+    ]
+    manifest = read_key_values(run_dir / "evolution_manifest.txt")
+    signature = _first(
+        manifest,
+        "best_topology_signature", "topology_signature", "configuration_signature",
+    )
+    body = _cards([
+        ("Conexoes", len(rows)),
+        ("Conexoes EXC", sum(row["source_type"].strip().upper() == "EXC" for row in rows)),
+        ("Conexoes INH", sum(row["source_type"].strip().upper() == "INH" for row in rows)),
+        ("Autoconexoes", sum(row["source"] == row["target"] for row in rows)),
+        ("Delay medio", format_value("delay", _mean_decimal(delays)) if delays else "Sem dados"),
+        ("Delay minimo/maximo", (
+            f"{format_value('delay', min(delays))} / {format_value('delay', max(delays))}"
+            if delays else "Sem dados"
+        )),
+        ("Magnitude media", format_value("magnitude", _mean_decimal(magnitudes)) if magnitudes else "Sem dados"),
+        ("Assinatura/topologia", signature),
+    ])
+    body += '<p><a href="best_topology.csv">Abrir best_topology.csv bruto</a></p>'
+    body += (
+        '<div class="notice">best_topology.csv representa a topologia herdavel '
+        'inicial do melhor genoma. best_topology_lifetime_final.csv, quando presente, '
+        'representa a topologia apos a plasticidade durante a vida.</div>'
+    )
+    body += "<h2>Topologia herdavel inicial</h2>" + _best_topology_table(rows)
+    body += "<h2>Arquivos relacionados</h2>" + _existing_file_links(run_dir, (
+        "evolution_report.html", "best_genome.csv",
+        "best_topology_lifetime_final.csv", "best_run/topology_report.html",
+    ))
+
+    output = run_dir / BEST_TOPOLOGY_REPORT_FILENAME
+    _atomic_write(output, _document(
+        "MINISNN - MELHOR TOPOLOGIA HERDAVEL",
+        "Fonte cientifica: best_topology.csv",
         body,
     ))
     return output
@@ -1340,6 +1620,9 @@ def generate_evolution_history_report(
                 row["actual_experiment_name"], Path(row["base_scenario"]).name,
                 row["population_size"], row["generations"], row["gene_count"],
                 row["best_fitness"], row["best_individual_id"],
+                row["genome_mode"], row["structure_enabled"],
+                row["best_connection_count"], row["topology_unique_count"],
+                row["complexity_penalty"],
             )
             cells = "".join(f"<td>{escaped(value)}</td>" for value in values)
             table_rows.append(
@@ -1348,7 +1631,7 @@ def generate_evolution_history_report(
                 f"{cells}<td>{status_html}</td><td>{artifacts}</td></tr>"
             )
         body += """
-<div class="table-wrap"><table><thead><tr><th>Data/hora</th><th>Experimento</th><th>Nome real</th><th>Cenario-base</th><th>Populacao</th><th>Geracoes</th><th>Genes</th><th>Melhor fitness</th><th>Melhor individuo</th><th>Status</th><th>Arquivos</th></tr></thead><tbody>""" + "".join(table_rows) + """</tbody></table></div>
+<div class="table-wrap"><table><thead><tr><th>Data/hora</th><th>Experimento</th><th>Nome real</th><th>Cenario-base</th><th>Populacao</th><th>Geracoes</th><th>Genes</th><th>Melhor fitness</th><th>Melhor individuo</th><th>Genome mode</th><th>Estrutura</th><th>Conexoes</th><th>Topologias unicas</th><th>Penalidade</th><th>Status</th><th>Arquivos</th></tr></thead><tbody>""" + "".join(table_rows) + """</tbody></table></div>
 <script>
 (() => {
   const search = document.getElementById('history-search');

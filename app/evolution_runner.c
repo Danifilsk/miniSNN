@@ -1,6 +1,7 @@
 #include "evolution_runner.h"
 
 #include <math.h>
+#include <limits.h>
 #include <stdint.h>
 #include <stdio.h>
 #include <stdlib.h>
@@ -12,12 +13,16 @@
 #include "minisnn.h"
 #include "scenario_runner.h"
 #include "scenario_runtime.h"
+#include "structure.h"
 
 #define EVOLUTION_DEFAULT_OUTPUT_ROOT "results/evolution"
-#define EVOLUTION_INDEX_HEADER \
+#define EVOLUTION_INDEX_HEADER_LEGACY \
     "timestamp,experiment_name,actual_experiment_name,experiment_path,config_path,base_scenario,population_size,generations,gene_count,best_fitness,best_individual_id,status\n"
+#define EVOLUTION_INDEX_HEADER \
+    "timestamp,experiment_name,actual_experiment_name,experiment_path,config_path,base_scenario,population_size,generations,gene_count,best_fitness,best_individual_id,status,genome_mode,structure_enabled,best_connection_count,topology_unique_count,complexity_penalty,best_topology\n"
 #define EVOLUTION_FAILURE_MAX 159
 #define EVOLUTION_VERSION "C3-v1"
+#define EVOLUTION_STRUCTURE_CHECKPOINT_MAGIC "MINISNN_STRUCTURE_CHECKPOINT_V1"
 #define EVOLUTION_HASH_OFFSET 1469598103934665603ULL
 #define EVOLUTION_HASH_PRIME 1099511628211ULL
 
@@ -42,7 +47,25 @@ typedef struct
     double reward_modified_connection_fraction;
     double term_observed[EVOLUTION_MAX_FITNESS_TERMS];
     double term_scores[EVOLUTION_MAX_FITNESS_TERMS];
+    size_t final_lifetime_connection_count;
+    uint64_t final_lifetime_topology_signature;
 } EvolutionEvaluation;
+
+typedef struct
+{
+    StructureGenome genome;
+    StructureGenome reproductive_base;
+    StructureMutationStats structural_mutation;
+    size_t initial_connection_count;
+    size_t evaluated_initial_connection_count;
+    size_t final_lifetime_connection_count;
+    uint64_t topology_signature_initial;
+    uint64_t topology_signature_final_lifetime;
+    double behavior_fitness;
+    double robust_fitness;
+    double complexity_normalized;
+    double complexity_penalty_value;
+} EvolutionStructureIndividual;
 
 typedef struct
 {
@@ -58,6 +81,8 @@ typedef struct
     FILE *fitness_terms;
     FILE *genomes;
     FILE *lineage;
+    FILE *structures;
+    FILE *structural_events;
 } EvolutionOutputFiles;
 
 typedef struct
@@ -72,6 +97,15 @@ typedef struct
     char output_root[EVOLUTION_OUTPUT_PATH_MAX];
     char output_directory[EVOLUTION_OUTPUT_PATH_MAX];
     char actual_experiment_name[EVOLUTION_ACTUAL_NAME_MAX];
+    LIFNeuron *structure_neurons;
+    size_t structure_required_inputs[EVOLUTION_MAX_REQUIRED_NEURONS];
+    size_t structure_required_outputs[EVOLUTION_MAX_REQUIRED_NEURONS];
+    StructureConstraints structure_constraints;
+    StructureGenome initial_structure;
+    EvolutionStructureIndividual *structure_population;
+    StructureGenome global_best_structure;
+    uint64_t neuron_blueprint_signature;
+    uint64_t global_best_structure_individual_id;
 } EvolutionRunContext;
 
 typedef struct
@@ -111,6 +145,8 @@ static void output_files_close(EvolutionOutputFiles *files)
     close_file(&files->fitness_terms);
     close_file(&files->genomes);
     close_file(&files->lineage);
+    close_file(&files->structures);
+    close_file(&files->structural_events);
 }
 
 static int path_join(
@@ -305,18 +341,21 @@ static int build_gene_metadata(
             inh_count++;
     }
 
-    gene_count = (size_t)context->config.scalar_gene_count +
-        (context->config.evolve_exc_weights ? exc_count : 0U) +
-        (context->config.evolve_inh_magnitudes ? inh_count : 0U);
-    if (gene_count == 0 ||
-        gene_count > SIZE_MAX / sizeof(*context->metadata))
+    gene_count = (size_t)context->config.scalar_gene_count;
+    if (!context->config.structure_enabled)
+    {
+        gene_count += (context->config.evolve_exc_weights ? exc_count : 0U) +
+            (context->config.evolve_inh_magnitudes ? inh_count : 0U);
+    }
+    if (gene_count > SIZE_MAX / sizeof(*context->metadata))
     {
         set_error(error_message, error_message_size, "quantidade de genes invalida");
         return 0;
     }
 
-    context->metadata = calloc(gene_count, sizeof(*context->metadata));
-    if (context->metadata == NULL)
+    if (gene_count > 0)
+        context->metadata = calloc(gene_count, sizeof(*context->metadata));
+    if (gene_count > 0 && context->metadata == NULL)
     {
         set_error(error_message, error_message_size, "memoria insuficiente para genes");
         return 0;
@@ -350,7 +389,7 @@ static int build_gene_metadata(
         gene_index++;
     }
 
-    if (context->config.evolve_exc_weights)
+    if (!context->config.structure_enabled && context->config.evolve_exc_weights)
     {
         for (size_t connection_id = 0;
              connection_id < context->blueprint.connection_count;
@@ -375,7 +414,7 @@ static int build_gene_metadata(
         }
     }
 
-    if (context->config.evolve_inh_magnitudes)
+    if (!context->config.structure_enabled && context->config.evolve_inh_magnitudes)
     {
         for (size_t connection_id = 0;
              connection_id < context->blueprint.connection_count;
@@ -409,6 +448,212 @@ static int build_gene_metadata(
     return 1;
 }
 
+static void structure_individual_destroy(
+    EvolutionStructureIndividual *individual)
+{
+    if (individual == NULL)
+        return;
+    structure_genome_destroy(&individual->genome);
+    structure_genome_destroy(&individual->reproductive_base);
+    memset(individual, 0, sizeof(*individual));
+}
+
+static void structure_population_destroy(EvolutionRunContext *context)
+{
+    if (context == NULL || context->structure_population == NULL)
+        return;
+    for (int i = 0; i < context->config.population_size; i++)
+        structure_individual_destroy(&context->structure_population[i]);
+    free(context->structure_population);
+    context->structure_population = NULL;
+}
+
+static int initialize_structure_blueprint(
+    EvolutionRunContext *context,
+    char *error_message,
+    size_t error_message_size)
+{
+    MiniSNNConnectionGene *genes = NULL;
+    size_t count;
+
+    if (!context->config.structure_enabled)
+        return 1;
+    count = context->blueprint.connection_count;
+    context->structure_neurons = calloc(
+        (size_t)context->blueprint.neuron_count,
+        sizeof(*context->structure_neurons));
+    if (count > 0)
+        genes = calloc(count, sizeof(*genes));
+    if (context->structure_neurons == NULL || (count > 0 && genes == NULL))
+    {
+        free(genes);
+        set_error(error_message, error_message_size,
+                  "memoria insuficiente para blueprint estrutural");
+        return 0;
+    }
+
+    for (int i = 0; i < context->blueprint.neuron_count; i++)
+        context->structure_neurons[i].type = context->blueprint.neuron_types[i];
+    for (size_t i = 0; i < count; i++)
+    {
+        const MiniSNNConnectionInfo *connection =
+            &context->blueprint.connections[i];
+        if (!structure_connection_key(
+                (size_t)context->blueprint.neuron_count,
+                connection->source, connection->target,
+                &genes[i].connection_key))
+        {
+            free(genes);
+            set_error(error_message, error_message_size,
+                      "conexao invalida no blueprint inicial");
+            return 0;
+        }
+        genes[i].source = connection->source;
+        genes[i].target = connection->target;
+        genes[i].magnitude = fabs(connection->weight);
+        genes[i].delay = connection->delay;
+        genes[i].inherited_from = 0U;
+    }
+
+    memset(&context->structure_constraints, 0,
+           sizeof(context->structure_constraints));
+    context->structure_constraints.neuron_count =
+        (size_t)context->blueprint.neuron_count;
+    context->structure_constraints.neurons = context->structure_neurons;
+    context->structure_constraints.min_connections =
+        (size_t)context->config.structure_min_connections;
+    context->structure_constraints.max_connections =
+        (size_t)context->config.structure_max_connections;
+    context->structure_constraints.allow_self_connections =
+        context->config.structure_allow_self_connections;
+    context->structure_constraints.allow_inh_to_inh =
+        context->config.structure_allow_inh_to_inh;
+    context->structure_constraints.delay_min =
+        (unsigned int)context->config.structure_delay_min;
+    context->structure_constraints.delay_max =
+        (unsigned int)context->config.structure_delay_max;
+    context->structure_constraints.delay_mutation_max_delta =
+        (unsigned int)context->config.structure_delay_mutation_max_delta;
+    context->structure_constraints.new_exc_weight_min =
+        context->config.structure_new_exc_weight_min;
+    context->structure_constraints.new_exc_weight_max =
+        context->config.structure_new_exc_weight_max;
+    context->structure_constraints.new_inh_magnitude_min =
+        context->config.structure_new_inh_magnitude_min;
+    context->structure_constraints.new_inh_magnitude_max =
+        context->config.structure_new_inh_magnitude_max;
+    context->structure_constraints.preserve_required_reachability =
+        context->config.structure_preserve_required_reachability;
+    context->structure_constraints.required_inputs =
+        context->structure_required_inputs;
+    context->structure_constraints.required_input_count =
+        (size_t)context->config.structure_required_input_count;
+    context->structure_constraints.required_outputs =
+        context->structure_required_outputs;
+    context->structure_constraints.required_output_count =
+        (size_t)context->config.structure_required_output_count;
+    for (int i = 0; i < context->config.structure_required_input_count; i++)
+    {
+        context->structure_required_inputs[i] =
+            (size_t)context->config.structure_required_input_neurons[i];
+    }
+    for (int i = 0; i < context->config.structure_required_output_count; i++)
+    {
+        context->structure_required_outputs[i] =
+            (size_t)context->config.structure_required_output_neurons[i];
+    }
+
+    if (!structure_genome_set(&context->initial_structure, genes, count) ||
+        !structure_genome_validate(
+            &context->initial_structure,
+            &context->structure_constraints))
+    {
+        free(genes);
+        set_error(error_message, error_message_size,
+                  "blueprint inicial viola limites, pares legais ou reachability");
+        return 0;
+    }
+    free(genes);
+    context->neuron_blueprint_signature =
+        structure_neuron_blueprint_signature(
+            context->structure_neurons,
+            (size_t)context->blueprint.neuron_count);
+    if (context->neuron_blueprint_signature == 0U)
+    {
+        set_error(error_message, error_message_size,
+                  "assinatura do blueprint de neuronios invalida");
+        return 0;
+    }
+    return 1;
+}
+
+static void mutate_structure_magnitudes(
+    const EvolutionRunContext *context,
+    EvolutionEngine *engine,
+    EvolutionIndividual *individual,
+    StructureGenome *genome,
+    int initialization);
+
+static int initialize_structure_population(
+    EvolutionRunContext *context,
+    EvolutionEngine *engine)
+{
+    if (!context->config.structure_enabled)
+        return 1;
+    context->structure_population = calloc(
+        engine->config.population_size,
+        sizeof(*context->structure_population));
+    if (context->structure_population == NULL)
+        return 0;
+
+    for (size_t i = 0; i < engine->config.population_size; i++)
+    {
+        EvolutionStructureIndividual *individual =
+            &context->structure_population[i];
+        if (!structure_genome_copy(
+                &individual->genome,
+                &context->initial_structure) ||
+            !structure_genome_copy(
+                &individual->reproductive_base,
+                &context->initial_structure))
+        {
+            structure_population_destroy(context);
+            return 0;
+        }
+        if (i > 0 && !structure_genome_mutate(
+                &individual->genome,
+                &context->structure_constraints,
+                context->config.structure_allow_add,
+                context->config.structure_allow_remove,
+                context->config.structure_allow_rewire,
+                context->config.structure_evolve_delays,
+                context->config.structure_add_rate,
+                context->config.structure_remove_rate,
+                context->config.structure_rewire_rate,
+                context->config.structure_delay_mutation_rate,
+                (size_t)context->config.structure_max_mutations_per_child,
+                &engine->prng,
+                &individual->structural_mutation))
+        {
+            structure_population_destroy(context);
+            return 0;
+        }
+        if (i > 0)
+        {
+            mutate_structure_magnitudes(
+                context, engine, &engine->population[i],
+                &individual->genome, 1);
+        }
+        individual->initial_connection_count =
+            individual->genome.connection_count;
+        individual->topology_signature_initial =
+            structure_topology_signature(
+                &individual->genome,
+                context->neuron_blueprint_signature);
+    }
+    return 1;
+}
+
 static int context_load(
     EvolutionRunContext *context,
     const char *config_path,
@@ -437,6 +682,10 @@ static int context_load(
             &context->blueprint,
             error_message,
             error_message_size) ||
+        !initialize_structure_blueprint(
+            context,
+            error_message,
+            error_message_size) ||
         !build_gene_metadata(context, error_message, error_message_size))
     {
         return 0;
@@ -451,6 +700,10 @@ static void context_destroy(EvolutionRunContext *context)
     if (context == NULL)
         return;
     scenario_blueprint_destroy(&context->blueprint);
+    structure_population_destroy(context);
+    structure_genome_destroy(&context->initial_structure);
+    structure_genome_destroy(&context->global_best_structure);
+    free(context->structure_neurons);
     free(context->metadata);
     memset(context, 0, sizeof(*context));
 }
@@ -539,9 +792,103 @@ static int copy_used_configs(
     return 1;
 }
 
+static int capture_minisnn_structure(
+    const MiniSNN *snn,
+    size_t neuron_count,
+    StructureGenome *out_genome)
+{
+    size_t count = minisnn_connection_count(snn);
+    MiniSNNConnectionGene *genes = NULL;
+    int ok;
+
+    if (snn == NULL || out_genome == NULL || neuron_count == 0)
+        return 0;
+    if (count > 0)
+        genes = calloc(count, sizeof(*genes));
+    if (count > 0 && genes == NULL)
+        return 0;
+    for (size_t i = 0; i < count; i++)
+    {
+        MiniSNNConnectionInfo connection;
+        if (!minisnn_get_connection(snn, i, &connection) ||
+            !structure_connection_key(
+                neuron_count, connection.source, connection.target,
+                &genes[i].connection_key))
+        {
+            free(genes);
+            return 0;
+        }
+        genes[i].source = connection.source;
+        genes[i].target = connection.target;
+        genes[i].magnitude = fabs(connection.weight);
+        genes[i].delay = connection.delay;
+        genes[i].inherited_from = 0U;
+    }
+    ok = structure_genome_set(out_genome, genes, count);
+    free(genes);
+    return ok;
+}
+
+static int replace_minisnn_structure(
+    MiniSNN *snn,
+    const StructureGenome *genome,
+    int allow_self_connections)
+{
+    size_t current_count;
+    size_t operation_count;
+    MiniSNNTopologyOperation *operations = NULL;
+    MiniSNNTopologyPatchResult result;
+    int ok;
+
+    if (snn == NULL || genome == NULL)
+        return 0;
+    current_count = minisnn_connection_count(snn);
+    if (current_count > SIZE_MAX - genome->connection_count)
+        return 0;
+    operation_count = current_count + genome->connection_count;
+    if (operation_count > 0)
+        operations = calloc(operation_count, sizeof(*operations));
+    if (operation_count > 0 && operations == NULL)
+        return 0;
+    if ((current_count > 0 || genome->connection_count > 0) &&
+        operations == NULL)
+        return 0;
+    if (operation_count == 0)
+        return 1;
+
+    for (size_t i = 0; i < current_count; i++)
+    {
+        MiniSNNConnectionInfo connection;
+        if (!minisnn_get_connection(snn, i, &connection))
+        {
+            free(operations);
+            return 0;
+        }
+        operations[i].type = MINISNN_TOPOLOGY_REMOVE;
+        operations[i].source = connection.source;
+        operations[i].target = connection.target;
+    }
+    for (size_t i = 0; i < genome->connection_count; i++)
+    {
+        const MiniSNNConnectionGene *gene = &genome->connections[i];
+        MiniSNNTopologyOperation *operation = &operations[current_count + i];
+        operation->type = MINISNN_TOPOLOGY_ADD;
+        operation->source = gene->source;
+        operation->target = gene->target;
+        operation->magnitude = gene->magnitude;
+        operation->delay = gene->delay;
+        operation->allow_self_connection = allow_self_connections;
+    }
+    ok = minisnn_apply_topology_patch(
+        snn, operations, operation_count, &result);
+    free(operations);
+    return ok && result.applied_operations == operation_count;
+}
+
 static int apply_genome(
     const EvolutionRunContext *context,
     const double *genes,
+    const StructureGenome *structure,
     ScenarioConfig *out_scenario,
     MiniSNN **out_snn,
     char *error_message,
@@ -572,6 +919,24 @@ static int apply_genome(
             error_message, error_message_size))
         return 0;
 
+    if (!scenario_runtime_configure_modules(
+            snn, &scenario, error_message, error_message_size))
+    {
+        minisnn_destroy(&snn);
+        return 0;
+    }
+
+    if (context->config.structure_enabled &&
+        (structure == NULL || !replace_minisnn_structure(
+             snn, structure,
+             context->config.structure_allow_self_connections)))
+    {
+        minisnn_destroy(&snn);
+        set_error(error_message, error_message_size,
+                  "erro ao aplicar genoma estrutural");
+        return 0;
+    }
+
     for (size_t gene_index = 0; gene_index < context->gene_count; gene_index++)
     {
         const EvolutionGeneMetadata *metadata = &context->metadata[gene_index];
@@ -586,13 +951,6 @@ static int apply_genome(
             set_error(error_message, error_message_size, "erro ao aplicar gene de conexao");
             return 0;
         }
-    }
-
-    if (!scenario_runtime_configure_modules(
-            snn, &scenario, error_message, error_message_size))
-    {
-        minisnn_destroy(&snn);
-        return 0;
     }
 
     *out_scenario = scenario;
@@ -732,8 +1090,10 @@ static int write_weight_snapshot(FILE *file, const MiniSNN *snn)
 static int evaluate_genome(
     const EvolutionRunContext *context,
     const double *genes,
+    const StructureGenome *structure,
     uint64_t evaluation_seed,
     BestRunObserver *observer,
+    StructureGenome *out_final_structure,
     EvolutionEvaluation *out_evaluation)
 {
     ScenarioConfig scenario;
@@ -748,7 +1108,7 @@ static int evaluate_genome(
     evaluation.first_active_step = -1;
     evaluation.last_active_step = -1;
 
-    if (!apply_genome(context, genes, &scenario, &snn,
+    if (!apply_genome(context, genes, structure, &scenario, &snn,
                       runtime_error, sizeof(runtime_error)))
     {
         snprintf(evaluation.failure_reason, sizeof(evaluation.failure_reason),
@@ -878,6 +1238,36 @@ static int evaluate_genome(
         snprintf(evaluation.failure_reason, sizeof(evaluation.failure_reason),
                  "fitness nao finito");
 
+    if (evaluation.valid && context->config.structure_enabled)
+    {
+        StructureGenome captured = {0};
+        if (!capture_minisnn_structure(
+                snn,
+                (size_t)context->blueprint.neuron_count,
+                &captured))
+        {
+            evaluation.valid = 0;
+            snprintf(evaluation.failure_reason, sizeof(evaluation.failure_reason),
+                     "falha ao capturar topologia final da vida");
+        }
+        else
+        {
+            evaluation.final_lifetime_connection_count =
+                captured.connection_count;
+            evaluation.final_lifetime_topology_signature =
+                structure_topology_signature(
+                    &captured,
+                    context->neuron_blueprint_signature);
+            if (out_final_structure != NULL)
+            {
+                structure_genome_destroy(out_final_structure);
+                *out_final_structure = captured;
+                memset(&captured, 0, sizeof(captured));
+            }
+            structure_genome_destroy(&captured);
+        }
+    }
+
     if (observer != NULL && observer->enabled &&
         !write_weight_snapshot(observer->weights_final, snn))
     {
@@ -924,13 +1314,29 @@ static int output_files_open(
             return 0;
         }
     }
+    if (context->config.structure_enabled)
+    {
+        char path[EVOLUTION_OUTPUT_PATH_MAX];
+        if (!path_join(path, sizeof(path), context->output_directory,
+                       "structures.csv") ||
+            (files->structures = fopen(path, append ? "a" : "w")) == NULL ||
+            !path_join(path, sizeof(path), context->output_directory,
+                       "structural_events.csv") ||
+            (files->structural_events = fopen(path, append ? "a" : "w")) == NULL)
+        {
+            output_files_close(files);
+            set_error(error_message, error_message_size,
+                      "erro ao abrir CSV estrutural evolutivo");
+            return 0;
+        }
+    }
 
     if (!append)
     {
         if (fprintf(files->generations,
-                "generation,population_size,valid_individual_count,invalid_individual_count,fitness_best,fitness_mean,fitness_min,fitness_max,fitness_std,replicate_fitness_mean,replicate_fitness_std_mean,best_individual_id,global_best_individual_id,global_best_fitness,diversity_mean_gene_std,diversity_mean_pair_distance,elite_count,crossover_child_count,clone_child_count,mutated_child_count,mutation_count,evaluation_seconds,generation_wall_seconds\n") < 0 ||
+                "generation,population_size,valid_individual_count,invalid_individual_count,fitness_best,fitness_mean,fitness_min,fitness_max,fitness_std,replicate_fitness_mean,replicate_fitness_std_mean,best_individual_id,global_best_individual_id,global_best_fitness,diversity_mean_gene_std,diversity_mean_pair_distance,elite_count,crossover_child_count,clone_child_count,mutated_child_count,mutation_count,evaluation_seconds,generation_wall_seconds,connections_best,connections_mean,connections_min,connections_max,connections_std,topology_unique_count,topology_diversity_mean_distance,add_count,remove_count,rewire_count,delay_mutation_count,crossover_fallback_count,behavior_fitness_best,complexity_penalty_best,fitness_selection_best\n") < 0 ||
             fprintf(files->individuals,
-                "generation,individual_id,status,parent_a_id,parent_b_id,operation,fitness_selection,fitness_mean,fitness_std,fitness_min,fitness_max,valid_replicates,invalid_replicates,mutation_count,mutation_absolute_sum,mutation_max_absolute,crossover_applied,genes_from_parent_a,genes_from_parent_b,is_generation_best,is_global_best,evaluation_seconds,failure_reason\n") < 0 ||
+                "generation,individual_id,status,parent_a_id,parent_b_id,operation,fitness_selection,fitness_mean,fitness_std,fitness_min,fitness_max,valid_replicates,invalid_replicates,mutation_count,mutation_absolute_sum,mutation_max_absolute,crossover_applied,genes_from_parent_a,genes_from_parent_b,is_generation_best,is_global_best,evaluation_seconds,failure_reason,initial_connection_count,evaluated_initial_connection_count,final_lifetime_connection_count,topology_signature_initial,topology_signature_final_lifetime,structural_add_count,structural_remove_count,structural_rewire_count,delay_mutation_count,behavior_fitness,robust_fitness,complexity_normalized,complexity_penalty_value\n") < 0 ||
             fprintf(files->replicates,
                 "generation,individual_id,replicate_index,evaluation_seed,status,fitness,total_spikes,active_fraction,exc_spikes,inh_spikes,first_active_step,last_active_step,final_weight_mean,final_weight_std,homeostasis_rate_error_final,reward_weight_total_signed_change,failure_reason,evaluation_seconds\n") < 0 ||
             fprintf(files->fitness_terms,
@@ -938,7 +1344,12 @@ static int output_files_open(
             fprintf(files->genomes,
                 "generation,individual_id,gene_index,gene_name,gene_kind,value,minimum,maximum,baseline_value,connection_id,parameter_path\n") < 0 ||
             fprintf(files->lineage,
-                "child_generation,child_individual_id,parent_a_generation,parent_a_id,parent_b_generation,parent_b_id,operation,crossover_applied,mutation_count\n") < 0)
+                "child_generation,child_individual_id,parent_a_generation,parent_a_id,parent_b_generation,parent_b_id,operation,crossover_applied,mutation_count,initial_connection_count,final_connection_count,add_count,remove_count,rewire_count,delay_mutation_count,structure_crossover_common_count,structure_crossover_disjoint_count,structure_crossover_fallback,topology_signature\n") < 0 ||
+            (context->config.structure_enabled &&
+             (fprintf(files->structures,
+                 "generation,individual_id,connection_key,source,target,source_type,target_type,magnitude,applied_weight,delay,origin\n") < 0 ||
+              fprintf(files->structural_events,
+                 "generation,child_individual_id,event_index,event_type,old_source,old_target,new_source,new_target,old_magnitude,new_magnitude,old_delay,new_delay,connection_key_before,connection_key_after,status,reason\n") < 0)))
         {
             output_files_close(files);
             set_error(error_message, error_message_size, "erro ao escrever cabecalhos evolutivos");
@@ -959,6 +1370,7 @@ static const char *gene_kind_name(EvolutionGeneKind kind)
 
 static int write_lineage_population(
     FILE *file,
+    const EvolutionRunContext *context,
     const EvolutionEngine *engine)
 {
     for (size_t i = 0; i < engine->config.population_size; i++)
@@ -983,7 +1395,7 @@ static int write_lineage_population(
             snprintf(parent_b_id, sizeof(parent_b_id), "%llu",
                      (unsigned long long)individual->parent_b_id);
         }
-        if (fprintf(file, "%d,%llu,%s,%s,%s,%s,%s,%d,%zu\n",
+        if (fprintf(file, "%d,%llu,%s,%s,%s,%s,%s,%d,%zu,",
                     individual->generation,
                     (unsigned long long)individual->individual_id,
                     parent_a_generation, parent_a_id,
@@ -991,6 +1403,27 @@ static int write_lineage_population(
                     individual->operation,
                     individual->crossover_applied,
                     individual->mutation.mutation_count) < 0)
+            return 0;
+        if (context->config.structure_enabled)
+        {
+            const EvolutionStructureIndividual *structure =
+                &context->structure_population[i];
+            if (fprintf(file,
+                    "%zu,%zu,%zu,%zu,%zu,%zu,%zu,%zu,%d,%016llx\n",
+                    structure->initial_connection_count,
+                    structure->genome.connection_count,
+                    structure->structural_mutation.add_count,
+                    structure->structural_mutation.remove_count,
+                    structure->structural_mutation.rewire_count,
+                    structure->structural_mutation.delay_mutation_count,
+                    structure->structural_mutation.common_inherited,
+                    structure->structural_mutation.disjoint_inherited,
+                    structure->structural_mutation.crossover_fallback,
+                    (unsigned long long)structure->topology_signature_initial) < 0)
+                return 0;
+        }
+        else if (fprintf(file,
+                         "NA,NA,NA,NA,NA,NA,NA,NA,NA,NA\n") < 0)
             return 0;
     }
     return fflush(file) == 0;
@@ -1044,6 +1477,238 @@ static int write_generation_genomes(
                         connection_id, parameter_path) < 0)
                 return 0;
         }
+    }
+    return fflush(file) == 0;
+}
+
+static const char *structure_origin_name(
+    const EvolutionIndividual *individual,
+    const MiniSNNConnectionGene *gene)
+{
+    if (individual->generation == 0)
+        return "initial_blueprint";
+    if (gene->inherited_from == 1U)
+        return "parent_a";
+    if (gene->inherited_from == 2U)
+        return "parent_b";
+    return "reproductive_mutation";
+}
+
+static int write_generation_structures(
+    const EvolutionRunContext *context,
+    const EvolutionEngine *engine,
+    const size_t *ranking,
+    FILE *file)
+{
+    if (!context->config.structure_enabled)
+        return 1;
+    for (size_t population_index = 0;
+         population_index < engine->config.population_size;
+         population_index++)
+    {
+        const EvolutionIndividual *individual =
+            &engine->population[population_index];
+        const StructureGenome *genome =
+            &context->structure_population[population_index].genome;
+        if (!should_save_genome(context, population_index, ranking))
+            continue;
+        for (size_t i = 0; i < genome->connection_count; i++)
+        {
+            const MiniSNNConnectionGene *gene = &genome->connections[i];
+            const char *source_type =
+                context->structure_neurons[gene->source].type ==
+                    NEURON_INHIBITORY ? "INH" : "EXC";
+            const char *target_type =
+                context->structure_neurons[gene->target].type ==
+                    NEURON_INHIBITORY ? "INH" : "EXC";
+            double applied_weight = strcmp(source_type, "INH") == 0 ?
+                -gene->magnitude : gene->magnitude;
+            if (fprintf(file,
+                    "%d,%llu,%llu,%zu,%zu,%s,%s,%.17g,%.17g,%u,%s\n",
+                    individual->generation,
+                    (unsigned long long)individual->individual_id,
+                    (unsigned long long)gene->connection_key,
+                    gene->source, gene->target,
+                    source_type, target_type,
+                    gene->magnitude, applied_weight, gene->delay,
+                    structure_origin_name(individual, gene)) < 0)
+                return 0;
+        }
+    }
+    return fflush(file) == 0;
+}
+
+static int write_structural_event_row(
+    FILE *file,
+    int generation,
+    uint64_t child_id,
+    size_t event_index,
+    const char *event_type,
+    const MiniSNNConnectionGene *old_gene,
+    const MiniSNNConnectionGene *new_gene,
+    const char *reason)
+{
+    char old_source[32] = "NA";
+    char old_target[32] = "NA";
+    char new_source[32] = "NA";
+    char new_target[32] = "NA";
+    char old_magnitude[48] = "NA";
+    char new_magnitude[48] = "NA";
+    char old_delay[32] = "NA";
+    char new_delay[32] = "NA";
+    char old_key[32] = "NA";
+    char new_key[32] = "NA";
+    if (old_gene != NULL)
+    {
+        snprintf(old_source, sizeof(old_source), "%zu", old_gene->source);
+        snprintf(old_target, sizeof(old_target), "%zu", old_gene->target);
+        snprintf(old_magnitude, sizeof(old_magnitude), "%.17g", old_gene->magnitude);
+        snprintf(old_delay, sizeof(old_delay), "%u", old_gene->delay);
+        snprintf(old_key, sizeof(old_key), "%llu",
+                 (unsigned long long)old_gene->connection_key);
+    }
+    if (new_gene != NULL)
+    {
+        snprintf(new_source, sizeof(new_source), "%zu", new_gene->source);
+        snprintf(new_target, sizeof(new_target), "%zu", new_gene->target);
+        snprintf(new_magnitude, sizeof(new_magnitude), "%.17g", new_gene->magnitude);
+        snprintf(new_delay, sizeof(new_delay), "%u", new_gene->delay);
+        snprintf(new_key, sizeof(new_key), "%llu",
+                 (unsigned long long)new_gene->connection_key);
+    }
+    return fprintf(file,
+        "%d,%llu,%zu,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s\n",
+        generation, (unsigned long long)child_id, event_index, event_type,
+        old_source, old_target, new_source, new_target,
+        old_magnitude, new_magnitude, old_delay, new_delay,
+        old_key, new_key, "applied", reason) >= 0;
+}
+
+static int write_structural_events_population(
+    const EvolutionRunContext *context,
+    const EvolutionEngine *engine,
+    FILE *file)
+{
+    if (!context->config.structure_enabled)
+        return 1;
+    for (size_t population_index = 0;
+         population_index < engine->config.population_size;
+         population_index++)
+    {
+        const EvolutionIndividual *individual = &engine->population[population_index];
+        const EvolutionStructureIndividual *data =
+            &context->structure_population[population_index];
+        const StructureGenome *before = &data->reproductive_base;
+        const StructureGenome *after = &data->genome;
+        size_t *removed = NULL;
+        size_t *added = NULL;
+        size_t removed_count = 0;
+        size_t added_count = 0;
+        size_t left = 0;
+        size_t right = 0;
+        size_t event_index = 0;
+
+        if (before->connection_count > 0)
+            removed = calloc(before->connection_count, sizeof(*removed));
+        if (after->connection_count > 0)
+            added = calloc(after->connection_count, sizeof(*added));
+        if ((before->connection_count > 0 && removed == NULL) ||
+            (after->connection_count > 0 && added == NULL))
+        {
+            free(removed);
+            free(added);
+            return 0;
+        }
+
+        if (individual->crossover_applied)
+        {
+            for (size_t i = 0; i < before->connection_count; i++)
+            {
+                if (!write_structural_event_row(
+                        file, individual->generation,
+                        individual->individual_id, event_index++,
+                        "crossover_inherit", NULL,
+                        &before->connections[i], "aligned_connection_key"))
+                    goto event_fail;
+            }
+        }
+        while (left < before->connection_count || right < after->connection_count)
+        {
+            if (left < before->connection_count && right < after->connection_count &&
+                before->connections[left].connection_key ==
+                    after->connections[right].connection_key)
+            {
+                if (before->connections[left].delay != after->connections[right].delay &&
+                    !write_structural_event_row(
+                        file, individual->generation,
+                        individual->individual_id, event_index++,
+                        "delay_mutation", &before->connections[left],
+                        &after->connections[right], "bounded_delay_delta"))
+                    goto event_fail;
+                left++;
+                right++;
+            }
+            else if (right >= after->connection_count ||
+                     (left < before->connection_count &&
+                      before->connections[left].connection_key <
+                          after->connections[right].connection_key))
+            {
+                removed[removed_count++] = left++;
+            }
+            else
+            {
+                added[added_count++] = right++;
+            }
+        }
+        {
+            size_t rewire_count = data->structural_mutation.rewire_count;
+            if (rewire_count > removed_count)
+                rewire_count = removed_count;
+            if (rewire_count > added_count)
+                rewire_count = added_count;
+            for (size_t i = 0; i < rewire_count; i++)
+            {
+                if (!write_structural_event_row(
+                        file, individual->generation,
+                        individual->individual_id, event_index++, "rewire",
+                        &before->connections[removed[i]],
+                        &after->connections[added[i]], "atomic_rewire"))
+                    goto event_fail;
+            }
+            for (size_t i = rewire_count; i < removed_count; i++)
+            {
+                if (!write_structural_event_row(
+                        file, individual->generation,
+                        individual->individual_id, event_index++, "remove",
+                        &before->connections[removed[i]], NULL,
+                        "reproductive_mutation"))
+                    goto event_fail;
+            }
+            for (size_t i = rewire_count; i < added_count; i++)
+            {
+                if (!write_structural_event_row(
+                        file, individual->generation,
+                        individual->individual_id, event_index++, "add",
+                        NULL, &after->connections[added[i]],
+                        "reproductive_mutation"))
+                    goto event_fail;
+            }
+        }
+        for (size_t i = 0; i < data->structural_mutation.skipped_count; i++)
+        {
+            if (!write_structural_event_row(
+                    file, individual->generation,
+                    individual->individual_id, event_index++,
+                    "mutation_skipped", NULL, NULL, "no_valid_candidate"))
+                goto event_fail;
+        }
+        free(removed);
+        free(added);
+        continue;
+event_fail:
+        free(removed);
+        free(added);
+        return 0;
     }
     return fflush(file) == 0;
 }
@@ -1143,6 +1808,9 @@ static int evaluate_population(
         double fitness_max = 0.0;
         int valid_replicates = 0;
         ULONGLONG individual_start = GetTickCount64();
+        EvolutionStructureIndividual *structure_data =
+            context->config.structure_enabled ?
+                &context->structure_population[population_index] : NULL;
 
         if (replicate_fitness == NULL)
             return 0;
@@ -1158,8 +1826,13 @@ static int evaluate_population(
             ULONGLONG replicate_start = GetTickCount64();
             double replicate_seconds;
 
-            if (!evaluate_genome(context, individual->genes,
-                                 evaluation_seed, NULL, &evaluation))
+            if (!evaluate_genome(
+                    context,
+                    individual->genes,
+                    context->config.structure_enabled ?
+                        &context->structure_population[population_index].genome :
+                        NULL,
+                    evaluation_seed, NULL, NULL, &evaluation))
             {
                 free(replicate_fitness);
                 return 0;
@@ -1169,7 +1842,18 @@ static int evaluate_population(
             replicate_fitness[replicate_index] =
                 evaluation.valid ? evaluation.fitness : 0.0;
             if (evaluation.valid)
+            {
                 valid_replicates++;
+                if (structure_data != NULL && valid_replicates == 1)
+                {
+                    structure_data->evaluated_initial_connection_count =
+                        structure_data->genome.connection_count;
+                    structure_data->final_lifetime_connection_count =
+                        evaluation.final_lifetime_connection_count;
+                    structure_data->topology_signature_final_lifetime =
+                        evaluation.final_lifetime_topology_signature;
+                }
+            }
             else if (run_info[population_index].failure_reason[0] == '\0')
                 snprintf(run_info[population_index].failure_reason,
                          sizeof(run_info[population_index].failure_reason), "%s",
@@ -1192,14 +1876,49 @@ static int evaluate_population(
                 replicate_fitness,
                 (size_t)context->config.evaluation_replicates,
                 context->config.replicate_std_penalty,
-                &fitness_mean, &fitness_std, &fitness_selection) ||
-            !evolution_engine_set_evaluation(
+                &fitness_mean, &fitness_std, &fitness_selection))
+        {
+            free(replicate_fitness);
+            return 0;
+        }
+        if (structure_data != NULL)
+        {
+            structure_data->behavior_fitness = fitness_mean;
+            structure_data->robust_fitness = fitness_selection;
+            structure_data->complexity_normalized =
+                structure_complexity_normalized(
+                    structure_data->genome.connection_count,
+                    context->structure_constraints.min_connections,
+                    context->structure_constraints.max_connections);
+            structure_data->complexity_penalty_value =
+                context->config.structure_complexity_penalty *
+                structure_data->complexity_normalized;
+            fitness_selection = structure_apply_complexity_penalty(
+                fitness_selection,
+                context->config.structure_complexity_penalty,
+                structure_data->complexity_normalized);
+        }
+        if (!evolution_engine_set_evaluation_with_selection(
                 engine, population_index, fitness_mean, fitness_std,
-                fitness_min, fitness_max, valid_replicates,
+                fitness_min, fitness_max, fitness_selection,
+                valid_replicates,
                 context->config.evaluation_replicates - valid_replicates))
         {
             free(replicate_fitness);
             return 0;
+        }
+        if (structure_data != NULL &&
+            engine->global_best_individual_id == individual->individual_id)
+        {
+            if (!structure_genome_copy(
+                    &context->global_best_structure,
+                    &structure_data->genome))
+            {
+                free(replicate_fitness);
+                return 0;
+            }
+            context->global_best_structure_individual_id =
+                individual->individual_id;
         }
         if (valid_replicates == 0)
         {
@@ -1218,6 +1937,227 @@ static int evaluate_population(
            fflush(files->fitness_terms) == 0;
 }
 
+static size_t find_individual_by_id(
+    const uint64_t *ids,
+    size_t count,
+    uint64_t individual_id)
+{
+    for (size_t i = 0; i < count; i++)
+    {
+        if (ids[i] == individual_id)
+            return i;
+    }
+    return SIZE_MAX;
+}
+
+static void merge_structure_stats(
+    StructureMutationStats *destination,
+    const StructureMutationStats *source)
+{
+    destination->add_count += source->add_count;
+    destination->remove_count += source->remove_count;
+    destination->rewire_count += source->rewire_count;
+    destination->delay_mutation_count += source->delay_mutation_count;
+    destination->skipped_count += source->skipped_count;
+    destination->common_inherited += source->common_inherited;
+    destination->disjoint_inherited += source->disjoint_inherited;
+    if (source->crossover_fallback)
+        destination->crossover_fallback = 1;
+}
+
+static int magnitude_is_evolvable(
+    const EvolutionRunContext *context,
+    size_t source)
+{
+    return context->structure_neurons[source].type == NEURON_INHIBITORY ?
+        context->config.evolve_inh_magnitudes :
+        context->config.evolve_exc_weights;
+}
+
+static void mutate_structure_magnitudes(
+    const EvolutionRunContext *context,
+    EvolutionEngine *engine,
+    EvolutionIndividual *individual,
+    StructureGenome *genome,
+    int initialization)
+{
+    for (size_t i = 0; i < genome->connection_count; i++)
+    {
+        MiniSNNConnectionGene *gene = &genome->connections[i];
+        double minimum;
+        double maximum;
+        double scale;
+        double before;
+        double after;
+        double absolute_change;
+
+        if (!magnitude_is_evolvable(context, gene->source))
+            continue;
+        if (!initialization &&
+            evolution_prng_unit(&engine->prng) >= engine->config.mutation_rate)
+            continue;
+        if (context->structure_neurons[gene->source].type == NEURON_INHIBITORY)
+        {
+            minimum = context->config.inh_magnitude_min;
+            maximum = context->config.inh_magnitude_max;
+        }
+        else
+        {
+            minimum = context->config.exc_weight_min;
+            maximum = context->config.exc_weight_max;
+        }
+        scale = initialization ? engine->config.initialization_scale :
+            engine->config.mutation_scale;
+        before = gene->magnitude;
+        after = before + (evolution_prng_unit(&engine->prng) * 2.0 - 1.0) *
+            scale * (maximum - minimum);
+        if (after < minimum)
+        {
+            after = minimum;
+            individual->mutation.clamp_min_count++;
+        }
+        else if (after > maximum)
+        {
+            after = maximum;
+            individual->mutation.clamp_max_count++;
+        }
+        absolute_change = fabs(after - before);
+        gene->magnitude = after;
+        individual->mutation.mutation_count++;
+        individual->mutation.mutation_absolute_sum += absolute_change;
+        if (absolute_change > individual->mutation.mutation_max_absolute)
+            individual->mutation.mutation_max_absolute = absolute_change;
+    }
+}
+
+static int breed_next_generation(
+    EvolutionRunContext *context,
+    EvolutionEngine *engine)
+{
+    EvolutionStructureIndividual *old_population;
+    EvolutionStructureIndividual *new_population = NULL;
+    uint64_t *old_ids = NULL;
+    double *old_fitness = NULL;
+    size_t population_size;
+
+    if (!context->config.structure_enabled)
+        return evolution_engine_breed_next_generation(engine);
+    population_size = engine->config.population_size;
+    old_population = context->structure_population;
+    old_ids = calloc(population_size, sizeof(*old_ids));
+    old_fitness = calloc(population_size, sizeof(*old_fitness));
+    new_population = calloc(population_size, sizeof(*new_population));
+    if (old_ids == NULL || old_fitness == NULL || new_population == NULL)
+        goto fail;
+    for (size_t i = 0; i < population_size; i++)
+    {
+        old_ids[i] = engine->population[i].individual_id;
+        old_fitness[i] = engine->population[i].fitness_selection;
+    }
+
+    if (!evolution_engine_breed_next_generation_deferred_mutation(engine))
+        goto fail;
+    for (size_t i = 0; i < population_size; i++)
+    {
+        const EvolutionIndividual *child = &engine->population[i];
+        EvolutionStructureIndividual *new_data = &new_population[i];
+        size_t parent_a_index = find_individual_by_id(
+            old_ids, population_size, child->parent_a_id);
+        size_t parent_b_index = find_individual_by_id(
+            old_ids, population_size, child->parent_b_id);
+        StructureMutationStats crossover_stats = {0};
+        StructureMutationStats mutation_stats = {0};
+
+        if (parent_a_index == SIZE_MAX)
+            goto fail_after_breed;
+        if (child->crossover_applied)
+        {
+            if (parent_b_index == SIZE_MAX ||
+                !structure_genome_crossover(
+                    &old_population[parent_a_index].genome,
+                    old_fitness[parent_a_index],
+                    old_ids[parent_a_index],
+                    &old_population[parent_b_index].genome,
+                    old_fitness[parent_b_index],
+                    old_ids[parent_b_index],
+                    &context->structure_constraints,
+                    &engine->prng,
+                    &new_data->genome,
+                    &crossover_stats))
+            {
+                goto fail_after_breed;
+            }
+        }
+        else if (!structure_genome_copy(
+                     &new_data->genome,
+                     &old_population[parent_a_index].genome))
+        {
+            goto fail_after_breed;
+        }
+
+        new_data->initial_connection_count =
+            new_data->genome.connection_count;
+        if (!structure_genome_copy(
+                &new_data->reproductive_base,
+                &new_data->genome))
+        {
+            goto fail_after_breed;
+        }
+        merge_structure_stats(
+            &new_data->structural_mutation,
+            &crossover_stats);
+        if (strcmp(child->operation, "elite_copy") != 0)
+        {
+            if (!structure_genome_mutate(
+                    &new_data->genome,
+                    &context->structure_constraints,
+                    context->config.structure_allow_add,
+                    context->config.structure_allow_remove,
+                    context->config.structure_allow_rewire,
+                    context->config.structure_evolve_delays,
+                    context->config.structure_add_rate,
+                    context->config.structure_remove_rate,
+                    context->config.structure_rewire_rate,
+                    context->config.structure_delay_mutation_rate,
+                    (size_t)context->config.structure_max_mutations_per_child,
+                    &engine->prng,
+                    &mutation_stats))
+            {
+                goto fail_after_breed;
+            }
+            merge_structure_stats(
+                &new_data->structural_mutation,
+                &mutation_stats);
+            if (!evolution_engine_mutate_population_individual(engine, i))
+                goto fail_after_breed;
+            mutate_structure_magnitudes(
+                context, engine, &engine->population[i],
+                &new_data->genome, 0);
+        }
+        new_data->topology_signature_initial =
+            structure_topology_signature(
+                &new_data->genome,
+                context->neuron_blueprint_signature);
+    }
+
+    for (size_t i = 0; i < population_size; i++)
+        structure_individual_destroy(&old_population[i]);
+    free(old_population);
+    context->structure_population = new_population;
+    free(old_ids);
+    free(old_fitness);
+    return 1;
+
+fail_after_breed:
+    for (size_t i = 0; i < population_size; i++)
+        structure_individual_destroy(&new_population[i]);
+fail:
+    free(new_population);
+    free(old_ids);
+    free(old_fitness);
+    return 0;
+}
+
 static void diversity_metrics(
     const EvolutionEngine *engine,
     double *out_mean_gene_std,
@@ -1226,6 +2166,13 @@ static void diversity_metrics(
     double gene_std_sum = 0.0;
     double distance_sum = 0.0;
     size_t pair_count = 0;
+
+    if (engine->gene_count == 0)
+    {
+        *out_mean_gene_std = 0.0;
+        *out_mean_pair_distance = 0.0;
+        return;
+    }
 
     for (size_t gene = 0; gene < engine->gene_count; gene++)
     {
@@ -1265,6 +2212,88 @@ static void diversity_metrics(
     *out_mean_gene_std = gene_std_sum / (double)engine->gene_count;
     *out_mean_pair_distance = pair_count > 0 ?
         distance_sum / (double)pair_count : 0.0;
+}
+
+static int write_structural_generation_columns(
+    const EvolutionRunContext *context,
+    const EvolutionEngine *engine,
+    const size_t *ranking,
+    FILE *file)
+{
+    double mean = 0.0;
+    double variance = 0.0;
+    size_t minimum = SIZE_MAX;
+    size_t maximum = 0;
+    size_t unique_count = 0;
+    double diversity_sum = 0.0;
+    size_t pair_count = 0;
+    size_t add_count = 0;
+    size_t remove_count = 0;
+    size_t rewire_count = 0;
+    size_t delay_count = 0;
+    size_t fallback_count = 0;
+    const EvolutionStructureIndividual *best;
+
+    if (!context->config.structure_enabled)
+    {
+        return fprintf(file,
+            ",NA,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA\n") >= 0;
+    }
+    for (size_t i = 0; i < engine->config.population_size; i++)
+    {
+        const EvolutionStructureIndividual *data =
+            &context->structure_population[i];
+        size_t count = data->genome.connection_count;
+        int first_signature = 1;
+        mean += (double)count;
+        if (count < minimum)
+            minimum = count;
+        if (count > maximum)
+            maximum = count;
+        add_count += data->structural_mutation.add_count;
+        remove_count += data->structural_mutation.remove_count;
+        rewire_count += data->structural_mutation.rewire_count;
+        delay_count += data->structural_mutation.delay_mutation_count;
+        fallback_count += data->structural_mutation.crossover_fallback ? 1U : 0U;
+        for (size_t previous = 0; previous < i; previous++)
+        {
+            if (context->structure_population[previous].topology_signature_initial ==
+                data->topology_signature_initial)
+            {
+                first_signature = 0;
+                break;
+            }
+        }
+        if (first_signature)
+            unique_count++;
+        for (size_t right = i + 1;
+             right < engine->config.population_size;
+             right++)
+        {
+            diversity_sum += structure_jaccard_distance(
+                &data->genome,
+                &context->structure_population[right].genome);
+            pair_count++;
+        }
+    }
+    mean /= (double)engine->config.population_size;
+    for (size_t i = 0; i < engine->config.population_size; i++)
+    {
+        double difference =
+            (double)context->structure_population[i].genome.connection_count - mean;
+        variance += difference * difference;
+    }
+    variance = sqrt(variance / (double)engine->config.population_size);
+    best = &context->structure_population[ranking[0]];
+    return fprintf(file,
+        ",%zu,%.17g,%zu,%zu,%.17g,%zu,%.17g,%zu,%zu,%zu,%zu,%zu,%.17g,%.17g,%.17g\n",
+        best->genome.connection_count, mean, minimum, maximum, variance,
+        unique_count,
+        pair_count > 0 ? diversity_sum / (double)pair_count : 0.0,
+        add_count, remove_count, rewire_count, delay_count, fallback_count,
+        best->behavior_fitness,
+        best->complexity_penalty_value,
+        engine->population[ranking[0]].fitness_selection) >= 0;
 }
 
 static int write_generation_summary(
@@ -1324,7 +2353,7 @@ static int write_generation_summary(
 
     if (fprintf(files->generations,
             "%d,%zu,%d,%zu,%.17g,%.17g,%.17g,%.17g,%.17g,%.17g,%.17g,"
-            "%llu,%llu,%.17g,%.17g,%.17g,%zu,%zu,%zu,%zu,%zu,%.6f,%.6f\n",
+            "%llu,%llu,%.17g,%.17g,%.17g,%zu,%zu,%zu,%zu,%zu,%.6f,%.6f",
             engine->current_generation,
             engine->config.population_size,
             valid_count,
@@ -1338,7 +2367,9 @@ static int write_generation_summary(
             diversity_gene_std, diversity_pair_distance,
             engine->config.elite_count,
             crossover_count, clone_count, mutated_count, mutation_count,
-            evaluation_seconds, wall_seconds) < 0)
+            evaluation_seconds, wall_seconds) < 0 ||
+        !write_structural_generation_columns(
+            context, engine, ranking, files->generations))
         return 0;
 
     for (size_t i = 0; i < engine->config.population_size; i++)
@@ -1356,7 +2387,7 @@ static int write_generation_summary(
                      (unsigned long long)individual->parent_b_id);
         if (fprintf(files->individuals,
                 "%d,%llu,%s,%s,%s,%s,%.17g,%.17g,%.17g,%.17g,%.17g,"
-                "%d,%d,%zu,%.17g,%.17g,%d,%zu,%zu,%d,%d,%.6f,%s\n",
+                "%d,%d,%zu,%.17g,%.17g,%d,%zu,%zu,%d,%d,%.6f,%s",
                 individual->generation,
                 (unsigned long long)individual->individual_id,
                 status, parent_a, parent_b, individual->operation,
@@ -1375,9 +2406,35 @@ static int write_generation_summary(
                 run_info[i].evaluation_seconds,
                 run_info[i].failure_reason) < 0)
             return 0;
+        if (context->config.structure_enabled)
+        {
+            const EvolutionStructureIndividual *structure =
+                &context->structure_population[i];
+            if (fprintf(files->individuals,
+                    ",%zu,%zu,%zu,%016llx,%016llx,%zu,%zu,%zu,%zu,%.17g,%.17g,%.17g,%.17g\n",
+                    structure->initial_connection_count,
+                    structure->evaluated_initial_connection_count,
+                    structure->final_lifetime_connection_count,
+                    (unsigned long long)structure->topology_signature_initial,
+                    (unsigned long long)structure->topology_signature_final_lifetime,
+                    structure->structural_mutation.add_count,
+                    structure->structural_mutation.remove_count,
+                    structure->structural_mutation.rewire_count,
+                    structure->structural_mutation.delay_mutation_count,
+                    structure->behavior_fitness,
+                    structure->robust_fitness,
+                    structure->complexity_normalized,
+                    structure->complexity_penalty_value) < 0)
+                return 0;
+        }
+        else if (fprintf(files->individuals,
+                         ",NA,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA\n") < 0)
+            return 0;
     }
 
     return write_generation_genomes(context, engine, ranking, files->genomes) &&
+           write_generation_structures(
+               context, engine, ranking, files->structures) &&
            fflush(files->generations) == 0 && fflush(files->individuals) == 0;
 }
 
@@ -1438,6 +2495,310 @@ static int write_best_genome_atomic(
     return 1;
 }
 
+static int write_structure_checkpoint(
+    const EvolutionRunContext *context,
+    const EvolutionEngine *engine,
+    FILE *file,
+    int next_generation,
+    int completed)
+{
+    if (!context->config.structure_enabled || file == NULL ||
+        context->structure_population == NULL)
+        return 0;
+    if (fprintf(file,
+            "%s\nsignature=%s\nnext_generation=%d\ncompleted=%d\n"
+            "neuron_blueprint_signature=%llu\npopulation_size=%zu\n"
+            "current_generation=%d\nprng_state=%llu\nprng_increment=%llu\n"
+            "global_best_structure_individual_id=%llu\n"
+            "global_best_connection_count=%zu\n",
+            EVOLUTION_STRUCTURE_CHECKPOINT_MAGIC,
+            context->signature,
+            next_generation,
+            completed ? 1 : 0,
+            (unsigned long long)context->neuron_blueprint_signature,
+            engine->config.population_size,
+            engine->current_generation,
+            (unsigned long long)engine->prng.state,
+            (unsigned long long)engine->prng.increment,
+            (unsigned long long)context->global_best_structure_individual_id,
+            context->global_best_structure.connection_count) < 0)
+        return 0;
+    for (size_t i = 0; i < context->global_best_structure.connection_count; i++)
+    {
+        const MiniSNNConnectionGene *gene =
+            &context->global_best_structure.connections[i];
+        if (fprintf(file,
+                "global_gene,%zu,%llu,%zu,%zu,%.17g,%u,%u\n",
+                i, (unsigned long long)gene->connection_key,
+                gene->source, gene->target, gene->magnitude,
+                gene->delay, gene->inherited_from) < 0)
+            return 0;
+    }
+    for (size_t i = 0; i < engine->config.population_size; i++)
+    {
+        const EvolutionStructureIndividual *state =
+            &context->structure_population[i];
+        const EvolutionIndividual *individual = &engine->population[i];
+        if (fprintf(file,
+                "structure_state,%zu,%llu,%zu,%zu,%zu,%zu,%llu,%llu,"
+                "%zu,%zu,%zu,%zu,%zu,%zu,%zu,%d,%.17g,%.17g,%.17g,%.17g\n",
+                i, (unsigned long long)individual->individual_id,
+                state->genome.connection_count,
+                state->initial_connection_count,
+                state->evaluated_initial_connection_count,
+                state->final_lifetime_connection_count,
+                (unsigned long long)state->topology_signature_initial,
+                (unsigned long long)state->topology_signature_final_lifetime,
+                state->structural_mutation.add_count,
+                state->structural_mutation.remove_count,
+                state->structural_mutation.rewire_count,
+                state->structural_mutation.delay_mutation_count,
+                state->structural_mutation.skipped_count,
+                state->structural_mutation.common_inherited,
+                state->structural_mutation.disjoint_inherited,
+                state->structural_mutation.crossover_fallback,
+                state->behavior_fitness,
+                state->robust_fitness,
+                state->complexity_normalized,
+                state->complexity_penalty_value) < 0)
+            return 0;
+        for (size_t gene_index = 0;
+             gene_index < state->genome.connection_count;
+             gene_index++)
+        {
+            const MiniSNNConnectionGene *gene =
+                &state->genome.connections[gene_index];
+            if (fprintf(file,
+                    "structure_gene,%zu,%zu,%llu,%zu,%zu,%.17g,%u,%u\n",
+                    i, gene_index,
+                    (unsigned long long)gene->connection_key,
+                    gene->source, gene->target, gene->magnitude,
+                    gene->delay, gene->inherited_from) < 0)
+                return 0;
+        }
+    }
+    return fprintf(file, "END\n") >= 0;
+}
+
+static int read_checkpoint_key_string(
+    FILE *file,
+    const char *expected_key,
+    char *out_value,
+    size_t out_size)
+{
+    char line[512];
+    char key[128];
+    char value[384];
+    if (fgets(line, sizeof(line), file) == NULL ||
+        sscanf(line, "%127[^=]=%383[^\n]", key, value) != 2 ||
+        strcmp(key, expected_key) != 0 ||
+        snprintf(out_value, out_size, "%s", value) >= (int)out_size)
+        return 0;
+    return 1;
+}
+
+static int read_checkpoint_key_ull(
+    FILE *file,
+    const char *expected_key,
+    unsigned long long *out_value)
+{
+    char value[128];
+    char *end = NULL;
+    if (!read_checkpoint_key_string(
+            file, expected_key, value, sizeof(value)))
+        return 0;
+    *out_value = strtoull(value, &end, 10);
+    return end != value && *end == '\0';
+}
+
+static int read_structure_gene_line(
+    const char *line,
+    const char *prefix,
+    size_t expected_population_index,
+    size_t expected_gene_index,
+    MiniSNNConnectionGene *out_gene)
+{
+    size_t population_index;
+    size_t gene_index;
+    unsigned long long key;
+    unsigned int inherited_from;
+    char format[128];
+    if (snprintf(format, sizeof(format),
+            "%s,%%zu,%%zu,%%llu,%%zu,%%zu,%%lf,%%u,%%u", prefix) >=
+        (int)sizeof(format) ||
+        sscanf(line, format,
+            &population_index, &gene_index, &key,
+            &out_gene->source, &out_gene->target,
+            &out_gene->magnitude, &out_gene->delay,
+            &inherited_from) != 8 ||
+        population_index != expected_population_index ||
+        gene_index != expected_gene_index || !isfinite(out_gene->magnitude))
+        return 0;
+    out_gene->connection_key = (uint64_t)key;
+    out_gene->inherited_from = inherited_from;
+    return 1;
+}
+
+static int read_structure_checkpoint(
+    EvolutionRunContext *context,
+    const EvolutionEngine *engine,
+    FILE *file,
+    int expected_next_generation,
+    int expected_completed)
+{
+    char line[1024];
+    char signature[64];
+    unsigned long long value;
+    unsigned long long neuron_signature;
+    unsigned long long prng_state;
+    unsigned long long prng_increment;
+    unsigned long long global_best_id;
+    size_t population_size;
+    size_t global_count;
+    int next_generation;
+    int completed;
+    int current_generation;
+    MiniSNNConnectionGene *genes = NULL;
+
+    if (!context->config.structure_enabled || engine == NULL || file == NULL ||
+        fgets(line, sizeof(line), file) == NULL)
+        return 0;
+    line[strcspn(line, "\r\n")] = '\0';
+    if (strcmp(line, EVOLUTION_STRUCTURE_CHECKPOINT_MAGIC) != 0 ||
+        !read_checkpoint_key_string(file, "signature", signature, sizeof(signature)) ||
+        strcmp(signature, context->signature) != 0 ||
+        !read_checkpoint_key_ull(file, "next_generation", &value) ||
+        value > INT_MAX || (next_generation = (int)value) != expected_next_generation ||
+        !read_checkpoint_key_ull(file, "completed", &value) ||
+        value > 1U || (completed = (int)value) != expected_completed ||
+        !read_checkpoint_key_ull(file, "neuron_blueprint_signature", &neuron_signature) ||
+        neuron_signature != context->neuron_blueprint_signature ||
+        !read_checkpoint_key_ull(file, "population_size", &value) ||
+        value > SIZE_MAX ||
+        (population_size = (size_t)value) != engine->config.population_size ||
+        !read_checkpoint_key_ull(file, "current_generation", &value) ||
+        value > INT_MAX || (current_generation = (int)value) != engine->current_generation ||
+        !read_checkpoint_key_ull(file, "prng_state", &prng_state) ||
+        prng_state != engine->prng.state ||
+        !read_checkpoint_key_ull(file, "prng_increment", &prng_increment) ||
+        prng_increment != engine->prng.increment ||
+        !read_checkpoint_key_ull(file,
+            "global_best_structure_individual_id", &global_best_id) ||
+        !read_checkpoint_key_ull(file, "global_best_connection_count", &value) ||
+        value > SIZE_MAX || (global_count = (size_t)value) >
+            context->structure_constraints.max_connections)
+        return 0;
+
+    if (global_count > 0)
+        genes = calloc(global_count, sizeof(*genes));
+    if (global_count > 0 && genes == NULL)
+        return 0;
+    for (size_t i = 0; i < global_count; i++)
+    {
+        size_t stored_index;
+        unsigned long long key;
+        unsigned int inherited_from;
+        if (fgets(line, sizeof(line), file) == NULL ||
+            sscanf(line, "global_gene,%zu,%llu,%zu,%zu,%lf,%u,%u",
+                &stored_index, &key, &genes[i].source, &genes[i].target,
+                &genes[i].magnitude, &genes[i].delay,
+                &inherited_from) != 7 || stored_index != i ||
+            !isfinite(genes[i].magnitude))
+        {
+            free(genes);
+            return 0;
+        }
+        genes[i].connection_key = (uint64_t)key;
+        genes[i].inherited_from = inherited_from;
+    }
+    if (!structure_genome_set(
+            &context->global_best_structure, genes, global_count) ||
+        !structure_genome_validate(
+            &context->global_best_structure,
+            &context->structure_constraints))
+    {
+        free(genes);
+        return 0;
+    }
+    free(genes);
+    genes = NULL;
+    context->global_best_structure_individual_id = (uint64_t)global_best_id;
+    context->structure_population = calloc(
+        population_size, sizeof(*context->structure_population));
+    if (context->structure_population == NULL)
+        return 0;
+
+    for (size_t i = 0; i < population_size; i++)
+    {
+        EvolutionStructureIndividual *state = &context->structure_population[i];
+        size_t stored_index;
+        unsigned long long individual_id;
+        unsigned long long signature_initial;
+        unsigned long long signature_final;
+        size_t connection_count;
+        if (fgets(line, sizeof(line), file) == NULL ||
+            sscanf(line,
+                "structure_state,%zu,%llu,%zu,%zu,%zu,%zu,%llu,%llu,"
+                "%zu,%zu,%zu,%zu,%zu,%zu,%zu,%d,%lf,%lf,%lf,%lf",
+                &stored_index, &individual_id, &connection_count,
+                &state->initial_connection_count,
+                &state->evaluated_initial_connection_count,
+                &state->final_lifetime_connection_count,
+                &signature_initial, &signature_final,
+                &state->structural_mutation.add_count,
+                &state->structural_mutation.remove_count,
+                &state->structural_mutation.rewire_count,
+                &state->structural_mutation.delay_mutation_count,
+                &state->structural_mutation.skipped_count,
+                &state->structural_mutation.common_inherited,
+                &state->structural_mutation.disjoint_inherited,
+                &state->structural_mutation.crossover_fallback,
+                &state->behavior_fitness, &state->robust_fitness,
+                &state->complexity_normalized,
+                &state->complexity_penalty_value) != 20 ||
+            stored_index != i ||
+            individual_id != engine->population[i].individual_id ||
+            connection_count < context->structure_constraints.min_connections ||
+            connection_count > context->structure_constraints.max_connections)
+            goto read_fail;
+        state->topology_signature_initial = (uint64_t)signature_initial;
+        state->topology_signature_final_lifetime = (uint64_t)signature_final;
+        if (connection_count > 0)
+            genes = calloc(connection_count, sizeof(*genes));
+        if (connection_count > 0 && genes == NULL)
+            goto read_fail;
+        for (size_t gene_index = 0; gene_index < connection_count; gene_index++)
+        {
+            if (fgets(line, sizeof(line), file) == NULL ||
+                !read_structure_gene_line(
+                    line, "structure_gene", i, gene_index,
+                    &genes[gene_index]))
+                goto read_fail;
+        }
+        if (!structure_genome_set(&state->genome, genes, connection_count) ||
+            !structure_genome_validate(
+                &state->genome, &context->structure_constraints) ||
+            structure_topology_signature(
+                &state->genome,
+                context->neuron_blueprint_signature) !=
+                    state->topology_signature_initial)
+            goto read_fail;
+        free(genes);
+        genes = NULL;
+    }
+    if (fgets(line, sizeof(line), file) == NULL)
+        goto read_fail;
+    line[strcspn(line, "\r\n")] = '\0';
+    if (strcmp(line, "END") != 0)
+        goto read_fail;
+    return 1;
+
+read_fail:
+    free(genes);
+    structure_population_destroy(context);
+    return 0;
+}
+
 static int write_checkpoint_atomic(
     const EvolutionRunContext *context,
     const EvolutionEngine *engine,
@@ -1446,12 +2807,23 @@ static int write_checkpoint_atomic(
 {
     char final_path[EVOLUTION_OUTPUT_PATH_MAX];
     char temp_path[EVOLUTION_OUTPUT_PATH_MAX];
+    char structure_final_path[EVOLUTION_OUTPUT_PATH_MAX];
+    char structure_temp_path[EVOLUTION_OUTPUT_PATH_MAX];
     FILE *file;
+    FILE *structure_file = NULL;
 
     if (!path_join(final_path, sizeof(final_path), context->output_directory,
                    "checkpoint.txt") ||
         !path_join(temp_path, sizeof(temp_path), context->output_directory,
                    "checkpoint.tmp"))
+        return 0;
+    structure_final_path[0] = '\0';
+    structure_temp_path[0] = '\0';
+    if (context->config.structure_enabled &&
+        (!path_join(structure_final_path, sizeof(structure_final_path),
+                    context->output_directory, "checkpoint_structure.txt") ||
+         !path_join(structure_temp_path, sizeof(structure_temp_path),
+                    context->output_directory, "checkpoint_structure.tmp")))
         return 0;
     file = fopen(temp_path, "w");
     if (file == NULL)
@@ -1462,6 +2834,37 @@ static int write_checkpoint_atomic(
     {
         DeleteFileA(temp_path);
         return 0;
+    }
+    if (context->config.structure_enabled)
+    {
+        int structure_ok;
+        structure_file = fopen(structure_temp_path, "w");
+        if (structure_file == NULL)
+        {
+            DeleteFileA(temp_path);
+            DeleteFileA(structure_temp_path);
+            return 0;
+        }
+        structure_ok = write_structure_checkpoint(
+            context, engine, structure_file,
+            next_generation, completed);
+        if (fclose(structure_file) != 0)
+            structure_ok = 0;
+        structure_file = NULL;
+        if (!structure_ok)
+        {
+            DeleteFileA(temp_path);
+            DeleteFileA(structure_temp_path);
+            return 0;
+        }
+        if (!MoveFileExA(
+                structure_temp_path, structure_final_path,
+                MOVEFILE_REPLACE_EXISTING | MOVEFILE_WRITE_THROUGH))
+        {
+            DeleteFileA(temp_path);
+            DeleteFileA(structure_temp_path);
+            return 0;
+        }
     }
     if (!MoveFileExA(temp_path, final_path,
                      MOVEFILE_REPLACE_EXISTING | MOVEFILE_WRITE_THROUGH))
@@ -1483,6 +2886,39 @@ static int write_best_network_initial(
     if (!path_join(path, sizeof(path), context->output_directory,
                    "best_network_initial.csv"))
         return 0;
+    if (context->config.structure_enabled)
+    {
+        file = fopen(path, "w");
+        if (file == NULL)
+            return 0;
+        if (fprintf(file,
+                "connection_id,source,target,source_type,target_type,delay,initial_weight\n") < 0)
+        {
+            fclose(file);
+            return 0;
+        }
+        for (size_t i = 0;
+             i < context->global_best_structure.connection_count;
+             i++)
+        {
+            const MiniSNNConnectionGene *gene =
+                &context->global_best_structure.connections[i];
+            int inhibitory = context->structure_neurons[gene->source].type ==
+                NEURON_INHIBITORY;
+            if (fprintf(file, "%zu,%zu,%zu,%s,%s,%u,%.17g\n",
+                    i, gene->source, gene->target,
+                    inhibitory ? "INH" : "EXC",
+                    context->structure_neurons[gene->target].type ==
+                        NEURON_INHIBITORY ? "INH" : "EXC",
+                    gene->delay,
+                    inhibitory ? -gene->magnitude : gene->magnitude) < 0)
+            {
+                fclose(file);
+                return 0;
+            }
+        }
+        return fclose(file) == 0;
+    }
     weights = malloc(context->blueprint.connection_count * sizeof(*weights));
     if (context->blueprint.connection_count > 0 && weights == NULL)
         return 0;
@@ -1528,6 +2964,60 @@ static int write_best_network_initial(
     return fclose(file) == 0;
 }
 
+static int write_structure_topology_csv(
+    const EvolutionRunContext *context,
+    const char *filename,
+    const StructureGenome *genome,
+    const char *topology_role)
+{
+    char path[EVOLUTION_OUTPUT_PATH_MAX];
+    FILE *file;
+    int ok = 1;
+    if (!path_join(path, sizeof(path), context->output_directory, filename))
+        return 0;
+    file = fopen(path, "w");
+    if (file == NULL)
+        return 0;
+    if (fprintf(file,
+            "connection_key,source,target,source_type,target_type,magnitude,applied_weight,delay,topology_role\n") < 0)
+        ok = 0;
+    for (size_t i = 0; ok && i < genome->connection_count; i++)
+    {
+        const MiniSNNConnectionGene *gene = &genome->connections[i];
+        int inhibitory = context->structure_neurons[gene->source].type ==
+            NEURON_INHIBITORY;
+        if (fprintf(file,
+                "%llu,%zu,%zu,%s,%s,%.17g,%.17g,%u,%s\n",
+                (unsigned long long)gene->connection_key,
+                gene->source, gene->target,
+                inhibitory ? "INH" : "EXC",
+                context->structure_neurons[gene->target].type ==
+                    NEURON_INHIBITORY ? "INH" : "EXC",
+                gene->magnitude,
+                inhibitory ? -gene->magnitude : gene->magnitude,
+                gene->delay, topology_role) < 0)
+            ok = 0;
+    }
+    if (fclose(file) != 0)
+        ok = 0;
+    return ok;
+}
+
+static int write_best_inherited_topologies(
+    const EvolutionRunContext *context)
+{
+    if (!context->config.structure_enabled)
+        return 1;
+    return write_structure_topology_csv(
+               context, "best_topology.csv",
+               &context->global_best_structure,
+               "heritable_genome") &&
+           write_structure_topology_csv(
+               context, "best_topology_initial.csv",
+               &context->global_best_structure,
+               "heritable_initial");
+}
+
 static int write_manifest_and_report(
     const EvolutionRunContext *context,
     const EvolutionEngine *engine,
@@ -1558,6 +3048,8 @@ static int write_manifest_and_report(
             "experiment_name=%s\nactual_experiment_name=%s\nbase_scenario=%s\n"
             "blueprint_signature=%llu\nneurons=%d\nconnections=%zu\n"
             "gene_count=%zu\nscalar_gene_count=%d\n"
+            "genome_mode=%s\nstructure_enabled=%s\n"
+            "neuron_blueprint_signature=%llu\n"
             "evolve_exc_weights=%s\nevolve_inh_magnitudes=%s\n"
             "selection=tournament\ntournament_sampling=without_replacement\n"
             "crossover=uniform\nmutation=uniform_delta\n"
@@ -1565,22 +3057,43 @@ static int write_manifest_and_report(
             "replicate_std_penalty=%.17g\nfitness_formula=weighted_mean_of_scores\n"
             "selection_fitness_formula=clamp(mean-penalty*std,0,1)\n"
             "inheritance=darwinian\nlamarckian_inheritance=disabled\n"
-            "topology_evolution=disabled\ndelay_evolution=disabled\n"
-            "parallel_evaluation=disabled\ncheckpoint_format=text_v1\nresume_used=%s\n"
+            "topology_evolution=%s\ndelay_evolution=%s\n"
+            "complexity_penalty=%.17g\n"
+            "best_connection_count=%zu\nbest_topology_signature=%llu\n"
+            "parallel_evaluation=disabled\ncheckpoint_format=%s\nresume_used=%s\n"
             "save_all_genomes=%s\nwall_seconds=%.6f\n",
-            EVOLUTION_VERSION, context->signature,
+            context->config.structure_enabled ? "C4-v1" : EVOLUTION_VERSION,
+            context->signature,
             context->config.experiment_name, context->actual_experiment_name,
             context->config.base_scenario,
             context->blueprint.topology_signature,
             context->blueprint.neuron_count,
             context->blueprint.connection_count,
             context->gene_count, context->config.scalar_gene_count,
+            context->config.genome_mode,
+            context->config.structure_enabled ? "true" : "false",
+            (unsigned long long)context->neuron_blueprint_signature,
             context->config.evolve_exc_weights ? "true" : "false",
             context->config.evolve_inh_magnitudes ? "true" : "false",
             (unsigned long long)context->config.evolution_seed,
             (unsigned long long)context->config.evaluation_seed_base,
             context->config.evaluation_replicates,
             context->config.replicate_std_penalty,
+            context->config.structure_enabled ? "enabled" : "disabled",
+            context->config.structure_enabled &&
+                context->config.structure_evolve_delays ? "enabled" : "disabled",
+            context->config.structure_enabled ?
+                context->config.structure_complexity_penalty : 0.0,
+            context->config.structure_enabled ?
+                context->global_best_structure.connection_count :
+                context->blueprint.connection_count,
+            (unsigned long long)(context->config.structure_enabled ?
+                structure_topology_signature(
+                    &context->global_best_structure,
+                    context->neuron_blueprint_signature) :
+                context->blueprint.topology_signature),
+            context->config.structure_enabled ?
+                "text_v1+structure_sidecar_v1" : "text_v1",
             resumed ? "true" : "false",
             context->config.save_all_genomes ? "true" : "false",
             wall_seconds) < 0)
@@ -1588,6 +3101,60 @@ static int write_manifest_and_report(
         close_file(&manifest);
         close_file(&report);
         return 0;
+    }
+
+    if (context->config.structure_enabled)
+    {
+        uint64_t best_signature = structure_topology_signature(
+            &context->global_best_structure,
+            context->neuron_blueprint_signature);
+        if (fprintf(report,
+                "MINISNN - RELATORIO DE TOPOLOGIA ADAPTATIVA EVOLUTIVA\n\n"
+                "1. Identificacao\nExperimento: %s\nExecucao: %s\n\n"
+                "2. Estrutura inicial\nBlueprint com %zu conexoes; neuronios fixos: %d.\n\n"
+                "3. Configuracao\nGenome mode: structural_connections; limites: %d..%d.\n\n"
+                "4. Ordem temporal\nA estrutura herdavel cria o fenotipo antes da avaliacao.\n\n"
+                "5. Eventos de crescimento\nConsulte structural_events.csv.\n\n"
+                "6. Eventos de poda\nRemocoes reprodutivas sao auditadas no mesmo CSV.\n\n"
+                "7. Reconexoes\nReconexoes usam transacao atomica.\n\n"
+                "8. Delays\nEvolucao de delay: %s.\n\n"
+                "9. Estrutura final\nMelhor genoma: %zu conexoes; assinatura %016llx.\n\n"
+                "10. Integracao com STDP\n%s\n\n"
+                "11. Integracao com R-STDP\n%s\n\n"
+                "12. Integracao com homeostase\n%s\n\n"
+                "13. Complexidade\nPenalidade configurada: %.17g.\n\n"
+                "14. Assinaturas e reprodutibilidade\nBlueprint: %016llx; checkpoint C4 sidecar validado.\n\n"
+                "15. Desempenho\nTempo total: %.6f s.\n\n"
+                "16. Limitacoes\nA heuristica modifica arestas, mas nao garante melhora comportamental. "
+                "Coatividade nao implica causalidade. Complexidade menor nao e sempre melhor. "
+                "Crossover pode destruir estruturas uteis. A topologia final depende da seed. "
+                "Neuronios nao sao criados ou removidos; NEAT e speciation nao foram implementados. "
+                "Estrutura aprendida durante a vida nao e herdada.\n",
+                context->config.experiment_name,
+                context->actual_experiment_name,
+                context->blueprint.connection_count,
+                context->blueprint.neuron_count,
+                context->config.structure_min_connections,
+                context->config.structure_max_connections,
+                context->config.structure_evolve_delays ? "ativa" : "inativa",
+                context->global_best_structure.connection_count,
+                (unsigned long long)best_signature,
+                context->base.plasticity_enabled ? "STDP pode alterar pesos durante a vida; o genoma inicial permanece separado." : "STDP inativo.",
+                context->base.reward_enabled ? "R-STDP pode alterar pesos durante a vida; eligibilities nao sao herdadas." : "R-STDP inativo.",
+                context->base.homeostasis_enabled ? "Estado por neuronio e preservado durante rebuilds atomicos." : "Homeostase inativa.",
+                context->config.structure_complexity_penalty,
+                (unsigned long long)context->neuron_blueprint_signature,
+                wall_seconds) < 0)
+        {
+            close_file(&manifest);
+            close_file(&report);
+            return 0;
+        }
+        {
+            int manifest_ok = fclose(manifest) == 0;
+            int report_ok = fclose(report) == 0;
+            return manifest_ok && report_ok;
+        }
     }
 
     if (fprintf(report,
@@ -1764,6 +3331,7 @@ static int write_best_run(
     char weights_html_path[EVOLUTION_OUTPUT_PATH_MAX];
     BestRunObserver observer;
     EvolutionEvaluation evaluation;
+    StructureGenome lifetime_final_structure = {0};
     FILE *summary = NULL;
     FILE *metrics = NULL;
     FILE *manifest = NULL;
@@ -1797,6 +3365,7 @@ static int write_best_run(
         close_file(&observer.raster);
         close_file(&observer.weights_initial);
         close_file(&observer.weights_final);
+        structure_genome_destroy(&lifetime_final_structure);
         return 0;
     }
     observer.enabled = 1;
@@ -1807,14 +3376,22 @@ static int write_best_run(
                 "connection_id,source,target,source_type,target_type,delay,weight\n") < 0 ||
         fprintf(observer.weights_final,
                 "connection_id,source,target,source_type,target_type,delay,weight\n") < 0 ||
-        !evaluate_genome(context, engine->global_best_genes,
-                         context->config.evaluation_seed_base,
-                         &observer, &evaluation))
+        !evaluate_genome(
+            context,
+            engine->global_best_genes,
+            context->config.structure_enabled ?
+                &context->global_best_structure : NULL,
+            context->config.evaluation_seed_base,
+            &observer,
+            context->config.structure_enabled ?
+                &lifetime_final_structure : NULL,
+            &evaluation))
     {
         close_file(&observer.population);
         close_file(&observer.raster);
         close_file(&observer.weights_initial);
         close_file(&observer.weights_final);
+        structure_genome_destroy(&lifetime_final_structure);
         return 0;
     }
     close_file(&observer.population);
@@ -1822,7 +3399,19 @@ static int write_best_run(
     close_file(&observer.weights_initial);
     close_file(&observer.weights_final);
     if (!evaluation.valid)
+    {
+        structure_genome_destroy(&lifetime_final_structure);
         return 0;
+    }
+    if (context->config.structure_enabled &&
+        !write_structure_topology_csv(
+            context, "best_topology_lifetime_final.csv",
+            &lifetime_final_structure, "lifetime_final_phenotype"))
+    {
+        structure_genome_destroy(&lifetime_final_structure);
+        return 0;
+    }
+    structure_genome_destroy(&lifetime_final_structure);
 
     summary = fopen(summary_path, "w");
     metrics = fopen(metrics_path, "w");
@@ -1914,6 +3503,89 @@ static int write_best_run(
     }
 }
 
+static int ensure_evolution_index_schema(const char *path)
+{
+    char temp_path[EVOLUTION_OUTPUT_PATH_MAX];
+    char header[1024];
+    FILE *input;
+    FILE *output;
+    int ok = 1;
+    if (!file_exists(path))
+        return 1;
+    input = fopen(path, "r");
+    if (input == NULL || fgets(header, sizeof(header), input) == NULL)
+    {
+        if (input != NULL)
+            fclose(input);
+        return 0;
+    }
+    if (strcmp(header, EVOLUTION_INDEX_HEADER) == 0)
+    {
+        fclose(input);
+        return 1;
+    }
+    if (strcmp(header, EVOLUTION_INDEX_HEADER_LEGACY) != 0 ||
+        snprintf(temp_path, sizeof(temp_path), "%s.tmp", path) >=
+            (int)sizeof(temp_path))
+    {
+        fclose(input);
+        return 0;
+    }
+    output = fopen(temp_path, "w");
+    if (output == NULL)
+    {
+        fclose(input);
+        return 0;
+    }
+    if (fprintf(output, EVOLUTION_INDEX_HEADER) < 0)
+        ok = 0;
+    while (ok && fgets(header, sizeof(header), input) != NULL)
+    {
+        header[strcspn(header, "\r\n")] = '\0';
+        if (fprintf(output, "%s,NA,false,NA,NA,NA,NA\n", header) < 0)
+            ok = 0;
+    }
+    if (ferror(input))
+        ok = 0;
+    if (fclose(input) != 0)
+        ok = 0;
+    if (fclose(output) != 0)
+        ok = 0;
+    if (!ok || !MoveFileExA(
+            temp_path, path,
+            MOVEFILE_REPLACE_EXISTING | MOVEFILE_WRITE_THROUGH))
+    {
+        DeleteFileA(temp_path);
+        return 0;
+    }
+    return 1;
+}
+
+static size_t current_topology_unique_count(
+    const EvolutionRunContext *context,
+    const EvolutionEngine *engine)
+{
+    size_t count = 0;
+    if (!context->config.structure_enabled)
+        return 0;
+    for (size_t i = 0; i < engine->config.population_size; i++)
+    {
+        int unique = 1;
+        for (size_t previous = 0; previous < i; previous++)
+        {
+            if (context->structure_population[previous].topology_signature_initial ==
+                context->structure_population[i].topology_signature_initial)
+            {
+                unique = 0;
+                break;
+            }
+        }
+        if (unique)
+            count++;
+    }
+    return count;
+}
+
 static int append_index(
     const EvolutionRunContext *context,
     const EvolutionEngine *engine,
@@ -1926,6 +3598,8 @@ static int append_index(
 
     if (!path_join(index_path, sizeof(index_path), context->output_root, "index.csv"))
         return 0;
+    if (!ensure_evolution_index_schema(index_path))
+        return 0;
     new_file = !file_exists(index_path);
     file = fopen(index_path, "a");
     if (file == NULL)
@@ -1936,14 +3610,33 @@ static int append_index(
         return 0;
     }
     current_timestamp(timestamp, sizeof(timestamp), 0);
-    if (fprintf(file, "%s,%s,%s,%s,%s,%s,%d,%d,%zu,%.17g,%llu,%s\n",
+    if (fprintf(file,
+                "%s,%s,%s,%s,%s,%s,%d,%d,%zu,%.17g,%llu,%s,%s,%s,",
                 timestamp, context->config.experiment_name,
                 context->actual_experiment_name, context->output_directory,
                 context->config_path, context->config.base_scenario,
                 context->config.population_size, context->config.generations,
                 context->gene_count, engine->global_best_fitness_selection,
                 (unsigned long long)engine->global_best_individual_id,
-                status) < 0)
+                status,
+                context->config.genome_mode,
+                context->config.structure_enabled ? "true" : "false") < 0)
+    {
+        fclose(file);
+        return 0;
+    }
+    if (context->config.structure_enabled)
+    {
+        if (fprintf(file, "%zu,%zu,%.17g,best_topology.csv\n",
+                    context->global_best_structure.connection_count,
+                    current_topology_unique_count(context, engine),
+                    context->config.structure_complexity_penalty) < 0)
+        {
+            fclose(file);
+            return 0;
+        }
+    }
+    else if (fprintf(file, "NA,NA,NA,NA\n") < 0)
     {
         fclose(file);
         return 0;
@@ -2011,7 +3704,10 @@ static int run_engine(
         return 0;
     }
 
-    if (!resumed && !write_lineage_population(files.lineage, engine))
+    if (!resumed &&
+        (!write_lineage_population(files.lineage, context, engine) ||
+         !write_structural_events_population(
+             context, engine, files.structural_events)))
     {
         free(run_info);
         output_files_close(&files);
@@ -2072,8 +3768,10 @@ static int run_engine(
             break;
         }
 
-        if (!evolution_engine_breed_next_generation(engine) ||
-            !write_lineage_population(files.lineage, engine))
+        if (!breed_next_generation(context, engine) ||
+            !write_lineage_population(files.lineage, context, engine) ||
+            !write_structural_events_population(
+                context, engine, files.structural_events))
         {
             free(run_info);
             output_files_close(&files);
@@ -2112,6 +3810,7 @@ static int run_engine(
         return 1;
 
     if (!write_best_network_initial(context, engine) ||
+        !write_best_inherited_topologies(context) ||
         (context->config.save_best_run && !write_best_run(context, engine)) ||
         !write_manifest_and_report(
             context, engine, resumed,
@@ -2207,6 +3906,7 @@ int evolution_runner_execute(
     ok = evolution_engine_init(
              &engine, &engine_config, context.metadata, context.gene_count) &&
          evolution_engine_initialize_population(&engine) &&
+         initialize_structure_population(&context, &engine) &&
          run_engine(&context, &engine, 0, 0, options, out_result,
                     error_message, error_message_size);
 
@@ -2239,7 +3939,9 @@ int evolution_runner_resume(
     EvolutionEngine engine;
     char config_path[EVOLUTION_OUTPUT_PATH_MAX];
     char checkpoint_path[EVOLUTION_OUTPUT_PATH_MAX];
+    char structure_checkpoint_path[EVOLUTION_OUTPUT_PATH_MAX];
     FILE *checkpoint = NULL;
+    FILE *structure_checkpoint = NULL;
     int next_generation;
     int completed;
     int ok;
@@ -2260,6 +3962,8 @@ int evolution_runner_resume(
                    "evolution_config_used.ini") ||
         !path_join(checkpoint_path, sizeof(checkpoint_path), experiment_directory,
                    "checkpoint.txt") ||
+        !path_join(structure_checkpoint_path, sizeof(structure_checkpoint_path),
+                   experiment_directory, "checkpoint_structure.txt") ||
         !file_exists(config_path) || !file_exists(checkpoint_path))
     {
         set_error(error_message, error_message_size, "checkpoint ou config ausente");
@@ -2305,6 +4009,21 @@ int evolution_runner_resume(
         &next_generation, &completed);
     if (checkpoint != NULL)
         fclose(checkpoint);
+    if (ok && context.config.structure_enabled)
+    {
+        if (!file_exists(structure_checkpoint_path))
+            ok = 0;
+        else
+        {
+            structure_checkpoint = fopen(structure_checkpoint_path, "r");
+            ok = structure_checkpoint != NULL &&
+                read_structure_checkpoint(
+                    &context, &engine, structure_checkpoint,
+                    next_generation, completed);
+            if (structure_checkpoint != NULL)
+                fclose(structure_checkpoint);
+        }
+    }
     if (!ok)
     {
         evolution_engine_destroy(&engine);

@@ -240,6 +240,12 @@ acompanhado por timer; o Studio nao inicia duas evolucoes simultaneas.
 A compilacao automatica valida o codigo. Os cliques, seletores e mensagens
 continuam marcados como validacao manual pendente no checklist.
 
+Para execucoes estruturais, o Studio usa `last_experiment.txt` para localizar a
+ultima pasta. `ABRIR EVENTOS ESTRUTURAIS` gera e abre
+`structural_events_report.html`; `ABRIR MELHOR TOPOLOGIA` gera e abre
+`best_topology_report.html`. Os CSVs correspondentes continuam sendo as fontes
+cientificas brutas e os HTMLs apenas apresentam esses dados localmente.
+
 ## Demos
 
 - `evolution_weight_target_demo.ini`: evolui pesos iniciais para uma contagem-alvo;
@@ -272,7 +278,15 @@ mingw32-make check-c3
 - Replicas reduzem parte da sensibilidade, mas nao eliminam variancia.
 - A avaliacao e serial; paralelismo e trabalho futuro.
 
-## Proximo marco
+## Extensão C4
 
-C4 permanece planejado para topologia adaptativa e evolucao estrutural. Nada
-dessa fase e implementado ou simulado pelo C3.
+O C3 continua disponível como `fixed_numeric`. O C4 acrescenta
+`structural_connections`, crossover alinhado por connection key, mutações de
+arestas/delays, penalidade de complexidade e plasticidade estrutural opcional
+durante a vida. A topologia aprendida durante uma avaliação não retorna ao
+genoma. Consulte o [Guia de topologia adaptativa](GUIA_DE_TOPOLOGIA_ADAPTATIVA.md).
+
+## Próximo marco
+
+C5 é o próximo marco planejado para modelos neurais avançados. Ele não foi
+implementado pelo C4.

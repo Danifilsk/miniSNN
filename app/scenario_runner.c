@@ -95,6 +95,15 @@ typedef struct
     int last_event_step;
 } RewardRunData;
 
+typedef struct
+{
+    int enabled;
+    size_t last_event_count;
+    int last_history_step;
+    MiniSNNStructuralStats initial_stats;
+    MiniSNNStructuralStats final_stats;
+} StructuralRunData;
+
 static void topology_hash_value(
     unsigned long long *hash,
     unsigned long long value)
@@ -3308,6 +3317,394 @@ int scenario_runner_capture_blueprint(
     return ok;
 }
 
+static const char *structural_operation_name(
+    MiniSNNTopologyOperationType type)
+{
+    switch (type)
+    {
+    case MINISNN_TOPOLOGY_ADD:
+        return "add";
+    case MINISNN_TOPOLOGY_REMOVE:
+        return "remove";
+    case MINISNN_TOPOLOGY_REWIRE:
+        return "rewire";
+    case MINISNN_TOPOLOGY_SET_DELAY:
+        return "delay_mutation";
+    default:
+        return "unknown";
+    }
+}
+
+static int write_structural_topology(
+    const MiniSNN *snn,
+    const char *directory,
+    const char *filename)
+{
+    char path[SCENARIO_OUTPUT_PATH_MAX];
+    FILE *file;
+    size_t count = minisnn_connection_count(snn);
+    if (!make_path(path, directory, filename))
+        return 0;
+    file = fopen(path, "w");
+    if (file == NULL ||
+        fprintf(file,
+                "connection_key,source,target,source_type,target_type,weight,magnitude,delay,birth_step\n") < 0)
+    {
+        close_file_if_open(file);
+        return 0;
+    }
+    for (size_t connection_id = 0; connection_id < count; connection_id++)
+    {
+        MiniSNNConnectionInfo connection;
+        MiniSNNStructuralConnectionState state;
+        uint64_t key;
+        if (!minisnn_get_connection(snn, connection_id, &connection) ||
+            !minisnn_get_structural_connection_state(snn, connection_id, &state) ||
+            !minisnn_connection_key(
+                (size_t)minisnn_neuron_count(snn), connection.source,
+                connection.target, &key) ||
+            fprintf(file, "%llu,%zu,%zu,%s,%s,%.17g,%.17g,%u,%llu\n",
+                    (unsigned long long)key,
+                    connection.source, connection.target,
+                    connection.source_type == MINISNN_NEURON_INHIBITORY ?
+                        "INH" : "EXC",
+                    connection.target_type == MINISNN_NEURON_INHIBITORY ?
+                        "INH" : "EXC",
+                    connection.weight, fabs(connection.weight), connection.delay,
+                    state.birth_step) < 0)
+        {
+            fclose(file);
+            return 0;
+        }
+    }
+    return fclose(file) == 0;
+}
+
+static int append_structural_history(
+    const MiniSNN *snn,
+    const ScenarioConfig *config,
+    const char *directory,
+    int step,
+    StructuralRunData *data)
+{
+    char path[SCENARIO_OUTPUT_PATH_MAX];
+    FILE *file;
+    MiniSNNStructuralStats stats;
+    size_t count = minisnn_connection_count(snn);
+    size_t exc_count = 0U;
+    size_t inh_count = 0U;
+    double weight_sum = 0.0;
+    double absolute_sum = 0.0;
+    double delay_sum = 0.0;
+    if (!data->enabled || data->last_history_step == step)
+        return 1;
+    if (!minisnn_get_structural_stats(snn, &stats) ||
+        !make_path(path, directory, "topology_history.csv"))
+        return 0;
+    file = fopen(path, "a");
+    if (file == NULL)
+        return 0;
+    for (size_t connection_id = 0; connection_id < count; connection_id++)
+    {
+        MiniSNNConnectionInfo connection;
+        if (!minisnn_get_connection(snn, connection_id, &connection))
+        {
+            fclose(file);
+            return 0;
+        }
+        if (connection.source_type == MINISNN_NEURON_INHIBITORY)
+            inh_count++;
+        else
+            exc_count++;
+        weight_sum += connection.weight;
+        absolute_sum += fabs(connection.weight);
+        delay_sum += (double)connection.delay;
+    }
+    if (fprintf(file,
+                "%d,%zu,%zu,%zu,%llu,%llu,%llu,%llu,%llu,%.17g,%.17g,%.17g\n",
+                step, count, exc_count, inh_count,
+                stats.add_success_count, stats.remove_success_count,
+                stats.rewire_count, stats.delay_change_count,
+                (unsigned long long)stats.current_topology_signature,
+                count > 0U ? weight_sum / (double)count : 0.0,
+                count > 0U ? absolute_sum / (double)count : 0.0,
+                count > 0U ? delay_sum / (double)count : 0.0) < 0)
+    {
+        fclose(file);
+        return 0;
+    }
+    if (fclose(file) != 0)
+        return 0;
+    data->last_history_step = step;
+    data->last_event_count = minisnn_structural_event_count(snn);
+    (void)config;
+    return 1;
+}
+
+static int structural_run_data_prepare(
+    const MiniSNN *snn,
+    const ScenarioConfig *config,
+    const char *directory,
+    StructuralRunData *data)
+{
+    char path[SCENARIO_OUTPUT_PATH_MAX];
+    FILE *file;
+    memset(data, 0, sizeof(*data));
+    data->last_history_step = -1;
+    data->enabled = config->structural_plasticity_enabled;
+    if (!data->enabled)
+        return 1;
+    if (!minisnn_get_structural_stats(snn, &data->initial_stats) ||
+        !write_structural_topology(
+            snn, directory, "topology_initial.csv") ||
+        !make_path(path, directory, "topology_history.csv"))
+        return 0;
+    file = fopen(path, "w");
+    if (file == NULL)
+        return 0;
+    if (fprintf(file,
+                "step,connection_count,exc_connection_count,inh_connection_count,added_cumulative,removed_cumulative,rewired_cumulative,delay_changes_cumulative,topology_signature,mean_weight,mean_absolute_weight,mean_delay\n") < 0)
+    {
+        fclose(file);
+        return 0;
+    }
+    if (fclose(file) != 0)
+        return 0;
+    return append_structural_history(snn, config, directory, 0, data);
+}
+
+static int write_structural_events(
+    const MiniSNN *snn,
+    const ScenarioConfig *config,
+    const char *directory)
+{
+    char path[SCENARIO_OUTPUT_PATH_MAX];
+    FILE *file;
+    size_t count = minisnn_structural_event_count(snn);
+    if (!make_path(path, directory, "structural_plasticity_events.csv"))
+        return 0;
+    file = fopen(path, "w");
+    if (file == NULL ||
+        fprintf(file,
+                "step,event_index,event_type,source,target,new_source,new_target,connection_key,new_connection_key,weight,magnitude,delay,activity_score,growth_score,age_steps,status,reason,topology_signature_before,topology_signature_after\n") < 0)
+    {
+        close_file_if_open(file);
+        return 0;
+    }
+    for (size_t event_index = 0; event_index < count; event_index++)
+    {
+        MiniSNNStructuralEvent event;
+        double weight;
+        if (!minisnn_get_structural_event(snn, event_index, &event))
+        {
+            fclose(file);
+            return 0;
+        }
+        weight = scenario_runtime_neuron_is_inhibitory(
+                     (int)event.source, config->neurons,
+                     scenario_runtime_inhibitory_count(config)) ?
+                     -event.magnitude : event.magnitude;
+        if (fprintf(file,
+                    "%llu,%llu,%s,%zu,%zu,%zu,%zu,%llu,%llu,%.17g,%.17g,%u,%.17g,%.17g,%llu,%s,\"%s\",%llu,%llu\n",
+                    event.step, event.event_index,
+                    structural_operation_name(event.type),
+                    event.source, event.target, event.new_source,
+                    event.new_target,
+                    (unsigned long long)event.connection_key,
+                    (unsigned long long)event.new_connection_key,
+                    weight, event.magnitude, event.delay,
+                    event.activity_score, event.growth_score, event.age_steps,
+                    event.applied ? "applied" : "rejected", event.reason,
+                    (unsigned long long)event.signature_before,
+                    (unsigned long long)event.signature_after) < 0)
+        {
+            fclose(file);
+            return 0;
+        }
+    }
+    return fclose(file) == 0;
+}
+
+static int structural_run_data_finalize(
+    const MiniSNN *snn,
+    const ScenarioConfig *config,
+    const ScenarioRunResult *result,
+    StructuralRunData *data)
+{
+    char metrics_path[SCENARIO_OUTPUT_PATH_MAX];
+    char text_path[SCENARIO_OUTPUT_PATH_MAX];
+    char html_path[SCENARIO_OUTPUT_PATH_MAX];
+    FILE *metrics = NULL;
+    FILE *text_report = NULL;
+    FILE *html_report = NULL;
+    MiniSNNStructuralStats stats;
+    size_t count;
+    size_t exc_count = 0U;
+    size_t inh_count = 0U;
+    size_t self_count = 0U;
+    double age_sum = 0.0;
+    if (!data->enabled)
+        return 1;
+    if (!append_structural_history(
+            snn, config, result->output_directory, config->steps, data) ||
+        !write_structural_topology(
+            snn, result->output_directory, "topology_final.csv") ||
+        !write_structural_events(snn, config, result->output_directory) ||
+        !minisnn_get_structural_stats(snn, &stats) ||
+        !make_path(metrics_path, result->output_directory,
+                   "structural_plasticity_metrics.csv") ||
+        !make_path(text_path, result->output_directory,
+                   "topology_report.txt") ||
+        !make_path(html_path, result->output_directory,
+                   "topology_report.html"))
+        return 0;
+    count = minisnn_connection_count(snn);
+    data->final_stats = stats;
+    for (size_t connection_id = 0; connection_id < count; connection_id++)
+    {
+        MiniSNNConnectionInfo connection;
+        MiniSNNStructuralConnectionState state;
+        if (!minisnn_get_connection(snn, connection_id, &connection) ||
+            !minisnn_get_structural_connection_state(snn, connection_id, &state))
+            return 0;
+        if (connection.source_type == MINISNN_NEURON_INHIBITORY)
+            inh_count++;
+        else
+            exc_count++;
+        if (connection.source == connection.target)
+            self_count++;
+        age_sum += (double)((unsigned long long)config->steps >= state.birth_step ?
+            (unsigned long long)config->steps - state.birth_step : 0U);
+    }
+    metrics = fopen(metrics_path, "w");
+    text_report = fopen(text_path, "w");
+    html_report = fopen(html_path, "w");
+    if (metrics == NULL || text_report == NULL || html_report == NULL)
+        goto fail;
+    if (fprintf(metrics, "metric,value\n"
+                "structural_enabled,true\n"
+                "structural_pruning_enabled,%s\n"
+                "structural_growth_enabled,%s\n"
+                "structural_initial_connections,%zu\n"
+                "structural_final_connections,%zu\n"
+                "structural_min_connections_observed,%zu\n"
+                "structural_max_connections_observed,%zu\n"
+                "structural_maintenance_count,%llu\n"
+                "structural_add_attempts,%llu\n"
+                "structural_add_success,%llu\n"
+                "structural_add_rejected,%llu\n"
+                "structural_remove_attempts,%llu\n"
+                "structural_remove_success,%llu\n"
+                "structural_remove_rejected,%llu\n"
+                "structural_rewire_count,%llu\n"
+                "structural_delay_change_count,%llu\n"
+                "structural_mean_connection_age,%.17g\n"
+                "structural_mean_pruned_usage,%.17g\n"
+                "structural_mean_growth_score,%.17g\n"
+                "structural_initial_signature,%llu\n"
+                "structural_final_signature,%llu\n"
+                "structural_exc_final,%zu\n"
+                "structural_inh_final,%zu\n"
+                "structural_self_connections_final,%zu\n"
+                "structural_recurrent_fraction_final,%.17g\n",
+                config->structural_pruning_enabled ? "true" : "false",
+                config->structural_growth_enabled ? "true" : "false",
+                stats.initial_connection_count, count,
+                stats.minimum_connection_count_observed,
+                stats.maximum_connection_count_observed,
+                stats.maintenance_count,
+                stats.add_attempt_count, stats.add_success_count,
+                stats.add_rejected_count, stats.remove_attempt_count,
+                stats.remove_success_count, stats.remove_rejected_count,
+                stats.rewire_count, stats.delay_change_count,
+                count > 0U ? age_sum / (double)count : 0.0,
+                stats.remove_success_count > 0U ?
+                    stats.cumulative_pruned_usage /
+                        (double)stats.remove_success_count : 0.0,
+                stats.add_success_count > 0U ?
+                    stats.cumulative_growth_score /
+                        (double)stats.add_success_count : 0.0,
+                (unsigned long long)stats.initial_topology_signature,
+                (unsigned long long)stats.current_topology_signature,
+                exc_count, inh_count, self_count,
+                count > 0U ? (double)self_count / (double)count : 0.0) < 0)
+        goto fail;
+    if (fprintf(text_report,
+                "MINISNN - RELATORIO DE TOPOLOGIA ADAPTATIVA\n\n"
+                "1. Identificacao\nrun_name=%s\n\n"
+                "2. Estrutura inicial\nconexoes=%zu\nassinatura=%llu\n\n"
+                "3. Configuracao\npruning=%s\ngrowth=%s\nintervalo=%d\n\n"
+                "4. Ordem temporal\nA manutencao ocorre apos STDP, R-STDP e homeostase; mudancas afetam transmissoes futuras.\n\n"
+                "5. Eventos de crescimento\n%llu\n\n"
+                "6. Eventos de poda\n%llu\n\n"
+                "7. Reconexoes\n%llu\n\n"
+                "8. Delays\n%llu mudancas\n\n"
+                "9. Estrutura final\nconexoes=%zu\nassinatura=%llu\n\n"
+                "10. Integracao com STDP\n%s\n\n"
+                "11. Integracao com R-STDP\n%s\n\n"
+                "12. Integracao com homeostase\n%s\n\n"
+                "13. Complexidade\nA contagem variou entre %zu e %zu conexoes.\n\n"
+                "14. Assinaturas e reprodutibilidade\nSeed estrutural=%llu.\n\n"
+                "15. Desempenho\nManutencoes=%llu.\n\n"
+                "16. Limitacoes\nCoatividade nao implica causalidade. O mecanismo e uma aproximacao de engenharia e nao garante melhora comportamental.\n",
+                result->actual_run_name,
+                stats.initial_connection_count,
+                (unsigned long long)stats.initial_topology_signature,
+                config->structural_pruning_enabled ? "on" : "off",
+                config->structural_growth_enabled ? "on" : "off",
+                config->structural_maintenance_interval_steps,
+                stats.add_success_count, stats.remove_success_count,
+                stats.rewire_count, stats.delay_change_count, count,
+                (unsigned long long)stats.current_topology_signature,
+                config->plasticity_enabled ? "ON" : "OFF",
+                config->reward_enabled ? "ON" : "OFF",
+                config->homeostasis_enabled ? "ON" : "OFF",
+                stats.minimum_connection_count_observed,
+                stats.maximum_connection_count_observed,
+                (unsigned long long)config->structural_growth_seed,
+                stats.maintenance_count) < 0)
+        goto fail;
+    if (fprintf(html_report,
+                "<!doctype html><html><head><meta charset=\"utf-8\"><title>Topologia adaptativa</title>"
+                "<style>body{font-family:system-ui;background:#111;color:#eee;max-width:960px;margin:2rem auto}"
+                "table{border-collapse:collapse}td,th{padding:.5rem;border:1px solid #555}</style></head><body>"
+                "<h1>Topologia adaptativa</h1><p>Execucao: %s</p>"
+                "<table><tr><th>Metrica</th><th>Valor</th></tr>"
+                "<tr><td>Conexoes iniciais</td><td>%zu</td></tr>"
+                "<tr><td>Conexoes finais</td><td>%zu</td></tr>"
+                "<tr><td>Adicoes</td><td>%llu</td></tr>"
+                "<tr><td>Remocoes</td><td>%llu</td></tr>"
+                "<tr><td>Reconexoes</td><td>%llu</td></tr>"
+                "<tr><td>Delay changes</td><td>%llu</td></tr>"
+                "<tr><td>Assinatura inicial</td><td>%llu</td></tr>"
+                "<tr><td>Assinatura final</td><td>%llu</td></tr>"
+                "<tr><td>STDP</td><td>%s</td></tr>"
+                "<tr><td>R-STDP</td><td>%s</td></tr>"
+                "<tr><td>Homeostase</td><td>%s</td></tr></table>"
+                "<h2>Limitacoes</h2><p>Coatividade nao prova causalidade; poda e crescimento sao heuristicas reproduziveis.</p>"
+                "</body></html>\n",
+                result->actual_run_name, stats.initial_connection_count, count,
+                stats.add_success_count, stats.remove_success_count,
+                stats.rewire_count, stats.delay_change_count,
+                (unsigned long long)stats.initial_topology_signature,
+                (unsigned long long)stats.current_topology_signature,
+                config->plasticity_enabled ? "ON" : "OFF",
+                config->reward_enabled ? "ON" : "OFF",
+                config->homeostasis_enabled ? "ON" : "OFF") < 0)
+        goto fail;
+    {
+        int metrics_ok = fclose(metrics) == 0;
+        int text_ok = fclose(text_report) == 0;
+        int html_ok = fclose(html_report) == 0;
+        return metrics_ok && text_ok && html_ok;
+    }
+fail:
+    close_file_if_open(metrics);
+    close_file_if_open(text_report);
+    close_file_if_open(html_report);
+    return 0;
+}
+
 static int run_simulation(
     MiniSNN *snn,
     const ScenarioConfig *config,
@@ -3318,7 +3715,9 @@ static int run_simulation(
     ScenarioRunResult *result,
     PlasticityRunData *plasticity_data,
     HomeostasisRunData *homeostasis_data,
-    RewardRunData *reward_data)
+    RewardRunData *reward_data,
+    StructuralRunData *structural_data,
+    const char *output_directory)
 {
     result->spikes_total = 0;
     result->spikes_exc = 0;
@@ -3468,6 +3867,22 @@ static int run_simulation(
         {
             return 0;
         }
+
+        if (structural_data->enabled)
+        {
+            size_t event_count = minisnn_structural_event_count(snn);
+            int completed_step = step + 1;
+            int changed = event_count != structural_data->last_event_count;
+            if ((changed ||
+                 (config->structural_record_history &&
+                  completed_step %
+                      config->structural_record_interval_steps == 0) ||
+                 completed_step == config->steps) &&
+                !append_structural_history(
+                    snn, config, output_directory, completed_step,
+                    structural_data))
+                return 0;
+        }
     }
 
     return 1;
@@ -3497,6 +3912,7 @@ int scenario_runner_execute(
     PlasticityRunData plasticity_data;
     HomeostasisRunData homeostasis_data;
     RewardRunData reward_data;
+    StructuralRunData structural_data;
     ULONGLONG wall_start;
     ULONGLONG simulation_start;
     double simulation_seconds;
@@ -3515,6 +3931,7 @@ int scenario_runner_execute(
     memset(&plasticity_data, 0, sizeof(plasticity_data));
     memset(&homeostasis_data, 0, sizeof(homeostasis_data));
     memset(&reward_data, 0, sizeof(reward_data));
+    memset(&structural_data, 0, sizeof(structural_data));
 
     if (!scenario_config_validate(config, error_message, error_message_size))
         return 0;
@@ -3648,6 +4065,18 @@ int scenario_runner_execute(
         return 0;
     }
 
+    if (!structural_run_data_prepare(
+            snn, config, result.output_directory, &structural_data))
+    {
+        set_error(error_message, error_message_size,
+                  "erro ao preparar saidas estruturais");
+        plasticity_run_data_close(&plasticity_data);
+        homeostasis_run_data_close(&homeostasis_data);
+        reward_run_data_close(&reward_data);
+        minisnn_destroy(&snn);
+        return 0;
+    }
+
     if (!open_output_files(
             config,
             result.output_directory,
@@ -3684,7 +4113,9 @@ int scenario_runner_execute(
             &result,
             &plasticity_data,
             &homeostasis_data,
-            &reward_data))
+            &reward_data,
+            &structural_data,
+            result.output_directory))
     {
         set_error(error_message, error_message_size, "erro durante simulacao");
         close_file_if_open(population_file);
@@ -3756,13 +4187,42 @@ int scenario_runner_execute(
         return 0;
     }
 
+    if (!structural_run_data_finalize(
+            snn, config, &result, &structural_data))
+    {
+        set_error(error_message, error_message_size,
+                  "erro ao finalizar saidas estruturais");
+        close_file_if_open(population_file);
+        close_file_if_open(raster_file);
+        close_file_if_open(neuron_file);
+        close_file_if_open(summary_file);
+        plasticity_run_data_close(&plasticity_data);
+        homeostasis_run_data_close(&homeostasis_data);
+        reward_run_data_close(&reward_data);
+        minisnn_destroy(&snn);
+        return 0;
+    }
+
     if (!write_summary(
             summary_file,
             config,
             &result,
             &plasticity_data,
             &homeostasis_data,
-            &reward_data))
+            &reward_data) ||
+        (structural_data.enabled &&
+         fprintf(summary_file,
+                 "structural_enabled=true\n"
+                 "structural_initial_connections=%zu\n"
+                 "structural_final_connections=%zu\n"
+                 "structural_initial_signature=%llu\n"
+                 "structural_final_signature=%llu\n",
+                 structural_data.initial_stats.initial_connection_count,
+                 minisnn_connection_count(snn),
+                 (unsigned long long)
+                     structural_data.initial_stats.initial_topology_signature,
+                 (unsigned long long)
+                     structural_data.final_stats.current_topology_signature) < 0))
     {
         set_error(error_message, error_message_size, "erro ao escrever summary.txt");
         close_file_if_open(population_file);

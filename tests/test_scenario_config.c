@@ -364,6 +364,37 @@ static int configs_match(
                b->homeostasis_record_interval_steps &&
            a->homeostasis_record_neuron_limit ==
                b->homeostasis_record_neuron_limit &&
+           a->structural_plasticity_enabled ==
+               b->structural_plasticity_enabled &&
+           a->structural_maintenance_interval_steps ==
+               b->structural_maintenance_interval_steps &&
+           a->structural_grace_period_steps ==
+               b->structural_grace_period_steps &&
+           a->structural_pruning_enabled == b->structural_pruning_enabled &&
+           double_close(a->structural_prune_weight_threshold,
+                        b->structural_prune_weight_threshold) &&
+           double_close(a->structural_prune_activity_threshold,
+                        b->structural_prune_activity_threshold) &&
+           a->structural_max_prunes_per_interval ==
+               b->structural_max_prunes_per_interval &&
+           a->structural_growth_enabled == b->structural_growth_enabled &&
+           a->structural_growth_candidate_count ==
+               b->structural_growth_candidate_count &&
+           double_close(a->structural_growth_score_threshold,
+                        b->structural_growth_score_threshold) &&
+           a->structural_max_growth_per_interval ==
+               b->structural_max_growth_per_interval &&
+           a->structural_growth_seed == b->structural_growth_seed &&
+           double_close(a->structural_new_exc_weight,
+                        b->structural_new_exc_weight) &&
+           double_close(a->structural_new_inh_magnitude,
+                        b->structural_new_inh_magnitude) &&
+           a->structural_new_delay == b->structural_new_delay &&
+           a->structural_min_connections == b->structural_min_connections &&
+           a->structural_max_connections == b->structural_max_connections &&
+           a->structural_record_history == b->structural_record_history &&
+           a->structural_record_interval_steps ==
+               b->structural_record_interval_steps &&
            a->reward_enabled == b->reward_enabled &&
            strcmp(a->reward_mode, b->reward_mode) == 0 &&
            double_close(a->reward_learning_rate, b->reward_learning_rate) &&
@@ -418,6 +449,15 @@ static int check_save_and_reload(void)
     config.reward_eligibility_tau = 80.0;
     config.reward_record_interval_steps = 7;
     config.reward_record_connection_limit = 19;
+    config.structural_plasticity_enabled = 1;
+    config.structural_maintenance_interval_steps = 5;
+    config.structural_grace_period_steps = 10;
+    config.structural_pruning_enabled = 1;
+    config.structural_growth_enabled = 1;
+    config.structural_growth_seed = 1234567890123ULL;
+    config.structural_min_connections = 1;
+    config.structural_max_connections = 20;
+    config.structural_record_interval_steps = 5;
     config.reward_event_count = 2;
     config.reward_events[0].index = 0;
     config.reward_events[0].step = 10;
@@ -677,6 +717,58 @@ int main(void)
         strcmp(legacy_config.plasticity_learning_mode, "direct_stdp") != 0)
     {
         return fail("legacy config did not default reward off and direct STDP");
+    }
+
+    if (legacy_config.structural_plasticity_enabled != 0)
+        return fail("legacy config did not default structural plasticity off");
+
+    if (!load_text_expect_success(
+            "neurons = 5\ninhibitory_fraction = 0.2\nmax_synaptic_delay = 8\n"
+            "[structural_plasticity]\nenabled = true\n"
+            "maintenance_interval_steps = 5\ngrace_period_steps = 10\n"
+            "pruning_enabled = true\nprune_weight_threshold = 0.5\n"
+            "prune_activity_threshold = 0.001\nmax_prunes_per_interval = 1\n"
+            "growth_enabled = true\ngrowth_candidate_count = 4\n"
+            "growth_score_threshold = 0.01\nmax_growth_per_interval = 1\n"
+            "growth_seed = 1234567890123\nnew_exc_weight = 5\n"
+            "new_inh_magnitude = 6\nnew_delay = 2\n"
+            "min_connections = 1\nmax_connections = 10\n"
+            "record_history = true\nrecord_interval_steps = 5\n",
+            &empty_config) ||
+        !empty_config.structural_plasticity_enabled ||
+        empty_config.structural_growth_seed != 1234567890123ULL ||
+        empty_config.structural_new_delay != 2)
+    {
+        return fail("valid structural plasticity section was not loaded");
+    }
+
+    if (!load_text_expect_failure(
+            "[structural_plasticity]\nenabled = true\n"
+            "pruning_enabled = false\ngrowth_enabled = false\n",
+            "structural plasticity without mechanisms was accepted") ||
+        !load_text_expect_failure(
+            "[structural_plasticity]\nenabled = true\n"
+            "maintenance_interval_steps = 10\ngrace_period_steps = 5\n",
+            "structural grace below interval was accepted") ||
+        !load_text_expect_failure(
+            "[structural_plasticity]\nenabled = true\n"
+            "prune_weight_threshold = NaN\n",
+            "non-finite structural threshold was accepted") ||
+        !load_text_expect_failure(
+            "[structural_plasticity]\nenabled = true\nnew_delay = 99\n",
+            "structural delay outside Core was accepted") ||
+        !load_text_expect_failure(
+            "neurons = 2\n[structural_plasticity]\nenabled = true\n"
+            "min_connections = 1\nmax_connections = 9\n",
+            "impossible structural connection maximum was accepted") ||
+        !load_text_expect_failure(
+            "[structural_plasticity]\ngrowth_seed = -1\n",
+            "negative structural seed was accepted") ||
+        !load_text_expect_failure(
+            "[structural_plasticity]\nenabled = true\nenabled = false\n",
+            "duplicate structural key was accepted"))
+    {
+        return 1;
     }
 
     if (!load_text_expect_success(
