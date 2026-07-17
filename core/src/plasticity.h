@@ -51,19 +51,19 @@ void plasticity_state_destroy(PlasticityState *state);
 int plasticity_state_configure(
     PlasticityState *state,
     const MiniSNNPlasticityConfig *config,
-    const LIFNeuron *neurons,
+    const Neuron *neurons,
     const ConnectionList *connections);
 
 void plasticity_state_invalidate_index(PlasticityState *state);
 
 int plasticity_state_rebuild_index(
     PlasticityState *state,
-    const LIFNeuron *neurons,
+    const Neuron *neurons,
     const ConnectionList *connections);
 
 int plasticity_state_prepare_topology_rebuild(
     const PlasticityState *current,
-    const LIFNeuron *neurons,
+    const Neuron *neurons,
     const ConnectionList *connections,
     PlasticityState *prepared);
 
@@ -73,14 +73,14 @@ void plasticity_state_commit_topology_rebuild(
 
 int plasticity_apply_step(
     PlasticityState *state,
-    const LIFNeuron *neurons,
+    const Neuron *neurons,
     ConnectionList *connections,
     const int *spikes,
     double dt);
 
 int plasticity_connection_is_eligible(
     const PlasticityState *state,
-    const LIFNeuron *neurons,
+    const Neuron *neurons,
     int source,
     const Connection *connection);
 

@@ -31,6 +31,26 @@ typedef struct
     int peak_activity_value;
     int min_activity_value;
 
+    int state_nonfinite_count;
+    int step_error_count;
+    double voltage_min;
+    double voltage_max;
+    double voltage_mean;
+    double firing_rate;
+    double mean_isi;
+    int mean_isi_available;
+
+    double adex_w_initial;
+    double adex_w_final;
+    double adex_w_mean;
+    double adex_adaptation_index;
+
+    double hh_m_mean;
+    double hh_h_mean;
+    double hh_n_mean;
+    double hh_peak_voltage;
+    int hh_action_potential_count;
+
     char output_directory[SCENARIO_OUTPUT_PATH_MAX];
     char actual_run_name[SCENARIO_ACTUAL_RUN_NAME_MAX];
 } ScenarioRunResult;

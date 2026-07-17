@@ -3,6 +3,7 @@
 | Feature | Configuração | Implementação | Teste | Saída observável | Documentação | Status |
 |---|---|---|---|---|---|---|
 | LIF | `dt`, `tau`, `v_*`, `resistance` | `src/neuron.c`, `src/network.c` | `test_LIF`, `test_topology` | tensão e spike | [Auditoria](AUDITORIA_DO_CORE_V02.md) | Implementado; casos discretos numericamente validados |
+| Interface de modelo neuronal C5 | `neuron_model` e `[neuron] model` | `src/neuron_model.c`, `src/network.c`, parser e API | `test_neuron_model`, `test_scenario_config` | `config_used.ini`, resumo e manifesto | [Modelos](GUIA_DE_MODELOS_NEURONAIS.md) | LIF preservado; modelos adicionais fora de escopo |
 | API pública | `MiniSNNConfig` | `include/minisnn.h`, `src/minisnn.c` | `test_minisnn_api` | getters e retorno das funções | [API Reference](../API_REFERENCE.md) | Implementado |
 | Topologias | `topology` e opções | `app/scenario_runner.c` | `test_runner_topologies`, golden | assinatura, pares, contagem e CSVs | [Auditoria](AUDITORIA_DO_CORE_V02.md) | Caminho do runner validado estruturalmente |
 | Self-connections | `allow_self_connections` | funções `_ex` e runner | `test_minisnn_api`, `test_scenario_runner` | contagem de conexões | [Compatibilidade](COMPATIBILIDADE.md) | Implementado |

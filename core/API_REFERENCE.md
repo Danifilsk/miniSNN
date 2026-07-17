@@ -26,6 +26,8 @@ retorna o numero de spikes no timestep, ou `-1` em erro.
 **Campos:**
 
 - `neuron_count`: numero de neuronios.
+- `neuron_model`: modelo neuronal da instancia. Nesta fase, somente
+  `MINISNN_NEURON_MODEL_LIF` e valido; a configuracao padrao o seleciona.
 - `dt`: passo de tempo do LIF.
 - `tau`: constante de tempo.
 - `v_rest`: potencial de repouso.
@@ -37,6 +39,12 @@ retorna o numero de spikes no timestep, ou `-1` em erro.
 
 **Erros importantes:** configuracoes invalidas fazem
 `minisnn_create_with_config` retornar `NULL`.
+
+## Modelo neuronal
+
+`MiniSNNNeuronModel` deixa explicito o modelo de uma rede. O unico valor
+implementado e `MINISNN_NEURON_MODEL_LIF`; nenhum modelo AdEx, HH ou hibrido
+faz parte desta API. `minisnn_neuron_model()` consulta o valor da instancia.
 
 ## minisnn_default_config
 
@@ -126,6 +134,17 @@ int minisnn_current_step(const MiniSNN *snn);
 **Retorno:** timestep atual, ou `-1` se `snn == NULL`.
 
 **Erros importantes:** rede nula retorna `-1`.
+
+## minisnn_neuron_model
+
+```c
+MiniSNNNeuronModel minisnn_neuron_model(const MiniSNN *snn);
+```
+
+**Objetivo:** consultar o modelo neuronal configurado na instancia.
+
+**Retorno:** o modelo da rede; para ponteiro nulo, retorna o valor seguro
+padrao `MINISNN_NEURON_MODEL_LIF`.
 
 ## MiniSNNConnectionInfo
 
@@ -877,3 +896,52 @@ Retorna quantos eventos estruturais estão disponíveis para consulta.
 ## minisnn_get_structural_event
 
 Copia um evento estrutural pelo índice sem expor armazenamento interno.
+
+## Modelos neuronais C5
+
+A API pública suporta redes homogêneas LIF, AdEx e Hodgkin-Huxley. O modelo é
+definido por `MiniSNNConfig.neuron_model` e permanece fixo durante a vida da
+rede.
+
+### minisnn_adex_config_default
+
+Retorna os parametros padrao reproduziveis do modelo AdEx.
+
+### minisnn_hodgkin_huxley_config_default
+
+Retorna os parametros padrao do modelo Hodgkin-Huxley classico.
+
+### minisnn_neuron_model_name
+
+Retorna o nome canonico `lif`, `adex` ou `hodgkin_huxley`.
+
+### minisnn_neuron_model_capabilities
+
+Informa suporte a potencial, spike, threshold homeostatico, adaptacao e gates.
+
+### minisnn_neuron_model_config_signature
+
+Retorna a assinatura versionada da configuracao ativa de uma rede.
+
+### minisnn_config_neuron_model_signature
+
+Calcula a mesma assinatura diretamente de `MiniSNNConfig`. O campo superior
+`MiniSNNConfig.dt` é a fonte autoritativa do timestep para LIF, AdEx e
+Hodgkin-Huxley; os campos `dt` aninhados existem para defaults e serialização,
+mas não alteram a configuração efetiva criada pela API pública.
+
+### minisnn_neuron_integration_method
+
+Retorna o integrador da rede (`euler` ou `rk4`).
+
+### minisnn_neuron_model_integration_method
+
+Retorna o integrador associado a um valor de `MiniSNNNeuronModel`.
+
+### minisnn_get_adex_state
+
+Le `V`, adaptacao `w` e spike de um neuronio AdEx.
+
+### minisnn_get_hodgkin_huxley_state
+
+Le `V`, gates `m`, `h`, `n` e spike de um neuronio Hodgkin-Huxley.

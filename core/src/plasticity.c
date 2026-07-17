@@ -155,7 +155,7 @@ void plasticity_state_invalidate_index(PlasticityState *state)
 
 int plasticity_connection_is_eligible(
     const PlasticityState *state,
-    const LIFNeuron *neurons,
+    const Neuron *neurons,
     int source,
     const Connection *connection)
 {
@@ -174,7 +174,7 @@ int plasticity_connection_is_eligible(
 
 int plasticity_state_rebuild_index(
     PlasticityState *state,
-    const LIFNeuron *neurons,
+    const Neuron *neurons,
     const ConnectionList *connections)
 {
     PlasticityIncomingList *incoming = NULL;
@@ -309,7 +309,7 @@ fail:
 
 int plasticity_state_prepare_topology_rebuild(
     const PlasticityState *current,
-    const LIFNeuron *neurons,
+    const Neuron *neurons,
     const ConnectionList *connections,
     PlasticityState *prepared)
 {
@@ -364,7 +364,7 @@ void plasticity_state_commit_topology_rebuild(
 int plasticity_state_configure(
     PlasticityState *state,
     const MiniSNNPlasticityConfig *config,
-    const LIFNeuron *neurons,
+    const Neuron *neurons,
     const ConnectionList *connections)
 {
     if (state == NULL || !plasticity_config_is_valid(config))
@@ -429,7 +429,7 @@ static int plasticity_add_candidate(
 
 static int plasticity_accumulate_deltas(
     PlasticityState *state,
-    const LIFNeuron *neurons,
+    const Neuron *neurons,
     const ConnectionList *connections,
     const int *spikes)
 {
@@ -517,7 +517,7 @@ static int plasticity_accumulate_deltas(
 
 static int plasticity_apply_deltas(
     PlasticityState *state,
-    const LIFNeuron *neurons,
+    const Neuron *neurons,
     ConnectionList *connections)
 {
     for (int source = 0; source < state->neuron_count; source++)
@@ -612,7 +612,7 @@ static int plasticity_increment_traces(
 
 int plasticity_apply_step(
     PlasticityState *state,
-    const LIFNeuron *neurons,
+    const Neuron *neurons,
     ConnectionList *connections,
     const int *spikes,
     double dt)

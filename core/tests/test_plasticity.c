@@ -26,15 +26,22 @@ static MiniSNNPlasticityConfig test_config(void)
     return config;
 }
 
-static int init_pair(
+static int init_pair_model(
     Network *net,
     double weight,
-    NeuronType source_type)
+    NeuronType source_type,
+    MiniSNNNeuronModel model)
 {
     NetworkConfig network_config;
 
     network_config_default(&network_config);
-    network_config.lif.dt = 1.0;
+    network_config.neuron_model = model;
+    if (model == MINISNN_NEURON_MODEL_ADEX)
+        network_config.adex.dt = 1.0;
+    else if (model == MINISNN_NEURON_MODEL_HODGKIN_HUXLEY)
+        network_config.hodgkin_huxley.dt = 1.0;
+    else
+        network_config.lif.dt = 1.0;
 
     if (!network_init_with_config(net, 2, &network_config) ||
         !network_set_neuron_type(net, 0, source_type) ||
@@ -47,6 +54,12 @@ static int init_pair(
     return 1;
 }
 
+static int init_pair(Network *net, double weight, NeuronType source_type)
+{
+    return init_pair_model(
+        net, weight, source_type, MINISNN_NEURON_MODEL_LIF);
+}
+
 static int apply_spikes(Network *net, int first, int second)
 {
     net->spikes[0] = first;
@@ -56,7 +69,7 @@ static int apply_spikes(Network *net, int first, int second)
         net->neurons,
         net->connections,
         net->spikes,
-        net->lif_parameters.dt);
+        neuron_model_dt(&net->model_config));
 }
 
 static int test_ltp_interval(int interval)
@@ -117,6 +130,42 @@ static int test_simultaneous_and_disabled(void)
 
     network_destroy(&net);
     return ok;
+}
+
+static int test_advanced_model_spike_events(void)
+{
+    const MiniSNNNeuronModel models[] = {
+        MINISNN_NEURON_MODEL_ADEX,
+        MINISNN_NEURON_MODEL_HODGKIN_HUXLEY
+    };
+    MiniSNNPlasticityConfig config = test_config();
+
+    for (size_t i = 0; i < sizeof(models) / sizeof(models[0]); i++)
+    {
+        Network net;
+        double ltp_expected = 10.0 + 0.5 * exp(-0.5);
+        double ltd_expected = 10.0 - 0.25 * exp(-0.5);
+        int ok = init_pair_model(
+                &net, 10.0, NEURON_EXCITATORY, models[i]) &&
+            network_set_plasticity_config(&net, &config) &&
+            apply_spikes(&net, 1, 0) &&
+            apply_spikes(&net, 0, 1) &&
+            close_enough(net.connections[0].list[0].weight, ltp_expected);
+        network_destroy(&net);
+        if (!ok)
+            return 0;
+
+        ok = init_pair_model(
+                &net, 10.0, NEURON_EXCITATORY, models[i]) &&
+            network_set_plasticity_config(&net, &config) &&
+            apply_spikes(&net, 0, 1) &&
+            apply_spikes(&net, 1, 0) &&
+            close_enough(net.connections[0].list[0].weight, ltd_expected);
+        network_destroy(&net);
+        if (!ok)
+            return 0;
+    }
+    return 1;
 }
 
 static int test_weight_clamps(void)
@@ -306,6 +355,7 @@ int main(void)
     }
 
     if (!test_simultaneous_and_disabled() ||
+        !test_advanced_model_spike_events() ||
         !test_weight_clamps() ||
         !test_inhibitory_connection() ||
         !test_self_connection() ||

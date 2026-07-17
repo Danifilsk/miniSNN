@@ -286,7 +286,7 @@ arestas/delays, penalidade de complexidade e plasticidade estrutural opcional
 durante a vida. A topologia aprendida durante uma avaliação não retorna ao
 genoma. Consulte o [Guia de topologia adaptativa](GUIA_DE_TOPOLOGIA_ADAPTATIVA.md).
 
-## Próximo marco
+## Continuidade
 
-C5 é o próximo marco planejado para modelos neurais avançados. Ele não foi
-implementado pelo C4.
+O C5 concluiu o suporte a LIF, AdEx e Hodgkin-Huxley com modelo fixo por
+experimento evolutivo. O próximo marco do Core é C6, memória.

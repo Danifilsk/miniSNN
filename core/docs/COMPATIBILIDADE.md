@@ -137,3 +137,15 @@ Outputs C4 são aditivos. CSVs históricos de cenário e evolução mantêm as
 colunas anteriores, e o histórico representa campos estruturais ausentes como
 `NA`. Os baselines `random_demo = 6757` e `small_world_demo = 15045` continuam
 como regressões obrigatórias.
+# Compatibilidade C5
+
+O enum LIF permanece zero e os nove campos historicos de `MiniSNNConfig`
+mantem ordem e semantica. Inicializadores posicionais antigos continuam
+selecionando LIF. Checkpoints estruturais C5 usam formato versionado e incluem
+modelo e assinatura da configuracao. O leitor reconhece explicitamente o
+sidecar C4 anterior, valida sua assinatura pelo algoritmo legado e o aceita
+somente para um cenario LIF compativel; uma assinatura C4 nunca e interpretada
+como C5.
+
+Redes hibridas e evolucao do tipo ou dos parametros neuronais nao fazem parte
+deste bloco.

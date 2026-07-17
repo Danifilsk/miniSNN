@@ -1,5 +1,12 @@
 # miniSNN
 
+A miniSNN suporta LIF, AdEx e Hodgkin-Huxley em redes homogeneas. Veja
+[Guia de modelos neuronais](docs/GUIA_DE_MODELOS_NEURONAIS.md).
+
+Validacao C5: `mingw32-make test-adex`,
+`mingw32-make test-hodgkin-huxley`, `mingw32-make scenario-adex-regular` e
+`mingw32-make compare-neuron-models`.
+
 A miniSNN Core é uma plataforma experimental em C para simulação, observação e
 comparação de redes neurais pulsadas baseadas atualmente em um modelo LIF
 simplificado.

@@ -1,5 +1,12 @@
 # Manual de uso da miniSNN
 
+## Escolher o modelo neuronal
+
+Use `[neuron] model = lif`, `adex` ou `hodgkin_huxley`. Configuracoes antigas
+sem a secao usam LIF. Exemplos estao em `configs/lif_reference_demo.ini`,
+`configs/adex_*` e `configs/hh_*`. O runner preserva o arquivo fornecido em
+`config_source.ini` e grava a configuracao efetiva em `config_used.ini`.
+
 ## Aprendizado modulado por recompensa
 
 Para um fluxo reproduzível sem editar C:

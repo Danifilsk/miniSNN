@@ -56,6 +56,9 @@ static const char *valid_config_text(void)
         "delay = 1\n"
         "max_synaptic_delay = 8\n"
         "\n"
+        "[neuron]\n"
+        "model = lif\n"
+        "\n"
         "[connectivity]\n"
         "allow_self_connections = false\n"
         "allow_inh_to_inh = true\n"
@@ -172,6 +175,9 @@ static int check_default_config_is_valid(void)
         return fail("default config was invalid");
     }
 
+    if (config.neuron_model != MINISNN_NEURON_MODEL_LIF)
+        return fail("default neuron model was not lif");
+
     return 1;
 }
 
@@ -196,6 +202,9 @@ static int check_valid_file_loads_correctly(void)
     {
         return fail("integer values were not loaded");
     }
+
+    if (config.neuron_model != MINISNN_NEURON_MODEL_LIF)
+        return fail("neuron model was not loaded");
 
     if (config.inhibitory_fraction < 0.199 ||
         config.inhibitory_fraction > 0.201 ||
@@ -272,6 +281,10 @@ static int configs_match(
 
     return strcmp(a->run_name, b->run_name) == 0 &&
            strcmp(a->topology, b->topology) == 0 &&
+           a->neuron_model == b->neuron_model &&
+           memcmp(&a->adex, &b->adex, sizeof(a->adex)) == 0 &&
+           memcmp(&a->hodgkin_huxley, &b->hodgkin_huxley,
+                  sizeof(a->hodgkin_huxley)) == 0 &&
            a->neurons == b->neurons &&
            double_close(a->inhibitory_fraction, b->inhibitory_fraction) &&
            double_close(a->connection_probability, b->connection_probability) &&
@@ -516,6 +529,14 @@ int main(void)
 
     if (!load_text_expect_success("", &empty_config))
         return fail("empty file did not use valid defaults");
+
+    if (!load_text_expect_success(
+            "[neuron]\nmodel = LiF\n",
+            &empty_config) ||
+        empty_config.neuron_model != MINISNN_NEURON_MODEL_LIF)
+    {
+        return fail("case-insensitive LIF model was not accepted");
+    }
 
     if (!load_text_expect_success(
             "run_name = sectionless\ntopology = chain\nneurons = 2\nsource_count = 1\nrecord_neuron = 0\n",
@@ -890,7 +911,24 @@ int main(void)
         return fail("valid homeostasis section was not loaded");
     }
 
-    if (!load_text_expect_failure(
+    if (!load_text_expect_success(
+            "[neuron]\nmodel = AdEx\n",
+            &empty_config) ||
+        empty_config.neuron_model != MINISNN_NEURON_MODEL_ADEX ||
+        !load_text_expect_success(
+            "[neuron]\nmodel = hh\n[simulation]\ndt = 0.01\n",
+            &empty_config) ||
+        empty_config.neuron_model != MINISNN_NEURON_MODEL_HODGKIN_HUXLEY ||
+        !load_text_expect_success(
+            "[neuron]\nmodel = adex\n[adex]\nb = 77\nv_peak = 30\n",
+            &empty_config) ||
+        empty_config.neuron_model != MINISNN_NEURON_MODEL_ADEX ||
+        !double_close(empty_config.adex.b, 77.0) ||
+        !double_close(empty_config.adex.v_peak, 30.0) ||
+        !load_text_expect_failure(
+            "[neuron]\nmodel = unknown_model\n",
+            "unknown neuron model was accepted") ||
+        !load_text_expect_failure(
             "[homeostasis]\nenabled = true\nintrinsic_enabled = false\n"
             "synaptic_scaling_enabled = false\ninhibitory_gain_enabled = false\n",
             "homeostasis without mechanisms was accepted") ||

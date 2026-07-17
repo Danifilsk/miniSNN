@@ -14,11 +14,15 @@ static void set_error(
         snprintf(error_message, error_message_size, "%s", message);
 }
 
-static void minisnn_config_from_scenario(
+int scenario_runtime_make_minisnn_config(
     const ScenarioConfig *config,
     MiniSNNConfig *out_config)
 {
+    if (config == NULL || out_config == NULL)
+        return 0;
+    *out_config = minisnn_default_config();
     out_config->neuron_count = config->neurons;
+    out_config->neuron_model = config->neuron_model;
     out_config->dt = config->dt;
     out_config->tau = config->tau;
     out_config->v_rest = config->v_rest;
@@ -27,6 +31,11 @@ static void minisnn_config_from_scenario(
     out_config->resistance = config->resistance;
     out_config->synaptic_decay = config->synaptic_decay;
     out_config->max_synaptic_delay = config->max_synaptic_delay;
+    out_config->adex = config->adex;
+    out_config->adex.dt = config->dt;
+    out_config->hodgkin_huxley = config->hodgkin_huxley;
+    out_config->hodgkin_huxley.dt = config->dt;
+    return 1;
 }
 
 int scenario_runtime_inhibitory_count(const ScenarioConfig *config)
@@ -105,6 +114,9 @@ int scenario_runtime_capture_network(
     blueprint.inhibitory_count = inhibitory_count;
     blueprint.connection_count = minisnn_connection_count(snn);
     blueprint.topology_signature = topology_signature;
+    blueprint.neuron_model = minisnn_neuron_model(snn);
+    blueprint.neuron_model_config_signature =
+        minisnn_neuron_model_config_signature(snn);
     blueprint.neuron_types = malloc(
         (size_t)neuron_count * sizeof(*blueprint.neuron_types));
 
@@ -172,11 +184,25 @@ int scenario_runtime_create_from_blueprint(
     }
 
     *out_snn = NULL;
-    minisnn_config_from_scenario(config, &minisnn_config);
+    if (!scenario_runtime_make_minisnn_config(config, &minisnn_config))
+    {
+        set_error(error_message, error_message_size, "configuracao neuronal invalida");
+        return 0;
+    }
     snn = minisnn_create_with_config(&minisnn_config);
     if (snn == NULL)
     {
         set_error(error_message, error_message_size, "erro ao criar rede do blueprint");
+        return 0;
+    }
+
+    if (blueprint->neuron_model != config->neuron_model ||
+        blueprint->neuron_model_config_signature !=
+            minisnn_neuron_model_config_signature(snn))
+    {
+        minisnn_destroy(&snn);
+        set_error(error_message, error_message_size,
+                  "blueprint neuronal incompativel com o cenario");
         return 0;
     }
 
@@ -423,6 +449,34 @@ int scenario_runtime_step(
         out_step->synaptic_currents[neuron_id] = synaptic_current;
         out_step->voltage_sum += voltage;
         out_step->synaptic_current_sum += synaptic_current;
+
+        if (config->neuron_model == MINISNN_NEURON_MODEL_ADEX)
+        {
+            MiniSNNAdExState state;
+            if (!minisnn_get_adex_state(snn, neuron_id, &state) ||
+                !isfinite(state.adaptation))
+            {
+                set_error(error_message, error_message_size,
+                          "estado AdEx invalido");
+                return 0;
+            }
+            out_step->adex_adaptation[neuron_id] = state.adaptation;
+        }
+        else if (config->neuron_model ==
+                 MINISNN_NEURON_MODEL_HODGKIN_HUXLEY)
+        {
+            MiniSNNHodgkinHuxleyState state;
+            if (!minisnn_get_hodgkin_huxley_state(snn, neuron_id, &state) ||
+                !isfinite(state.m) || !isfinite(state.h) || !isfinite(state.n))
+            {
+                set_error(error_message, error_message_size,
+                          "estado Hodgkin-Huxley invalido");
+                return 0;
+            }
+            out_step->hh_m[neuron_id] = state.m;
+            out_step->hh_h[neuron_id] = state.h;
+            out_step->hh_n[neuron_id] = state.n;
+        }
 
         if (spike)
         {

@@ -7,6 +7,12 @@ scripts, exemplos, experimentos e resultados do miniSNN atual. A migracao M1
 e apenas fisica: nao altera comportamento neural, equacoes, seeds, fitness ou
 formatos cientificos.
 
+## C5: modelos neuronais avançados
+
+O Core possui uma fronteira interna comum para redes homogêneas LIF, AdEx e
+Hodgkin-Huxley. O C5 foi concluído sem introduzir redes híbridas ou
+dependências para os módulos futuros do monorepo.
+
 ## Limites planejados
 
 - Core nao depende de Worlds.

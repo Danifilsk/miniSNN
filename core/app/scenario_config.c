@@ -1,4 +1,5 @@
 #include "scenario_config.h"
+#include "neuron_model.h"
 
 #include <ctype.h>
 #include <errno.h>
@@ -11,6 +12,26 @@ typedef enum
 {
     FIELD_RUN_NAME = 0,
     FIELD_TOPOLOGY,
+    FIELD_NEURON_MODEL,
+    FIELD_ADEX_CAPACITANCE,
+    FIELD_ADEX_G_LEAK,
+    FIELD_ADEX_E_LEAK,
+    FIELD_ADEX_DELTA_T,
+    FIELD_ADEX_V_THRESHOLD,
+    FIELD_ADEX_TAU_W,
+    FIELD_ADEX_A,
+    FIELD_ADEX_B,
+    FIELD_ADEX_V_RESET,
+    FIELD_ADEX_V_PEAK,
+    FIELD_HH_CAPACITANCE,
+    FIELD_HH_G_NA,
+    FIELD_HH_G_K,
+    FIELD_HH_G_LEAK,
+    FIELD_HH_E_NA,
+    FIELD_HH_E_K,
+    FIELD_HH_E_LEAK,
+    FIELD_HH_V_INIT,
+    FIELD_HH_SPIKE_THRESHOLD,
     FIELD_NEURONS,
     FIELD_INHIBITORY_FRACTION,
     FIELD_CONNECTION_PROBABILITY,
@@ -126,6 +147,7 @@ static const KeyMap KEY_MAP[] =
 {
     {"run_name", FIELD_RUN_NAME},
     {"topology", FIELD_TOPOLOGY},
+    {"model", FIELD_NEURON_MODEL},
     {"neurons", FIELD_NEURONS},
     {"inhibitory_fraction", FIELD_INHIBITORY_FRACTION},
     {"connection_probability", FIELD_CONNECTION_PROBABILITY},
@@ -248,6 +270,37 @@ static int find_field(
     ScenarioField *out_field)
 {
     size_t count = sizeof(KEY_MAP) / sizeof(KEY_MAP[0]);
+
+    if (strcmp(section, "adex") == 0)
+    {
+        if (strcmp(key, "capacitance") == 0) *out_field = FIELD_ADEX_CAPACITANCE;
+        else if (strcmp(key, "g_leak") == 0) *out_field = FIELD_ADEX_G_LEAK;
+        else if (strcmp(key, "e_leak") == 0) *out_field = FIELD_ADEX_E_LEAK;
+        else if (strcmp(key, "delta_t") == 0) *out_field = FIELD_ADEX_DELTA_T;
+        else if (strcmp(key, "v_threshold") == 0) *out_field = FIELD_ADEX_V_THRESHOLD;
+        else if (strcmp(key, "tau_w") == 0) *out_field = FIELD_ADEX_TAU_W;
+        else if (strcmp(key, "a") == 0) *out_field = FIELD_ADEX_A;
+        else if (strcmp(key, "b") == 0) *out_field = FIELD_ADEX_B;
+        else if (strcmp(key, "v_reset") == 0) *out_field = FIELD_ADEX_V_RESET;
+        else if (strcmp(key, "v_peak") == 0) *out_field = FIELD_ADEX_V_PEAK;
+        else return 0;
+        return 1;
+    }
+
+    if (strcmp(section, "hodgkin_huxley") == 0)
+    {
+        if (strcmp(key, "capacitance") == 0) *out_field = FIELD_HH_CAPACITANCE;
+        else if (strcmp(key, "g_na") == 0) *out_field = FIELD_HH_G_NA;
+        else if (strcmp(key, "g_k") == 0) *out_field = FIELD_HH_G_K;
+        else if (strcmp(key, "g_leak") == 0) *out_field = FIELD_HH_G_LEAK;
+        else if (strcmp(key, "e_na") == 0) *out_field = FIELD_HH_E_NA;
+        else if (strcmp(key, "e_k") == 0) *out_field = FIELD_HH_E_K;
+        else if (strcmp(key, "e_leak") == 0) *out_field = FIELD_HH_E_LEAK;
+        else if (strcmp(key, "v_init") == 0) *out_field = FIELD_HH_V_INIT;
+        else if (strcmp(key, "spike_threshold") == 0) *out_field = FIELD_HH_SPIKE_THRESHOLD;
+        else return 0;
+        return 1;
+    }
 
     if (strcmp(section, "structural_plasticity") == 0)
     {
@@ -635,6 +688,15 @@ static int assign_value(
         }
         return 1;
 
+    case FIELD_NEURON_MODEL:
+        if (!neuron_model_from_name(value, &config->neuron_model))
+        {
+            set_line_error(error_message, error_message_size, line_number,
+                           "model desconhecido");
+            return 0;
+        }
+        return 1;
+
     case FIELD_DIAGNOSTICS_LEVEL:
         if (!copy_string_value(
                 config->diagnostics_level,
@@ -907,6 +969,25 @@ static int assign_value(
         return 1;
 
     case FIELD_INHIBITORY_FRACTION:
+    case FIELD_ADEX_CAPACITANCE:
+    case FIELD_ADEX_G_LEAK:
+    case FIELD_ADEX_E_LEAK:
+    case FIELD_ADEX_DELTA_T:
+    case FIELD_ADEX_V_THRESHOLD:
+    case FIELD_ADEX_TAU_W:
+    case FIELD_ADEX_A:
+    case FIELD_ADEX_B:
+    case FIELD_ADEX_V_RESET:
+    case FIELD_ADEX_V_PEAK:
+    case FIELD_HH_CAPACITANCE:
+    case FIELD_HH_G_NA:
+    case FIELD_HH_G_K:
+    case FIELD_HH_G_LEAK:
+    case FIELD_HH_E_NA:
+    case FIELD_HH_E_K:
+    case FIELD_HH_E_LEAK:
+    case FIELD_HH_V_INIT:
+    case FIELD_HH_SPIKE_THRESHOLD:
     case FIELD_CONNECTION_PROBABILITY:
     case FIELD_EXCITATORY_WEIGHT:
     case FIELD_INHIBITORY_WEIGHT:
@@ -962,7 +1043,45 @@ static int assign_value(
             return 0;
         }
 
-        if (field == FIELD_INHIBITORY_FRACTION)
+        if (field == FIELD_ADEX_CAPACITANCE)
+            config->adex.capacitance = double_value;
+        else if (field == FIELD_ADEX_G_LEAK)
+            config->adex.g_leak = double_value;
+        else if (field == FIELD_ADEX_E_LEAK)
+            config->adex.e_leak = double_value;
+        else if (field == FIELD_ADEX_DELTA_T)
+            config->adex.delta_t = double_value;
+        else if (field == FIELD_ADEX_V_THRESHOLD)
+            config->adex.v_threshold = double_value;
+        else if (field == FIELD_ADEX_TAU_W)
+            config->adex.tau_w = double_value;
+        else if (field == FIELD_ADEX_A)
+            config->adex.a = double_value;
+        else if (field == FIELD_ADEX_B)
+            config->adex.b = double_value;
+        else if (field == FIELD_ADEX_V_RESET)
+            config->adex.v_reset = double_value;
+        else if (field == FIELD_ADEX_V_PEAK)
+            config->adex.v_peak = double_value;
+        else if (field == FIELD_HH_CAPACITANCE)
+            config->hodgkin_huxley.capacitance = double_value;
+        else if (field == FIELD_HH_G_NA)
+            config->hodgkin_huxley.g_na = double_value;
+        else if (field == FIELD_HH_G_K)
+            config->hodgkin_huxley.g_k = double_value;
+        else if (field == FIELD_HH_G_LEAK)
+            config->hodgkin_huxley.g_leak = double_value;
+        else if (field == FIELD_HH_E_NA)
+            config->hodgkin_huxley.e_na = double_value;
+        else if (field == FIELD_HH_E_K)
+            config->hodgkin_huxley.e_k = double_value;
+        else if (field == FIELD_HH_E_LEAK)
+            config->hodgkin_huxley.e_leak = double_value;
+        else if (field == FIELD_HH_V_INIT)
+            config->hodgkin_huxley.v_init = double_value;
+        else if (field == FIELD_HH_SPIKE_THRESHOLD)
+            config->hodgkin_huxley.spike_threshold = double_value;
+        else if (field == FIELD_INHIBITORY_FRACTION)
             config->inhibitory_fraction = double_value;
         else if (field == FIELD_CONNECTION_PROBABILITY)
             config->connection_probability = double_value;
@@ -1107,6 +1226,9 @@ void scenario_config_default(ScenarioConfig *config)
 
     snprintf(config->run_name, sizeof(config->run_name), "random_balanced_demo");
     snprintf(config->topology, sizeof(config->topology), "random_balanced");
+    config->neuron_model = MINISNN_NEURON_MODEL_LIF;
+    adex_parameters_default(&config->adex);
+    hodgkin_huxley_parameters_default(&config->hodgkin_huxley);
 
     config->neurons = 20;
     config->inhibitory_fraction = 0.20;
@@ -1661,6 +1783,39 @@ int scenario_config_validate(
         return 0;
     }
 
+    {
+        NeuronModelConfig model_config;
+        if (config->neuron_model == MINISNN_NEURON_MODEL_LIF)
+        {
+            LIFParameters lif = {config->dt, config->tau, config->v_rest,
+                config->v_reset, config->v_threshold, config->resistance};
+            neuron_model_config_lif(&model_config, &lif);
+        }
+        else if (config->neuron_model == MINISNN_NEURON_MODEL_ADEX)
+        {
+            AdExParameters adex = config->adex;
+            adex.dt = config->dt;
+            neuron_model_config_adex(&model_config, &adex);
+        }
+        else if (config->neuron_model == MINISNN_NEURON_MODEL_HODGKIN_HUXLEY)
+        {
+            HodgkinHuxleyParameters hh = config->hodgkin_huxley;
+            hh.dt = config->dt;
+            neuron_model_config_hodgkin_huxley(&model_config, &hh);
+        }
+        else
+        {
+            set_error(error_message, error_message_size, "model desconhecido");
+            return 0;
+        }
+        if (!neuron_model_validate_config(&model_config))
+        {
+            set_error(error_message, error_message_size,
+                      "parametros do modelo neuronal invalidos");
+            return 0;
+        }
+    }
+
     if (config->dt <= 0.0 || config->tau <= 0.0 ||
         config->resistance <= 0.0 || config->synaptic_decay <= 0.0)
     {
@@ -1942,6 +2097,9 @@ int scenario_config_save_file(
             "delay = %d\n"
             "max_synaptic_delay = %d\n"
             "\n"
+            "[neuron]\n"
+            "model = %s\n"
+            "\n"
             "[connectivity]\n"
             "allow_self_connections = %s\n"
             "allow_inh_to_inh = %s\n"
@@ -2009,6 +2167,7 @@ int scenario_config_save_file(
             config->seed,
             config->delay,
             config->max_synaptic_delay,
+            neuron_model_name(config->neuron_model),
             config->allow_self_connections ? "true" : "false",
             config->allow_inh_to_inh ? "true" : "false",
             config->excitatory_weight,
@@ -2054,6 +2213,57 @@ int scenario_config_save_file(
     {
         fclose(file);
         set_error(error_message, error_message_size, "erro ao escrever arquivo de cenario");
+        return 0;
+    }
+
+    if (fprintf(
+            file,
+            "\n"
+            "[adex]\n"
+            "capacitance = %.17g\n"
+            "g_leak = %.17g\n"
+            "e_leak = %.17g\n"
+            "delta_t = %.17g\n"
+            "v_threshold = %.17g\n"
+            "tau_w = %.17g\n"
+            "a = %.17g\n"
+            "b = %.17g\n"
+            "v_reset = %.17g\n"
+            "v_peak = %.17g\n"
+            "\n"
+            "[hodgkin_huxley]\n"
+            "capacitance = %.17g\n"
+            "g_na = %.17g\n"
+            "g_k = %.17g\n"
+            "g_leak = %.17g\n"
+            "e_na = %.17g\n"
+            "e_k = %.17g\n"
+            "e_leak = %.17g\n"
+            "v_init = %.17g\n"
+            "spike_threshold = %.17g\n",
+            config->adex.capacitance,
+            config->adex.g_leak,
+            config->adex.e_leak,
+            config->adex.delta_t,
+            config->adex.v_threshold,
+            config->adex.tau_w,
+            config->adex.a,
+            config->adex.b,
+            config->adex.v_reset,
+            config->adex.v_peak,
+            config->hodgkin_huxley.capacitance,
+            config->hodgkin_huxley.g_na,
+            config->hodgkin_huxley.g_k,
+            config->hodgkin_huxley.g_leak,
+            config->hodgkin_huxley.e_na,
+            config->hodgkin_huxley.e_k,
+            config->hodgkin_huxley.e_leak,
+            config->hodgkin_huxley.v_init,
+            config->hodgkin_huxley.spike_threshold) < 0)
+    {
+        fclose(file);
+        set_error(error_message, error_message_size,
+                  "erro ao escrever configuracao neuronal");
         return 0;
     }
 

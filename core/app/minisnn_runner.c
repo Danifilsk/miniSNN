@@ -89,6 +89,7 @@ int main(int argc, char **argv)
 
     print_summary(&scenario, &result);
     printf("\nArquivos criados:\n");
+    printf("- %s/config_source.ini\n", result.output_directory);
     printf("- %s/config_used.ini\n", result.output_directory);
     printf("- %s/summary.txt\n", result.output_directory);
     printf("- %s/population.csv\n", result.output_directory);
@@ -97,6 +98,10 @@ int main(int argc, char **argv)
            result.output_directory,
            scenario.record_neuron);
     printf("- %s/run_manifest.txt\n", result.output_directory);
+    if (scenario.neuron_model == MINISNN_NEURON_MODEL_ADEX)
+        printf("- %s/adex_state.csv\n", result.output_directory);
+    else if (scenario.neuron_model == MINISNN_NEURON_MODEL_HODGKIN_HUXLEY)
+        printf("- %s/hh_state.csv\n", result.output_directory);
 
     if (strcmp(scenario.diagnostics_level, "off") != 0)
         printf("- %s/metrics.csv\n", result.output_directory);

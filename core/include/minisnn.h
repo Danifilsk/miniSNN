@@ -8,7 +8,6 @@ typedef struct MiniSNN MiniSNN;
 typedef struct
 {
     int neuron_count;
-
     double dt;
     double tau;
     double v_rest;
@@ -18,12 +17,20 @@ typedef struct
 
     double synaptic_decay;
     int max_synaptic_delay;
+
+    MiniSNNNeuronModel neuron_model;
+    MiniSNNAdExConfig adex;
+    MiniSNNHodgkinHuxleyConfig hodgkin_huxley;
 } MiniSNNConfig;
 
 /* Criacao e destruicao */
 MiniSNN *minisnn_create(int neuron_count);
 
 MiniSNNConfig minisnn_default_config(void);
+
+MiniSNNAdExConfig minisnn_adex_config_default(void);
+
+MiniSNNHodgkinHuxleyConfig minisnn_hodgkin_huxley_config_default(void);
 
 MiniSNN *minisnn_create_with_config(
     const MiniSNNConfig *config);
@@ -38,6 +45,25 @@ void minisnn_destroy(MiniSNN **snn_ptr);
 /* Informacoes gerais */
 int minisnn_neuron_count(const MiniSNN *snn);
 int minisnn_current_step(const MiniSNN *snn);
+MiniSNNNeuronModel minisnn_neuron_model(const MiniSNN *snn);
+const char *minisnn_neuron_model_name(MiniSNNNeuronModel model);
+MiniSNNNeuronModelCapabilities minisnn_neuron_model_capabilities(
+    MiniSNNNeuronModel model);
+unsigned long long minisnn_neuron_model_config_signature(
+    const MiniSNN *snn);
+unsigned long long minisnn_config_neuron_model_signature(
+    const MiniSNNConfig *config);
+const char *minisnn_neuron_integration_method(const MiniSNN *snn);
+const char *minisnn_neuron_model_integration_method(
+    MiniSNNNeuronModel model);
+int minisnn_get_adex_state(
+    const MiniSNN *snn,
+    int neuron_id,
+    MiniSNNAdExState *out_state);
+int minisnn_get_hodgkin_huxley_state(
+    const MiniSNN *snn,
+    int neuron_id,
+    MiniSNNHodgkinHuxleyState *out_state);
 
 /*
  * As conexoes sao enumeradas por source crescente e, dentro de cada source,

@@ -558,3 +558,14 @@ O runner grava topologias inicial/final, eventos, métricas e histórico. O mód
 `configs/structural_growth_demo.ini`. A seção evolutiva `[structure]` e
 `genome_mode` pertencem ao arquivo de experimento, conforme o
 [Guia de topologia adaptativa](GUIA_DE_TOPOLOGIA_ADAPTATIVA.md).
+# Modelos neuronais
+
+Use `[neuron] model = lif`, `adex` ou `hodgkin_huxley`. Tambem sao aceitos os
+aliases `hh` e `hodgkin-huxley`, sem distincao entre maiusculas e minusculas. A
+configuracao efetiva sempre grava o nome canonico. Os parametros ficam em
+`[adex]` e `[hodgkin_huxley]`; consulte `GUIA_DE_MODELOS_NEURONAIS.md` para
+equacoes, unidades e exemplos. Uma rede e homogenea: todos os neuronios usam o
+mesmo modelo e a mesma configuracao.
+
+`sample_stride` tambem controla a amostragem dos arquivos de estado especifico.
+O valor padrao `1` registra todos os passos.

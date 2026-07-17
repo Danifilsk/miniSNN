@@ -572,6 +572,29 @@ static int check_connection_and_plasticity_api(void)
     return 1;
 }
 
+static int check_historical_positional_config(void)
+{
+#if defined(__GNUC__)
+#pragma GCC diagnostic push
+#pragma GCC diagnostic ignored "-Wmissing-field-initializers"
+#endif
+    MiniSNNConfig historical = {
+        1, 0.1, 20.0, -65.0, -65.0, -50.0, 1.0, 0.95, 8
+    };
+#if defined(__GNUC__)
+#pragma GCC diagnostic pop
+#endif
+    MiniSNN *snn = minisnn_create_with_config(&historical);
+    if (snn == NULL ||
+        minisnn_neuron_model(snn) != MINISNN_NEURON_MODEL_LIF)
+    {
+        minisnn_destroy(&snn);
+        return fail("historical positional MiniSNNConfig was rejected");
+    }
+    minisnn_destroy(&snn);
+    return 1;
+}
+
 static int check_reward_api(void)
 {
     MiniSNN *first = minisnn_create(2);
@@ -653,6 +676,8 @@ static int check_reward_api(void)
 
 int main(void)
 {
+    if (!check_historical_positional_config())
+        return 1;
     if (!check_default_config_and_invalid_configs())
         return 1;
 

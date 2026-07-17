@@ -46,6 +46,14 @@ interface não possui uma segunda implementação da dinâmica neural.
 | `results/` | Saídas locais, comparações e resultados científicos preservados. |
 | `docs/` | Guias técnicos e operacionais. |
 
+## Interface de modelos neuronais
+
+`src/neuron_model.c` concentra o dispatch interno de validacao, inicializacao,
+reset, passo, leitura e capacidades de modelos neuronais. C5 prepara essa
+fronteira sem mudar a implementacao LIF em `src/neuron.c`: somente
+`MINISNN_NEURON_MODEL_LIF` existe nesta fase. A homeostase consulta a
+capacidade explicita de threshold adaptavel antes de usa-lo.
+
 ## Core, Studio e Worlds
 
 **IMPLEMENTADO — miniSNN Core:** laboratório neural e motor experimental.

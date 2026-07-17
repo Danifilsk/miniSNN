@@ -1,5 +1,6 @@
 #include <math.h>
 #include <stddef.h>
+#include <string.h>
 
 #include "neuron.h"
 #include "config.h"
@@ -56,9 +57,11 @@ void lif_init_with_parameters(
     if (neuron == NULL || !lif_parameters_are_valid(parameters))
         return;
 
+    memset(neuron, 0, sizeof(*neuron));
     neuron->V = parameters->v_rest;
     neuron->spike = 0;
     neuron->type = NEURON_EXCITATORY;
+    neuron->model = MINISNN_NEURON_MODEL_LIF;
 }
 
 int lif_update_with_parameters(

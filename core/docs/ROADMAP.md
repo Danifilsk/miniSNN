@@ -18,12 +18,14 @@ O roadmap indica ordem de trabalho, não promessa de prazo.
 - [x] C2 — recompensa, punição e R-STDP com trace de elegibilidade.
 - [x] C3 — neuroevolução serial com topologia fixa, fitness configurável e checkpoint.
 - [x] C4 — topologia adaptativa, evolução estrutural e plasticidade estrutural de lifetime.
+- [x] C5 — modelos neuronais avançados: LIF, AdEx e Hodgkin-Huxley.
 
 ## Próximo
 
-- [ ] C5 — próximo: modelos neurais avançados.
+- [ ] C6 — memória.
+- [ ] C7 — estados internos.
+- [ ] D1 — integração do Core com o próximo estágio de domínio.
 - [ ] Revisão humana do checklist do Studio.
-- [ ] Revisão de release da **Core v0.2 - Essential Lab** para E0.
 
 A parte automática do Bloco B foi concluída. ASan/UBSan permanece pendente em
 toolchain compatível.
@@ -31,34 +33,24 @@ toolchain compatível.
 ## Ordem oficial posterior
 
 ```text
-Bloco A
--> Bloco B
--> Core v0.2
--> E0: entrega científica inicial
--> Worlds mínimo como testbed
--> Bloco C
--> Bloco D
--> E avançado
--> expansão completa do Worlds
+C6 -> C7 -> D1 -> Worlds
 ```
 
-`Core v0.2` é candidata à revisão humana; E0 e Worlds mínimo ainda são marcos
-planejados, não releases existentes.
+O C8 — otimização iterativa automatizada — pode evoluir em paralelo e não
+bloqueia Worlds. O Bloco E permanece pausado até nova decisão de produto.
 
-## Planejado — continuidade do Bloco C
+## Registro histórico
 
 - C2 — recompensa e punição (concluído).
 - C3 — neuroevolução (concluído). No fechamento histórico do C2, o estado era: C3 — neuroevolução (próximo; não implementado).
 - C4 — topologia adaptativa e evolução estrutural (concluído).
-- C5 — próximo: modelos neurais avançados.
-- C6 — memória.
-- C7 — estados internos.
-- C8 — otimização iterativa automatizada.
+- C5 — modelos neuronais avançados (concluído).
 
 ## Experimental
 
 Os programas em `experiments/`, o STDP experimental do C1, a homeostase
 simplificada do C1.5, o R-STDP do C2, a neuroevolução do C3, as heurísticas
 estruturais do C4 e as heurísticas diagnósticas apoiam exploração, mas não
-tornam Worlds ou modelos avançados implementados. Novas
+tornam Worlds implementado. LIF, AdEx e Hodgkin-Huxley são recursos do Core
+concluídos no C5. Novas
 hipóteses devem entrar no roadmap antes de serem descritas como recurso.

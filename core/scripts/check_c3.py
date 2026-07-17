@@ -228,9 +228,11 @@ def main() -> int:
     if (
         "C3 — neuroevolução (concluído)" not in roadmap or
         "C4 — topologia adaptativa e evolução estrutural (concluído)" not in roadmap or
-        "C5 — próximo: modelos neurais avançados" not in roadmap
+        "[x] C5" not in roadmap or
+        "C6 -> C7 -> D1 -> Worlds" not in roadmap or
+        "E0:" in roadmap
     ):
-        errors.append("roadmap C3/C4/C5 status is incorrect")
+        errors.append("roadmap C3/C4/C5 and sequencing status is incorrect")
 
     generated = {".csv", ".png", ".html", ".exe", ".o", ".obj"}
     for item in ROOT.iterdir():

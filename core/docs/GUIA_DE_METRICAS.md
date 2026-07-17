@@ -219,3 +219,13 @@ Em cenários de lifetime, `structural_plasticity_metrics.csv` registra contagens
 inicial/final, tentativas e sucessos, enquanto `topology_history.csv` acompanha
 a evolução temporal. Essas medidas descrevem estrutura e heurísticas, não
 causalidade biológica nem qualidade geral da rede.
+# Metricas de modelos neuronais C5
+
+`summary.txt` e `metrics.csv` registram `neuron_model`, assinatura da
+configuracao, integrador, erros de step, estados nao finitos, minimo/maximo/media
+de tensao, firing rate e ISI medio. AdEx acrescenta metricas de `w`; HH
+acrescenta medias de `m`, `h`, `n`, pico de tensao e potenciais de acao. Campos
+sem significado para o modelo aparecem como `NA`, nunca como NaN ou infinito.
+
+As taxas dependem do `dt` e as correntes nao sao fisicamente comparaveis entre
+LIF, AdEx e HH apenas por terem o mesmo valor numerico.

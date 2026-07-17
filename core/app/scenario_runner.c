@@ -325,49 +325,6 @@ static int make_path(
                filename) < SCENARIO_OUTPUT_PATH_MAX;
 }
 
-static int copy_file_exact(const char *source, const char *destination)
-{
-    FILE *input = fopen(source, "rb");
-    FILE *output;
-    unsigned char buffer[1024];
-    size_t count;
-
-    if (input == NULL)
-        return 0;
-
-    output = fopen(destination, "wb");
-
-    if (output == NULL)
-    {
-        fclose(input);
-        return 0;
-    }
-
-    while ((count = fread(buffer, 1, sizeof(buffer), input)) > 0)
-    {
-        if (fwrite(buffer, 1, count, output) != count)
-        {
-            fclose(input);
-            fclose(output);
-            return 0;
-        }
-    }
-
-    if (ferror(input))
-    {
-        fclose(input);
-        fclose(output);
-        return 0;
-    }
-
-    fclose(input);
-
-    if (fclose(output) != 0)
-        return 0;
-
-    return 1;
-}
-
 static int write_config_used(
     const ScenarioConfig *config,
     const char *source_config_path,
@@ -375,22 +332,56 @@ static int write_config_used(
     char *error_message,
     size_t error_message_size)
 {
-    if (source_config_path != NULL)
-    {
-        if (!copy_file_exact(source_config_path, destination))
-        {
-            set_error(error_message, error_message_size, "erro ao copiar config_used.ini");
-            return 0;
-        }
-
-        return 1;
-    }
+    (void)source_config_path;
 
     return scenario_config_save_file(
         destination,
         config,
         error_message,
         error_message_size);
+}
+
+static int copy_config_source_exact(
+    const char *source,
+    const char *destination)
+{
+    unsigned char buffer[4096];
+    FILE *input;
+    FILE *output;
+    size_t count;
+
+    if (source == NULL || destination == NULL)
+        return 0;
+    input = fopen(source, "rb");
+    if (input == NULL)
+        return 0;
+    output = fopen(destination, "wb");
+    if (output == NULL)
+    {
+        fclose(input);
+        return 0;
+    }
+    while ((count = fread(buffer, 1, sizeof(buffer), input)) > 0)
+    {
+        if (fwrite(buffer, 1, count, output) != count)
+        {
+            fclose(input);
+            fclose(output);
+            remove(destination);
+            return 0;
+        }
+    }
+    {
+        int read_failed = ferror(input) != 0;
+        int input_close_failed = fclose(input) != 0;
+        int output_close_failed = fclose(output) != 0;
+        if (read_failed || input_close_failed || output_close_failed)
+        {
+            remove(destination);
+            return 0;
+        }
+    }
+    return 1;
 }
 
 static int calculate_inhibitory_count(const ScenarioConfig *config)
@@ -2490,10 +2481,12 @@ static int open_output_files(
     FILE **population_file,
     FILE **raster_file,
     FILE **neuron_file,
+    FILE **model_state_file,
     FILE **summary_file,
     char *population_path,
     char *raster_path,
     char *neuron_path,
+    char *model_state_path,
     char *summary_path)
 {
     char neuron_filename[64];
@@ -2520,12 +2513,28 @@ static int open_output_files(
     *population_file = fopen(population_path, "w");
     *raster_file = fopen(raster_path, "w");
     *neuron_file = fopen(neuron_path, "w");
+    *model_state_file = NULL;
     *summary_file = fopen(summary_path, "w");
+
+    if (config->neuron_model == MINISNN_NEURON_MODEL_ADEX)
+    {
+        if (!make_path(model_state_path, output_dir, "adex_state.csv"))
+            return 0;
+        *model_state_file = fopen(model_state_path, "w");
+    }
+    else if (config->neuron_model == MINISNN_NEURON_MODEL_HODGKIN_HUXLEY)
+    {
+        if (!make_path(model_state_path, output_dir, "hh_state.csv"))
+            return 0;
+        *model_state_file = fopen(model_state_path, "w");
+    }
 
     if (*population_file == NULL ||
         *raster_file == NULL ||
         *neuron_file == NULL ||
-        *summary_file == NULL)
+        *summary_file == NULL ||
+        (config->neuron_model != MINISNN_NEURON_MODEL_LIF &&
+         *model_state_file == NULL))
     {
         return 0;
     }
@@ -2535,6 +2544,15 @@ static int open_output_files(
             "tempo,spikes_total,spikes_exc,spikes_inh,mean_potential,mean_syn_current\n") < 0)
     {
         return 0;
+    }
+
+    if (*model_state_file != NULL)
+    {
+        const char *header = config->neuron_model == MINISNN_NEURON_MODEL_ADEX ?
+            "step,time,neuron_id,V,w,spike\n" :
+            "step,time,neuron_id,V,m,h,n,spike\n";
+        if (fprintf(*model_state_file, "%s", header) < 0)
+            return 0;
     }
 
     if (fprintf(*raster_file, "tempo,neuronio,tipo\n") < 0)
@@ -2564,11 +2582,20 @@ static int write_summary(
     const HomeostasisRunData *homeostasis_data,
     const RewardRunData *reward_data)
 {
-    return fprintf(
+    MiniSNNConfig minisnn_config;
+    unsigned long long model_signature;
+
+    if (!scenario_runtime_make_minisnn_config(config, &minisnn_config))
+        return 0;
+    model_signature = minisnn_config_neuron_model_signature(&minisnn_config);
+    if (fprintf(
                file,
                "run_name=%s\n"
                "actual_run_name=%s\n"
                "topology=%s\n"
+               "neuron_model=%s\n"
+               "neuron_model_config_signature=%llu\n"
+               "neuron_integration_method=%s\n"
                "neurons=%d\n"
                "inhibitory_count=%d\n"
                "connection_count=%d\n"
@@ -2605,6 +2632,9 @@ static int write_summary(
                config->run_name,
                result->actual_run_name,
                config->topology,
+               minisnn_neuron_model_name(config->neuron_model),
+               model_signature,
+               minisnn_neuron_model_integration_method(config->neuron_model),
                config->neurons,
                result->inhibitory_count,
                result->connection_count,
@@ -2638,7 +2668,87 @@ static int write_summary(
                reward_data->stats.reward_event_count,
                reward_data->stats.cumulative_applied_reward,
                reward_data->stats.modified_connection_count,
-               reward_data->stats.total_signed_weight_change) >= 0;
+               reward_data->stats.total_signed_weight_change) < 0)
+    {
+        return 0;
+    }
+
+    if (fprintf(
+            file,
+            "state_nonfinite_count=%d\n"
+            "step_error_count=%d\n"
+            "voltage_min=%.17g\n"
+            "voltage_max=%.17g\n"
+            "voltage_mean=%.17g\n"
+            "firing_rate=%.17g\n",
+            result->state_nonfinite_count,
+            result->step_error_count,
+            result->voltage_min,
+            result->voltage_max,
+            result->voltage_mean,
+            result->firing_rate) < 0)
+    {
+        return 0;
+    }
+
+    if (result->mean_isi_available)
+    {
+        if (fprintf(file, "mean_isi=%.17g\n", result->mean_isi) < 0)
+            return 0;
+    }
+    else if (fprintf(file, "mean_isi=NA\n") < 0)
+        return 0;
+
+    if (config->neuron_model == MINISNN_NEURON_MODEL_ADEX)
+    {
+        return fprintf(
+            file,
+            "adex_w_initial=%.17g\n"
+            "adex_w_final=%.17g\n"
+            "adex_w_mean=%.17g\n"
+            "adex_adaptation_index=%.17g\n"
+            "hh_m_mean=NA\n"
+            "hh_h_mean=NA\n"
+            "hh_n_mean=NA\n"
+            "hh_peak_voltage=NA\n"
+            "hh_action_potential_count=NA\n",
+            result->adex_w_initial,
+            result->adex_w_final,
+            result->adex_w_mean,
+            result->adex_adaptation_index) >= 0;
+    }
+
+    if (config->neuron_model == MINISNN_NEURON_MODEL_HODGKIN_HUXLEY)
+    {
+        return fprintf(
+            file,
+            "adex_w_initial=NA\n"
+            "adex_w_final=NA\n"
+            "adex_w_mean=NA\n"
+            "adex_adaptation_index=NA\n"
+            "hh_m_mean=%.17g\n"
+            "hh_h_mean=%.17g\n"
+            "hh_n_mean=%.17g\n"
+            "hh_peak_voltage=%.17g\n"
+            "hh_action_potential_count=%d\n",
+            result->hh_m_mean,
+            result->hh_h_mean,
+            result->hh_n_mean,
+            result->hh_peak_voltage,
+            result->hh_action_potential_count) >= 0;
+    }
+
+    return fprintf(
+        file,
+        "adex_w_initial=NA\n"
+        "adex_w_final=NA\n"
+        "adex_w_mean=NA\n"
+        "adex_adaptation_index=NA\n"
+        "hh_m_mean=NA\n"
+        "hh_h_mean=NA\n"
+        "hh_n_mean=NA\n"
+        "hh_peak_voltage=NA\n"
+        "hh_action_potential_count=NA\n") >= 0;
 }
 
 static int append_scenario_history(
@@ -2789,6 +2899,18 @@ static int write_basic_metrics(
     const char *homeostasis_header = "";
     char reward_metrics[768] = "";
     const char *reward_header = "";
+    char mean_isi_text[48] = "NA";
+    char adex_w_initial_text[48] = "NA";
+    char adex_w_final_text[48] = "NA";
+    char adex_w_mean_text[48] = "NA";
+    char adex_adaptation_index_text[48] = "NA";
+    char hh_m_mean_text[48] = "NA";
+    char hh_h_mean_text[48] = "NA";
+    char hh_n_mean_text[48] = "NA";
+    char hh_peak_voltage_text[48] = "NA";
+    char hh_action_potential_count_text[48] = "NA";
+    MiniSNNConfig model_config;
+    unsigned long long model_signature;
     FILE *file;
     double activity_fraction;
     double silence_fraction;
@@ -2863,6 +2985,30 @@ static int write_basic_metrics(
         &outdegree_max,
         &outdegree_std);
     current_timestamp(timestamp, sizeof(timestamp));
+
+    if (!scenario_runtime_make_minisnn_config(config, &model_config))
+    {
+        fclose(file);
+        return 0;
+    }
+    model_signature = minisnn_config_neuron_model_signature(&model_config);
+    if (result->mean_isi_available)
+        snprintf(mean_isi_text, sizeof(mean_isi_text), "%.17g", result->mean_isi);
+    if (config->neuron_model == MINISNN_NEURON_MODEL_ADEX)
+    {
+        snprintf(adex_w_initial_text, sizeof(adex_w_initial_text), "%.17g", result->adex_w_initial);
+        snprintf(adex_w_final_text, sizeof(adex_w_final_text), "%.17g", result->adex_w_final);
+        snprintf(adex_w_mean_text, sizeof(adex_w_mean_text), "%.17g", result->adex_w_mean);
+        snprintf(adex_adaptation_index_text, sizeof(adex_adaptation_index_text), "%.17g", result->adex_adaptation_index);
+    }
+    else if (config->neuron_model == MINISNN_NEURON_MODEL_HODGKIN_HUXLEY)
+    {
+        snprintf(hh_m_mean_text, sizeof(hh_m_mean_text), "%.17g", result->hh_m_mean);
+        snprintf(hh_h_mean_text, sizeof(hh_h_mean_text), "%.17g", result->hh_h_mean);
+        snprintf(hh_n_mean_text, sizeof(hh_n_mean_text), "%.17g", result->hh_n_mean);
+        snprintf(hh_peak_voltage_text, sizeof(hh_peak_voltage_text), "%.17g", result->hh_peak_voltage);
+        snprintf(hh_action_potential_count_text, sizeof(hh_action_potential_count_text), "%d", result->hh_action_potential_count);
+    }
 
     if (config->homeostasis_enabled)
     {
@@ -2943,12 +3089,12 @@ static int write_basic_metrics(
 
     if (fprintf(
             file,
-            "run_name,actual_run_name,run_path,timestamp,topology,network_num_neurons,run_steps,run_dt,run_simulation_duration,run_seed,run_recorded_neuron,diagnostics_level,network_total_connections,network_excitatory_neuron_count,network_inhibitory_neuron_count,activity_total_spikes,activity_mean_spikes_per_step,activity_min_spikes_per_step,activity_max_spikes_per_step,activity_active_timesteps,activity_silent_timesteps,activity_fraction,silence_fraction,activity_first_active_step,activity_last_active_step,activity_peak_step,activity_peak_value,activity_has_late_activity,neuron_mean_spikes,exc_total_spikes,inh_total_spikes,network_connection_density,network_self_connection_count,network_excitatory_connection_count,network_inhibitory_connection_count,network_weight_mean,network_weight_min,network_weight_max,network_weight_std,network_delay_mean,network_delay_min,network_delay_max,network_delay_std,network_indegree_mean,network_indegree_min,network_indegree_max,network_indegree_std,network_outdegree_mean,network_outdegree_min,network_outdegree_max,network_outdegree_std,performance_simulation_time_seconds,performance_wall_time_seconds,performance_steps_per_second,performance_neuron_updates_per_second,performance_spikes_per_second_processed,performance_population_csv_size_bytes,performance_raster_csv_size_bytes,plasticity_enabled,plasticity_modified_connection_fraction,plasticity_initial_weight_mean,plasticity_final_weight_mean,plasticity_mean_absolute_change,plasticity_total_signed_change,plasticity_potentiation_events,plasticity_depression_events%s%s\n",
+            "run_name,actual_run_name,run_path,timestamp,topology,network_num_neurons,run_steps,run_dt,run_simulation_duration,run_seed,run_recorded_neuron,diagnostics_level,network_total_connections,network_excitatory_neuron_count,network_inhibitory_neuron_count,activity_total_spikes,activity_mean_spikes_per_step,activity_min_spikes_per_step,activity_max_spikes_per_step,activity_active_timesteps,activity_silent_timesteps,activity_fraction,silence_fraction,activity_first_active_step,activity_last_active_step,activity_peak_step,activity_peak_value,activity_has_late_activity,neuron_mean_spikes,exc_total_spikes,inh_total_spikes,network_connection_density,network_self_connection_count,network_excitatory_connection_count,network_inhibitory_connection_count,network_weight_mean,network_weight_min,network_weight_max,network_weight_std,network_delay_mean,network_delay_min,network_delay_max,network_delay_std,network_indegree_mean,network_indegree_min,network_indegree_max,network_indegree_std,network_outdegree_mean,network_outdegree_min,network_outdegree_max,network_outdegree_std,performance_simulation_time_seconds,performance_wall_time_seconds,performance_steps_per_second,performance_neuron_updates_per_second,performance_spikes_per_second_processed,performance_population_csv_size_bytes,performance_raster_csv_size_bytes,plasticity_enabled,plasticity_modified_connection_fraction,plasticity_initial_weight_mean,plasticity_final_weight_mean,plasticity_mean_absolute_change,plasticity_total_signed_change,plasticity_potentiation_events,plasticity_depression_events%s%s,neuron_model,model_config_signature,integration_method,state_nonfinite_count,step_error_count,voltage_min,voltage_max,voltage_mean,firing_rate,mean_isi,adex_w_initial,adex_w_final,adex_w_mean,adex_adaptation_index,hh_m_mean,hh_h_mean,hh_n_mean,hh_peak_voltage,hh_action_potential_count\n",
             homeostasis_header,
             reward_header) < 0 ||
         fprintf(
             file,
-            "%s,%s,%s,%s,%s,%d,%d,%.12g,%.12g,%u,%d,%s,%d,%d,%d,%d,%.12g,%d,%d,%d,%d,%.12g,%.12g,%d,%d,%d,%d,%s,%.12g,%d,%d,%.12g,%d,%d,%d,%.12g,%.12g,%.12g,%.12g,%.12g,%d,%d,%.12g,%.12g,%d,%d,%.12g,%.12g,%d,%d,%.12g,%.12g,%.12g,%.12g,%.12g,%.12g,%llu,%llu,%s,%.17g,%.17g,%.17g,%.17g,%.17g,%llu,%llu%s%s\n",
+            "%s,%s,%s,%s,%s,%d,%d,%.12g,%.12g,%u,%d,%s,%d,%d,%d,%d,%.12g,%d,%d,%d,%d,%.12g,%.12g,%d,%d,%d,%d,%s,%.12g,%d,%d,%.12g,%d,%d,%d,%.12g,%.12g,%.12g,%.12g,%.12g,%d,%d,%.12g,%.12g,%d,%d,%.12g,%.12g,%d,%d,%.12g,%.12g,%.12g,%.12g,%.12g,%.12g,%llu,%llu,%s,%.17g,%.17g,%.17g,%.17g,%.17g,%llu,%llu%s%s,%s,%llu,%s,%d,%d,%.17g,%.17g,%.17g,%.17g,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s\n",
             config->run_name,
             result->actual_run_name,
             result->output_directory,
@@ -3017,7 +3163,26 @@ static int write_basic_metrics(
             plasticity_data->stats.potentiation_events,
             plasticity_data->stats.depression_events,
             homeostasis_metrics,
-            reward_metrics) < 0)
+            reward_metrics,
+            minisnn_neuron_model_name(config->neuron_model),
+            model_signature,
+            minisnn_neuron_model_integration_method(config->neuron_model),
+            result->state_nonfinite_count,
+            result->step_error_count,
+            result->voltage_min,
+            result->voltage_max,
+            result->voltage_mean,
+            result->firing_rate,
+            mean_isi_text,
+            adex_w_initial_text,
+            adex_w_final_text,
+            adex_w_mean_text,
+            adex_adaptation_index_text,
+            hh_m_mean_text,
+            hh_h_mean_text,
+            hh_n_mean_text,
+            hh_peak_voltage_text,
+            hh_action_potential_count_text) < 0)
     {
         fclose(file);
         return 0;
@@ -3041,6 +3206,9 @@ static int write_run_manifest(
     char homeostasis_files[384] = "NA";
     char reward_files[384] = "NA";
     FILE *pipe;
+    MiniSNNConfig minisnn_config;
+    MiniSNNNeuronModelCapabilities capabilities;
+    unsigned long long model_signature;
 
     if (!make_path(path, result->output_directory, "run_manifest.txt"))
         return 0;
@@ -3050,6 +3218,13 @@ static int write_run_manifest(
         return 0;
 
     current_timestamp(timestamp, sizeof(timestamp));
+    if (!scenario_runtime_make_minisnn_config(config, &minisnn_config))
+    {
+        fclose(file);
+        return 0;
+    }
+    capabilities = minisnn_neuron_model_capabilities(config->neuron_model);
+    model_signature = minisnn_config_neuron_model_signature(&minisnn_config);
 
     if (config->plasticity_enabled)
     {
@@ -3121,7 +3296,12 @@ static int write_run_manifest(
             "requested_run_name=%s\n"
             "actual_run_name=%s\n"
             "seed=%u\n"
-            "neural_model=LIF\n"
+            "neural_model=%s\n"
+            "neuron_model=%s\n"
+            "neuron_model_config_signature=%llu\n"
+            "neuron_integration_method=%s\n"
+            "model_state_sampling_stride=%d\n"
+            "intrinsic_homeostasis_supported=%s\n"
             "num_neurons=%d\n"
             "topology=%s\n"
             "dt=%.12g\n"
@@ -3196,6 +3376,14 @@ static int write_run_manifest(
             config->run_name,
             result->actual_run_name,
             config->seed,
+            config->neuron_model == MINISNN_NEURON_MODEL_LIF ? "LIF" :
+                (config->neuron_model == MINISNN_NEURON_MODEL_ADEX ?
+                    "AdEx" : "Hodgkin-Huxley"),
+            minisnn_neuron_model_name(config->neuron_model),
+            model_signature,
+            minisnn_neuron_model_integration_method(config->neuron_model),
+            config->sample_stride,
+            capabilities.supports_homeostatic_threshold ? "yes" : "no",
             config->neurons,
             config->topology,
             config->dt,
@@ -3271,15 +3459,12 @@ int scenario_runner_capture_blueprint(
 
     memset(&connectivity, 0, sizeof(connectivity));
     memset(neuron_is_inhibitory, 0, sizeof(neuron_is_inhibitory));
-    minisnn_config.neuron_count = config->neurons;
-    minisnn_config.dt = config->dt;
-    minisnn_config.tau = config->tau;
-    minisnn_config.v_rest = config->v_rest;
-    minisnn_config.v_reset = config->v_reset;
-    minisnn_config.v_threshold = config->v_threshold;
-    minisnn_config.resistance = config->resistance;
-    minisnn_config.synaptic_decay = config->synaptic_decay;
-    minisnn_config.max_synaptic_delay = config->max_synaptic_delay;
+    if (!scenario_runtime_make_minisnn_config(config, &minisnn_config))
+    {
+        set_error(error_message, error_message_size,
+                  "configuracao neuronal invalida no blueprint");
+        return 0;
+    }
 
     snn = minisnn_create_with_config(&minisnn_config);
     if (snn == NULL)
@@ -3712,6 +3897,7 @@ static int run_simulation(
     FILE *population_file,
     FILE *raster_file,
     FILE *neuron_file,
+    FILE *model_state_file,
     ScenarioRunResult *result,
     PlasticityRunData *plasticity_data,
     HomeostasisRunData *homeostasis_data,
@@ -3719,6 +3905,16 @@ static int run_simulation(
     StructuralRunData *structural_data,
     const char *output_directory)
 {
+    int last_spike_step[SCENARIO_MAX_NEURONS];
+    unsigned long long voltage_sample_count = 0;
+    unsigned long long isi_count = 0;
+    double voltage_sum = 0.0;
+    double isi_sum = 0.0;
+    double adex_w_sum = 0.0;
+    double hh_m_sum = 0.0;
+    double hh_h_sum = 0.0;
+    double hh_n_sum = 0.0;
+
     result->spikes_total = 0;
     result->spikes_exc = 0;
     result->spikes_inh = 0;
@@ -3728,6 +3924,13 @@ static int run_simulation(
     result->peak_activity_step = -1;
     result->peak_activity_value = 0;
     result->min_activity_value = config->neurons;
+    result->state_nonfinite_count = 0;
+    result->step_error_count = 0;
+    result->voltage_min = HUGE_VAL;
+    result->voltage_max = -HUGE_VAL;
+    result->adex_w_initial = 0.0;
+    for (int neuron_id = 0; neuron_id < config->neurons; neuron_id++)
+        last_spike_step[neuron_id] = -1;
 
     for (int step = 0; step < config->steps; step++)
     {
@@ -3753,6 +3956,7 @@ static int run_simulation(
                 runtime_error,
                 sizeof(runtime_error)))
         {
+            result->step_error_count++;
             return 0;
         }
 
@@ -3766,8 +3970,25 @@ static int run_simulation(
 
         for (int neuron_id = 0; neuron_id < config->neurons; neuron_id++)
         {
+            double voltage = runtime_step.voltages[neuron_id];
+
+            voltage_sum += voltage;
+            voltage_sample_count++;
+            if (voltage < result->voltage_min)
+                result->voltage_min = voltage;
+            if (voltage > result->voltage_max)
+                result->voltage_max = voltage;
+
             if (runtime_step.spikes[neuron_id])
             {
+                if (last_spike_step[neuron_id] >= 0)
+                {
+                    isi_sum += (double)(step - last_spike_step[neuron_id]) *
+                        config->dt;
+                    isi_count++;
+                }
+                last_spike_step[neuron_id] = step;
+
                 if (fprintf(
                         raster_file,
                         "%d,%d,%s\n",
@@ -3781,6 +4002,49 @@ static int run_simulation(
                     return 0;
                 }
             }
+
+            if (config->neuron_model == MINISNN_NEURON_MODEL_ADEX)
+                adex_w_sum += runtime_step.adex_adaptation[neuron_id];
+            else if (config->neuron_model ==
+                     MINISNN_NEURON_MODEL_HODGKIN_HUXLEY)
+            {
+                hh_m_sum += runtime_step.hh_m[neuron_id];
+                hh_h_sum += runtime_step.hh_h[neuron_id];
+                hh_n_sum += runtime_step.hh_n[neuron_id];
+            }
+
+            if (model_state_file != NULL &&
+                step % config->sample_stride == 0)
+            {
+                int write_result;
+                double time = (double)step * config->dt;
+                if (config->neuron_model == MINISNN_NEURON_MODEL_ADEX)
+                    write_result = fprintf(model_state_file,
+                        "%d,%.17g,%d,%.17g,%.17g,%d\n",
+                        step, time, neuron_id,
+                        runtime_step.voltages[neuron_id],
+                        runtime_step.adex_adaptation[neuron_id],
+                        runtime_step.spikes[neuron_id]);
+                else
+                    write_result = fprintf(model_state_file,
+                        "%d,%.17g,%d,%.17g,%.17g,%.17g,%.17g,%d\n",
+                        step, time, neuron_id,
+                        runtime_step.voltages[neuron_id],
+                        runtime_step.hh_m[neuron_id],
+                        runtime_step.hh_h[neuron_id],
+                        runtime_step.hh_n[neuron_id],
+                        runtime_step.spikes[neuron_id]);
+                if (write_result < 0)
+                    return 0;
+            }
+        }
+
+        if (config->neuron_model == MINISNN_NEURON_MODEL_ADEX)
+        {
+            double final_sum = 0.0;
+            for (int neuron_id = 0; neuron_id < config->neurons; neuron_id++)
+                final_sum += runtime_step.adex_adaptation[neuron_id];
+            result->adex_w_final = final_sum / (double)config->neurons;
         }
 
         if (spikes_total > 0)
@@ -3885,6 +4149,34 @@ static int run_simulation(
         }
     }
 
+    result->voltage_mean = voltage_sample_count > 0 ?
+        voltage_sum / (double)voltage_sample_count : 0.0;
+    result->firing_rate = config->steps > 0 && config->dt > 0.0 ?
+        1000.0 * (double)result->spikes_total /
+            ((double)config->neurons * (double)config->steps * config->dt) :
+        0.0;
+    result->mean_isi_available = isi_count > 0;
+    result->mean_isi = isi_count > 0 ? isi_sum / (double)isi_count : 0.0;
+
+    if (config->neuron_model == MINISNN_NEURON_MODEL_ADEX)
+    {
+        result->adex_w_mean = voltage_sample_count > 0 ?
+            adex_w_sum / (double)voltage_sample_count : 0.0;
+        result->adex_adaptation_index =
+            result->adex_w_final - result->adex_w_initial;
+    }
+    else if (config->neuron_model == MINISNN_NEURON_MODEL_HODGKIN_HUXLEY)
+    {
+        result->hh_m_mean = voltage_sample_count > 0 ?
+            hh_m_sum / (double)voltage_sample_count : 0.0;
+        result->hh_h_mean = voltage_sample_count > 0 ?
+            hh_h_sum / (double)voltage_sample_count : 0.0;
+        result->hh_n_mean = voltage_sample_count > 0 ?
+            hh_n_sum / (double)voltage_sample_count : 0.0;
+        result->hh_peak_voltage = result->voltage_max;
+        result->hh_action_potential_count = result->spikes_total;
+    }
+
     return 1;
 }
 
@@ -3901,11 +4193,14 @@ int scenario_runner_execute(
     FILE *population_file = NULL;
     FILE *raster_file = NULL;
     FILE *neuron_file = NULL;
+    FILE *model_state_file = NULL;
     FILE *summary_file = NULL;
     char config_used_path[SCENARIO_OUTPUT_PATH_MAX];
+    char config_source_path[SCENARIO_OUTPUT_PATH_MAX];
     char population_path[SCENARIO_OUTPUT_PATH_MAX];
     char raster_path[SCENARIO_OUTPUT_PATH_MAX];
     char neuron_path[SCENARIO_OUTPUT_PATH_MAX];
+    char model_state_path[SCENARIO_OUTPUT_PATH_MAX];
     char summary_path[SCENARIO_OUTPUT_PATH_MAX];
     int neuron_is_inhibitory[SCENARIO_MAX_NEURONS];
     ConnectivityStats connectivity;
@@ -3954,6 +4249,16 @@ int scenario_runner_execute(
         return 0;
     }
 
+    if (source_config_path != NULL &&
+        (!make_path(config_source_path, result.output_directory,
+                    "config_source.ini") ||
+         !copy_config_source_exact(source_config_path, config_source_path)))
+    {
+        set_error(error_message, error_message_size,
+                  "erro ao preservar config_source.ini");
+        return 0;
+    }
+
     if (!write_config_used(
             config,
             source_config_path,
@@ -3964,15 +4269,12 @@ int scenario_runner_execute(
         return 0;
     }
 
-    minisnn_config.neuron_count = config->neurons;
-    minisnn_config.dt = config->dt;
-    minisnn_config.tau = config->tau;
-    minisnn_config.v_rest = config->v_rest;
-    minisnn_config.v_reset = config->v_reset;
-    minisnn_config.v_threshold = config->v_threshold;
-    minisnn_config.resistance = config->resistance;
-    minisnn_config.synaptic_decay = config->synaptic_decay;
-    minisnn_config.max_synaptic_delay = config->max_synaptic_delay;
+    if (!scenario_runtime_make_minisnn_config(config, &minisnn_config))
+    {
+        set_error(error_message, error_message_size,
+                  "configuracao neuronal invalida");
+        return 0;
+    }
 
     snn = minisnn_create_with_config(&minisnn_config);
 
@@ -4083,16 +4385,19 @@ int scenario_runner_execute(
             &population_file,
             &raster_file,
             &neuron_file,
+            &model_state_file,
             &summary_file,
             population_path,
             raster_path,
             neuron_path,
+            model_state_path,
             summary_path))
     {
         set_error(error_message, error_message_size, "erro ao abrir arquivos de saida");
         close_file_if_open(population_file);
         close_file_if_open(raster_file);
         close_file_if_open(neuron_file);
+        close_file_if_open(model_state_file);
         close_file_if_open(summary_file);
         plasticity_run_data_close(&plasticity_data);
         homeostasis_run_data_close(&homeostasis_data);
@@ -4110,6 +4415,7 @@ int scenario_runner_execute(
             population_file,
             raster_file,
             neuron_file,
+            model_state_file,
             &result,
             &plasticity_data,
             &homeostasis_data,
@@ -4121,6 +4427,7 @@ int scenario_runner_execute(
         close_file_if_open(population_file);
         close_file_if_open(raster_file);
         close_file_if_open(neuron_file);
+        close_file_if_open(model_state_file);
         close_file_if_open(summary_file);
         plasticity_run_data_close(&plasticity_data);
         homeostasis_run_data_close(&homeostasis_data);
@@ -4143,6 +4450,7 @@ int scenario_runner_execute(
         close_file_if_open(population_file);
         close_file_if_open(raster_file);
         close_file_if_open(neuron_file);
+        close_file_if_open(model_state_file);
         close_file_if_open(summary_file);
         plasticity_run_data_close(&plasticity_data);
         homeostasis_run_data_close(&homeostasis_data);
@@ -4161,6 +4469,7 @@ int scenario_runner_execute(
         close_file_if_open(population_file);
         close_file_if_open(raster_file);
         close_file_if_open(neuron_file);
+        close_file_if_open(model_state_file);
         close_file_if_open(summary_file);
         plasticity_run_data_close(&plasticity_data);
         homeostasis_run_data_close(&homeostasis_data);
@@ -4179,6 +4488,7 @@ int scenario_runner_execute(
         close_file_if_open(population_file);
         close_file_if_open(raster_file);
         close_file_if_open(neuron_file);
+        close_file_if_open(model_state_file);
         close_file_if_open(summary_file);
         plasticity_run_data_close(&plasticity_data);
         homeostasis_run_data_close(&homeostasis_data);
@@ -4195,6 +4505,7 @@ int scenario_runner_execute(
         close_file_if_open(population_file);
         close_file_if_open(raster_file);
         close_file_if_open(neuron_file);
+        close_file_if_open(model_state_file);
         close_file_if_open(summary_file);
         plasticity_run_data_close(&plasticity_data);
         homeostasis_run_data_close(&homeostasis_data);
@@ -4228,6 +4539,7 @@ int scenario_runner_execute(
         close_file_if_open(population_file);
         close_file_if_open(raster_file);
         close_file_if_open(neuron_file);
+        close_file_if_open(model_state_file);
         close_file_if_open(summary_file);
         plasticity_run_data_close(&plasticity_data);
         homeostasis_run_data_close(&homeostasis_data);
@@ -4239,6 +4551,7 @@ int scenario_runner_execute(
     close_file_if_open(population_file);
     close_file_if_open(raster_file);
     close_file_if_open(neuron_file);
+    close_file_if_open(model_state_file);
     close_file_if_open(summary_file);
     minisnn_destroy(&snn);
 

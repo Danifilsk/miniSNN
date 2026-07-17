@@ -13,6 +13,7 @@ implementados, experimentais e planejados.
 ## Para executar experimentos
 
 - [Guia de cenários](GUIA_DE_CENARIOS.md) — chaves INI, topologias e execução reproduzível.
+- [Guia de modelos neuronais](GUIA_DE_MODELOS_NEURONAIS.md) — LIF, AdEx, Hodgkin-Huxley e limites de interpretação.
 - [Guia de experimentos](GUIA_DE_EXPERIMENTOS.md) — programas científicos exploratórios preservados.
 - [Organização de resultados](ORGANIZACAO_DE_RESULTADOS.md) — pastas, `index.csv` append-only e `history.html` local.
 - [Guia de métricas](GUIA_DE_METRICAS.md) — leitura das métricas principais.

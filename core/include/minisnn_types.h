@@ -12,6 +12,67 @@ typedef enum
 
 typedef enum
 {
+    MINISNN_NEURON_MODEL_LIF = 0,
+    MINISNN_NEURON_MODEL_ADEX = 1,
+    MINISNN_NEURON_MODEL_HODGKIN_HUXLEY = 2
+} MiniSNNNeuronModel;
+
+typedef struct
+{
+    double capacitance;
+    double g_leak;
+    double e_leak;
+    double delta_t;
+    double v_threshold;
+    double tau_w;
+    double a;
+    double b;
+    double v_reset;
+    double v_peak;
+    double dt;
+} MiniSNNAdExConfig;
+
+typedef struct
+{
+    double capacitance;
+    double g_na;
+    double g_k;
+    double g_leak;
+    double e_na;
+    double e_k;
+    double e_leak;
+    double v_init;
+    double spike_threshold;
+    double dt;
+} MiniSNNHodgkinHuxleyConfig;
+
+typedef struct
+{
+    int supports_voltage;
+    int supports_spike_event;
+    int supports_homeostatic_threshold;
+    int supports_adaptation_state;
+    int supports_hh_gates;
+} MiniSNNNeuronModelCapabilities;
+
+typedef struct
+{
+    double voltage;
+    double adaptation;
+    int spike;
+} MiniSNNAdExState;
+
+typedef struct
+{
+    double voltage;
+    double m;
+    double h;
+    double n;
+    int spike;
+} MiniSNNHodgkinHuxleyState;
+
+typedef enum
+{
     MINISNN_PLASTICITY_NONE = 0,
     MINISNN_PLASTICITY_STDP_PAIR_TRACE = 1
 } MiniSNNPlasticityRule;

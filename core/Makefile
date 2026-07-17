@@ -4,18 +4,29 @@ INCLUDES = -Iinclude -Isrc -Iapp
 BUILD_DIR = build
 
 STRUCTURE_SOURCES = src/structure.c src/structural_plasticity.c
-API_SOURCES = src/minisnn.c src/neuron.c src/network.c src/plasticity.c src/reward.c src/homeostasis.c $(STRUCTURE_SOURCES)
+API_SOURCES = src/minisnn.c src/neuron.c src/neuron_model.c src/network.c src/plasticity.c src/reward.c src/homeostasis.c $(STRUCTURE_SOURCES)
 APP_SOURCES = app/scenario_config.c
 SCENARIO_RUNNER_SOURCES = app/scenario_config.c app/scenario_runtime.c app/scenario_runner.c
 EVOLUTION_SOURCES = src/evolution.c
 EVOLUTION_RUNNER_SOURCES = app/evolution_config.c app/evolution_runner.c $(SCENARIO_RUNNER_SOURCES) $(EVOLUTION_SOURCES)
-CORE_SOURCES = src/neuron.c src/network.c src/plasticity.c src/reward.c src/homeostasis.c $(STRUCTURE_SOURCES) src/topology.c src/stimulus.c src/recorder.c
-EXPERIMENT_SOURCES = src/neuron.c src/network.c src/plasticity.c src/reward.c src/homeostasis.c $(STRUCTURE_SOURCES) src/stimulus.c src/recorder.c
+CORE_SOURCES = src/neuron.c src/neuron_model.c src/network.c src/plasticity.c src/reward.c src/homeostasis.c $(STRUCTURE_SOURCES) src/topology.c src/stimulus.c src/recorder.c
+EXPERIMENT_SOURCES = src/neuron.c src/neuron_model.c src/network.c src/plasticity.c src/reward.c src/homeostasis.c $(STRUCTURE_SOURCES) src/stimulus.c src/recorder.c
 SCENARIO ?= configs/random_balanced.ini
-PYTHON ?= python
+# Prefer the per-user Windows runtime when it exists; callers may still pass
+# PYTHON=... explicitly for another interpreter.
+ifeq ($(origin PYTHON), undefined)
+WINDOWS_LOCALAPPDATA := $(subst \,/,$(LOCALAPPDATA))
+WINDOWS_PYTHON_CANDIDATES := $(wildcard $(WINDOWS_LOCALAPPDATA)/Python/*/python.exe)
+WINDOWS_PYTHON_CORE_CANDIDATES := $(foreach candidate,$(WINDOWS_PYTHON_CANDIDATES),$(if $(findstring /pythoncore-,$(candidate)),$(candidate)))
+ifneq ($(strip $(WINDOWS_PYTHON_CANDIDATES)),)
+PYTHON := $(if $(WINDOWS_PYTHON_CORE_CANDIDATES),$(firstword $(WINDOWS_PYTHON_CORE_CANDIDATES)),$(firstword $(WINDOWS_PYTHON_CANDIDATES)))
+else
+PYTHON := python
+endif
+endif
 ANALYZER_CFLAGS = -std=c11 -Wall -Wextra -pedantic -fanalyzer -Wformat=2 -Wshadow -Wnull-dereference
 
-.PHONY: all help clean test test-api test-core test-lif test-plasticity test-plasticity-long test-homeostasis test-homeostasis-long test-reward test-reward-long test-evolution test-structure test-structural-plasticity test-structure-resume test-structure-long test-evolution-runner test-evolution-resume test-evolution-long test-plot-evolution test-plot-topology test-evolution-report test-structural-html evolution-build evolution-weight-demo evolution-homeostasis-demo evolution-plasticity-demo evolution-structure-demo structural-pruning-demo structural-growth-demo evolution-structure-learning-demo plot-evolution plot-topology report-evolution report-evolution-history report-structural-events report-best-topology test-scenario test-runner test-runner-topologies test-reproducibility test-regression test-memory test-long test-analyzer test-sanitize benchmark-v02 benchmark-c1 benchmark-c15 benchmark-c2 benchmark-c3 benchmark-c4 check-v02 check-c1 check-c15 check-c2 check-c3 check-c4 \
+.PHONY: all help clean test test-api test-core test-lif test-neuron-model test-adex test-hodgkin-huxley test-model-checkpoints test-model-error-propagation test-model-provenance test-adex-long test-hh-long test-models-long test-plasticity test-plasticity-long test-homeostasis test-homeostasis-long test-reward test-reward-long test-evolution test-structure test-structural-plasticity test-structure-resume test-structure-long test-evolution-runner test-evolution-resume test-evolution-long test-plot-evolution test-plot-topology test-evolution-report test-structural-html evolution-build evolution-weight-demo evolution-homeostasis-demo evolution-plasticity-demo evolution-structure-demo structural-pruning-demo structural-growth-demo evolution-structure-learning-demo plot-evolution plot-topology report-evolution report-evolution-history report-structural-events report-best-topology test-scenario test-runner test-runner-topologies test-reproducibility test-regression test-memory test-long test-analyzer test-sanitize benchmark-v02 benchmark-c1 benchmark-c15 benchmark-c2 benchmark-c3 benchmark-c4 benchmark-c5 check-v02 check-c1 check-c15 check-c2 check-c3 check-c4 check-c5-interface check-c5 compare-neuron-models test-compare-neuron-models \
 	test-plot-neuron test-plot-plasticity test-compare-runs test-diagnostics test-run-reports test-history-report test-docs \
 	test-plot-homeostasis plot-homeostasis test-plot-reward plot-reward \
 	api-examples api-single api-chain api-exc-inh \
@@ -35,6 +46,12 @@ help:
 	@echo   make test-api          - teste da API publica
 	@echo   make test-core         - teste do nucleo/topologias/estimulos/recorders
 	@echo   make test-lif          - validacao numerica do LIF discreto
+	@echo   make test-neuron-model - validacao da interface interna de modelos neuronais
+	@echo   make test-adex         - validacao numerica do AdEx
+	@echo   make test-hodgkin-huxley - validacao numerica do Hodgkin-Huxley
+	@echo   make test-models-long  - execucao prolongada dos modelos C5
+	@echo   make check-c5          - fechamento automatico dos modelos C5
+	@echo   make benchmark-c5      - benchmark comparativo local dos modelos C5
 	@echo   make test-plasticity   - validacao numerica do STDP por traces
 	@echo   make test-plasticity-long - 10000 passos com STDP e verificacao de limites
 	@echo   make test-homeostasis   - validacao numerica da homeostase
@@ -104,6 +121,12 @@ help:
 	@echo   make scenario          - executa um cenario .ini com SCENARIO=configs/arquivo.ini
 	@echo   make scenario-random   - executa configs/random.ini
 	@echo   make scenario-small-world - executa configs/small_world.ini
+	@echo   make scenario-adex-regular - executa o demo AdEx regular
+	@echo   make scenario-adex-adapting - executa o demo AdEx com adaptacao
+	@echo   make scenario-hh-action-potential - executa o demo HH de potencial de acao
+	@echo   make scenario-hh-repetitive - executa o demo HH repetitivo
+	@echo   make compare-neuron-models - compara LIF, AdEx e Hodgkin-Huxley
+	@echo   make test-compare-neuron-models - valida o comparador de modelos
 	@echo   make scenario-feedforward - executa configs/feedforward.ini
 	@echo   make scenario-stdp-ltp  - executa o demonstrador STDP de LTP
 	@echo   make scenario-stdp-ltd  - executa o demonstrador STDP de LTD
@@ -139,6 +162,55 @@ $(BUILD_DIR)/test_topology.exe: tests/test_topology.c $(CORE_SOURCES) | $(BUILD_
 
 $(BUILD_DIR)/test_LIF.exe: tests/test_LIF.c src/neuron.c src/neuron.h src/config.h | $(BUILD_DIR)
 	$(CC) $(CFLAGS) tests/test_LIF.c src/neuron.c $(INCLUDES) -o $@
+
+$(BUILD_DIR)/test_neuron_model.exe: tests/test_neuron_model.c $(API_SOURCES) include/minisnn_types.h | $(BUILD_DIR)
+	$(CC) $(CFLAGS) tests/test_neuron_model.c $(API_SOURCES) $(INCLUDES) -o $@
+
+test-neuron-model: $(BUILD_DIR)/test_neuron_model.exe
+	$(BUILD_DIR)/test_neuron_model.exe
+
+$(BUILD_DIR)/test_adex.exe: tests/test_adex.c src/neuron.c src/neuron_model.c | $(BUILD_DIR)
+	$(CC) $(CFLAGS) tests/test_adex.c src/neuron.c src/neuron_model.c $(INCLUDES) -o $@
+
+test-adex: $(BUILD_DIR)/test_adex.exe
+	$(BUILD_DIR)/test_adex.exe
+
+$(BUILD_DIR)/test_hodgkin_huxley.exe: tests/test_hodgkin_huxley.c src/neuron.c src/neuron_model.c | $(BUILD_DIR)
+	$(CC) $(CFLAGS) tests/test_hodgkin_huxley.c src/neuron.c src/neuron_model.c $(INCLUDES) -o $@
+
+test-hodgkin-huxley: $(BUILD_DIR)/test_hodgkin_huxley.exe
+	$(BUILD_DIR)/test_hodgkin_huxley.exe
+
+$(BUILD_DIR)/test_model_error_propagation.exe: tests/test_model_error_propagation.c $(SCENARIO_RUNNER_SOURCES) $(API_SOURCES) | $(BUILD_DIR)
+	$(CC) $(CFLAGS) -DMINISNN_TESTING tests/test_model_error_propagation.c $(SCENARIO_RUNNER_SOURCES) $(API_SOURCES) $(INCLUDES) -o $@
+
+test-model-error-propagation: $(BUILD_DIR)/test_model_error_propagation.exe
+	$(BUILD_DIR)/test_model_error_propagation.exe
+
+$(BUILD_DIR)/test_model_provenance.exe: tests/test_model_provenance.c $(SCENARIO_RUNNER_SOURCES) $(API_SOURCES) | $(BUILD_DIR)
+	$(CC) $(CFLAGS) tests/test_model_provenance.c $(SCENARIO_RUNNER_SOURCES) $(API_SOURCES) $(INCLUDES) -o $@
+
+test-model-provenance: $(BUILD_DIR)/test_model_provenance.exe
+	$(BUILD_DIR)/test_model_provenance.exe
+
+$(BUILD_DIR)/test_models_long.exe: tests/test_models_long.c $(API_SOURCES) | $(BUILD_DIR)
+	$(CC) $(CFLAGS) tests/test_models_long.c $(API_SOURCES) $(INCLUDES) -o $@
+
+test-adex-long: $(BUILD_DIR)/test_models_long.exe
+	$(BUILD_DIR)/test_models_long.exe
+
+test-hh-long: $(BUILD_DIR)/test_models_long.exe
+	$(BUILD_DIR)/test_models_long.exe
+
+test-models-long: $(BUILD_DIR)/test_models_long.exe
+	$(BUILD_DIR)/test_models_long.exe
+
+check-c5-interface: test-neuron-model
+	$(PYTHON) scripts/check_c5_interface.py
+	@echo C5 neuron model interface validation OK
+
+check-c5: check-c5-interface test-model-checkpoints test-adex test-hodgkin-huxley test-model-error-propagation test-model-provenance test-models-long test-compare-neuron-models
+	@echo C5 advanced neuron models validation OK
 
 $(BUILD_DIR)/test_plasticity.exe: tests/test_plasticity.c $(API_SOURCES) | $(BUILD_DIR)
 	$(CC) $(CFLAGS) tests/test_plasticity.c $(API_SOURCES) $(INCLUDES) -o $@
@@ -185,8 +257,8 @@ $(BUILD_DIR)/test_evolution_long.exe: tests/test_evolution_long.c $(EVOLUTION_RU
 $(BUILD_DIR)/evolution_runner.exe: $(EVOLUTION_RUNNER_SOURCES) $(API_SOURCES) | $(BUILD_DIR)
 	$(CC) $(CFLAGS) $(EVOLUTION_RUNNER_SOURCES) $(API_SOURCES) $(INCLUDES) -o $@
 
-$(BUILD_DIR)/test_scenario_config.exe: tests/test_scenario_config.c $(APP_SOURCES) app/scenario_config.h | $(BUILD_DIR)
-	$(CC) $(CFLAGS) tests/test_scenario_config.c $(APP_SOURCES) $(INCLUDES) -o $@
+$(BUILD_DIR)/test_scenario_config.exe: tests/test_scenario_config.c $(APP_SOURCES) src/neuron_model.c src/neuron.c app/scenario_config.h | $(BUILD_DIR)
+	$(CC) $(CFLAGS) tests/test_scenario_config.c $(APP_SOURCES) src/neuron_model.c src/neuron.c $(INCLUDES) -o $@
 
 $(BUILD_DIR)/test_scenario_runner.exe: tests/test_scenario_runner.c $(SCENARIO_RUNNER_SOURCES) $(API_SOURCES) app/scenario_runner.h app/scenario_config.h | $(BUILD_DIR)
 	$(CC) $(CFLAGS) tests/test_scenario_runner.c $(SCENARIO_RUNNER_SOURCES) $(API_SOURCES) $(INCLUDES) -o $@
@@ -422,7 +494,7 @@ test-history-report: | $(BUILD_DIR)
 test-docs: | $(BUILD_DIR)
 	$(PYTHON) tests/test_docs.py
 
-test: test-api test-core test-lif test-plasticity test-homeostasis test-reward test-structure test-structural-plasticity test-scenario test-runner test-runner-topologies test-reproducibility test-memory
+test: test-api test-core test-lif test-neuron-model test-adex test-hodgkin-huxley test-model-error-propagation test-plasticity test-homeostasis test-reward test-structure test-structural-plasticity test-scenario test-runner test-runner-topologies test-reproducibility test-memory
 
 $(BUILD_DIR)/example_api_single_neuron.exe: examples/api/example_api_single_neuron.c $(API_SOURCES) include/minisnn.h include/minisnn_types.h | $(BUILD_DIR)
 	$(CC) $(CFLAGS) examples/api/example_api_single_neuron.c $(API_SOURCES) $(INCLUDES) -o $@
@@ -461,6 +533,30 @@ scenario-random: $(BUILD_DIR)/minisnn_runner.exe
 
 scenario-small-world: $(BUILD_DIR)/minisnn_runner.exe
 	$(BUILD_DIR)/minisnn_runner.exe configs/small_world.ini
+
+scenario-adex-regular: $(BUILD_DIR)/minisnn_runner.exe
+	$(BUILD_DIR)/minisnn_runner.exe configs/adex_regular_spiking_demo.ini
+
+scenario-adex-adapting: $(BUILD_DIR)/minisnn_runner.exe
+	$(BUILD_DIR)/minisnn_runner.exe configs/adex_adapting_spiking_demo.ini
+
+scenario-hh-action-potential: $(BUILD_DIR)/minisnn_runner.exe
+	$(BUILD_DIR)/minisnn_runner.exe configs/hh_action_potential_demo.ini
+
+scenario-hh-repetitive: $(BUILD_DIR)/minisnn_runner.exe
+	$(BUILD_DIR)/minisnn_runner.exe configs/hh_repetitive_firing_demo.ini
+
+compare-neuron-models: $(BUILD_DIR)/minisnn_runner.exe
+	$(PYTHON) scripts/compare_neuron_models.py
+
+test-compare-neuron-models:
+	$(PYTHON) tests/test_compare_neuron_models.py
+
+test-model-checkpoints: test-neuron-model test-model-provenance test-evolution-resume test-structure-resume
+	@echo C5 model checkpoint validation OK
+
+benchmark-c5: $(BUILD_DIR)/minisnn_runner.exe
+	$(PYTHON) scripts/run_benchmarks_c5.py
 
 scenario-feedforward: $(BUILD_DIR)/minisnn_runner.exe
 	$(BUILD_DIR)/minisnn_runner.exe configs/feedforward.ini
@@ -574,5 +670,9 @@ clean:
 	@if exist results\scenarios\history.html del /Q results\scenarios\history.html
 	@if exist results\comparisons for /D %%D in (results\comparisons\*) do rmdir /S /Q "%%D"
 	@if exist results\comparisons\*.csv del /Q results\comparisons\*.csv
+	@if exist results\model_comparison\*.csv del /Q results\model_comparison\*.csv
+	@if exist results\model_comparison\*.txt del /Q results\model_comparison\*.txt
+	@if exist results\model_comparison\*.html del /Q results\model_comparison\*.html
+	@if exist results\model_comparison\*.png del /Q results\model_comparison\*.png
 	@if exist results\benchmarks\*.csv del /Q results\benchmarks\*.csv
 	@if exist results\benchmarks\*.txt del /Q results\benchmarks\*.txt

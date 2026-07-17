@@ -7,6 +7,7 @@
 
 #include "evolution_config.h"
 #include "evolution_runner.h"
+#include "minisnn.h"
 #include "scenario_config.h"
 #include "scenario_runner.h"
 
@@ -126,6 +127,24 @@ static int file_contains_nonfinite(const char *path)
     return 0;
 }
 
+static int file_contains_text(const char *path, const char *needle)
+{
+    FILE *file = fopen(path, "r");
+    char line[2048];
+    if (file == NULL)
+        return 0;
+    while (fgets(line, sizeof(line), file) != NULL)
+    {
+        if (strstr(line, needle) != NULL)
+        {
+            fclose(file);
+            return 1;
+        }
+    }
+    fclose(file);
+    return 0;
+}
+
 static int configure_base(const char *path, int plasticity_enabled)
 {
     ScenarioConfig config;
@@ -163,6 +182,31 @@ static int configure_base(const char *path, int plasticity_enabled)
         config.plasticity_weight_min = 0.0;
         config.plasticity_weight_max = 500.0;
     }
+    return scenario_config_save_file(path, &config, error, sizeof(error));
+}
+
+static int configure_advanced_base(
+    const char *path,
+    MiniSNNNeuronModel model)
+{
+    ScenarioConfig config;
+    char error[256] = {0};
+
+    scenario_config_default(&config);
+    snprintf(config.run_name, sizeof(config.run_name), "advanced_evolution_base");
+    snprintf(config.topology, sizeof(config.topology), "chain");
+    config.neuron_model = model;
+    config.neurons = 3;
+    config.inhibitory_fraction = 0.0;
+    config.source_count = 1;
+    config.record_neuron = 2;
+    config.steps = model == MINISNN_NEURON_MODEL_ADEX ? 300 : 1000;
+    config.dt = model == MINISNN_NEURON_MODEL_ADEX ? 0.1 : 0.01;
+    config.input_current = model == MINISNN_NEURON_MODEL_ADEX ? 500.0 : 10.0;
+    config.excitatory_weight = model == MINISNN_NEURON_MODEL_ADEX ? 200.0 : 2.0;
+    config.auto_unique_run = 0;
+    config.history_enabled = 0;
+    snprintf(config.diagnostics_level, sizeof(config.diagnostics_level), "off");
     return scenario_config_save_file(path, &config, error, sizeof(error));
 }
 
@@ -426,6 +470,52 @@ static int test_darwinian_replay(
            fabs(initial_weight - final_weight) > 1e-9;
 }
 
+static int test_advanced_model_evolution(
+    MiniSNNNeuronModel model,
+    const char *legacy_model_name,
+    const char *base_path,
+    const char *config_path,
+    const char *output_root)
+{
+    EvolutionExperimentConfig config;
+    EvolutionRunnerOptions options;
+    EvolutionRunResult result;
+    char error[512] = {0};
+    char manifest_path[1024];
+    char expected_canonical[64];
+    char expected_legacy[64];
+
+    if (!configure_advanced_base(base_path, model))
+        return 0;
+    configure_evolution(&config, minisnn_neuron_model_name(model), base_path, 0);
+    config.population_size = 2;
+    config.generations = 2;
+    config.elite_count = 1;
+    config.tournament_size = 2;
+    config.evaluation_replicates = 1;
+    config.save_best_run = 0;
+    if (!evolution_config_save_file(config_path, &config, error, sizeof(error)))
+        return 0;
+    evolution_runner_default_options(&options);
+    options.output_root = output_root;
+    if (!evolution_runner_execute(config_path, &options, &result,
+                                  error, sizeof(error)) || !result.completed)
+        return 0;
+    if (snprintf(manifest_path, sizeof(manifest_path),
+                 "%s/evolution_manifest.txt", result.output_directory) >=
+        (int)sizeof(manifest_path) ||
+        snprintf(expected_canonical, sizeof(expected_canonical),
+                 "neuron_model=%s", minisnn_neuron_model_name(model)) >=
+            (int)sizeof(expected_canonical) ||
+        snprintf(expected_legacy, sizeof(expected_legacy), "neural_model=%s",
+                 legacy_model_name) >= (int)sizeof(expected_legacy))
+        return 0;
+    return file_contains_text(manifest_path, expected_canonical) &&
+        file_contains_text(manifest_path, expected_legacy) &&
+        file_contains_text(manifest_path, "checkpoint_format=text_v1") &&
+        !file_contains_nonfinite(manifest_path);
+}
+
 int main(void)
 {
     const char *base_path = TEST_ROOT "/base.ini";
@@ -471,6 +561,35 @@ int main(void)
         ok = test_darwinian_replay(plasticity_base_path, darwinian_config_path);
         if (!ok)
             fprintf(stderr, "Etapa darwiniana falhou.\n");
+    }
+    if (ok)
+    {
+        ok = test_advanced_model_evolution(
+            MINISNN_NEURON_MODEL_LIF, "LIF",
+            TEST_ROOT "/lif_base.ini", TEST_ROOT "/lif_evolution.ini",
+            TEST_ROOT "/lif");
+        if (!ok)
+            fprintf(stderr, "Etapa evolutiva LIF falhou.\n");
+    }
+    if (ok)
+    {
+        ok = test_advanced_model_evolution(
+            MINISNN_NEURON_MODEL_ADEX,
+            "AdEx",
+            TEST_ROOT "/adex_base.ini", TEST_ROOT "/adex_evolution.ini",
+            TEST_ROOT "/adex");
+        if (!ok)
+            fprintf(stderr, "Etapa evolutiva AdEx falhou.\n");
+    }
+    if (ok)
+    {
+        ok = test_advanced_model_evolution(
+            MINISNN_NEURON_MODEL_HODGKIN_HUXLEY,
+            "Hodgkin-Huxley",
+            TEST_ROOT "/hh_base.ini", TEST_ROOT "/hh_evolution.ini",
+            TEST_ROOT "/hh");
+        if (!ok)
+            fprintf(stderr, "Etapa evolutiva Hodgkin-Huxley falhou.\n");
     }
 
     if (!remove_tree(TEST_ROOT))

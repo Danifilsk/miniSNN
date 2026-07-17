@@ -2,6 +2,7 @@
 #define NETWORK_H
 
 #include "neuron.h"
+#include "neuron_model.h"
 #include "connection.h"
 #include "plasticity.h"
 #include "homeostasis.h"
@@ -10,7 +11,10 @@
 
 typedef struct
 {
+    MiniSNNNeuronModel neuron_model;
     LIFParameters lif;
+    AdExParameters adex;
+    HodgkinHuxleyParameters hodgkin_huxley;
     double synaptic_decay;
     int max_synaptic_delay;
 } NetworkConfig;
@@ -18,7 +22,8 @@ typedef struct
 typedef struct Network
 {
     // Vetor de neurônios
-    LIFNeuron *neurons;
+    Neuron *neurons;
+    Neuron *step_snapshot;
 
     // Lista de conexões de cada neurônio
     ConnectionList *connections;
@@ -29,7 +34,7 @@ typedef struct Network
     double *pending_current;  // correntes agendadas para timesteps futuros
     double *ext_current;   // corrente externa
 
-    LIFParameters lif_parameters;
+    NeuronModelConfig model_config;
     double synaptic_decay;
     int max_synaptic_delay;
     int delay_cursor;

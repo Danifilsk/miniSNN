@@ -32,6 +32,10 @@ tmp_*.csv
 /core/results/comparisons/*
 !/core/results/comparisons/.gitkeep
 
+# Resultados locais da comparacao entre modelos neuronais
+/core/results/model_comparison/*
+!/core/results/model_comparison/.gitkeep
+
 # Resultados locais de benchmark (recriaveis)
 /core/results/benchmarks/*
 !/core/results/benchmarks/.gitkeep

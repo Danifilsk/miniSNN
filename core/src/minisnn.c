@@ -1,4 +1,5 @@
 #include <stdlib.h>
+#include <string.h>
 
 #include "config.h"
 #include "minisnn.h"
@@ -22,6 +23,61 @@ static int minisnn_valid_neuron_id(const MiniSNN *snn, int neuron_id)
     return 1;
 }
 
+static int minisnn_make_model_config(
+    const MiniSNNConfig *config,
+    NeuronModelConfig *out_model_config)
+{
+    if (config == NULL || out_model_config == NULL)
+        return 0;
+    if (config->neuron_model == MINISNN_NEURON_MODEL_LIF)
+    {
+        LIFParameters lif = {config->dt, config->tau, config->v_rest,
+            config->v_reset, config->v_threshold, config->resistance};
+        neuron_model_config_lif(out_model_config, &lif);
+    }
+    else if (config->neuron_model == MINISNN_NEURON_MODEL_ADEX)
+    {
+        MiniSNNAdExConfig adex = config->adex;
+        adex.dt = config->dt;
+        neuron_model_config_adex(out_model_config, &adex);
+    }
+    else if (config->neuron_model == MINISNN_NEURON_MODEL_HODGKIN_HUXLEY)
+    {
+        MiniSNNHodgkinHuxleyConfig hh = config->hodgkin_huxley;
+        hh.dt = config->dt;
+        neuron_model_config_hodgkin_huxley(out_model_config, &hh);
+    }
+    else
+        return 0;
+    return neuron_model_validate_config(out_model_config);
+}
+
+static int minisnn_make_network_config(
+    const MiniSNNConfig *config,
+    NetworkConfig *out_network_config)
+{
+    NeuronModelConfig model_config;
+
+    if (!minisnn_make_model_config(config, &model_config) ||
+        out_network_config == NULL)
+        return 0;
+
+    memset(out_network_config, 0, sizeof(*out_network_config));
+    out_network_config->neuron_model = model_config.model;
+    if (model_config.model == MINISNN_NEURON_MODEL_LIF)
+        out_network_config->lif = model_config.data.lif;
+    else if (model_config.model == MINISNN_NEURON_MODEL_ADEX)
+        out_network_config->adex = model_config.data.adex;
+    else if (model_config.model == MINISNN_NEURON_MODEL_HODGKIN_HUXLEY)
+        out_network_config->hodgkin_huxley = model_config.data.hh;
+    else
+        return 0;
+    out_network_config->synaptic_decay = config->synaptic_decay;
+    out_network_config->max_synaptic_delay = config->max_synaptic_delay;
+
+    return network_config_is_valid(out_network_config);
+}
+
 MiniSNN *minisnn_create(int neuron_count)
 {
     MiniSNNConfig config = minisnn_default_config();
@@ -34,7 +90,9 @@ MiniSNNConfig minisnn_default_config(void)
 {
     MiniSNNConfig config;
 
+    memset(&config, 0, sizeof(config));
     config.neuron_count = N_NEURONS;
+    config.neuron_model = MINISNN_NEURON_MODEL_LIF;
     config.dt = DT;
     config.tau = TAU;
     config.v_rest = V_REST;
@@ -43,7 +101,23 @@ MiniSNNConfig minisnn_default_config(void)
     config.resistance = R;
     config.synaptic_decay = SYN_DECAY;
     config.max_synaptic_delay = MAX_SYNAPTIC_DELAY;
+    config.adex = minisnn_adex_config_default();
+    config.hodgkin_huxley = minisnn_hodgkin_huxley_config_default();
 
+    return config;
+}
+
+MiniSNNAdExConfig minisnn_adex_config_default(void)
+{
+    MiniSNNAdExConfig config;
+    adex_parameters_default(&config);
+    return config;
+}
+
+MiniSNNHodgkinHuxleyConfig minisnn_hodgkin_huxley_config_default(void)
+{
+    MiniSNNHodgkinHuxleyConfig config;
+    hodgkin_huxley_parameters_default(&config);
     return config;
 }
 
@@ -53,23 +127,9 @@ MiniSNN *minisnn_create_with_config(
     MiniSNN *snn;
     NetworkConfig network_config;
 
-    if (config == NULL)
+    if (config == NULL || config->neuron_count <= 0 ||
+        !minisnn_make_network_config(config, &network_config))
         return NULL;
-
-    network_config.lif.dt = config->dt;
-    network_config.lif.tau = config->tau;
-    network_config.lif.v_rest = config->v_rest;
-    network_config.lif.v_reset = config->v_reset;
-    network_config.lif.v_threshold = config->v_threshold;
-    network_config.lif.resistance = config->resistance;
-    network_config.synaptic_decay = config->synaptic_decay;
-    network_config.max_synaptic_delay = config->max_synaptic_delay;
-
-    if (config->neuron_count <= 0 ||
-        !network_config_is_valid(&network_config))
-    {
-        return NULL;
-    }
 
     snn = malloc(sizeof(*snn));
 
@@ -112,6 +172,84 @@ int minisnn_current_step(const MiniSNN *snn)
         return -1;
 
     return snn->net.step;
+}
+
+MiniSNNNeuronModel minisnn_neuron_model(const MiniSNN *snn)
+{
+    return snn != NULL ? snn->net.model_config.model : MINISNN_NEURON_MODEL_LIF;
+}
+
+const char *minisnn_neuron_model_name(MiniSNNNeuronModel model)
+{
+    return neuron_model_name(model);
+}
+
+MiniSNNNeuronModelCapabilities minisnn_neuron_model_capabilities(
+    MiniSNNNeuronModel model)
+{
+    return neuron_model_capabilities(model);
+}
+
+unsigned long long minisnn_neuron_model_config_signature(
+    const MiniSNN *snn)
+{
+    return snn != NULL ?
+        neuron_model_config_signature(&snn->net.model_config) : 0ULL;
+}
+
+unsigned long long minisnn_config_neuron_model_signature(
+    const MiniSNNConfig *config)
+{
+    NeuronModelConfig model_config;
+    return minisnn_make_model_config(config, &model_config) ?
+        neuron_model_config_signature(&model_config) : 0ULL;
+}
+
+const char *minisnn_neuron_integration_method(const MiniSNN *snn)
+{
+    return snn != NULL ?
+        neuron_model_integration_method(snn->net.model_config.model) :
+        "unknown";
+}
+
+const char *minisnn_neuron_model_integration_method(
+    MiniSNNNeuronModel model)
+{
+    return neuron_model_integration_method(model);
+}
+
+int minisnn_get_adex_state(
+    const MiniSNN *snn,
+    int neuron_id,
+    MiniSNNAdExState *out_state)
+{
+    const Neuron *neuron;
+    if (!minisnn_valid_neuron_id(snn, neuron_id) || out_state == NULL ||
+        snn->net.model_config.model != MINISNN_NEURON_MODEL_ADEX)
+        return 0;
+    neuron = &snn->net.neurons[neuron_id];
+    out_state->voltage = neuron->V;
+    out_state->adaptation = neuron->state.adex.w;
+    out_state->spike = neuron->spike;
+    return 1;
+}
+
+int minisnn_get_hodgkin_huxley_state(
+    const MiniSNN *snn,
+    int neuron_id,
+    MiniSNNHodgkinHuxleyState *out_state)
+{
+    const Neuron *neuron;
+    if (!minisnn_valid_neuron_id(snn, neuron_id) || out_state == NULL ||
+        snn->net.model_config.model != MINISNN_NEURON_MODEL_HODGKIN_HUXLEY)
+        return 0;
+    neuron = &snn->net.neurons[neuron_id];
+    out_state->voltage = neuron->V;
+    out_state->m = neuron->state.hh.m;
+    out_state->h = neuron->state.hh.h;
+    out_state->n = neuron->state.hh.n;
+    out_state->spike = neuron->spike;
+    return 1;
 }
 
 size_t minisnn_connection_count(const MiniSNN *snn)
@@ -406,7 +544,7 @@ int minisnn_get_reward_stats(
     return reward_state_get_stats(
         snn->net.reward,
         minisnn_reward_observation_step(snn),
-        snn->net.lif_parameters.dt,
+        neuron_model_dt(&snn->net.model_config),
         out_stats);
 }
 
@@ -439,7 +577,7 @@ int minisnn_get_reward_connection_stats(
         snn->net.reward,
         connection_id,
         minisnn_reward_observation_step(snn),
-        snn->net.lif_parameters.dt,
+        neuron_model_dt(&snn->net.model_config),
         out_stats);
 }
 
@@ -522,7 +660,9 @@ int minisnn_get_neuron_effective_threshold(
     double *out_threshold)
 {
     if (!minisnn_valid_neuron_id(snn, neuron_id) || out_threshold == NULL ||
-        snn->net.homeostasis == NULL)
+        snn->net.homeostasis == NULL ||
+        !neuron_model_supports_adaptive_threshold(
+            snn->net.model_config.model))
     {
         return 0;
     }
@@ -530,7 +670,7 @@ int minisnn_get_neuron_effective_threshold(
     *out_threshold = homeostasis_effective_threshold(
         snn->net.homeostasis,
         neuron_id,
-        snn->net.lif_parameters.v_threshold);
+        neuron_model_base_threshold(&snn->net.model_config));
     return 1;
 }
 
@@ -538,10 +678,12 @@ int minisnn_get_base_threshold(
     const MiniSNN *snn,
     double *out_threshold)
 {
-    if (snn == NULL || out_threshold == NULL)
+    if (snn == NULL || out_threshold == NULL ||
+        !neuron_model_supports_adaptive_threshold(
+            snn->net.model_config.model))
         return 0;
 
-    *out_threshold = snn->net.lif_parameters.v_threshold;
+    *out_threshold = neuron_model_base_threshold(&snn->net.model_config);
     return 1;
 }
 
@@ -663,7 +805,9 @@ int minisnn_get_topology_signature(
         !structure_capture_network_genome(&snn->net, &genome))
         return 0;
     neuron_signature = structure_neuron_blueprint_signature(
-        snn->net.neurons, (size_t)snn->net.size);
+        snn->net.neurons, (size_t)snn->net.size,
+        snn->net.model_config.model,
+        neuron_model_config_signature(&snn->net.model_config));
     *out_signature = structure_topology_signature(
         &genome, neuron_signature);
     structure_genome_destroy(&genome);
@@ -814,7 +958,7 @@ int minisnn_get_voltage(
         return 0;
     }
 
-    *out_voltage = snn->net.neurons[neuron_id].V;
+    *out_voltage = neuron_model_voltage(&snn->net.neurons[neuron_id]);
     return 1;
 }
 

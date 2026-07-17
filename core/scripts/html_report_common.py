@@ -273,6 +273,12 @@ def _metric_category(key: str) -> str:
         return "14. Recompensa, punicao e elegibilidade"
     if key.startswith("performance_"):
         return "14. Desempenho"
+    if key.startswith(("adex_", "hh_")) or key in {
+        "neuron_model", "model_config_signature", "integration_method",
+        "state_nonfinite_count", "step_error_count", "firing_rate",
+        "mean_isi",
+    }:
+        return "2. Modelo neuronal"
     if key.startswith(("exc_", "inh_", "exc_inh_")):
         return "6. EXC/INH"
     if key.startswith("burst_"):
@@ -304,6 +310,10 @@ def _manifest_metadata(manifest: dict[str, str], metrics: dict[str, str]) -> lis
         ("actual_run_name", _first(metrics, "actual_run_name") or manifest.get("actual_run_name")),
         ("timestamp", _first(metrics, "timestamp") or manifest.get("timestamp")),
         ("topology", _first(metrics, "topology") or manifest.get("topology")),
+        ("neuron_model", _first(metrics, "neuron_model") or manifest.get("neuron_model")),
+        ("model_config_signature", _first(metrics, "model_config_signature") or manifest.get("neuron_model_config_signature")),
+        ("integration_method", _first(metrics, "integration_method") or manifest.get("neuron_integration_method")),
+        ("intrinsic_homeostasis_supported", manifest.get("intrinsic_homeostasis_supported")),
         ("seed", _first(metrics, "run_seed", "seed") or manifest.get("seed")),
         ("diagnostics_level", _first(metrics, "diagnostics_level") or manifest.get("diagnostics_level")),
         ("miniSNN_version", manifest.get("miniSNN_version")),
@@ -373,6 +383,8 @@ def generate_metrics_report(run_directory: Path | str) -> Path:
     manifest = read_key_values(run_dir / "run_manifest.txt")
 
     cards = [
+        ("Modelo", _first(metrics, "neuron_model") or manifest.get("neuron_model", "lif")),
+        ("Integrador", _first(metrics, "integration_method") or manifest.get("neuron_integration_method", "NA")),
         ("Spikes totais", format_value("activity_total_spikes", _first(metrics, "activity_total_spikes", "total_spikes", "spikes_total") or "NA")),
         ("Neuronios", format_value("network_num_neurons", _first(metrics, "network_num_neurons", "neurons") or "NA")),
         ("Conexoes", format_value("network_total_connections", _first(metrics, "network_total_connections", "connections") or "NA")),
@@ -409,7 +421,7 @@ def generate_metrics_report(run_directory: Path | str) -> Path:
     body = _cards(cards)
     body += "<h2>1. Identificacao da execucao</h2>" + _key_value_table(_manifest_metadata(manifest, metrics))
     for title in (
-        "2. Rede", "3. Atividade populacional", "4. Atividade temporal",
+        "2. Modelo neuronal", "2. Rede", "3. Atividade populacional", "4. Atividade temporal",
         "5. Neuronios", "6. EXC/INH", "7. Bursts",
         "8. Distribuicao e concentracao", "9. Variabilidade e sincronia aproximada",
         "10. Neuronio detalhado", "11. Conectividade", "12. Plasticidade",
@@ -443,6 +455,7 @@ def generate_metrics_report(run_directory: Path | str) -> Path:
         "reward_metrics.csv", "reward_events.csv", "reward_history.csv",
         "eligibility_history.csv", "reward_connections.csv",
         "reward_report.txt", REWARD_REPORT_FILENAME, "reward_overview.png",
+        "adex_state.csv", "hh_state.csv", "config_source.ini", "config_used.ini",
     ))
     body += _preview_images(run_dir, (
         "diagnostics_overview.png", "plasticity_overview.png",
@@ -1216,6 +1229,9 @@ def generate_evolution_report(run_directory: Path | str) -> Path:
         status = "CHECKPOINTED"
 
     body = _cards([
+        ("Modelo neuronal", manifest.get("neuron_model", base_config.get("model", "lif"))),
+        ("Integrador", manifest.get("neuron_integration_method", "NA")),
+        ("Assinatura do modelo", manifest.get("neuron_model_config_signature", "NA")),
         ("Melhor fitness", format_value("best_fitness", best)),
         ("Fitness inicial", format_value("initial_fitness", initial)),
         ("Melhora absoluta", format_value("improvement", improvement)),

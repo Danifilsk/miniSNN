@@ -149,6 +149,63 @@ static int test_exact_eligibility_signs(void)
     return 1;
 }
 
+static int test_advanced_model_reward_events(void)
+{
+    const MiniSNNNeuronModel models[] = {
+        MINISNN_NEURON_MODEL_ADEX,
+        MINISNN_NEURON_MODEL_HODGKIN_HUXLEY
+    };
+
+    for (size_t i = 0; i < sizeof(models) / sizeof(models[0]); i++)
+    {
+        RewardFixture fixture;
+        MiniSNNRewardConnectionStats stats;
+        double before;
+
+        if (!fixture_init(&fixture, 0.5, 0.75, 4.0, 0.5))
+            return 0;
+        fixture.neurons[0].model = models[i];
+        fixture.neurons[1].model = models[i];
+        before = fixture.edge.weight;
+        if (!fixture_temporal_step(&fixture, 1, 0, 0) ||
+            !fixture_temporal_step(&fixture, 0, 1, 1) ||
+            !reward_state_get_connection_stats(
+                &fixture.reward, 0, 1, 1.0, &stats) ||
+            !(stats.eligibility > 0.0) ||
+            !reward_state_queue(&fixture.reward, 1.0) ||
+            !reward_state_apply_pending(
+                &fixture.reward, fixture.neurons, fixture.connections,
+                &fixture.plasticity, 1, 1.0) ||
+            !(fixture.edge.weight > before) ||
+            !isfinite(fixture.edge.weight))
+        {
+            fixture_destroy(&fixture);
+            return 0;
+        }
+        fixture_destroy(&fixture);
+
+        if (!fixture_init(&fixture, 0.5, 0.75, 4.0, 0.5))
+            return 0;
+        fixture.neurons[0].model = models[i];
+        fixture.neurons[1].model = models[i];
+        before = fixture.edge.weight;
+        if (!fixture_temporal_step(&fixture, 1, 0, 0) ||
+            !fixture_temporal_step(&fixture, 0, 1, 1) ||
+            !reward_state_queue(&fixture.reward, -1.0) ||
+            !reward_state_apply_pending(
+                &fixture.reward, fixture.neurons, fixture.connections,
+                &fixture.plasticity, 1, 1.0) ||
+            !(fixture.edge.weight < before) ||
+            !isfinite(fixture.edge.weight))
+        {
+            fixture_destroy(&fixture);
+            return 0;
+        }
+        fixture_destroy(&fixture);
+    }
+    return 1;
+}
+
 static int test_lazy_decay_and_reward_signs(void)
 {
     RewardFixture fixture;
@@ -654,6 +711,7 @@ static int test_public_validation_and_independence(void)
 int main(void)
 {
     if (!test_exact_eligibility_signs() ||
+        !test_advanced_model_reward_events() ||
         !test_lazy_decay_and_reward_signs() ||
         !test_queue_clamps_and_consumption() ||
         !test_zero_weight_clamps_and_direct_mode() ||

@@ -1,4 +1,15 @@
-PYTHON ?= python
+# Prefer the per-user Windows runtime when it exists; callers may still pass
+# PYTHON=... explicitly for another interpreter.
+ifeq ($(origin PYTHON), undefined)
+WINDOWS_LOCALAPPDATA := $(subst \,/,$(LOCALAPPDATA))
+WINDOWS_PYTHON_CANDIDATES := $(wildcard $(WINDOWS_LOCALAPPDATA)/Python/*/python.exe)
+WINDOWS_PYTHON_CORE_CANDIDATES := $(foreach candidate,$(WINDOWS_PYTHON_CANDIDATES),$(if $(findstring /pythoncore-,$(candidate)),$(candidate)))
+ifneq ($(strip $(WINDOWS_PYTHON_CANDIDATES)),)
+PYTHON := $(if $(WINDOWS_PYTHON_CORE_CANDIDATES),$(firstword $(WINDOWS_PYTHON_CORE_CANDIDATES)),$(firstword $(WINDOWS_PYTHON_CANDIDATES)))
+else
+PYTHON := python
+endif
+endif
 CORE_DIR = core
 
 .PHONY: all help clean core core-tests core-studio core-evolution test test-architecture

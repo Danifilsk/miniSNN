@@ -1,5 +1,6 @@
 #include <math.h>
 #include <stdlib.h>
+#include <string.h>
 
 #include "network.h"
 #include "config.h"
@@ -10,6 +11,7 @@ static void network_reset_fields(Network *net)
         return;
 
     net->neurons = NULL;
+    net->step_snapshot = NULL;
     net->connections = NULL;
     net->spikes = NULL;
     net->syn_current = NULL;
@@ -21,12 +23,7 @@ static void network_reset_fields(Network *net)
     net->reward = NULL;
     net->structural_plasticity = NULL;
 
-    net->lif_parameters.dt = 0.0;
-    net->lif_parameters.tau = 0.0;
-    net->lif_parameters.v_rest = 0.0;
-    net->lif_parameters.v_reset = 0.0;
-    net->lif_parameters.v_threshold = 0.0;
-    net->lif_parameters.resistance = 0.0;
+    memset(&net->model_config, 0, sizeof(net->model_config));
     net->synaptic_decay = 0.0;
 
     net->size = 0;
@@ -44,7 +41,7 @@ static int network_is_valid_for_update(Network *net)
         return 0;
     }
 
-    if (!lif_parameters_are_valid(&net->lif_parameters) ||
+    if (!neuron_model_validate_config(&net->model_config) ||
         !isfinite(net->synaptic_decay) ||
         net->synaptic_decay < 0.0 ||
         net->synaptic_decay > 1.0)
@@ -53,6 +50,7 @@ static int network_is_valid_for_update(Network *net)
     }
 
     if (net->neurons == NULL ||
+        net->step_snapshot == NULL ||
         net->connections == NULL ||
         net->spikes == NULL ||
         net->syn_current == NULL ||
@@ -83,6 +81,9 @@ void network_config_default(NetworkConfig *out_config)
         return;
 
     lif_parameters_default(&out_config->lif);
+    adex_parameters_default(&out_config->adex);
+    hodgkin_huxley_parameters_default(&out_config->hodgkin_huxley);
+    out_config->neuron_model = MINISNN_NEURON_MODEL_LIF;
     out_config->synaptic_decay = SYN_DECAY;
     out_config->max_synaptic_delay = MAX_SYNAPTIC_DELAY;
 }
@@ -93,8 +94,20 @@ int network_config_is_valid(
     if (config == NULL)
         return 0;
 
-    if (!lif_parameters_are_valid(&config->lif))
-        return 0;
+    {
+        NeuronModelConfig model_config;
+        if (config->neuron_model == MINISNN_NEURON_MODEL_LIF)
+            neuron_model_config_lif(&model_config, &config->lif);
+        else if (config->neuron_model == MINISNN_NEURON_MODEL_ADEX)
+            neuron_model_config_adex(&model_config, &config->adex);
+        else if (config->neuron_model == MINISNN_NEURON_MODEL_HODGKIN_HUXLEY)
+            neuron_model_config_hodgkin_huxley(
+                &model_config, &config->hodgkin_huxley);
+        else
+            return 0;
+        if (!neuron_model_validate_config(&model_config))
+            return 0;
+    }
 
     if (!isfinite(config->synaptic_decay) ||
         config->synaptic_decay < 0.0 ||
@@ -124,12 +137,19 @@ int network_init_with_config(
 
     net->size = size;
     net->step = 0;
-    net->lif_parameters = config->lif;
+    if (config->neuron_model == MINISNN_NEURON_MODEL_LIF)
+        neuron_model_config_lif(&net->model_config, &config->lif);
+    else if (config->neuron_model == MINISNN_NEURON_MODEL_ADEX)
+        neuron_model_config_adex(&net->model_config, &config->adex);
+    else
+        neuron_model_config_hodgkin_huxley(
+            &net->model_config, &config->hodgkin_huxley);
     net->synaptic_decay = config->synaptic_decay;
     net->max_synaptic_delay = config->max_synaptic_delay;
     net->delay_cursor = 0;
 
-    net->neurons = malloc(size * sizeof(LIFNeuron));
+    net->neurons = malloc(size * sizeof(Neuron));
+    net->step_snapshot = malloc(size * sizeof(Neuron));
     net->connections = malloc(size * sizeof(ConnectionList));
 
     if (net->connections != NULL)
@@ -159,6 +179,7 @@ int network_init_with_config(
     net->reward = calloc(1, sizeof(*net->reward));
 
     if (net->neurons == NULL ||
+        net->step_snapshot == NULL ||
         net->connections == NULL ||
         net->spikes == NULL ||
         net->syn_current == NULL ||
@@ -193,7 +214,11 @@ int network_init_with_config(
 
     for (int i = 0; i < size; i++)
     {
-        lif_init_with_parameters(&net->neurons[i], &net->lif_parameters);
+        if (!neuron_model_init(&net->neurons[i], &net->model_config))
+        {
+            network_destroy(net);
+            return 0;
+        }
 
         net->spikes[i] = 0;
 
@@ -217,12 +242,20 @@ int network_update(Network *net)
     int next_slot;
     int homeostasis_enabled;
     int reward_enabled;
+    MiniSNNNeuronModelCapabilities capabilities;
 
     if (!network_is_valid_for_update(net))
         return -1;
 
     homeostasis_enabled = net->homeostasis->config.enabled;
     reward_enabled = net->reward->config.enabled;
+    capabilities = neuron_model_capabilities(net->model_config.model);
+
+    if (!homeostasis_validate_capabilities(
+            &net->homeostasis->config, &capabilities))
+    {
+        return -1;
+    }
 
     if ((reward_enabled &&
          (!net->plasticity->config.enabled ||
@@ -249,6 +282,11 @@ int network_update(Network *net)
     for (int i = 0; i < net->size; i++)
         net->spikes[i] = 0;
 
+    memcpy(
+        net->step_snapshot,
+        net->neurons,
+        (size_t)net->size * sizeof(*net->neurons));
+
     // Corrente total = externa + sináptica
     for (int i = 0; i < net->size; i++)
     {
@@ -256,18 +294,25 @@ int network_update(Network *net)
 
         double I = net->ext_current[i] + net->used_syn_current[i];
 
-        if (homeostasis_enabled)
+        NeuronStepContext context = {
+            I,
+            homeostasis_enabled && net->homeostasis->config.intrinsic_enabled,
+            (homeostasis_enabled && net->homeostasis->config.intrinsic_enabled) ?
+                net->homeostasis->effective_threshold[i] : 0.0
+        };
+        net->spikes[i] = neuron_model_step(
+            &net->neurons[i], &net->model_config, &context);
+
+        if (net->spikes[i] < 0)
         {
-            net->spikes[i] = lif_update_with_threshold(
-                &net->neurons[i],
-                I,
-                &net->lif_parameters,
-                net->homeostasis->effective_threshold[i]);
-        }
-        else
-        {
-            net->spikes[i] = lif_update_with_parameters(
-                &net->neurons[i], I, &net->lif_parameters);
+            memcpy(
+                net->neurons,
+                net->step_snapshot,
+                (size_t)net->size * sizeof(*net->neurons));
+            for (int j = 0; j < net->size; j++)
+                net->spikes[j] = 0;
+            net->spikes[i] = 0;
+            return -1;
         }
 
         if (net->spikes[i])
@@ -317,7 +362,7 @@ int network_update(Network *net)
             net->neurons,
             net->connections,
             net->spikes,
-            net->lif_parameters.dt))
+            neuron_model_dt(&net->model_config)))
     {
         return -1;
     }
@@ -327,14 +372,14 @@ int network_update(Network *net)
              net->reward,
              net->plasticity,
              (unsigned long long)net->step,
-             net->lif_parameters.dt) ||
+             neuron_model_dt(&net->model_config)) ||
          !reward_state_apply_pending(
              net->reward,
              net->neurons,
              net->connections,
              net->plasticity,
              (unsigned long long)net->step,
-             net->lif_parameters.dt)))
+             neuron_model_dt(&net->model_config))))
     {
         return -1;
     }
@@ -342,8 +387,8 @@ int network_update(Network *net)
     if (homeostasis_enabled &&
         !homeostasis_apply_step(
             net->homeostasis,
-            net->lif_parameters.v_threshold,
-            net->lif_parameters.dt,
+            neuron_model_base_threshold(&net->model_config),
+            neuron_model_dt(&net->model_config),
             (unsigned long long)net->step + 1ULL,
             net->spikes,
             net->neurons,
@@ -768,6 +813,8 @@ int network_set_homeostasis_config(
     Network *net,
     const MiniSNNHomeostasisConfig *config)
 {
+    MiniSNNNeuronModelCapabilities capabilities;
+
     if (net == NULL || net->homeostasis == NULL ||
         net->plasticity == NULL || net->neurons == NULL ||
         net->connections == NULL)
@@ -775,10 +822,14 @@ int network_set_homeostasis_config(
         return 0;
     }
 
+    capabilities = neuron_model_capabilities(net->model_config.model);
+    if (!homeostasis_validate_capabilities(config, &capabilities))
+        return 0;
+
     return homeostasis_state_configure(
         net->homeostasis,
         config,
-        net->lif_parameters.v_threshold,
+        neuron_model_base_threshold(&net->model_config),
         net->neurons,
         net->connections,
         net->plasticity);
@@ -795,7 +846,7 @@ int network_reset_homeostasis(Network *net)
 
     return homeostasis_state_reset(
         net->homeostasis,
-        net->lif_parameters.v_threshold,
+        neuron_model_base_threshold(&net->model_config),
         net->neurons,
         net->connections,
         net->plasticity);
@@ -874,6 +925,7 @@ void network_destroy(Network *net)
     }
 
     free(net->neurons);
+    free(net->step_snapshot);
     free(net->spikes);
     free(net->syn_current);
     free(net->used_syn_current);

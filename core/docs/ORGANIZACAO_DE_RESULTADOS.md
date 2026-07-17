@@ -199,3 +199,10 @@ a topologia herdável inicial do melhor genoma. No Studio, os botões `ABRIR
 EVENTOS ESTRUTURAIS` e `ABRIR MELHOR TOPOLOGIA` geram/abrem esses HTMLs usando a
 pasta indicada por `last_experiment.txt`. Os CSVs continuam sendo a fonte
 científica bruta.
+# Estados dos modelos C5
+
+Execucoes AdEx podem conter `adex_state.csv`; execucoes Hodgkin-Huxley podem
+conter `hh_state.csv`. O manifesto registra `model_state_sampling_stride`.
+`config_source.ini` preserva byte a byte o arquivo fornecido e
+`config_used.ini` registra a configuracao efetiva canonica. Nao substitua um
+pelo outro: eles respondem a perguntas de proveniencia diferentes.

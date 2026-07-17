@@ -11,7 +11,7 @@
 typedef struct
 {
     size_t neuron_count;
-    const LIFNeuron *neurons;
+    const Neuron *neurons;
     size_t min_connections;
     size_t max_connections;
     int allow_self_connections;
@@ -89,7 +89,13 @@ int structure_genome_validate(
     const StructureConstraints *constraints);
 
 uint64_t structure_neuron_blueprint_signature(
-    const LIFNeuron *neurons,
+    const Neuron *neurons,
+    size_t neuron_count,
+    MiniSNNNeuronModel model,
+    uint64_t neuron_model_config_signature);
+
+uint64_t structure_neuron_blueprint_signature_legacy(
+    const Neuron *neurons,
     size_t neuron_count);
 
 uint64_t structure_topology_signature(

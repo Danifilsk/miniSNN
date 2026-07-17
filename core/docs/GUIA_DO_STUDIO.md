@@ -1,5 +1,16 @@
 # Guia do miniSNN Studio
 
+## Modelos neuronais C5
+
+O seletor `Modelo neuronal` aceita LIF, AdEx e Hodgkin-Huxley. Configuracoes
+antigas sem `[neuron]` continuam como LIF; aliases sao aceitos e o arquivo salvo
+usa `lif`, `adex` ou `hodgkin_huxley`. Os parametros completos de AdEx/HH ficam
+no INI e sao preservados ao carregar e salvar. Resultados avancados incluem
+`adex_state.csv` ou `hh_state.csv`.
+
+Homeostase intrinseca so e valida para LIF. Scaling sinaptico e ganho inibitorio
+continuam disponiveis para os tres modelos.
+
 ## RECOMPENSA
 
 `RECOMPENSA` abre o modal de R-STDP sem sobrecarregar o painel principal. Ele
@@ -353,3 +364,15 @@ ele pode estar desatualizado. Aplicar valida
 limites, delays e reachability; cancelar preserva os valores. A compilação foi
 validada automaticamente, mas os cliques e caminhos com espaços permanecem em
 validação manual.
+# Modelos neuronais C5
+
+O seletor **MODELO NEURONAL** aceita `lif`, `adex` e
+`hodgkin_huxley`. O botao **PARAMETROS** abre um painel transacional com os
+campos do modelo selecionado; **APLICAR** valida e confirma, enquanto
+**CANCELAR** preserva a configuracao anterior. Configuracoes antigas sem
+`[neuron]` continuam abrindo como LIF e aliases sao salvos pelo nome canonico.
+
+Depois de uma execucao AdEx ou Hodgkin-Huxley, **ABRIR ESTADO DO MODELO** abre
+`adex_state.csv` ou `hh_state.csv`. **COMPARAR MODELOS** executa a comparacao
+reprodutivel C5 e abre o relatorio HTML. Python, pandas e matplotlib sao
+necessarios para a comparacao.

@@ -90,7 +90,7 @@ int neuron_recorder_record(
             recorder->file,
             "%d,%.2f,%d,%.2f,%.2f\n",
             step,
-            net->neurons[neuron_id].V,
+            neuron_model_voltage(&net->neurons[neuron_id]),
             net->spikes[neuron_id],
             net->ext_current[neuron_id],
             net->used_syn_current[neuron_id]) < 0)
@@ -198,7 +198,7 @@ int population_recorder_record(
         else
             spikes_inh += spike;
 
-        potential_sum += net->neurons[i].V;
+        potential_sum += neuron_model_voltage(&net->neurons[i]);
         syn_current_sum += net->used_syn_current[i];
     }
 

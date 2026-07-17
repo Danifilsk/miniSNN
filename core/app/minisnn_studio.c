@@ -13,6 +13,7 @@
 #include "scenario_config.h"
 #include "scenario_runner.h"
 #include "evolution_config.h"
+#include "neuron_model.h"
 
 #define APP_TITLE "miniSNN Studio"
 #define TEXT_BUFFER_SIZE 128
@@ -20,8 +21,10 @@
 #define SUMMARY_BUFFER_SIZE 2048
 #define PYTHON_COMMAND_BUFFER_SIZE 2400
 #define PYTHON_MESSAGE_BUFFER_SIZE 6000
-#define STUDIO_FIELD_COUNT 21
-#define STUDIO_BUTTON_COUNT 23
+#define STUDIO_FIELD_COUNT 13
+#define NEURON_MODEL_DIALOG_FIELD_COUNT 13
+#define NEURON_MODEL_DIALOG_ROWS_PER_COLUMN 7
+#define STUDIO_BUTTON_COUNT 25
 #define REWARD_EVENTS_TEXT_SIZE 4096
 #define EVOLUTION_TEXT_SIZE 4096
 
@@ -71,15 +74,8 @@
 #define IDC_SOURCE_COUNT 1011
 #define IDC_INPUT_CURRENT 1012
 #define IDC_RECORD_NEURON 1013
-#define IDC_STEPS 1014
-#define IDC_DT 1015
-#define IDC_TAU 1016
-#define IDC_V_REST 1017
-#define IDC_V_RESET 1018
-#define IDC_V_THRESHOLD 1019
-#define IDC_RESISTANCE 1020
-#define IDC_SYNAPTIC_DECAY 1021
 #define IDC_DIAGNOSTICS_LEVEL 1022
+#define IDC_NEURON_MODEL 1023
 
 #define IDC_BTN_NEW 2001
 #define IDC_BTN_LOAD 2002
@@ -109,6 +105,9 @@
 #define IDC_BTN_PLOT_REWARD 2026
 #define IDC_BTN_OPEN_REWARD 2027
 #define IDC_BTN_EVOLUTION 2028
+#define IDC_BTN_MODEL_OPTIONS 2029
+#define IDC_BTN_OPEN_MODEL_STATE 2030
+#define IDC_BTN_COMPARE_MODELS 2031
 
 #define IDC_STATUS 3001
 #define IDC_SUMMARY 3002
@@ -268,6 +267,10 @@
 #define IDC_ADAPT_APPLY 9046
 #define IDC_ADAPT_CANCEL 9047
 
+#define IDC_MODEL_FIELD_0 10001
+#define IDC_MODEL_APPLY 10020
+#define IDC_MODEL_CANCEL 10021
+
 #define STUDIO_INIT_TIMER_ID 1
 #define STUDIO_EVOLUTION_TIMER_ID 2
 
@@ -307,6 +310,8 @@ typedef struct
     int field_count;
 
     HWND topology_combo;
+    HWND neuron_model_combo;
+    HWND neuron_model_options_button;
     HWND diagnostics_combo;
     HWND topology_options_button;
     HWND plasticity_button;
@@ -503,6 +508,15 @@ typedef struct
     HWND record_interval;
 } AdaptiveTopologyDialog;
 
+typedef struct
+{
+    HWND window;
+    ScenarioConfig working_config;
+    MiniSNNNeuronModel model;
+    HWND fields[NEURON_MODEL_DIALOG_FIELD_COUNT];
+    int field_count;
+} NeuronModelDialog;
+
 static StudioState g_app;
 static TopologyOptionsDialog g_options;
 static PlasticityDialog g_plasticity;
@@ -510,6 +524,7 @@ static HomeostasisDialog g_homeostasis;
 static RewardDialog g_reward;
 static EvolutionDialog g_evolution;
 static AdaptiveTopologyDialog g_adaptive;
+static NeuronModelDialog g_neuron_model;
 
 static void draw_button(const DRAWITEMSTRUCT *item);
 static LRESULT handle_color(HDC hdc, HWND hwnd);
@@ -1554,6 +1569,8 @@ static void config_to_controls(const ScenarioConfig *config)
     set_edit_text(IDC_RUN_NAME, config->run_name);
 
     SendMessageA(g_app.topology_combo, CB_SELECTSTRING, (WPARAM)-1, (LPARAM)config->topology);
+    SendMessageA(g_app.neuron_model_combo, CB_SELECTSTRING, (WPARAM)-1,
+                 (LPARAM)neuron_model_name(config->neuron_model));
 
     set_edit_int(IDC_NEURONS, config->neurons);
     set_edit_double(IDC_INHIBITORY_PERCENT, config->inhibitory_fraction * 100.0);
@@ -1566,14 +1583,6 @@ static void config_to_controls(const ScenarioConfig *config)
     set_edit_int(IDC_SOURCE_COUNT, config->source_count);
     set_edit_double(IDC_INPUT_CURRENT, config->input_current);
     set_edit_int(IDC_RECORD_NEURON, config->record_neuron);
-    set_edit_int(IDC_STEPS, config->steps);
-    set_edit_double(IDC_DT, config->dt);
-    set_edit_double(IDC_TAU, config->tau);
-    set_edit_double(IDC_V_REST, config->v_rest);
-    set_edit_double(IDC_V_RESET, config->v_reset);
-    set_edit_double(IDC_V_THRESHOLD, config->v_threshold);
-    set_edit_double(IDC_RESISTANCE, config->resistance);
-    set_edit_double(IDC_SYNAPTIC_DECAY, config->synaptic_decay);
     SendMessageA(
         g_app.diagnostics_combo,
         CB_SELECTSTRING,
@@ -1607,6 +1616,17 @@ static int controls_to_config(
         config->diagnostics_level,
         sizeof(config->diagnostics_level));
 
+    {
+        char model_name[SCENARIO_NEURON_MODEL_MAX];
+        GetWindowTextA(g_app.neuron_model_combo, model_name, sizeof(model_name));
+        if (!neuron_model_from_name(model_name, &config->neuron_model))
+        {
+            snprintf(error_message, error_message_size,
+                     "Modelo neuronal desconhecido.");
+            return 0;
+        }
+    }
+
     if (!parse_int_field(IDC_NEURONS, "Neuronios", &config->neurons, error_message, error_message_size) ||
         !parse_double_field(IDC_INHIBITORY_PERCENT, "Proporcao inibitoria (%)", &inhibitory_percent, error_message, error_message_size) ||
         !parse_double_field(IDC_CONNECTION_PROBABILITY, "Densidade de conexao", &config->connection_probability, error_message, error_message_size) ||
@@ -1617,15 +1637,7 @@ static int controls_to_config(
         !parse_double_field(IDC_INH_WEIGHT, "Peso inibitorio", &config->inhibitory_weight, error_message, error_message_size) ||
         !parse_int_field(IDC_SOURCE_COUNT, "Neuronios com entrada", &config->source_count, error_message, error_message_size) ||
         !parse_double_field(IDC_INPUT_CURRENT, "Corrente externa", &config->input_current, error_message, error_message_size) ||
-        !parse_int_field(IDC_RECORD_NEURON, "Neuronio detalhado", &config->record_neuron, error_message, error_message_size) ||
-        !parse_int_field(IDC_STEPS, "Passos", &config->steps, error_message, error_message_size) ||
-        !parse_double_field(IDC_DT, "dt", &config->dt, error_message, error_message_size) ||
-        !parse_double_field(IDC_TAU, "tau", &config->tau, error_message, error_message_size) ||
-        !parse_double_field(IDC_V_REST, "V_rest", &config->v_rest, error_message, error_message_size) ||
-        !parse_double_field(IDC_V_RESET, "V_reset", &config->v_reset, error_message, error_message_size) ||
-        !parse_double_field(IDC_V_THRESHOLD, "V_threshold", &config->v_threshold, error_message, error_message_size) ||
-        !parse_double_field(IDC_RESISTANCE, "Resistencia", &config->resistance, error_message, error_message_size) ||
-        !parse_double_field(IDC_SYNAPTIC_DECAY, "Decaimento sinaptico", &config->synaptic_decay, error_message, error_message_size))
+        !parse_int_field(IDC_RECORD_NEURON, "Neuronio detalhado", &config->record_neuron, error_message, error_message_size))
     {
         return 0;
     }
@@ -1705,6 +1717,12 @@ static void set_result_buttons_enabled(BOOL enabled)
 
     for (int i = 21; i <= 22; i++)
         EnableWindow(g_app.buttons[i], enabled);
+
+    EnableWindow(
+        g_app.buttons[23],
+        enabled &&
+        g_app.current_config.neuron_model != MINISNN_NEURON_MODEL_LIF);
+    EnableWindow(g_app.buttons[24], TRUE);
 }
 
 static void set_comparison_buttons_enabled(void)
@@ -3046,6 +3064,85 @@ static void open_reward_report(void)
         "RELATORIO DE RECOMPENSA ABERTO");
 }
 
+static void open_model_state(void)
+{
+    char path[MAX_PATH];
+    const char *filename;
+
+    if (!g_app.has_result)
+    {
+        show_error("Sem resultados", "Rode uma simulacao antes de abrir o estado do modelo.");
+        return;
+    }
+    if (g_app.current_config.neuron_model == MINISNN_NEURON_MODEL_ADEX)
+        filename = "adex_state.csv";
+    else if (g_app.current_config.neuron_model ==
+             MINISNN_NEURON_MODEL_HODGKIN_HUXLEY)
+        filename = "hh_state.csv";
+    else
+    {
+        show_info("Estado do modelo", "O LIF usa o CSV historico do neuronio detalhado.");
+        return;
+    }
+    if (!build_run_artifact_path(path, sizeof(path), filename))
+    {
+        show_error("Erro interno", "Nao foi possivel montar o caminho do estado do modelo.");
+        return;
+    }
+    open_existing_file(
+        path,
+        "Estado do modelo nao encontrado",
+        "O arquivo de estado especifico nao existe para esta execucao.",
+        "ESTADO DO MODELO ABERTO");
+}
+
+static void compare_neuron_models_from_studio(void)
+{
+    char python_path[MAX_PATH];
+    char script_path[MAX_PATH];
+    char report_path[MAX_PATH];
+    char command[PYTHON_COMMAND_BUFFER_SIZE];
+    DWORD exit_code = 1;
+
+    if (!resolve_python_executable(python_path, sizeof(python_path)))
+    {
+        show_error("Python nao encontrado",
+                   "A comparacao requer Python com pandas e matplotlib.");
+        return;
+    }
+    if (!project_path(script_path, sizeof(script_path),
+                      "scripts\\compare_neuron_models.py") ||
+        !project_path(report_path, sizeof(report_path),
+                      "results\\model_comparison\\model_comparison.html"))
+    {
+        show_error("Erro interno", "Nao foi possivel montar os caminhos da comparacao.");
+        return;
+    }
+    if (snprintf(
+            command, sizeof(command),
+            g_app.resolved_python_uses_py_launcher ?
+                "\"%s\" -3 \"%s\"" : "\"%s\" \"%s\"",
+            python_path, script_path) >= (int)sizeof(command))
+    {
+        show_error("Erro interno", "Comando da comparacao excede o limite.");
+        return;
+    }
+    set_status("COMPARANDO MODELOS...");
+    UpdateWindow(g_app.window);
+    if (!run_hidden_process(command, &exit_code) || exit_code != 0)
+    {
+        show_error("Erro ao comparar modelos",
+                   "A comparacao falhou. Verifique Python, pandas, matplotlib e os cenarios C5.");
+        set_status("ERRO AO COMPARAR MODELOS");
+        return;
+    }
+    open_existing_file(
+        report_path,
+        "Comparacao nao encontrada",
+        "O relatorio de comparacao nao foi gerado.",
+        "COMPARACAO DE MODELOS ABERTA");
+}
+
 static void open_neuron_csv(void)
 {
     char csv_path[MAX_PATH];
@@ -3788,6 +3885,302 @@ static void set_window_double(HWND hwnd, double value)
     char text[TEXT_BUFFER_SIZE];
     format_double_for_field(text, sizeof(text), value);
     SetWindowTextA(hwnd, text);
+}
+
+static HWND create_model_field(
+    HWND parent, int index, const char *label, int column, int row)
+{
+    int x = 24 + column * 330;
+    int y = 82 + row * 42;
+    create_static(parent, label, x, y + 4, 165, 24, 0);
+    return create_edit(parent, IDC_MODEL_FIELD_0 + index, x + 170, y, 130, 28);
+}
+
+static void model_dialog_create_fields(HWND hwnd)
+{
+    static const char *lif_labels[] = {
+        "tau", "V_rest", "V_reset", "V_threshold", "Resistencia", "dt",
+        "Passos", "Decaimento sinaptico"
+    };
+    static const char *adex_labels[] = {
+        "C", "g_L", "E_L", "Delta_T", "V_T", "tau_w",
+        "a", "b", "V_reset", "V_peak", "dt", "Passos",
+        "Decaimento sinaptico"
+    };
+    static const char *hh_labels[] = {
+        "C_m", "g_Na", "g_K", "g_L", "E_Na", "E_K",
+        "E_L", "V_init", "Spike threshold", "dt", "Passos",
+        "Decaimento sinaptico"
+    };
+    const char **labels;
+    int count;
+
+    if (g_neuron_model.model == MINISNN_NEURON_MODEL_ADEX)
+    {
+        labels = adex_labels;
+        count = (int)(sizeof(adex_labels) / sizeof(adex_labels[0]));
+    }
+    else if (g_neuron_model.model == MINISNN_NEURON_MODEL_HODGKIN_HUXLEY)
+    {
+        labels = hh_labels;
+        count = (int)(sizeof(hh_labels) / sizeof(hh_labels[0]));
+    }
+    else
+    {
+        labels = lif_labels;
+        count = (int)(sizeof(lif_labels) / sizeof(lif_labels[0]));
+    }
+
+    g_neuron_model.field_count = count;
+    for (int i = 0; i < count; i++)
+        g_neuron_model.fields[i] = create_model_field(
+            hwnd, i, labels[i], i / NEURON_MODEL_DIALOG_ROWS_PER_COLUMN,
+            i % NEURON_MODEL_DIALOG_ROWS_PER_COLUMN);
+}
+
+static int model_dialog_parameter_field_count(MiniSNNNeuronModel model)
+{
+    if (model == MINISNN_NEURON_MODEL_ADEX)
+        return 11;
+    if (model == MINISNN_NEURON_MODEL_HODGKIN_HUXLEY)
+        return 10;
+    return 6;
+}
+
+static void model_dialog_to_controls(void)
+{
+    const ScenarioConfig *config = &g_neuron_model.working_config;
+
+    if (g_neuron_model.model == MINISNN_NEURON_MODEL_ADEX)
+    {
+        const MiniSNNAdExConfig *p = &config->adex;
+        const double values[] = {
+            p->capacitance, p->g_leak, p->e_leak, p->delta_t,
+            p->v_threshold, p->tau_w, p->a, p->b, p->v_reset,
+            p->v_peak, config->dt, (double)config->steps,
+            config->synaptic_decay
+        };
+        for (int i = 0; i < g_neuron_model.field_count; i++)
+            set_window_double(g_neuron_model.fields[i], values[i]);
+    }
+    else if (g_neuron_model.model == MINISNN_NEURON_MODEL_HODGKIN_HUXLEY)
+    {
+        const MiniSNNHodgkinHuxleyConfig *p = &config->hodgkin_huxley;
+        const double values[] = {
+            p->capacitance, p->g_na, p->g_k, p->g_leak, p->e_na,
+            p->e_k, p->e_leak, p->v_init, p->spike_threshold,
+            config->dt, (double)config->steps, config->synaptic_decay
+        };
+        for (int i = 0; i < g_neuron_model.field_count; i++)
+            set_window_double(g_neuron_model.fields[i], values[i]);
+    }
+    else
+    {
+        const double values[] = {
+            config->tau, config->v_rest, config->v_reset,
+            config->v_threshold, config->resistance, config->dt,
+            (double)config->steps, config->synaptic_decay
+        };
+        for (int i = 0; i < g_neuron_model.field_count; i++)
+            set_window_double(g_neuron_model.fields[i], values[i]);
+    }
+}
+
+static int model_dialog_apply(void)
+{
+    ScenarioConfig candidate = g_neuron_model.working_config;
+    double values[11];
+    int parameter_count = model_dialog_parameter_field_count(g_neuron_model.model);
+    char error[256];
+
+    for (int i = 0; i < parameter_count; i++)
+    {
+        if (!parse_double_from_window(
+                g_neuron_model.fields[i], "PARAMETRO DO MODELO",
+                &values[i], error, sizeof(error)))
+        {
+            show_error("Modelo neuronal invalido", error);
+            return 0;
+        }
+    }
+
+    if (!parse_int_from_window(
+            g_neuron_model.fields[parameter_count], "Passos", &candidate.steps,
+            error, sizeof(error)) ||
+        !parse_double_from_window(
+            g_neuron_model.fields[parameter_count + 1], "Decaimento sinaptico",
+            &candidate.synaptic_decay, error, sizeof(error)))
+    {
+        show_error("Modelo neuronal invalido", error);
+        return 0;
+    }
+
+    candidate.neuron_model = g_neuron_model.model;
+    if (g_neuron_model.model == MINISNN_NEURON_MODEL_ADEX)
+    {
+        candidate.adex.capacitance = values[0];
+        candidate.adex.g_leak = values[1];
+        candidate.adex.e_leak = values[2];
+        candidate.adex.delta_t = values[3];
+        candidate.adex.v_threshold = values[4];
+        candidate.adex.tau_w = values[5];
+        candidate.adex.a = values[6];
+        candidate.adex.b = values[7];
+        candidate.adex.v_reset = values[8];
+        candidate.adex.v_peak = values[9];
+        candidate.dt = values[10];
+    }
+    else if (g_neuron_model.model == MINISNN_NEURON_MODEL_HODGKIN_HUXLEY)
+    {
+        candidate.hodgkin_huxley.capacitance = values[0];
+        candidate.hodgkin_huxley.g_na = values[1];
+        candidate.hodgkin_huxley.g_k = values[2];
+        candidate.hodgkin_huxley.g_leak = values[3];
+        candidate.hodgkin_huxley.e_na = values[4];
+        candidate.hodgkin_huxley.e_k = values[5];
+        candidate.hodgkin_huxley.e_leak = values[6];
+        candidate.hodgkin_huxley.v_init = values[7];
+        candidate.hodgkin_huxley.spike_threshold = values[8];
+        candidate.dt = values[9];
+    }
+    else
+    {
+        candidate.tau = values[0];
+        candidate.v_rest = values[1];
+        candidate.v_reset = values[2];
+        candidate.v_threshold = values[3];
+        candidate.resistance = values[4];
+        candidate.dt = values[5];
+    }
+
+    if (!scenario_config_validate(&candidate, error, sizeof(error)))
+    {
+        show_error("Modelo neuronal invalido", error);
+        return 0;
+    }
+
+    g_app.current_config = candidate;
+    config_to_controls(&candidate);
+    set_status("PARAMETROS DO MODELO APLICADOS");
+    DestroyWindow(g_neuron_model.window);
+    return 1;
+}
+
+static LRESULT CALLBACK neuron_model_options_proc(
+    HWND hwnd, UINT message, WPARAM wparam, LPARAM lparam)
+{
+    (void)lparam;
+    switch (message)
+    {
+    case WM_CREATE:
+        g_neuron_model.window = hwnd;
+        create_static(hwnd, "PARAMETROS DO MODELO NEURONAL", 24, 16, 520, 30, 0);
+        create_static(hwnd, neuron_model_name(g_neuron_model.model), 24, 48, 300, 24, 0);
+        model_dialog_create_fields(hwnd);
+        create_button(hwnd, "APLICAR", IDC_MODEL_APPLY, 210, 394, 130, 36);
+        create_button(hwnd, "CANCELAR", IDC_MODEL_CANCEL, 370, 394, 130, 36);
+        model_dialog_to_controls();
+        enable_dark_title_bar(hwnd);
+        return 0;
+    case WM_COMMAND:
+        if (HIWORD(wparam) == BN_CLICKED)
+        {
+            if (LOWORD(wparam) == IDC_MODEL_APPLY)
+            {
+                model_dialog_apply();
+                return 0;
+            }
+            if (LOWORD(wparam) == IDC_MODEL_CANCEL)
+            {
+                DestroyWindow(hwnd);
+                return 0;
+            }
+        }
+        break;
+    case WM_CTLCOLORSTATIC:
+        return handle_color((HDC)wparam, (HWND)lparam);
+    case WM_CTLCOLOREDIT:
+        return handle_edit_color((HDC)wparam);
+    case WM_DRAWITEM:
+        draw_button((const DRAWITEMSTRUCT *)lparam);
+        return TRUE;
+    case WM_CLOSE:
+        DestroyWindow(hwnd);
+        return 0;
+    case WM_DESTROY:
+        g_neuron_model.window = NULL;
+        return 0;
+    default:
+        break;
+    }
+    return DefWindowProcA(hwnd, message, wparam, lparam);
+}
+
+static int ensure_neuron_model_class_registered(void)
+{
+    static int registered = 0;
+    WNDCLASSA window_class;
+    if (registered)
+        return 1;
+    memset(&window_class, 0, sizeof(window_class));
+    window_class.lpfnWndProc = neuron_model_options_proc;
+    window_class.hInstance = GetModuleHandleA(NULL);
+    window_class.lpszClassName = "MiniSNNNeuronModelOptionsWindow";
+    window_class.hCursor = LoadCursor(NULL, IDC_ARROW);
+    window_class.hbrBackground = g_app.background_brush;
+    if (!RegisterClassA(&window_class))
+        return 0;
+    registered = 1;
+    return 1;
+}
+
+static void open_neuron_model_options(void)
+{
+    ScenarioConfig config;
+    MiniSNNNeuronModel model;
+    char model_name[SCENARIO_NEURON_MODEL_MAX];
+    char error[256];
+    HWND dialog;
+    MSG message;
+
+    if (!controls_to_config(&config, error, sizeof(error)))
+    {
+        show_error("Configuracao invalida", error);
+        return;
+    }
+    GetWindowTextA(g_app.neuron_model_combo, model_name, sizeof(model_name));
+    if (!neuron_model_from_name(model_name, &model) ||
+        !ensure_neuron_model_class_registered())
+    {
+        show_error("Erro interno", "Nao foi possivel abrir os parametros do modelo.");
+        return;
+    }
+    memset(&g_neuron_model, 0, sizeof(g_neuron_model));
+    g_neuron_model.working_config = config;
+    g_neuron_model.model = model;
+    dialog = CreateWindowExA(
+        WS_EX_DLGMODALFRAME, "MiniSNNNeuronModelOptionsWindow",
+        "MODELO NEURONAL", WS_POPUP | WS_CAPTION | WS_SYSMENU,
+        CW_USEDEFAULT, CW_USEDEFAULT, 710, 490, g_app.window, NULL,
+        GetModuleHandleA(NULL), NULL);
+    if (dialog == NULL)
+    {
+        show_error("Erro interno", "Nao foi possivel criar a janela do modelo.");
+        return;
+    }
+    EnableWindow(g_app.window, FALSE);
+    ShowWindow(dialog, SW_SHOW);
+    UpdateWindow(dialog);
+    while (g_neuron_model.window != NULL && GetMessageA(&message, NULL, 0, 0) > 0)
+    {
+        if (!IsDialogMessageA(dialog, &message))
+        {
+            TranslateMessage(&message);
+            DispatchMessageA(&message);
+        }
+    }
+    EnableWindow(g_app.window, TRUE);
+    SetActiveWindow(g_app.window);
 }
 
 static void update_options_enabled(void)
@@ -6841,6 +7234,27 @@ static void create_controls(HWND hwnd)
     add_field(hwnd, IDC_SEED, "Seed", x1, y + 6 * STUDIO_ROW_HEIGHT, label_w, control_w);
     add_field(hwnd, IDC_DELAY, "Delay", x1, y + 7 * STUDIO_ROW_HEIGHT, label_w, control_w);
     add_field(hwnd, IDC_MAX_DELAY, "Delay maximo", x1, y + 8 * STUDIO_ROW_HEIGHT, label_w, control_w);
+    create_static(hwnd, "Modelo neuronal", x1,
+                  y + 9 * STUDIO_ROW_HEIGHT + STUDIO_LABEL_OFFSET_Y,
+                  label_w, STUDIO_LABEL_HEIGHT, 0);
+    g_app.neuron_model_combo = CreateWindowExA(
+        0, "COMBOBOX", "", WS_CHILD | WS_VISIBLE | CBS_DROPDOWNLIST,
+        x1 + label_w, y + 9 * STUDIO_ROW_HEIGHT,
+        STUDIO_TOPOLOGY_FIELD_WIDTH, 140, hwnd,
+        (HMENU)(INT_PTR)IDC_NEURON_MODEL, GetModuleHandleA(NULL), NULL);
+    SendMessageA(g_app.neuron_model_combo, WM_SETFONT,
+                 (WPARAM)g_app.edit_font, TRUE);
+    SendMessageA(g_app.neuron_model_combo, CB_ADDSTRING, 0, (LPARAM)"lif");
+    SendMessageA(g_app.neuron_model_combo, CB_ADDSTRING, 0, (LPARAM)"adex");
+    SendMessageA(g_app.neuron_model_combo, CB_ADDSTRING, 0,
+                 (LPARAM)"hodgkin_huxley");
+    SendMessageA(g_app.neuron_model_combo, CB_SETDROPPEDWIDTH,
+                 (WPARAM)STUDIO_TOPOLOGY_FIELD_WIDTH, 0);
+    g_app.neuron_model_options_button = create_button(
+        hwnd, "PARAMETROS", IDC_BTN_MODEL_OPTIONS,
+        x1 + label_w + STUDIO_TOPOLOGY_FIELD_WIDTH + STUDIO_BUTTON_GAP,
+        y + 9 * STUDIO_ROW_HEIGHT - 1,
+        STUDIO_TOPOLOGY_BUTTON_WIDTH, STUDIO_FIELD_HEIGHT + 2);
 
     section = create_static(hwnd, "[ PESOS, ENTRADA E SIMULACAO ]", x2, 100, 350, 24, 0);
     SendMessageA(section, WM_SETFONT, (WPARAM)g_app.summary_font, TRUE);
@@ -6850,22 +7264,12 @@ static void create_controls(HWND hwnd)
     add_field(hwnd, IDC_INPUT_CURRENT, "Corrente externa", x2, y + 3 * STUDIO_ROW_HEIGHT, label_w, control_w);
     add_field(hwnd, IDC_RECORD_NEURON, "Neuronio detalhado", x2, y + 4 * STUDIO_ROW_HEIGHT, label_w, control_w);
 
-    section = create_static(hwnd, "[ PARAMETROS LIF ]", x2, y + 6 * STUDIO_ROW_HEIGHT, 280, 24, 0);
-    SendMessageA(section, WM_SETFONT, (WPARAM)g_app.summary_font, TRUE);
-    add_field(hwnd, IDC_STEPS, "Passos", x2, y + 7 * STUDIO_ROW_HEIGHT, label_w, control_w);
-    add_field(hwnd, IDC_DT, "dt", x2, y + 8 * STUDIO_ROW_HEIGHT, label_w, control_w);
-    add_field(hwnd, IDC_TAU, "tau", x2, y + 9 * STUDIO_ROW_HEIGHT, label_w, control_w);
-    add_field(hwnd, IDC_V_REST, "V_rest", x2, y + 10 * STUDIO_ROW_HEIGHT, label_w, control_w);
-    add_field(hwnd, IDC_V_RESET, "V_reset", x2, y + 11 * STUDIO_ROW_HEIGHT, label_w, control_w);
-    add_field(hwnd, IDC_V_THRESHOLD, "V_threshold", x2, y + 12 * STUDIO_ROW_HEIGHT, label_w, control_w);
-    add_field(hwnd, IDC_RESISTANCE, "Resistencia", x2, y + 13 * STUDIO_ROW_HEIGHT, label_w, control_w);
-    add_field(hwnd, IDC_SYNAPTIC_DECAY, "Decaimento sinaptico", x2, y + 14 * STUDIO_ROW_HEIGHT, label_w, control_w);
     g_app.plasticity_button = create_button(
         hwnd,
         "PLASTICIDADE",
         IDC_BTN_PLASTICITY,
         x2,
-        y + 15 * STUDIO_ROW_HEIGHT + 2,
+        y + 6 * STUDIO_ROW_HEIGHT + 2,
         280,
         STUDIO_BUTTON_HEIGHT);
     g_app.homeostasis_button = create_button(
@@ -6873,7 +7277,7 @@ static void create_controls(HWND hwnd)
         "HOMEOSTASE",
         IDC_BTN_HOMEOSTASIS,
         x2,
-        y + 16 * STUDIO_ROW_HEIGHT + 2,
+        y + 7 * STUDIO_ROW_HEIGHT + 2,
         280,
         STUDIO_BUTTON_HEIGHT);
     g_app.reward_button = create_button(
@@ -6881,7 +7285,7 @@ static void create_controls(HWND hwnd)
         "RECOMPENSA",
         IDC_BTN_REWARD,
         x2,
-        y + 17 * STUDIO_ROW_HEIGHT + 2,
+        y + 8 * STUDIO_ROW_HEIGHT + 2,
         280,
         STUDIO_BUTTON_HEIGHT);
     g_app.evolution_button = create_button(
@@ -6889,7 +7293,7 @@ static void create_controls(HWND hwnd)
         "NEUROEVOLUCAO",
         IDC_BTN_EVOLUTION,
         x2,
-        y + 18 * STUDIO_ROW_HEIGHT + 2,
+        y + 9 * STUDIO_ROW_HEIGHT + 2,
         280,
         STUDIO_BUTTON_HEIGHT);
 
@@ -6952,16 +7356,18 @@ static void create_controls(HWND hwnd)
     g_app.buttons[20] = create_button(hwnd, "ABRIR HOMEOSTASE", IDC_BTN_OPEN_HOMEOSTASIS, right_x + STUDIO_BUTTON_WIDTH_LEFT + STUDIO_BUTTON_GAP, 116 + 11 * STUDIO_BUTTON_ROW_HEIGHT, STUDIO_BUTTON_WIDTH_RIGHT, STUDIO_BUTTON_HEIGHT);
     g_app.buttons[21] = create_button(hwnd, "GRAFICO RECOMPENSA", IDC_BTN_PLOT_REWARD, right_x, 116 + 12 * STUDIO_BUTTON_ROW_HEIGHT, STUDIO_BUTTON_WIDTH_LEFT, STUDIO_BUTTON_HEIGHT);
     g_app.buttons[22] = create_button(hwnd, "ABRIR RECOMPENSA", IDC_BTN_OPEN_REWARD, right_x + STUDIO_BUTTON_WIDTH_LEFT + STUDIO_BUTTON_GAP, 116 + 12 * STUDIO_BUTTON_ROW_HEIGHT, STUDIO_BUTTON_WIDTH_RIGHT, STUDIO_BUTTON_HEIGHT);
-    g_app.status_label = create_static(hwnd, "PRONTO PARA EXECUTAR", right_x, 714, 340, 42, IDC_STATUS);
+    g_app.buttons[23] = create_button(hwnd, "ABRIR ESTADO DO MODELO", IDC_BTN_OPEN_MODEL_STATE, right_x, 116 + 13 * STUDIO_BUTTON_ROW_HEIGHT, 340, STUDIO_BUTTON_HEIGHT);
+    g_app.buttons[24] = create_button(hwnd, "COMPARAR MODELOS", IDC_BTN_COMPARE_MODELS, right_x, 116 + 14 * STUDIO_BUTTON_ROW_HEIGHT, 340, STUDIO_BUTTON_HEIGHT);
+    g_app.status_label = create_static(hwnd, "PRONTO PARA EXECUTAR", right_x, 806, 340, 38, IDC_STATUS);
     g_app.summary_box = CreateWindowExA(
         WS_EX_CLIENTEDGE,
         "EDIT",
         "",
         WS_CHILD | WS_VISIBLE | ES_MULTILINE | ES_READONLY | ES_AUTOVSCROLL | WS_VSCROLL,
         right_x,
-        766,
+        848,
         340,
-        145,
+        72,
         hwnd,
         (HMENU)(INT_PTR)IDC_SUMMARY,
         GetModuleHandleA(NULL),
@@ -7292,6 +7698,9 @@ static LRESULT CALLBACK window_proc(
             case IDC_BTN_OPTIONS:
                 open_topology_options();
                 return 0;
+            case IDC_BTN_MODEL_OPTIONS:
+                open_neuron_model_options();
+                return 0;
             case IDC_BTN_PLASTICITY:
                 open_plasticity_options();
                 return 0;
@@ -7324,6 +7733,12 @@ static LRESULT CALLBACK window_proc(
                 return 0;
             case IDC_BTN_OPEN_REWARD:
                 open_reward_report();
+                return 0;
+            case IDC_BTN_OPEN_MODEL_STATE:
+                open_model_state();
+                return 0;
+            case IDC_BTN_COMPARE_MODELS:
+                compare_neuron_models_from_studio();
                 return 0;
             default:
                 break;

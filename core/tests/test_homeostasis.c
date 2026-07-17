@@ -409,6 +409,40 @@ static void test_independent_and_disabled_networks(void)
     minisnn_destroy(&second);
 }
 
+static void test_model_capability_validation(void)
+{
+    MiniSNNConfig network_config = minisnn_default_config();
+    MiniSNNHomeostasisConfig config = minisnn_default_homeostasis_config();
+    MiniSNN *snn;
+    double threshold;
+
+    network_config.neuron_count = 2;
+    network_config.neuron_model = MINISNN_NEURON_MODEL_ADEX;
+    network_config.dt = network_config.adex.dt;
+    snn = minisnn_create_with_config(&network_config);
+    require(snn != NULL, "create AdEx capability network");
+
+    config.enabled = 1;
+    config.intrinsic_enabled = 1;
+    require(!minisnn_set_homeostasis_config(snn, &config),
+        "AdEx rejects intrinsic homeostasis at configuration");
+    require(!minisnn_get_neuron_effective_threshold(snn, 0, &threshold),
+        "AdEx threshold accessor rejects unsupported capability");
+
+    config.intrinsic_enabled = 0;
+    config.synaptic_scaling_enabled = 1;
+    require(minisnn_set_homeostasis_config(snn, &config),
+        "AdEx accepts scaling without threshold capability");
+    config.synaptic_scaling_enabled = 0;
+    config.inhibitory_gain_enabled = 1;
+    require(minisnn_set_homeostasis_config(snn, &config),
+        "AdEx accepts inhibitory gain without threshold capability");
+    config.synaptic_scaling_enabled = 1;
+    require(minisnn_set_homeostasis_config(snn, &config),
+        "AdEx accepts scaling plus gain without threshold capability");
+    minisnn_destroy(&snn);
+}
+
 int main(void)
 {
     test_pure_formulas();
@@ -419,6 +453,7 @@ int main(void)
     test_public_api_validation_and_edges();
     test_scaling_zero_sum_and_self_connection();
     test_independent_and_disabled_networks();
+    test_model_capability_validation();
     printf("Homeostasis numerical validation OK\n");
     return 0;
 }

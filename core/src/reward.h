@@ -42,13 +42,13 @@ void reward_state_destroy(RewardState *state);
 int reward_state_configure(
     RewardState *state,
     const MiniSNNRewardConfig *config,
-    const LIFNeuron *neurons,
+    const Neuron *neurons,
     const ConnectionList *connections,
     PlasticityState *plasticity);
 
 int reward_state_reset(
     RewardState *state,
-    const LIFNeuron *neurons,
+    const Neuron *neurons,
     const ConnectionList *connections,
     PlasticityState *plasticity);
 
@@ -56,7 +56,7 @@ void reward_state_invalidate(RewardState *state);
 
 int reward_state_ensure(
     RewardState *state,
-    const LIFNeuron *neurons,
+    const Neuron *neurons,
     const ConnectionList *connections,
     PlasticityState *plasticity);
 
@@ -71,7 +71,7 @@ int reward_state_accumulate_candidates(
 
 int reward_state_apply_pending(
     RewardState *state,
-    const LIFNeuron *neurons,
+    const Neuron *neurons,
     ConnectionList *connections,
     PlasticityState *plasticity,
     unsigned long long current_step,

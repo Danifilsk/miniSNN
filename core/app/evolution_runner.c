@@ -21,10 +21,27 @@
 #define EVOLUTION_INDEX_HEADER \
     "timestamp,experiment_name,actual_experiment_name,experiment_path,config_path,base_scenario,population_size,generations,gene_count,best_fitness,best_individual_id,status,genome_mode,structure_enabled,best_connection_count,topology_unique_count,complexity_penalty,best_topology\n"
 #define EVOLUTION_FAILURE_MAX 159
-#define EVOLUTION_VERSION "C3-v1"
-#define EVOLUTION_STRUCTURE_CHECKPOINT_MAGIC "MINISNN_STRUCTURE_CHECKPOINT_V1"
+#define EVOLUTION_VERSION "C5-v1"
+#define EVOLUTION_STRUCTURE_CHECKPOINT_MAGIC "MINISNN_STRUCTURE_CHECKPOINT_V2"
+#define EVOLUTION_STRUCTURE_CHECKPOINT_MAGIC_C4 "MINISNN_STRUCTURE_CHECKPOINT_V1"
 #define EVOLUTION_HASH_OFFSET 1469598103934665603ULL
 #define EVOLUTION_HASH_PRIME 1099511628211ULL
+
+static const char *evolution_legacy_neural_display_name(
+    MiniSNNNeuronModel model)
+{
+    switch (model)
+    {
+    case MINISNN_NEURON_MODEL_LIF:
+        return "LIF";
+    case MINISNN_NEURON_MODEL_ADEX:
+        return "AdEx";
+    case MINISNN_NEURON_MODEL_HODGKIN_HUXLEY:
+        return "Hodgkin-Huxley";
+    default:
+        return "unknown";
+    }
+}
 
 typedef struct
 {
@@ -97,7 +114,7 @@ typedef struct
     char output_root[EVOLUTION_OUTPUT_PATH_MAX];
     char output_directory[EVOLUTION_OUTPUT_PATH_MAX];
     char actual_experiment_name[EVOLUTION_ACTUAL_NAME_MAX];
-    LIFNeuron *structure_neurons;
+    Neuron *structure_neurons;
     size_t structure_required_inputs[EVOLUTION_MAX_REQUIRED_NEURONS];
     size_t structure_required_outputs[EVOLUTION_MAX_REQUIRED_NEURONS];
     StructureConstraints structure_constraints;
@@ -577,7 +594,9 @@ static int initialize_structure_blueprint(
     context->neuron_blueprint_signature =
         structure_neuron_blueprint_signature(
             context->structure_neurons,
-            (size_t)context->blueprint.neuron_count);
+            (size_t)context->blueprint.neuron_count,
+            context->blueprint.neuron_model,
+            context->blueprint.neuron_model_config_signature);
     if (context->neuron_blueprint_signature == 0U)
     {
         set_error(error_message, error_message_size,
@@ -2507,7 +2526,8 @@ static int write_structure_checkpoint(
         return 0;
     if (fprintf(file,
             "%s\nsignature=%s\nnext_generation=%d\ncompleted=%d\n"
-            "neuron_blueprint_signature=%llu\npopulation_size=%zu\n"
+            "neuron_blueprint_signature=%llu\nneuron_model=%s\n"
+            "neuron_model_config_signature=%llu\npopulation_size=%zu\n"
             "current_generation=%d\nprng_state=%llu\nprng_increment=%llu\n"
             "global_best_structure_individual_id=%llu\n"
             "global_best_connection_count=%zu\n",
@@ -2516,6 +2536,8 @@ static int write_structure_checkpoint(
             next_generation,
             completed ? 1 : 0,
             (unsigned long long)context->neuron_blueprint_signature,
+            minisnn_neuron_model_name(context->blueprint.neuron_model),
+            (unsigned long long)context->blueprint.neuron_model_config_signature,
             engine->config.population_size,
             engine->current_generation,
             (unsigned long long)engine->prng.state,
@@ -2659,12 +2681,14 @@ static int read_structure_checkpoint(
     int completed;
     int current_generation;
     MiniSNNConnectionGene *genes = NULL;
+    int legacy_c4;
 
     if (!context->config.structure_enabled || engine == NULL || file == NULL ||
         fgets(line, sizeof(line), file) == NULL)
         return 0;
     line[strcspn(line, "\r\n")] = '\0';
-    if (strcmp(line, EVOLUTION_STRUCTURE_CHECKPOINT_MAGIC) != 0 ||
+    legacy_c4 = strcmp(line, EVOLUTION_STRUCTURE_CHECKPOINT_MAGIC_C4) == 0;
+    if ((!legacy_c4 && strcmp(line, EVOLUTION_STRUCTURE_CHECKPOINT_MAGIC) != 0) ||
         !read_checkpoint_key_string(file, "signature", signature, sizeof(signature)) ||
         strcmp(signature, context->signature) != 0 ||
         !read_checkpoint_key_ull(file, "next_generation", &value) ||
@@ -2672,7 +2696,19 @@ static int read_structure_checkpoint(
         !read_checkpoint_key_ull(file, "completed", &value) ||
         value > 1U || (completed = (int)value) != expected_completed ||
         !read_checkpoint_key_ull(file, "neuron_blueprint_signature", &neuron_signature) ||
-        neuron_signature != context->neuron_blueprint_signature ||
+        (legacy_c4 ?
+            (context->blueprint.neuron_model != MINISNN_NEURON_MODEL_LIF ||
+             neuron_signature != structure_neuron_blueprint_signature_legacy(
+                 context->structure_neurons,
+                 (size_t)context->blueprint.neuron_count)) :
+            neuron_signature != context->neuron_blueprint_signature) ||
+        (!legacy_c4 &&
+         (!read_checkpoint_key_string(file, "neuron_model", line, sizeof(line)) ||
+          strcmp(line, minisnn_neuron_model_name(
+              context->blueprint.neuron_model)) != 0 ||
+          !read_checkpoint_key_ull(
+              file, "neuron_model_config_signature", &value) ||
+          value != context->blueprint.neuron_model_config_signature)) ||
         !read_checkpoint_key_ull(file, "population_size", &value) ||
         value > SIZE_MAX ||
         (population_size = (size_t)value) != engine->config.population_size ||
@@ -3050,6 +3086,10 @@ static int write_manifest_and_report(
             "gene_count=%zu\nscalar_gene_count=%d\n"
             "genome_mode=%s\nstructure_enabled=%s\n"
             "neuron_blueprint_signature=%llu\n"
+            "neural_model=%s\nneuron_model=%s\n"
+            "neuron_model_config_signature=%llu\n"
+            "neuron_integration_method=%s\n"
+            "intrinsic_homeostasis_supported=%s\n"
             "evolve_exc_weights=%s\nevolve_inh_magnitudes=%s\n"
             "selection=tournament\ntournament_sampling=without_replacement\n"
             "crossover=uniform\nmutation=uniform_delta\n"
@@ -3062,7 +3102,7 @@ static int write_manifest_and_report(
             "best_connection_count=%zu\nbest_topology_signature=%llu\n"
             "parallel_evaluation=disabled\ncheckpoint_format=%s\nresume_used=%s\n"
             "save_all_genomes=%s\nwall_seconds=%.6f\n",
-            context->config.structure_enabled ? "C4-v1" : EVOLUTION_VERSION,
+            EVOLUTION_VERSION,
             context->signature,
             context->config.experiment_name, context->actual_experiment_name,
             context->config.base_scenario,
@@ -3073,6 +3113,16 @@ static int write_manifest_and_report(
             context->config.genome_mode,
             context->config.structure_enabled ? "true" : "false",
             (unsigned long long)context->neuron_blueprint_signature,
+            evolution_legacy_neural_display_name(
+                context->blueprint.neuron_model),
+            minisnn_neuron_model_name(context->blueprint.neuron_model),
+            (unsigned long long)
+                context->blueprint.neuron_model_config_signature,
+            minisnn_neuron_model_integration_method(
+                context->blueprint.neuron_model),
+            minisnn_neuron_model_capabilities(
+                context->blueprint.neuron_model)
+                    .supports_homeostatic_threshold ? "yes" : "no",
             context->config.evolve_exc_weights ? "true" : "false",
             context->config.evolve_inh_magnitudes ? "true" : "false",
             (unsigned long long)context->config.evolution_seed,
@@ -3093,7 +3143,7 @@ static int write_manifest_and_report(
                     context->neuron_blueprint_signature) :
                 context->blueprint.topology_signature),
             context->config.structure_enabled ?
-                "text_v1+structure_sidecar_v1" : "text_v1",
+                "text_v1+structure_sidecar_v2" : "text_v1",
             resumed ? "true" : "false",
             context->config.save_all_genomes ? "true" : "false",
             wall_seconds) < 0)

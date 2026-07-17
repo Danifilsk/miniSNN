@@ -209,7 +209,8 @@ int structural_plasticity_state_create(
     }
     structural_prng_seed(&state->prng, config->growth_seed);
     neuron_signature = structure_neuron_blueprint_signature(
-        net->neurons, (size_t)net->size);
+        net->neurons, (size_t)net->size, net->model_config.model,
+        neuron_model_config_signature(&net->model_config));
     state->stats.initial_connection_count =
         state->initial_topology.connection_count;
     state->stats.current_connection_count =
@@ -335,8 +336,9 @@ static void update_rate_traces(
     StructuralPlasticityState *state,
     const Network *net)
 {
-    double alpha = exp(-net->lif_parameters.dt / STRUCTURAL_TRACE_TAU);
-    double scale = (1.0 - alpha) / net->lif_parameters.dt;
+    double dt = neuron_model_dt(&net->model_config);
+    double alpha = exp(-dt / STRUCTURAL_TRACE_TAU);
+    double scale = (1.0 - alpha) / dt;
     for (int i = 0; i < net->size; i++)
         state->rate_traces[i] = alpha * state->rate_traces[i] +
             scale * (double)net->spikes[i];
@@ -680,7 +682,8 @@ int structural_plasticity_reset(
         stats.minimum_connection_count_observed = current.connection_count;
         stats.maximum_connection_count_observed = current.connection_count;
         neuron_signature = structure_neuron_blueprint_signature(
-            net->neurons, (size_t)net->size);
+            net->neurons, (size_t)net->size, net->model_config.model,
+            neuron_model_config_signature(&net->model_config));
         stats.initial_topology_signature = structure_topology_signature(
             &state->initial_topology, neuron_signature);
         stats.current_topology_signature = structure_topology_signature(

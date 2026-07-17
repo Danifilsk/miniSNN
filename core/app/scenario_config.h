@@ -3,9 +3,11 @@
 
 #include <stddef.h>
 #include <stdint.h>
+#include "minisnn_types.h"
 
 #define SCENARIO_RUN_NAME_MAX 48
 #define SCENARIO_TOPOLOGY_MAX 32
+#define SCENARIO_NEURON_MODEL_MAX 16
 #define SCENARIO_DIAGNOSTICS_LEVEL_MAX 8
 #define SCENARIO_PLASTICITY_RULE_MAX 32
 #define SCENARIO_LEARNING_MODE_MAX 32
@@ -24,6 +26,7 @@ typedef struct
 {
     char run_name[SCENARIO_RUN_NAME_MAX + 1];
     char topology[SCENARIO_TOPOLOGY_MAX];
+    MiniSNNNeuronModel neuron_model;
 
     int neurons;
     double inhibitory_fraction;
@@ -49,6 +52,9 @@ typedef struct
     double v_threshold;
     double resistance;
     double synaptic_decay;
+
+    MiniSNNAdExConfig adex;
+    MiniSNNHodgkinHuxleyConfig hodgkin_huxley;
 
     int small_world_neighbors;
     double small_world_rewire_probability;

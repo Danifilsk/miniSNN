@@ -16,6 +16,8 @@ typedef struct
     size_t connection_count;
     MiniSNNConnectionInfo *connections;
     unsigned long long topology_signature;
+    MiniSNNNeuronModel neuron_model;
+    unsigned long long neuron_model_config_signature;
 } ScenarioBlueprint;
 
 typedef struct
@@ -31,6 +33,10 @@ typedef struct
     int spikes[SCENARIO_RUNTIME_MAX_NEURONS];
     double voltages[SCENARIO_RUNTIME_MAX_NEURONS];
     double synaptic_currents[SCENARIO_RUNTIME_MAX_NEURONS];
+    double adex_adaptation[SCENARIO_RUNTIME_MAX_NEURONS];
+    double hh_m[SCENARIO_RUNTIME_MAX_NEURONS];
+    double hh_h[SCENARIO_RUNTIME_MAX_NEURONS];
+    double hh_n[SCENARIO_RUNTIME_MAX_NEURONS];
 } ScenarioRuntimeStep;
 
 int scenario_runtime_inhibitory_count(const ScenarioConfig *config);
@@ -46,6 +52,10 @@ const char *scenario_runtime_type_name(
     int inhibitory_count);
 
 void scenario_blueprint_destroy(ScenarioBlueprint *blueprint);
+
+int scenario_runtime_make_minisnn_config(
+    const ScenarioConfig *config,
+    MiniSNNConfig *out_config);
 
 int scenario_runtime_capture_network(
     const MiniSNN *snn,

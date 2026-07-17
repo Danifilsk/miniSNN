@@ -26,6 +26,10 @@
 - **Spike:** evento produzido quando o potencial cruza o limiar do modelo.
 - **Timestep:** passo discreto executado por `minisnn_step()`.
 - **LIF:** Leaky Integrate-and-Fire, modelo simplificado com integração, vazamento, limiar e reset.
+- **Modelo neuronal:** regra que define estado, update e emissao de spikes de
+  um neuronio. Nesta fase, o unico modelo disponivel e LIF.
+- **Interface de modelo neuronal:** dispatch interno que seleciona validacao,
+  inicializacao, reset, passo e capacidades do modelo da rede.
 - **Potencial de membrana:** estado `V` integrado pelo neurônio LIF.
 - **Limiar:** valor de potencial que dispara um spike.
 - **Reset:** valor atribuído ao potencial após o spike.

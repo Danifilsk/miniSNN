@@ -18,17 +18,67 @@ typedef struct
     double resistance;
 } LIFParameters;
 
+typedef MiniSNNAdExConfig AdExParameters;
+typedef MiniSNNHodgkinHuxleyConfig HodgkinHuxleyParameters;
+
 typedef struct
 {
-    // Potencial de membrana
-    double V;
+    int reserved;
+} LIFState;
 
-    // 1 = disparou neste passo
+typedef struct
+{
+    double w;
+} AdExState;
+
+typedef struct
+{
+    double m;
+    double h;
+    double n;
+    double previous_V;
+} HodgkinHuxleyState;
+
+typedef struct
+{
+    /* Estado observavel comum a todos os modelos. */
+    double V;
     int spike;
 
     NeuronType type;
+    MiniSNNNeuronModel model;
 
-} LIFNeuron;
+    union
+    {
+        LIFState lif;
+        AdExState adex;
+        HodgkinHuxleyState hh;
+    } state;
+
+} Neuron;
+
+typedef struct
+{
+    MiniSNNNeuronModel model;
+
+    union
+    {
+        LIFParameters lif;
+        AdExParameters adex;
+        HodgkinHuxleyParameters hh;
+    } data;
+
+} NeuronModelConfig;
+
+typedef struct
+{
+    double current;
+    int has_adaptive_threshold;
+    double adaptive_threshold;
+} NeuronStepContext;
+
+/* Compatibilidade da implementacao LIF existente. */
+typedef Neuron LIFNeuron;
 
 // Inicializa um neurônio
 void lif_parameters_default(LIFParameters *out_parameters);

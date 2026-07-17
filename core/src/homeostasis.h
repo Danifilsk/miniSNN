@@ -27,6 +27,10 @@ int homeostasis_config_is_valid(
     const MiniSNNHomeostasisConfig *config,
     double base_threshold);
 
+int homeostasis_validate_capabilities(
+    const MiniSNNHomeostasisConfig *config,
+    const MiniSNNNeuronModelCapabilities *capabilities);
+
 int homeostasis_state_init(HomeostasisState *state, int neuron_count);
 void homeostasis_state_destroy(HomeostasisState *state);
 
@@ -34,14 +38,14 @@ int homeostasis_state_configure(
     HomeostasisState *state,
     const MiniSNNHomeostasisConfig *config,
     double base_threshold,
-    const LIFNeuron *neurons,
+    const Neuron *neurons,
     const ConnectionList *connections,
     PlasticityState *incoming_index);
 
 int homeostasis_state_reset(
     HomeostasisState *state,
     double base_threshold,
-    const LIFNeuron *neurons,
+    const Neuron *neurons,
     const ConnectionList *connections,
     PlasticityState *incoming_index);
 
@@ -53,7 +57,7 @@ int homeostasis_apply_step(
     double dt,
     unsigned long long completed_steps,
     const int *spikes,
-    const LIFNeuron *neurons,
+    const Neuron *neurons,
     ConnectionList *connections,
     PlasticityState *incoming_index);
 
@@ -69,7 +73,7 @@ double homeostasis_transmission_gain(
 int homeostasis_current_incoming_sum(
     HomeostasisState *state,
     int neuron_id,
-    const LIFNeuron *neurons,
+    const Neuron *neurons,
     const ConnectionList *connections,
     PlasticityState *incoming_index,
     double *out_sum);

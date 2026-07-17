@@ -311,7 +311,27 @@ int structure_genome_validate(
 }
 
 uint64_t structure_neuron_blueprint_signature(
-    const LIFNeuron *neurons,
+    const Neuron *neurons,
+    size_t neuron_count,
+    MiniSNNNeuronModel model,
+    uint64_t neuron_model_config_signature)
+{
+    uint64_t hash = STRUCTURE_FNV_OFFSET;
+    if (neurons == NULL || neuron_count == 0 ||
+        !neuron_model_is_valid(model) ||
+        neuron_model_config_signature == 0U)
+        return 0U;
+    hash_u64(&hash, 5U);
+    hash_u64(&hash, (uint64_t)neuron_count);
+    for (size_t i = 0; i < neuron_count; i++)
+        hash_u64(&hash, (uint64_t)neurons[i].type);
+    hash_u64(&hash, (uint64_t)model);
+    hash_u64(&hash, neuron_model_config_signature);
+    return hash;
+}
+
+uint64_t structure_neuron_blueprint_signature_legacy(
+    const Neuron *neurons,
     size_t neuron_count)
 {
     uint64_t hash = STRUCTURE_FNV_OFFSET;
@@ -1413,7 +1433,8 @@ int structure_validate_network_patch(
         return patch_fail(result, "autoconexao nao autorizada");
     }
     neuron_signature = structure_neuron_blueprint_signature(
-        net->neurons, (size_t)net->size);
+        net->neurons, (size_t)net->size, net->model_config.model,
+        neuron_model_config_signature(&net->model_config));
     if (result != NULL)
         result->signature_before =
             structure_topology_signature(&current, neuron_signature);
@@ -1468,7 +1489,8 @@ int structure_apply_network_patch_at_step(
             operations, operation_count, &constraints))
         goto fail;
     neuron_signature = structure_neuron_blueprint_signature(
-        net->neurons, (size_t)net->size);
+        net->neurons, (size_t)net->size, net->model_config.model,
+        neuron_model_config_signature(&net->model_config));
     effective_result->signature_before =
         structure_topology_signature(&before, neuron_signature);
     if (!apply_patch_to_genome(

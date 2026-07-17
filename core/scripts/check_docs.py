@@ -50,6 +50,7 @@ CENTRAL_DOCUMENTS = (
     "docs/BENCHMARKS_C3_NEUROEVOLUCAO.md",
     "docs/GUIA_DE_TOPOLOGIA_ADAPTATIVA.md",
     "docs/BENCHMARKS_C4_TOPOLOGIA.md",
+    "docs/GUIA_DE_MODELOS_NEURONAIS.md",
     "docs/CHECKLIST_DE_VALIDACAO_DO_STUDIO.md",
 )
 
@@ -499,8 +500,25 @@ def validate_docs(root: Path) -> list[str]:
         errors.append("roadmap não marca C3 como concluído")
     if "C4 — topologia adaptativa e evolução estrutural (concluído)" not in roadmap:
         errors.append("roadmap não marca C4 como concluído")
-    if "C5 — próximo: modelos neurais avançados" not in roadmap:
-        errors.append("roadmap não mantém C5 como próximo")
+    if "[x] C5" not in roadmap:
+        errors.append("roadmap não marca C5 como concluído")
+    if re.search(r"C5[^\n]*próximo", roadmap, re.IGNORECASE):
+        errors.append("roadmap ainda apresenta C5 como próximo")
+    if "C6" not in roadmap or "C7" not in roadmap or "D1" not in roadmap:
+        errors.append("roadmap não documenta a sequência C6/C7/D1")
+    if "C6 -> C7 -> D1 -> Worlds" not in roadmap:
+        errors.append("roadmap não documenta o caminho oficial para Worlds")
+    if "E0:" in roadmap:
+        errors.append("roadmap ainda apresenta E0 como próximo")
+    monorepo = (root.parent / "docs" / "architecture" / "MONOREPO.md").read_text(
+        encoding="utf-8"
+    )
+    if "unico modelo implementado" in monorepo.lower():
+        errors.append("arquitetura ainda declara LIF como único modelo")
+    model_guide = texts.get(root / "docs" / "GUIA_DE_MODELOS_NEURONAIS.md", "")
+    for model_name in ("LIF", "AdEx", "Hodgkin-Huxley"):
+        if model_name not in model_guide:
+            errors.append(f"guia de modelos sem {model_name}")
 
     for required_output in (
         "metrics_report.html",

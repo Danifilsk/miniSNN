@@ -98,6 +98,17 @@ int homeostasis_config_is_valid(
     return 1;
 }
 
+int homeostasis_validate_capabilities(
+    const MiniSNNHomeostasisConfig *config,
+    const MiniSNNNeuronModelCapabilities *capabilities)
+{
+    if (config == NULL || capabilities == NULL)
+        return 0;
+    if (!config->enabled || !config->intrinsic_enabled)
+        return 1;
+    return capabilities->supports_homeostatic_threshold != 0;
+}
+
 static void homeostasis_free_arrays(HomeostasisState *state)
 {
     free(state->rate_trace);
@@ -139,7 +150,7 @@ void homeostasis_state_destroy(HomeostasisState *state)
 
 static int ensure_incoming_index(
     PlasticityState *incoming_index,
-    const LIFNeuron *neurons,
+    const Neuron *neurons,
     const ConnectionList *connections)
 {
     if (incoming_index == NULL)
@@ -152,7 +163,7 @@ static int ensure_incoming_index(
 static int calculate_incoming_sum(
     const HomeostasisState *state,
     int neuron_id,
-    const LIFNeuron *neurons,
+    const Neuron *neurons,
     const ConnectionList *connections,
     const PlasticityState *incoming_index,
     double *out_sum)
@@ -190,7 +201,7 @@ static int calculate_incoming_sum(
 
 static int capture_targets(
     HomeostasisState *state,
-    const LIFNeuron *neurons,
+    const Neuron *neurons,
     const ConnectionList *connections,
     PlasticityState *incoming_index)
 {
@@ -248,7 +259,7 @@ int homeostasis_state_configure(
     HomeostasisState *state,
     const MiniSNNHomeostasisConfig *config,
     double base_threshold,
-    const LIFNeuron *neurons,
+    const Neuron *neurons,
     const ConnectionList *connections,
     PlasticityState *incoming_index)
 {
@@ -294,7 +305,7 @@ int homeostasis_state_configure(
 int homeostasis_state_reset(
     HomeostasisState *state,
     double base_threshold,
-    const LIFNeuron *neurons,
+    const Neuron *neurons,
     const ConnectionList *connections,
     PlasticityState *incoming_index)
 {
@@ -424,7 +435,7 @@ static int apply_thresholds(HomeostasisState *state)
 
 static int apply_scaling(
     HomeostasisState *state,
-    const LIFNeuron *neurons,
+    const Neuron *neurons,
     ConnectionList *connections,
     PlasticityState *incoming_index)
 {
@@ -553,7 +564,7 @@ int homeostasis_apply_step(
     double dt,
     unsigned long long completed_steps,
     const int *spikes,
-    const LIFNeuron *neurons,
+    const Neuron *neurons,
     ConnectionList *connections,
     PlasticityState *incoming_index)
 {
@@ -657,7 +668,7 @@ double homeostasis_transmission_gain(
 int homeostasis_current_incoming_sum(
     HomeostasisState *state,
     int neuron_id,
-    const LIFNeuron *neurons,
+    const Neuron *neurons,
     const ConnectionList *connections,
     PlasticityState *incoming_index,
     double *out_sum)
