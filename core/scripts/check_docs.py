@@ -52,6 +52,7 @@ CENTRAL_DOCUMENTS = (
     "docs/BENCHMARKS_C4_TOPOLOGIA.md",
     "docs/GUIA_DE_MEMORIA_DE_TRABALHO.md",
     "docs/GUIA_DE_MEMORIA_ASSOCIATIVA.md",
+    "docs/GUIA_DA_INTERFACE_CEREBRO_AGENTE.md",
     "docs/GUIA_DE_MODELOS_NEURONAIS.md",
     "docs/CHECKLIST_DE_VALIDACAO_DO_STUDIO.md",
 )
@@ -60,6 +61,8 @@ IMPORTANT_FILES = (
     "Makefile",
     "include/minisnn.h",
     "include/minisnn_types.h",
+    "include/minisnn_agent_io.h",
+    "src/agent_io.c",
     "app/minisnn_studio.c",
     "app/minisnn_runner.c",
     "app/scenario_config.c",
@@ -152,6 +155,7 @@ IMPORTANT_FILES = (
     "tests/test_plot_topology.py",
     "tests/test_working_memory.c",
     "tests/test_associative_memory.c",
+    "tests/test_agent_io.c",
 )
 
 REQUIRED_TARGETS = (
@@ -234,6 +238,8 @@ REQUIRED_TARGETS = (
     "test-associative-memory",
     "scenario-associative-memory",
     "check-c6",
+    "test-agent-io",
+    "check-c7",
 )
 
 IMPORTANT_KEYS = (
@@ -517,7 +523,9 @@ def validate_docs(root: Path) -> list[str]:
         errors.append("roadmap não marca C5 como concluído")
     if re.search(r"C5[^\n]*próximo", roadmap, re.IGNORECASE):
         errors.append("roadmap ainda apresenta C5 como próximo")
-    if "C6" not in roadmap or "C7" not in roadmap or "D1" not in roadmap:
+    if ("C6" not in roadmap or "C7.1" not in roadmap or "C7.2" not in roadmap or
+            "C7.3" not in roadmap or "C7.4" not in roadmap or "C7.5" not in roadmap or
+            "D1" not in roadmap):
         errors.append("roadmap não documenta a sequência C6/C7/D1")
     if "C6 -> C7 -> D1 -> Worlds" not in roadmap:
         errors.append("roadmap não documenta o caminho oficial para Worlds")
@@ -526,7 +534,11 @@ def validate_docs(root: Path) -> list[str]:
     if "D1 — integração do Core com o próximo estágio de domínio" in roadmap:
         errors.append("roadmap ainda apresenta a descricao antiga de D1")
     for token in (
-        "C7 — interface genérica cérebro-agente",
+        "C7.1 - contratos genericos de sensores, acoes e frames numericos",
+        "C7.2 - codificacao generica de sensores numericos para entrada neural",
+        "C7.3 - decodificacao generica de atividade neural para acoes numericas",
+        "C7.4 - reward, reset e ciclo cerebro-agente",
+        "C7.5 - integracao e auditoria da interface cerebro-agente",
         "D1 — auditoria e congelamento do Core antes do Worlds",
         "Worlds Kernel -> Domain minimo -> Brain Bridge -> organismo headless -> App minimo -> D2 pos-integracao",
     ):

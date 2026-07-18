@@ -20,10 +20,14 @@ O roadmap indica ordem de trabalho, não promessa de prazo.
 - [x] C4 — topologia adaptativa, evolução estrutural e plasticidade estrutural de lifetime.
 - [x] C5 — modelos neuronais avançados: LIF, AdEx e Hodgkin-Huxley.
 - [x] C6 — memória de trabalho, memória associativa, predição contextual e integração/auditoria.
+- [x] C7.1 - contratos genericos de sensores, acoes e frames numericos.
 
 ## Próximo
 
-- [ ] C7 — interface genérica cérebro-agente: sensores numéricos -> codificação -> SNN -> decodificação de ações.
+- [ ] C7.2 - codificacao generica de sensores numericos para entrada neural.
+- [ ] C7.3 - decodificacao generica de atividade neural para acoes numericas.
+- [ ] C7.4 - reward, reset e ciclo cerebro-agente.
+- [ ] C7.5 - integracao e auditoria da interface cerebro-agente.
 - [ ] D1 — auditoria e congelamento do Core antes do Worlds.
 - [ ] Revisão humana do checklist do Studio.
 

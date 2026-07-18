@@ -48,6 +48,7 @@ def main() -> int:
         "docs/GUIA_DE_TOPOLOGIA_ADAPTATIVA.md",
         "docs/GUIA_DE_MEMORIA_DE_TRABALHO.md",
         "docs/GUIA_DE_MEMORIA_DE_TRABALHO.md",
+        "docs/GUIA_DA_INTERFACE_CEREBRO_AGENTE.md",
         "docs/BENCHMARKS_C4_TOPOLOGIA.md",
         "tests/test_structure.c",
         "tests/test_structural_plasticity.c",

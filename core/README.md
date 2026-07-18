@@ -171,6 +171,14 @@ somente pelos pesos em blueprints recarregaveis. Execute
 `mingw32-make scenario-c6-suite` para gerar um resumo local sem score cognitivo
 universal. Veja o [Guia de cognicao C6](docs/GUIA_DE_COGNICAO_C6.md).
 
+## Interface cerebro-agente C7.1
+
+O C7.1 fornece contratos numericos para schemas de sensores e acoes, frames
+copiados e um ciclo deterministico por tick. Ele nao codifica spikes, nao
+decodifica acoes e nao conhece nenhum dominio externo. Use
+`mingw32-make test-agent-io` para validar o contrato. Veja o
+[Guia da interface cerebro-agente](docs/GUIA_DA_INTERFACE_CEREBRO_AGENTE.md).
+
 ## Estrutura
 
 ```text
@@ -209,6 +217,7 @@ Referências diretas:
 - [Guia de memoria de trabalho](docs/GUIA_DE_MEMORIA_DE_TRABALHO.md)
 - [Guia de memoria associativa](docs/GUIA_DE_MEMORIA_ASSOCIATIVA.md)
 - [Guia de sequencias e previsao](docs/GUIA_DE_SEQUENCIAS_E_PREVISAO.md)
+- [Guia da interface cerebro-agente](docs/GUIA_DA_INTERFACE_CEREBRO_AGENTE.md)
 - [Referência da API pública](API_REFERENCE.md)
 - [Roadmap](docs/ROADMAP.md)
 

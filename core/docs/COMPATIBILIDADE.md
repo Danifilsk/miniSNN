@@ -165,3 +165,14 @@ como C5.
 
 Redes hibridas e evolucao do tipo ou dos parametros neuronais nao fazem parte
 deste bloco.
+
+# Compatibilidade C7.1
+
+Os contratos C7.1 sao uma API publica adicional em
+`include/minisnn_agent_io.h`; eles nao alteram configuracoes, checkpoints,
+outputs ou dinamica de cenarios existentes. Schemas textuais possuem versao
+propria e so sao aceitos quando o formato e os limites sao compativeis.
+
+O contexto copia schemas e frames, por isso o chamador pode liberar seus dados
+externos apos criacao ou submit. Assinaturas C7.1 nao substituem assinaturas
+neuronais ou topologicas do Core.

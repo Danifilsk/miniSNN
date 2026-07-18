@@ -13,6 +13,13 @@ O Core possui uma fronteira interna comum para redes homogêneas LIF, AdEx e
 Hodgkin-Huxley. O C5 foi concluído sem introduzir redes híbridas ou
 dependências para os módulos futuros do monorepo.
 
+## C7.1: contratos cerebro-agente
+
+O Core agora expoe schemas e frames numericos por `core/include/minisnn_agent_io.h`.
+Essa interface permanece independente de qualquer dominio e nao cria uma
+dependencia de Worlds. A ponte que conectara I/O numerico a SNN permanece
+planejada para C7.2.
+
 ## Limites planejados
 
 - Core nao depende de Worlds.

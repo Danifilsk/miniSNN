@@ -946,3 +946,47 @@ Le `V`, adaptacao `w` e spike de um neuronio AdEx.
 ### minisnn_get_hodgkin_huxley_state
 
 Le `V`, gates `m`, `h`, `n` e spike de um neuronio Hodgkin-Huxley.
+
+## Interface cerebro-agente C7.1
+
+`include/minisnn_agent_io.h` define uma API publica independente da rede
+neural. Ela descreve canais numericos, schemas opacos, frames com ownership
+explicito e uma maquina de estados por tick. Valores fora dos limites sao
+rejeitados, nunca clampados silenciosamente.
+
+### Schemas e assinaturas
+
+`minisnn_sensor_schema_create` e `minisnn_action_schema_create` copiam ids,
+nomes e limites; a ordem fornecida pelo chamador e a ordem canonica do frame.
+Os schemas exigem ao menos um canal, ids e nomes unicos e valores finitos.
+Nomes seguem ASCII imprimivel (`0x20..0x7E`); controle, `DEL` e bytes estendidos
+sao rejeitados.
+
+`minisnn_sensor_schema_signature`, `minisnn_action_schema_signature` e
+`minisnn_agent_io_contract_signature` usam FNV-1a 64-bit padrao com serializacao
+explicita da versao, quantidade, id, nome, minimo, maximo e default.
+
+### Frames e ciclo por tick
+
+Inicialize `MiniSNNSensorFrame` e `MiniSNNActionFrame` com `{0}` e use as
+funcoes `*_frame_init`, `*_frame_set_values`, `*_frame_reset` e
+`*_frame_destroy`. O contexto criado por `minisnn_agent_io_create` copia os
+schemas e tambem copia cada frame submetido.
+
+O ciclo valido e `submit_sensor_frame(tick)`, `consume_sensor_frame`,
+`submit_action_frame(mesmo tick)`, `finish_tick` e `consume_action_frame`.
+Os consumes copiam para buffers inicializados pelo chamador e cada frame pode
+ser consumido uma unica vez. A action exige que o sensor pendente ja tenha sido
+consumido, e um novo tick e bloqueado ate que a action finalizada anterior seja
+consumida. Um sensor duplicado, consumo duplicado, acao antecipada, tick
+regressivo ou acao com tick diferente retorna erro consultavel por
+`minisnn_agent_io_last_error` e `minisnn_agent_io_error_string` sem alterar o
+estado ja aceito.
+
+### Texto estavel
+
+`minisnn_sensor_schema_write_file`/`read_file` e as variantes de action
+produzem schemas versionados e legiveis. O formato usa bits hexadecimais para
+valores double e nao depende do locale; arquivo incompativel e rejeitado.
+Caracteres de nome fora de `A-Z`, `a-z`, `0-9`, `_`, `-` e `.` sao
+percent-encoded no texto estavel.

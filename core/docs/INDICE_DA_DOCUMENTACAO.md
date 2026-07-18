@@ -28,6 +28,7 @@ implementados, experimentais e planejados.
 - [Guia de memoria de trabalho](GUIA_DE_MEMORIA_DE_TRABALHO.md) — protocolo temporal C6.1, metricas de recall, outputs e limites.
 - [Guia de memoria associativa](GUIA_DE_MEMORIA_ASSOCIATIVA.md) — treino STDP cue-alvo, recall parcial, controles e limites C6.2.
 - [Guia de sequencias e previsao](GUIA_DE_SEQUENCIAS_E_PREVISAO.md) — treino temporal por STDP, prefixo, previsao, controles e limites C6.3.
+- [Guia da interface cerebro-agente](GUIA_DA_INTERFACE_CEREBRO_AGENTE.md) - schemas numericos, frames, ticks, ownership e limites C7.1.
 
 Os guias de diagnóstico e plasticidade também explicam os relatórios locais
 `metrics_report.html` e `weights_report.html`. Eles são a camada de leitura;
