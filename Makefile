@@ -12,7 +12,7 @@ endif
 endif
 CORE_DIR = core
 
-.PHONY: all help clean core core-tests core-studio core-evolution test test-architecture test-working-memory test-associative-memory test-sequence-prediction scenario-working-memory scenario-associative-memory scenario-sequence-prediction scenario-sequence-prediction-context check-c6
+.PHONY: all help clean core core-tests core-studio core-evolution test test-architecture test-working-memory test-associative-memory test-sequence-prediction test-c6-checkpoints test-c6-integration test-c6-long scenario-working-memory scenario-associative-memory scenario-sequence-prediction scenario-sequence-prediction-context scenario-c6-suite check-c6
 
 all: test
 
@@ -29,7 +29,8 @@ help:
 	@echo   mingw32-make scenario-associative-memory - executa o demonstrador C6.2
 	@echo   mingw32-make scenario-sequence-prediction - executa o demonstrador C6.3
 	@echo   mingw32-make scenario-sequence-prediction-context - executa o demonstrador contextual C6.3
-	@echo   mingw32-make check-c6         - verifica C6.1, C6.2 e C6.3
+	@echo   mingw32-make scenario-c6-suite - executa a suite integrada C6
+	@echo   mingw32-make check-c6         - verifica C6.1-C6.4 (cognicao e memoria)
 	@echo   mingw32-make test             - testes do Core e arquitetura do monorepo
 	@echo   mingw32-make test-architecture - valida isolamento e estrutura M1
 	@echo   mingw32-make <target-do-core> - encaminha targets legados ao Core
@@ -55,6 +56,15 @@ test-associative-memory:
 test-sequence-prediction:
 	$(MAKE) -C $(CORE_DIR) test-sequence-prediction
 
+test-c6-checkpoints:
+	$(MAKE) -C $(CORE_DIR) test-c6-checkpoints
+
+test-c6-integration:
+	$(MAKE) -C $(CORE_DIR) test-c6-integration
+
+test-c6-long:
+	$(MAKE) -C $(CORE_DIR) test-c6-long
+
 scenario-working-memory:
 	$(MAKE) -C $(CORE_DIR) scenario-working-memory
 
@@ -66,6 +76,9 @@ scenario-sequence-prediction:
 
 scenario-sequence-prediction-context:
 	$(MAKE) -C $(CORE_DIR) scenario-sequence-prediction-context
+
+scenario-c6-suite:
+	$(MAKE) -C $(CORE_DIR) scenario-c6-suite
 
 check-c6:
 	$(MAKE) -C $(CORE_DIR) check-c6

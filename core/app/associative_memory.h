@@ -47,6 +47,7 @@ typedef struct
     double training_weight_absolute_change;
     int recall_weights_changed;
     int recall_reconstructed_from_blueprint;
+    ScenarioBlueprint learned_blueprint;
     int training_record_count;
     AssociativeMemoryTrainingRecord *training_records;
     int connection_count;
@@ -80,5 +81,14 @@ int associative_memory_write_outputs(
     const char *output_directory,
     char *error_message,
     size_t error_message_size);
+
+#ifdef MINISNN_TESTING
+int associative_memory_test_recall_accuracy(
+    const ScenarioConfig *config,
+    const ScenarioBlueprint *blueprint,
+    double *out_accuracy,
+    char *error_message,
+    size_t error_message_size);
+#endif
 
 #endif

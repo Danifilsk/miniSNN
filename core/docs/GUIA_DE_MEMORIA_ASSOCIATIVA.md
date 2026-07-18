@@ -1,5 +1,11 @@
 # Memoria Associativa C6.2
 
+A associacao fica nos pesos. Ao final do treino, o runner grava
+`associative_memory_checkpoint.txt` com modelo, assinatura neuronal, tipos,
+topologia, pesos e delays. O recall usa uma rede reconstruida e limpa; tensoes,
+spikes, traces e eligibility do treino nao sao persistidos. O alvo esperado e
+usado somente depois da decodificacao neural para medir a resposta.
+
 O protocolo C6.2 mede associacao temporal aprendida por STDP em uma rede SNN.
 Ele nao copia o cue para a resposta: o padrao recuperado e decodificado apenas
 dos spikes dos grupos alvo durante o probe.

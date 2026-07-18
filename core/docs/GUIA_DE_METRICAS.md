@@ -27,6 +27,21 @@ As definicoes canonicas, formulas e nomes com prefixos estao em
 `docs/GUIA_DE_DIAGNOSTICO.md`. `metrics.csv` e a fonte preferencial para runs
 novas; a comparacao mantem fallback para runs antigas.
 
+## Metricas dos protocolos C6
+
+Memoria de trabalho registra `recall_accuracy`, `control_accuracy` e
+`retention_margin`; sua persistencia e dinamica e desaparece apos reset ou
+reconstrucao. Memoria associativa registra `recall_accuracy`,
+`control_accuracy` e `association_margin`; a associacao persiste nos pesos.
+Predicao sequencial registra `next_pattern_accuracy`, o controle de ultimo
+simbolo e `context_margin`; a informacao de transicao/contexto tambem persiste
+nos pesos. Os alvos esperados entram somente depois da resposta neural ter sido
+decodificada, para calcular metricas.
+
+`c6_suite_summary.csv` reune, sem formar um escore universal, protocolo,
+modelo, assinatura neuronal, topologia, seed, controle, margem, persistencia e
+status. Campos nao aplicaveis usam `NA`, nunca `NaN` ou infinito.
+
 Geracao manual:
 
 ```powershell

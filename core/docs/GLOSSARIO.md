@@ -27,7 +27,8 @@
 - **Timestep:** passo discreto executado por `minisnn_step()`.
 - **LIF:** Leaky Integrate-and-Fire, modelo simplificado com integração, vazamento, limiar e reset.
 - **Modelo neuronal:** regra que define estado, update e emissao de spikes de
-  um neuronio. Nesta fase, o unico modelo disponivel e LIF.
+  um neuronio. O Core implementa LIF, AdEx e Hodgkin-Huxley em redes
+  homogeneas; cada instancia seleciona um modelo no momento da criacao.
 - **Interface de modelo neuronal:** dispatch interno que seleciona validacao,
   inicializacao, reset, passo e capacidades do modelo da rede.
 - **Potencial de membrana:** estado `V` integrado pelo neurônio LIF.

@@ -12,6 +12,8 @@ implementados, experimentais e planejados.
 
 ## Para executar experimentos
 
+- [Guia de cognicao C6](GUIA_DE_COGNICAO_C6.md) - visao integrada de memoria dinamica, associativa e previsao contextual.
+
 - [Guia de cenários](GUIA_DE_CENARIOS.md) — chaves INI, topologias e execução reproduzível.
 - [Guia de modelos neuronais](GUIA_DE_MODELOS_NEURONAIS.md) — LIF, AdEx, Hodgkin-Huxley e limites de interpretação.
 - [Guia de experimentos](GUIA_DE_EXPERIMENTOS.md) — programas científicos exploratórios preservados.

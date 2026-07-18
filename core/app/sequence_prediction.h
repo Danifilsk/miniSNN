@@ -53,6 +53,7 @@ typedef struct
     double training_weight_absolute_change;
     int evaluation_weights_changed;
     int evaluation_reconstructed_from_blueprint;
+    ScenarioBlueprint learned_blueprint;
     int training_record_count;
     SequencePredictionTrainingRecord *training_records;
     int connection_count;
@@ -90,5 +91,14 @@ int sequence_prediction_write_outputs(
     const char *output_directory,
     char *error_message,
     size_t error_message_size);
+
+#ifdef MINISNN_TESTING
+int sequence_prediction_test_accuracy(
+    const ScenarioConfig *config,
+    const ScenarioBlueprint *blueprint,
+    double *out_accuracy,
+    char *error_message,
+    size_t error_message_size);
+#endif
 
 #endif

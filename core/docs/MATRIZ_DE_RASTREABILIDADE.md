@@ -2,8 +2,12 @@
 
 | Feature | Configuração | Implementação | Teste | Saída observável | Documentação | Status |
 |---|---|---|---|---|---|---|
+| Memoria de trabalho C6.1 | `[working_memory]` | `app/working_memory.c` | `test_working_memory`, integracao e long run | trials, resumo e HTML | [Memoria de trabalho](GUIA_DE_MEMORIA_DE_TRABALHO.md) | Dinamica; apagada por reset |
+| Memoria associativa C6.2 | `[associative_memory]` | `app/associative_memory.c`, blueprint | `test_associative_memory`, checkpoints e long run | pesos, checkpoint, resumo e HTML | [Memoria associativa](GUIA_DE_MEMORIA_ASSOCIATIVA.md) | Sinaptica; reconstruida em rede limpa |
+| Predicao contextual C6.3 | `[sequence_prediction]` | `app/sequence_prediction.c`, blueprint | `test_sequence_prediction`, checkpoints e long run | trials, checkpoint, resumo e HTML | [Sequencias](GUIA_DE_SEQUENCIAS_E_PREVISAO.md) | Contextual; nao e predicao geral |
+| Integracao C6.4 | suite e checkpoints | `app/c6_suite.c`, `app/scenario_runtime.c` | `test-c6-integration`, `test-c6-checkpoints`, `check-c6` | CSV, TXT e HTML da suite | [Cognicao C6](GUIA_DE_COGNICAO_C6.md) | Automatizado; Studio manual |
 | LIF | `dt`, `tau`, `v_*`, `resistance` | `src/neuron.c`, `src/network.c` | `test_LIF`, `test_topology` | tensão e spike | [Auditoria](AUDITORIA_DO_CORE_V02.md) | Implementado; casos discretos numericamente validados |
-| Interface de modelo neuronal C5 | `neuron_model` e `[neuron] model` | `src/neuron_model.c`, `src/network.c`, parser e API | `test_neuron_model`, `test_scenario_config` | `config_used.ini`, resumo e manifesto | [Modelos](GUIA_DE_MODELOS_NEURONAIS.md) | LIF preservado; modelos adicionais fora de escopo |
+| Interface de modelo neuronal C5 | `neuron_model` e `[neuron] model` | `src/neuron_model.c`, `src/network.c`, parser e API | `test_neuron_model`, `test_scenario_config` | `config_used.ini`, resumo e manifesto | [Modelos](GUIA_DE_MODELOS_NEURONAIS.md) | LIF, AdEx e Hodgkin-Huxley implementados |
 | API pública | `MiniSNNConfig` | `include/minisnn.h`, `src/minisnn.c` | `test_minisnn_api` | getters e retorno das funções | [API Reference](../API_REFERENCE.md) | Implementado |
 | Topologias | `topology` e opções | `app/scenario_runner.c` | `test_runner_topologies`, golden | assinatura, pares, contagem e CSVs | [Auditoria](AUDITORIA_DO_CORE_V02.md) | Caminho do runner validado estruturalmente |
 | Self-connections | `allow_self_connections` | funções `_ex` e runner | `test_minisnn_api`, `test_scenario_runner` | contagem de conexões | [Compatibilidade](COMPATIBILIDADE.md) | Implementado |

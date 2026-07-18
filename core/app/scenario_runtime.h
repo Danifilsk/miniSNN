@@ -53,6 +53,18 @@ const char *scenario_runtime_type_name(
 
 void scenario_blueprint_destroy(ScenarioBlueprint *blueprint);
 
+int scenario_blueprint_write_checkpoint(
+    const ScenarioBlueprint *blueprint,
+    const char *filename,
+    char *error_message,
+    size_t error_message_size);
+
+int scenario_blueprint_load_checkpoint(
+    const char *filename,
+    ScenarioBlueprint *out_blueprint,
+    char *error_message,
+    size_t error_message_size);
+
 int scenario_runtime_make_minisnn_config(
     const ScenarioConfig *config,
     MiniSNNConfig *out_config);

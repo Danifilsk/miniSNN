@@ -3641,7 +3641,8 @@ static int write_run_manifest(
             associative_memory_files,
             sizeof(associative_memory_files),
             ";associative_memory_training.csv;associative_memory_trials.csv;"
-            "associative_memory_summary.txt;associative_memory_report.html");
+            "associative_memory_summary.txt;associative_memory_report.html;"
+            "associative_memory_checkpoint.txt");
     }
 
     if (config->sequence_prediction_enabled)
@@ -3650,7 +3651,8 @@ static int write_run_manifest(
             sequence_prediction_files,
             sizeof(sequence_prediction_files),
             ";sequence_prediction_training.csv;sequence_prediction_trials.csv;"
-            "sequence_prediction_summary.txt;sequence_prediction_report.html");
+            "sequence_prediction_summary.txt;sequence_prediction_report.html;"
+            "sequence_prediction_checkpoint.txt");
     }
 
     pipe = _popen("git rev-parse --short HEAD 2>NUL", "r");

@@ -559,6 +559,38 @@ static int test_working_memory_fitness(
            result.completed && result.generations_completed == 1;
 }
 
+static int test_working_memory_fitness_resume(
+    const char *base_path,
+    const char *config_path)
+{
+    EvolutionExperimentConfig config;
+    ScenarioConfig base;
+    char error[512] = {0};
+
+    if (!configure_working_memory_base(base_path))
+        return 0;
+    configure_evolution(&config, "working_memory_resume", base_path, 0);
+    config.fitness_term_count = 1;
+    snprintf(config.fitness_terms[0].metric,
+             sizeof(config.fitness_terms[0].metric),
+             "working_memory_recall_accuracy");
+    config.fitness_terms[0].goal = EVOLUTION_FITNESS_MAXIMIZE;
+    config.fitness_terms[0].target = 1.0;
+    config.fitness_terms[0].scale = 1.0;
+    config.fitness_terms[0].weight = 1.0;
+    config.fitness_terms[0].has_neuron_id = 0;
+
+    if (!evolution_config_save_file(config_path, &config, error,
+                                    sizeof(error)) ||
+        !evolution_config_load_file(config_path, &config, &base, error,
+                                    sizeof(error)) ||
+        !evolution_config_validate(&config, &base, error, sizeof(error)))
+    {
+        return 0;
+    }
+    return test_runner_and_resume(config_path, &base);
+}
+
 static int configure_associative_memory_base(const char *path)
 {
     ScenarioConfig config;
@@ -808,6 +840,8 @@ int main(void)
     const char *darwinian_config_path = TEST_ROOT "/darwinian.ini";
     const char *working_memory_base_path = TEST_ROOT "/working_memory_base.ini";
     const char *working_memory_config_path = TEST_ROOT "/working_memory.ini";
+    const char *working_memory_resume_config_path =
+        TEST_ROOT "/working_memory_resume.ini";
     const char *associative_memory_base_path = TEST_ROOT "/associative_memory_base.ini";
     const char *associative_memory_config_path = TEST_ROOT "/associative_memory.ini";
     const char *sequence_prediction_base_path = TEST_ROOT "/sequence_prediction_base.ini";
@@ -858,6 +892,13 @@ int main(void)
             working_memory_base_path, working_memory_config_path);
         if (!ok)
             fprintf(stderr, "Etapa fitness de memoria de trabalho falhou.\n");
+    }
+    if (ok)
+    {
+        ok = test_working_memory_fitness_resume(
+            working_memory_base_path, working_memory_resume_config_path);
+        if (!ok)
+            fprintf(stderr, "Etapa resume com fitness de memoria falhou.\n");
     }
     if (ok)
     {

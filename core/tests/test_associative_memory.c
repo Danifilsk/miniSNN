@@ -255,6 +255,8 @@ static int test_protocol(void)
                      "/associative_memory_summary.txt") ||
         !file_exists("results/scenarios/" TEST_RUN_NAME
                      "/associative_memory_report.html") ||
+        !file_exists("results/scenarios/" TEST_RUN_NAME
+                     "/associative_memory_checkpoint.txt") ||
         !file_contains("results/scenarios/" TEST_RUN_NAME
                        "/associative_memory_trials.csv",
                        "pattern_completion_score") ||

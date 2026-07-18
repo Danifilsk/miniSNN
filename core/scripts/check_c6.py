@@ -22,7 +22,13 @@ def main() -> None:
     protocol = require(ROOT / "app" / "working_memory.c")
     associative_protocol = require(ROOT / "app" / "associative_memory.c")
     sequence_protocol = require(ROOT / "app" / "sequence_prediction.c")
+    runtime = require(ROOT / "app" / "scenario_runtime.c")
+    suite = require(ROOT / "app" / "c6_suite.c")
     runner = require(ROOT / "app" / "scenario_runner.c")
+    evolution_runner = require(ROOT / "app" / "evolution_runner.c")
+    evolution_test = require(ROOT / "tests" / "test_evolution_runner.c")
+    integration_test = require(ROOT / "tests" / "test_c6_integration.c")
+    checkpoint_test = require(ROOT / "tests" / "test_c6_checkpoints.c")
     makefile = require(ROOT / "Makefile")
     require(ROOT / "configs" / "working_memory_demo.ini")
     require(ROOT / "tests" / "test_working_memory.c")
@@ -31,6 +37,9 @@ def main() -> None:
     require(ROOT / "configs" / "sequence_prediction_demo.ini")
     require(ROOT / "configs" / "sequence_prediction_context_demo.ini")
     require(ROOT / "tests" / "test_sequence_prediction.c")
+    require(ROOT / "tests" / "test_c6_checkpoints.c")
+    require(ROOT / "tests" / "test_c6_integration.c")
+    require(ROOT / "tests" / "test_c6_long.c")
 
     for token in (
         "working_memory_enabled",
@@ -156,7 +165,75 @@ def main() -> None:
         if re.search(expression, sequence_protocol):
             fail("sequence-prediction protocol bypasses neural dynamics")
 
-    print("C6.3 sequence prediction validation OK")
+    for token in (
+        "scenario_blueprint_write_checkpoint",
+        "scenario_blueprint_load_checkpoint",
+        "neuron_model_config_signature",
+    ):
+        if token not in runtime:
+            fail(f"C6 persistence is missing {token}")
+    for token in (
+        "c6_suite_summary.csv",
+        "c6_suite_report.html",
+        "sequence_context",
+        "associative_memory",
+        "working_memory",
+    ):
+        if token not in suite:
+            fail(f"C6 suite is missing {token}")
+    for token in (
+        "rows_are_semantically_equal",
+        "deterministic",
+        "a suite C6 encontrou protocolo nao deterministico ou reprovado",
+    ):
+        if token not in suite:
+            fail(f"C6 suite does not measure determinism: {token}")
+    for token in (
+        "neuron_model_config_signature",
+        "network_reconstructed_before_evaluation",
+        "plasticity_frozen_during_evaluation",
+        "checkpoint_loaded",
+        "control_type",
+    ):
+        if token not in suite:
+            fail(f"C6 suite provenance is missing {token}")
+    for token in (
+        "working_memory_recall_accuracy",
+        "associative_memory_recall_accuracy",
+        "sequence_prediction_next_pattern_accuracy",
+    ):
+        if token not in evolution_runner:
+            fail(f"evolution runner is missing C6 fitness metric {token}")
+    if "test_working_memory_fitness_resume" not in evolution_test:
+        fail("evolution resume with an active C6 fitness term is not covered")
+    for token in (
+        "test_protocol_order",
+        "test_seed_changes_associative_mask",
+        "test_independent_networks",
+        "test_model_smoke",
+        "MINISNN_NEURON_MODEL_ADEX",
+        "MINISNN_NEURON_MODEL_HODGKIN_HUXLEY",
+    ):
+        if token not in integration_test:
+            fail(f"C6 integration coverage is missing {token}")
+    for token in (
+        "scenario_config_save_file",
+        "config_used.ini",
+        "scenario_config_load_file",
+        "scenario_blueprint_load_checkpoint",
+    ):
+        if token not in checkpoint_test:
+            fail(f"C6 file restore coverage is missing {token}")
+    for target in (
+        "test-c6-checkpoints",
+        "test-c6-integration",
+        "test-c6-long",
+        "scenario-c6-suite",
+    ):
+        if target not in makefile:
+            fail(f"C6.4 Makefile target is missing {target}")
+
+    print("C6 cognition and memory validation OK")
 
 
 if __name__ == "__main__":

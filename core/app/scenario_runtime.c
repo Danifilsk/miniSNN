@@ -5,6 +5,11 @@
 #include <stdlib.h>
 #include <string.h>
 
+#include "neuron_model.h"
+
+#define SCENARIO_BLUEPRINT_CHECKPOINT_HEADER "MINISNN_SCENARIO_BLUEPRINT_V1"
+#define SCENARIO_BLUEPRINT_PATH_MAX 512
+
 static void set_error(
     char *error_message,
     size_t error_message_size,
@@ -82,6 +87,254 @@ void scenario_blueprint_destroy(ScenarioBlueprint *blueprint)
     free(blueprint->neuron_types);
     free(blueprint->connections);
     memset(blueprint, 0, sizeof(*blueprint));
+}
+
+int scenario_blueprint_write_checkpoint(
+    const ScenarioBlueprint *blueprint,
+    const char *filename,
+    char *error_message,
+    size_t error_message_size)
+{
+    char temporary_path[SCENARIO_BLUEPRINT_PATH_MAX];
+    FILE *file;
+
+    if (blueprint == NULL || filename == NULL || filename[0] == '\0' ||
+        blueprint->neuron_count <= 0 ||
+        blueprint->neuron_count > SCENARIO_RUNTIME_MAX_NEURONS ||
+        blueprint->inhibitory_count < 0 ||
+        blueprint->inhibitory_count > blueprint->neuron_count ||
+        blueprint->neuron_types == NULL ||
+        (blueprint->connection_count > 0 && blueprint->connections == NULL) ||
+        snprintf(temporary_path, sizeof(temporary_path), "%s.tmp", filename) >=
+            (int)sizeof(temporary_path))
+    {
+        set_error(error_message, error_message_size,
+                  "blueprint invalido para checkpoint");
+        return 0;
+    }
+
+    file = fopen(temporary_path, "w");
+    if (file == NULL ||
+        fprintf(file,
+                "%s\nneuron_count=%d\ninhibitory_count=%d\n"
+                "topology_signature=%016llx\nneuron_model=%s\n"
+                "neuron_model_config_signature=%016llx\nconnection_count=%zu\n",
+                SCENARIO_BLUEPRINT_CHECKPOINT_HEADER,
+                blueprint->neuron_count, blueprint->inhibitory_count,
+                blueprint->topology_signature,
+                neuron_model_name(blueprint->neuron_model),
+                blueprint->neuron_model_config_signature,
+                blueprint->connection_count) < 0)
+    {
+        if (file != NULL)
+            fclose(file);
+        remove(temporary_path);
+        set_error(error_message, error_message_size,
+                  "erro ao escrever checkpoint de blueprint");
+        return 0;
+    }
+
+    for (int neuron_id = 0; neuron_id < blueprint->neuron_count; neuron_id++)
+    {
+        if ((blueprint->neuron_types[neuron_id] != MINISNN_NEURON_EXCITATORY &&
+             blueprint->neuron_types[neuron_id] != MINISNN_NEURON_INHIBITORY) ||
+            fprintf(file, "type=%d\n", (int)blueprint->neuron_types[neuron_id]) < 0)
+        {
+            fclose(file);
+            remove(temporary_path);
+            set_error(error_message, error_message_size,
+                      "tipo neuronal invalido no checkpoint");
+            return 0;
+        }
+    }
+    for (size_t connection_id = 0;
+         connection_id < blueprint->connection_count;
+         connection_id++)
+    {
+        const MiniSNNConnectionInfo *connection =
+            &blueprint->connections[connection_id];
+
+        if (connection->source >= (size_t)blueprint->neuron_count ||
+            connection->target >= (size_t)blueprint->neuron_count ||
+            !isfinite(connection->weight) || connection->delay == 0 ||
+            fprintf(file, "connection=%zu,%zu,%.17g,%u\n",
+                    connection->source, connection->target,
+                    connection->weight, connection->delay) < 0)
+        {
+            fclose(file);
+            remove(temporary_path);
+            set_error(error_message, error_message_size,
+                      "conexao invalida no checkpoint");
+            return 0;
+        }
+    }
+    if (fclose(file) != 0)
+    {
+        remove(temporary_path);
+        set_error(error_message, error_message_size,
+                  "erro ao finalizar checkpoint de blueprint");
+        return 0;
+    }
+    if (remove(filename) != 0)
+    {
+        FILE *existing = fopen(filename, "r");
+
+        if (existing != NULL)
+        {
+            fclose(existing);
+            remove(temporary_path);
+            set_error(error_message, error_message_size,
+                      "erro ao substituir checkpoint de blueprint");
+            return 0;
+        }
+    }
+    if (rename(temporary_path, filename) != 0)
+    {
+        remove(temporary_path);
+        set_error(error_message, error_message_size,
+                  "erro ao finalizar checkpoint de blueprint");
+        return 0;
+    }
+    return 1;
+}
+
+static int read_checkpoint_line(FILE *file, const char *key, char *out_value,
+                                size_t out_value_size)
+{
+    char line[256];
+    size_t key_length;
+
+    if (file == NULL || key == NULL || out_value == NULL ||
+        out_value_size == 0)
+    {
+        return 0;
+    }
+    if (fgets(line, sizeof(line), file) == NULL)
+        return 0;
+    key_length = strlen(key);
+    if (strncmp(line, key, key_length) != 0 || line[key_length] != '=')
+        return 0;
+    if (snprintf(out_value, out_value_size, "%s", line + key_length + 1) >=
+        (int)out_value_size)
+    {
+        return 0;
+    }
+    out_value[strcspn(out_value, "\r\n")] = '\0';
+    return 1;
+}
+
+int scenario_blueprint_load_checkpoint(
+    const char *filename,
+    ScenarioBlueprint *out_blueprint,
+    char *error_message,
+    size_t error_message_size)
+{
+    ScenarioBlueprint blueprint;
+    char line[256];
+    char value[256];
+    FILE *file;
+    unsigned long long signature;
+
+    if (filename == NULL || out_blueprint == NULL)
+    {
+        set_error(error_message, error_message_size,
+                  "argumento nulo ao ler checkpoint de blueprint");
+        return 0;
+    }
+    memset(&blueprint, 0, sizeof(blueprint));
+    file = fopen(filename, "r");
+    if (file == NULL || fgets(line, sizeof(line), file) == NULL ||
+        strcmp(line, SCENARIO_BLUEPRINT_CHECKPOINT_HEADER "\n") != 0 ||
+        !read_checkpoint_line(file, "neuron_count", value, sizeof(value)) ||
+        sscanf(value, "%d", &blueprint.neuron_count) != 1 ||
+        !read_checkpoint_line(file, "inhibitory_count", value, sizeof(value)) ||
+        sscanf(value, "%d", &blueprint.inhibitory_count) != 1 ||
+        !read_checkpoint_line(file, "topology_signature", value, sizeof(value)) ||
+        sscanf(value, "%llx", &blueprint.topology_signature) != 1 ||
+        !read_checkpoint_line(file, "neuron_model", value, sizeof(value)) ||
+        !neuron_model_from_name(value, &blueprint.neuron_model) ||
+        !read_checkpoint_line(file, "neuron_model_config_signature", value,
+                              sizeof(value)) ||
+        sscanf(value, "%llx", &signature) != 1 ||
+        !read_checkpoint_line(file, "connection_count", value, sizeof(value)) ||
+        sscanf(value, "%zu", &blueprint.connection_count) != 1 ||
+        blueprint.neuron_count <= 0 ||
+        blueprint.neuron_count > SCENARIO_RUNTIME_MAX_NEURONS ||
+        blueprint.inhibitory_count < 0 ||
+        blueprint.inhibitory_count > blueprint.neuron_count)
+    {
+        if (file != NULL)
+            fclose(file);
+        scenario_blueprint_destroy(&blueprint);
+        set_error(error_message, error_message_size,
+                  "checkpoint de blueprint invalido ou incompativel");
+        return 0;
+    }
+    blueprint.neuron_model_config_signature = signature;
+    blueprint.neuron_types = calloc((size_t)blueprint.neuron_count,
+                                    sizeof(*blueprint.neuron_types));
+    if (blueprint.connection_count > 0)
+    {
+        blueprint.connections = calloc(blueprint.connection_count,
+                                       sizeof(*blueprint.connections));
+    }
+    if (blueprint.neuron_types == NULL ||
+        (blueprint.connection_count > 0 && blueprint.connections == NULL))
+    {
+        fclose(file);
+        scenario_blueprint_destroy(&blueprint);
+        set_error(error_message, error_message_size,
+                  "memoria insuficiente ao ler checkpoint de blueprint");
+        return 0;
+    }
+    for (int neuron_id = 0; neuron_id < blueprint.neuron_count; neuron_id++)
+    {
+        int type;
+
+        if (!read_checkpoint_line(file, "type", value, sizeof(value)) ||
+            sscanf(value, "%d", &type) != 1 ||
+            (type != MINISNN_NEURON_EXCITATORY &&
+             type != MINISNN_NEURON_INHIBITORY))
+        {
+            fclose(file);
+            scenario_blueprint_destroy(&blueprint);
+            set_error(error_message, error_message_size,
+                      "tipo invalido no checkpoint de blueprint");
+            return 0;
+        }
+        blueprint.neuron_types[neuron_id] = (MiniSNNNeuronType)type;
+    }
+    for (size_t connection_id = 0;
+         connection_id < blueprint.connection_count;
+         connection_id++)
+    {
+        MiniSNNConnectionInfo *connection = &blueprint.connections[connection_id];
+
+        if (!read_checkpoint_line(file, "connection", value, sizeof(value)) ||
+            sscanf(value, "%zu,%zu,%lf,%u", &connection->source,
+                   &connection->target, &connection->weight,
+                   &connection->delay) != 4 ||
+            connection->source >= (size_t)blueprint.neuron_count ||
+            connection->target >= (size_t)blueprint.neuron_count ||
+            !isfinite(connection->weight) || connection->delay == 0)
+        {
+            fclose(file);
+            scenario_blueprint_destroy(&blueprint);
+            set_error(error_message, error_message_size,
+                      "conexao invalida no checkpoint de blueprint");
+            return 0;
+        }
+    }
+    if (fclose(file) != 0)
+    {
+        scenario_blueprint_destroy(&blueprint);
+        set_error(error_message, error_message_size,
+                  "erro ao fechar checkpoint de blueprint");
+        return 0;
+    }
+    scenario_blueprint_destroy(out_blueprint);
+    *out_blueprint = blueprint;
+    return 1;
 }
 
 int scenario_runtime_capture_network(

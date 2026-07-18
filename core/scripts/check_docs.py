@@ -521,6 +521,17 @@ def validate_docs(root: Path) -> list[str]:
         errors.append("roadmap não documenta a sequência C6/C7/D1")
     if "C6 -> C7 -> D1 -> Worlds" not in roadmap:
         errors.append("roadmap não documenta o caminho oficial para Worlds")
+    if "C7 — estados internos" in roadmap:
+        errors.append("roadmap ainda apresenta a descricao antiga de C7")
+    if "D1 — integração do Core com o próximo estágio de domínio" in roadmap:
+        errors.append("roadmap ainda apresenta a descricao antiga de D1")
+    for token in (
+        "C7 — interface genérica cérebro-agente",
+        "D1 — auditoria e congelamento do Core antes do Worlds",
+        "Worlds Kernel -> Domain minimo -> Brain Bridge -> organismo headless -> App minimo -> D2 pos-integracao",
+    ):
+        if token not in roadmap:
+            errors.append(f"roadmap sem etapa oficial: {token}")
     if "E0:" in roadmap:
         errors.append("roadmap ainda apresenta E0 como próximo")
     monorepo = (root.parent / "docs" / "architecture" / "MONOREPO.md").read_text(

@@ -142,6 +142,9 @@ mostra erro com numero de linha.
 | `sequence_prediction.prediction_start`, `prediction_group_size` | Grupo separado usado na decodificacao |
 | `sequence_prediction.freeze_plasticity_during_evaluation` | Congela STDP durante os trials |
 
+Os protocolos C6.2 e C6.3 escrevem checkpoints de blueprint de seus pesos
+treinados. C6.1 mede somente estado dinamico e nao persiste o cue como resposta.
+
 Configs antigas sem `[diagnostics]` usam `off`. Arquivos salvos pelo Studio
 registram a secao, e o padrao de um novo cenario e `basic`.
 

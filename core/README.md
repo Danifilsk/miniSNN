@@ -163,6 +163,14 @@ Os resultados incluem `sequence_prediction_training.csv`,
 `sequence_prediction_trials.csv`, `sequence_prediction_summary.txt` e
 `sequence_prediction_report.html`. Veja o [Guia de sequencias e previsao](docs/GUIA_DE_SEQUENCIAS_E_PREVISAO.md).
 
+## Integracao C6
+
+O C6 fecha memoria de trabalho, associacao e previsao contextual como
+experimentos controlados. C6.1 depende de estado dinamico; C6.2/C6.3 persistem
+somente pelos pesos em blueprints recarregaveis. Execute
+`mingw32-make scenario-c6-suite` para gerar um resumo local sem score cognitivo
+universal. Veja o [Guia de cognicao C6](docs/GUIA_DE_COGNICAO_C6.md).
+
 ## Estrutura
 
 ```text

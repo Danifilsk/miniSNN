@@ -870,6 +870,7 @@ void sequence_prediction_result_destroy(SequencePredictionResult *result)
     free(result->initial_connections);
     free(result->final_weights);
     free(result->trials);
+    scenario_blueprint_destroy(&result->learned_blueprint);
     memset(result, 0, sizeof(*result));
 }
 
@@ -990,7 +991,6 @@ int sequence_prediction_execute(
 
     minisnn_destroy(&shuffled_snn);
     minisnn_destroy(&frozen_snn);
-    scenario_blueprint_destroy(&learned_blueprint);
     scenario_blueprint_destroy(&shuffled_blueprint);
     scenario_blueprint_destroy(&frozen_blueprint);
     result.correct_predictions = real_prediction.correct_predictions;
@@ -1033,9 +1033,34 @@ int sequence_prediction_execute(
         result.training_weight_absolute_change += fabs(
             result.final_weights[index] - result.initial_connections[index].weight);
     }
+    result.learned_blueprint = learned_blueprint;
+    memset(&learned_blueprint, 0, sizeof(learned_blueprint));
     *out_result = result;
     return 1;
 }
+
+#ifdef MINISNN_TESTING
+int sequence_prediction_test_accuracy(
+    const ScenarioConfig *config,
+    const ScenarioBlueprint *blueprint,
+    double *out_accuracy,
+    char *error_message,
+    size_t error_message_size)
+{
+    PredictionAggregate aggregate;
+
+    if (out_accuracy == NULL || config == NULL || blueprint == NULL ||
+        !run_prediction_trials(config, blueprint, NULL, &aggregate, 0, 0,
+                               error_message, error_message_size) ||
+        aggregate.trial_count <= 0)
+    {
+        return 0;
+    }
+    *out_accuracy = (double)aggregate.correct_predictions /
+                    (double)aggregate.trial_count;
+    return 1;
+}
+#endif
 
 static int write_training_csv(
     const SequencePredictionResult *result,
@@ -1300,6 +1325,7 @@ int sequence_prediction_write_outputs(
     char trials_path[SEQUENCE_PREDICTION_PATH_MAX];
     char summary_path[SEQUENCE_PREDICTION_PATH_MAX];
     char report_path[SEQUENCE_PREDICTION_PATH_MAX];
+    char checkpoint_path[SEQUENCE_PREDICTION_PATH_MAX];
 
     if (config == NULL || result == NULL || output_directory == NULL ||
         !make_path(training_path, sizeof(training_path), output_directory,
@@ -1310,10 +1336,15 @@ int sequence_prediction_write_outputs(
                    "sequence_prediction_summary.txt") ||
         !make_path(report_path, sizeof(report_path), output_directory,
                    "sequence_prediction_report.html") ||
+        !make_path(checkpoint_path, sizeof(checkpoint_path), output_directory,
+                   "sequence_prediction_checkpoint.txt") ||
         !write_training_csv(result, training_path) ||
         !write_trials_csv(result, trials_path) ||
         !write_summary(result, summary_path) ||
-        !write_html_report(config, result, report_path))
+        !write_html_report(config, result, report_path) ||
+        !scenario_blueprint_write_checkpoint(
+            &result->learned_blueprint, checkpoint_path, error_message,
+            error_message_size))
     {
         set_error(error_message, error_message_size,
                   "erro ao gravar saidas de predicao de sequencia");

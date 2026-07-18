@@ -317,6 +317,8 @@ static int test_protocol(void)
                      "/sequence_prediction_summary.txt") ||
         !file_exists("results/scenarios/" TEST_RUN_NAME
                      "/sequence_prediction_report.html") ||
+        !file_exists("results/scenarios/" TEST_RUN_NAME
+                     "/sequence_prediction_checkpoint.txt") ||
         !file_contains("results/scenarios/" TEST_RUN_NAME
                        "/sequence_prediction_trials.csv",
                        "expected_next_pattern") ||

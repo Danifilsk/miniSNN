@@ -766,6 +766,7 @@ void associative_memory_result_destroy(AssociativeMemoryResult *result)
     free(result->initial_connections);
     free(result->final_weights);
     free(result->trials);
+    scenario_blueprint_destroy(&result->learned_blueprint);
     memset(result, 0, sizeof(*result));
 }
 
@@ -874,7 +875,6 @@ int associative_memory_execute(
     minisnn_destroy(&trained_snn);
     minisnn_destroy(&frozen_snn);
     minisnn_destroy(&shuffled_snn);
-    scenario_blueprint_destroy(&learned_blueprint);
     scenario_blueprint_destroy(&frozen_blueprint);
     scenario_blueprint_destroy(&shuffled_blueprint);
     result.correct_trials = real_recall.correct_trials;
@@ -898,9 +898,33 @@ int associative_memory_execute(
         result.training_weight_absolute_change += fabs(
             result.final_weights[index] - result.initial_connections[index].weight);
     }
+    result.learned_blueprint = learned_blueprint;
+    memset(&learned_blueprint, 0, sizeof(learned_blueprint));
     *out_result = result;
     return 1;
 }
+
+#ifdef MINISNN_TESTING
+int associative_memory_test_recall_accuracy(
+    const ScenarioConfig *config,
+    const ScenarioBlueprint *blueprint,
+    double *out_accuracy,
+    char *error_message,
+    size_t error_message_size)
+{
+    RecallAggregate aggregate;
+
+    if (out_accuracy == NULL || config == NULL || blueprint == NULL ||
+        !run_recall_trials(config, blueprint, NULL, &aggregate,
+                           error_message, error_message_size) ||
+        aggregate.trial_count <= 0)
+    {
+        return 0;
+    }
+    *out_accuracy = aggregate.accuracy;
+    return 1;
+}
+#endif
 
 static int write_training_csv(const AssociativeMemoryResult *result,
                               const char *path)
@@ -1139,6 +1163,7 @@ int associative_memory_write_outputs(
     char trials_path[ASSOCIATIVE_MEMORY_PATH_MAX];
     char summary_path[ASSOCIATIVE_MEMORY_PATH_MAX];
     char report_path[ASSOCIATIVE_MEMORY_PATH_MAX];
+    char checkpoint_path[ASSOCIATIVE_MEMORY_PATH_MAX];
 
     if (config == NULL || result == NULL || output_directory == NULL ||
         result->trials == NULL ||
@@ -1150,10 +1175,15 @@ int associative_memory_write_outputs(
                    "associative_memory_summary.txt") ||
         !make_path(report_path, sizeof(report_path), output_directory,
                    "associative_memory_report.html") ||
+        !make_path(checkpoint_path, sizeof(checkpoint_path), output_directory,
+                   "associative_memory_checkpoint.txt") ||
         !write_training_csv(result, training_path) ||
         !write_trials_csv(result, trials_path) ||
         !write_summary(result, summary_path) ||
-        !write_html_report(config, result, report_path))
+        !write_html_report(config, result, report_path) ||
+        !scenario_blueprint_write_checkpoint(
+            &result->learned_blueprint, checkpoint_path, error_message,
+            error_message_size))
     {
         set_error(error_message, error_message_size,
                   "erro ao escrever saidas de memoria associativa");

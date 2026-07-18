@@ -1,5 +1,21 @@
 # Compatibilidade
 
+## Compatibilidade C6
+
+Os tres protocolos cognitivos sao opt-in: configs sem `[working_memory]`,
+`[associative_memory]` ou `[sequence_prediction]` preservam a simulacao e o
+fitness historicos. C6.2 e C6.3 gravam blueprints de checkpoint textuais que
+preservam modelo, assinatura neuronal, topologia, pesos, delays e tipos EXC/INH;
+carregamentos incompativeis sao recusados. C6.1 nao serializa cue nem estado
+dinamico: reset ou reconstrucao apaga a memoria de trabalho por definicao.
+
+O checkpoint de blueprint C6.2/C6.3 precisa de uma configuracao efetiva
+compativel, normalmente `config_used.ini` da mesma run. Ele nao substitui essa
+configuracao e nao contem todos os parametros neuronais serializados em texto.
+
+Os CSVs cientificos existentes nao tiveram seus schemas alterados. As novas
+evidencias C6 sao arquivos adicionais de protocolo, resumo, HTML e checkpoint.
+
 ## Compatibilidade C2
 
 `learning_mode` ausente equivale a `direct_stdp`. Uma seção `[reward]` ausente

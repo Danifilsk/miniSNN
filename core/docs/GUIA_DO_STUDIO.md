@@ -37,6 +37,17 @@ um cenario ativo, `ABRIR RELATORIO SEQ.` abre
 `sequence_prediction_report.html`; os CSVs continuam sendo os dados brutos.
 Veja o [Guia de sequencias e previsao](GUIA_DE_SEQUENCIAS_E_PREVISAO.md).
 
+## Integracao C6.4
+
+Os tres paineis C6 permanecem separados para evitar controles duplicados.
+Eles preservam os valores ao alternar de secao e o INI continua sendo a fonte
+de verdade para carregar e salvar. A suite integrada C6 e executada pelo alvo
+`mingw32-make scenario-c6-suite`; quando existir, seu arquivo
+`c6_suite_report.html` pode ser aberto a partir da pasta
+`results/scenarios/c6_suite/`. A abertura desse relatorio no Studio e uma
+**VALIDACAO MANUAL PENDENTE**; nenhum botao adicional foi criado sem espaco
+livre inequivoco no painel atual.
+
 ## RECOMPENSA
 
 `RECOMPENSA` abre o modal de R-STDP sem sobrecarregar o painel principal. Ele

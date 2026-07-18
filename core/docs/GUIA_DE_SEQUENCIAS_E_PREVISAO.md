@@ -1,5 +1,10 @@
 # Sequencias temporais e previsao C6.3
 
+O arquivo `sequence_prediction_checkpoint.txt` preserva modelo, assinatura de
+configuracao neuronal, tipos EXC/INH, topologia, pesos e delays. Ele reconstroi
+uma rede limpa para prever; nao armazena prefixos, respostas, tensoes, spikes ou
+traces. O teacher pulse e usado apenas no treino, nunca no delay/probe.
+
 O protocolo C6.3 mede uma tarefa pequena de previsao do proximo padrao em uma
 sequencia temporal. Durante o treino, os grupos de entrada sao apresentados em
 ordem e um **teacher pulse supervisionado** ativa o grupo alvo de previsao para

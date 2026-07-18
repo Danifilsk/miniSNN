@@ -19,12 +19,12 @@ O roadmap indica ordem de trabalho, não promessa de prazo.
 - [x] C3 — neuroevolução serial com topologia fixa, fitness configurável e checkpoint.
 - [x] C4 — topologia adaptativa, evolução estrutural e plasticidade estrutural de lifetime.
 - [x] C5 — modelos neuronais avançados: LIF, AdEx e Hodgkin-Huxley.
+- [x] C6 — memória de trabalho, memória associativa, predição contextual e integração/auditoria.
 
 ## Próximo
 
-- [x] C6 — protocolos temporais: C6.1 memoria de trabalho, C6.2 memoria associativa e C6.3 sequencias e previsao.
-- [ ] C7 — estados internos.
-- [ ] D1 — integração do Core com o próximo estágio de domínio.
+- [ ] C7 — interface genérica cérebro-agente: sensores numéricos -> codificação -> SNN -> decodificação de ações.
+- [ ] D1 — auditoria e congelamento do Core antes do Worlds.
 - [ ] Revisão humana do checklist do Studio.
 
 A parte automática do Bloco B foi concluída. ASan/UBSan permanece pendente em
@@ -33,7 +33,7 @@ toolchain compatível.
 ## Ordem oficial posterior
 
 ```text
-C6 -> C7 -> D1 -> Worlds
+C6 -> C7 -> D1 -> Worlds Kernel -> Domain minimo -> Brain Bridge -> organismo headless -> App minimo -> D2 pos-integracao
 ```
 
 O C8 — otimização iterativa automatizada — pode evoluir em paralelo e não

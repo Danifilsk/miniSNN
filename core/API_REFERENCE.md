@@ -26,9 +26,9 @@ retorna o numero de spikes no timestep, ou `-1` em erro.
 **Campos:**
 
 - `neuron_count`: numero de neuronios.
-- `neuron_model`: modelo neuronal da instancia. Nesta fase, somente
-  `MINISNN_NEURON_MODEL_LIF` e valido; a configuracao padrao o seleciona.
-- `dt`: passo de tempo do LIF.
+- `neuron_model`: modelo neuronal da instancia: LIF, AdEx ou
+  Hodgkin-Huxley. A configuracao padrao seleciona LIF.
+- `dt`: passo de tempo autoritativo do modelo selecionado.
 - `tau`: constante de tempo.
 - `v_rest`: potencial de repouso.
 - `v_reset`: potencial de reset.
@@ -42,9 +42,10 @@ retorna o numero de spikes no timestep, ou `-1` em erro.
 
 ## Modelo neuronal
 
-`MiniSNNNeuronModel` deixa explicito o modelo de uma rede. O unico valor
-implementado e `MINISNN_NEURON_MODEL_LIF`; nenhum modelo AdEx, HH ou hibrido
-faz parte desta API. `minisnn_neuron_model()` consulta o valor da instancia.
+`MiniSNNNeuronModel` deixa explicito o modelo de uma rede. Os valores
+implementados sao `MINISNN_NEURON_MODEL_LIF`, `MINISNN_NEURON_MODEL_ADEX` e
+`MINISNN_NEURON_MODEL_HODGKIN_HUXLEY`. Cada rede permanece homogenea durante
+sua vida; `minisnn_neuron_model()` consulta o valor da instancia.
 
 ## minisnn_default_config
 

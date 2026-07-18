@@ -1,5 +1,9 @@
 # Memoria de trabalho temporal
 
+Essa e memoria dinamica: ela deve sobreviver ao delay do trial, mas desaparece
+apos um reset completo ou reconstrucao da rede. Nenhum cue e serializado como
+resposta e os pesos nao funcionam como armazenamento persistente deste protocolo.
+
 ## Objetivo
 
 O protocolo C6.1 mede retencao temporal produzida pela dinamica da rede:
