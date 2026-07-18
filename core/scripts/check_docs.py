@@ -50,6 +50,8 @@ CENTRAL_DOCUMENTS = (
     "docs/BENCHMARKS_C3_NEUROEVOLUCAO.md",
     "docs/GUIA_DE_TOPOLOGIA_ADAPTATIVA.md",
     "docs/BENCHMARKS_C4_TOPOLOGIA.md",
+    "docs/GUIA_DE_MEMORIA_DE_TRABALHO.md",
+    "docs/GUIA_DE_MEMORIA_DE_TRABALHO.md",
     "docs/GUIA_DE_MODELOS_NEURONAIS.md",
     "docs/CHECKLIST_DE_VALIDACAO_DO_STUDIO.md",
 )
@@ -93,6 +95,8 @@ IMPORTANT_FILES = (
     "src/structural_plasticity.h",
     "app/evolution_config.c",
     "app/evolution_runner.c",
+    "app/working_memory.c",
+    "app/working_memory.c",
     "configs/evolution_weight_target_demo.ini",
     "configs/evolution_homeostasis_demo.ini",
     "configs/evolution_plasticity_demo.ini",
@@ -109,6 +113,8 @@ IMPORTANT_FILES = (
     "configs/punishment_negative_demo.ini",
     "configs/reward_delayed_demo.ini",
     "configs/reward_mixed_demo.ini",
+    "configs/working_memory_demo.ini",
+    "configs/working_memory_demo.ini",
     "tests/test_minisnn_api.c",
     "tests/test_topology.c",
     "tests/test_LIF.c",
@@ -144,6 +150,8 @@ IMPORTANT_FILES = (
     "tests/test_structure_resume.c",
     "tests/test_structure_long.c",
     "tests/test_plot_topology.py",
+    "tests/test_working_memory.c",
+    "tests/test_working_memory.c",
 )
 
 REQUIRED_TARGETS = (
@@ -221,6 +229,9 @@ REQUIRED_TARGETS = (
     "plot-topology",
     "benchmark-c4",
     "check-c4",
+    "test-working-memory",
+    "scenario-working-memory",
+    "check-c6",
 )
 
 IMPORTANT_KEYS = (

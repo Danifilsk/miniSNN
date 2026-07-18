@@ -87,4 +87,15 @@ int scenario_runtime_step(
     char *error_message,
     size_t error_message_size);
 
+int scenario_runtime_step_with_inputs(
+    MiniSNN *snn,
+    const ScenarioConfig *config,
+    int inhibitory_count,
+    int step,
+    const double *inputs,
+    int input_count,
+    ScenarioRuntimeStep *out_step,
+    char *error_message,
+    size_t error_message_size);
+
 #endif

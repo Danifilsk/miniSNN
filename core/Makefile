@@ -6,7 +6,7 @@ BUILD_DIR = build
 STRUCTURE_SOURCES = src/structure.c src/structural_plasticity.c
 API_SOURCES = src/minisnn.c src/neuron.c src/neuron_model.c src/network.c src/plasticity.c src/reward.c src/homeostasis.c $(STRUCTURE_SOURCES)
 APP_SOURCES = app/scenario_config.c
-SCENARIO_RUNNER_SOURCES = app/scenario_config.c app/scenario_runtime.c app/scenario_runner.c
+SCENARIO_RUNNER_SOURCES = app/scenario_config.c app/scenario_runtime.c app/scenario_runner.c app/working_memory.c
 EVOLUTION_SOURCES = src/evolution.c
 EVOLUTION_RUNNER_SOURCES = app/evolution_config.c app/evolution_runner.c $(SCENARIO_RUNNER_SOURCES) $(EVOLUTION_SOURCES)
 CORE_SOURCES = src/neuron.c src/neuron_model.c src/network.c src/plasticity.c src/reward.c src/homeostasis.c $(STRUCTURE_SOURCES) src/topology.c src/stimulus.c src/recorder.c
@@ -26,12 +26,12 @@ endif
 endif
 ANALYZER_CFLAGS = -std=c11 -Wall -Wextra -pedantic -fanalyzer -Wformat=2 -Wshadow -Wnull-dereference
 
-.PHONY: all help clean test test-api test-core test-lif test-neuron-model test-adex test-hodgkin-huxley test-model-checkpoints test-model-error-propagation test-model-provenance test-adex-long test-hh-long test-models-long test-plasticity test-plasticity-long test-homeostasis test-homeostasis-long test-reward test-reward-long test-evolution test-structure test-structural-plasticity test-structure-resume test-structure-long test-evolution-runner test-evolution-resume test-evolution-long test-plot-evolution test-plot-topology test-evolution-report test-structural-html evolution-build evolution-weight-demo evolution-homeostasis-demo evolution-plasticity-demo evolution-structure-demo structural-pruning-demo structural-growth-demo evolution-structure-learning-demo plot-evolution plot-topology report-evolution report-evolution-history report-structural-events report-best-topology test-scenario test-runner test-runner-topologies test-reproducibility test-regression test-memory test-long test-analyzer test-sanitize benchmark-v02 benchmark-c1 benchmark-c15 benchmark-c2 benchmark-c3 benchmark-c4 benchmark-c5 check-v02 check-c1 check-c15 check-c2 check-c3 check-c4 check-c5-interface check-c5 compare-neuron-models test-compare-neuron-models \
+.PHONY: all help clean test test-api test-core test-lif test-neuron-model test-adex test-hodgkin-huxley test-model-checkpoints test-model-error-propagation test-model-provenance test-adex-long test-hh-long test-models-long test-plasticity test-plasticity-long test-homeostasis test-homeostasis-long test-reward test-reward-long test-evolution test-structure test-structural-plasticity test-structure-resume test-structure-long test-evolution-runner test-evolution-resume test-evolution-long test-plot-evolution test-plot-topology test-evolution-report test-structural-html evolution-build evolution-weight-demo evolution-homeostasis-demo evolution-plasticity-demo evolution-structure-demo structural-pruning-demo structural-growth-demo evolution-structure-learning-demo plot-evolution plot-topology report-evolution report-evolution-history report-structural-events report-best-topology test-scenario test-runner test-runner-topologies test-working-memory test-reproducibility test-regression test-memory test-long test-analyzer test-sanitize benchmark-v02 benchmark-c1 benchmark-c15 benchmark-c2 benchmark-c3 benchmark-c4 benchmark-c5 check-v02 check-c1 check-c15 check-c2 check-c3 check-c4 check-c5-interface check-c5 check-c6 compare-neuron-models test-compare-neuron-models \
 	test-plot-neuron test-plot-plasticity test-compare-runs test-diagnostics test-run-reports test-history-report test-docs \
 	test-plot-homeostasis plot-homeostasis test-plot-reward plot-reward \
 	api-examples api-single api-chain api-exc-inh \
 	demo ei-balance inhibition-fine inh-to-inh sparse-ei scenario \
-	scenario-random scenario-small-world scenario-feedforward \
+	scenario-random scenario-small-world scenario-working-memory scenario-feedforward \
 	scenario-stdp-ltp scenario-stdp-ltd scenario-stdp-mixed plot-stdp-ltp \
 	scenario-homeostasis-silence scenario-homeostasis-explosion scenario-homeostasis-stdp \
 	scenario-reward-positive scenario-punishment-negative scenario-reward-delayed scenario-reward-mixed \
@@ -86,6 +86,7 @@ help:
 	@echo   make report-best-topology EXPERIMENT=results/evolution/experimento - gera topologia herdavel HTML
 	@echo   make test-scenario     - teste do parser de cenarios
 	@echo   make test-runner       - teste do executor compartilhado de cenarios
+	@echo   make test-working-memory - validacao do protocolo temporal C6.1
 	@echo   make test-runner-topologies - validacao estrutural das topologias do runner
 	@echo   make test-reproducibility - determinismo de topologia e CSVs por seed
 	@echo   make test-regression    - golden pequeno e resultados historicos conhecidos
@@ -105,6 +106,7 @@ help:
 	@echo   make check-c2          - verifica o fechamento automatico do Bloco C2
 	@echo   make check-c3          - verifica o fechamento automatico do Bloco C3
 	@echo   make check-c4          - verifica o fechamento automatico do Bloco C4
+	@echo   make check-c6          - verifica memoria de trabalho temporal C6.1
 	@echo   make test-plot-neuron  - teste Python do grafico de neuronio
 	@echo   make test-plot-plasticity - teste Python do grafico STDP
 	@echo   make test-plot-homeostasis - teste Python do panorama homeostatico
@@ -121,6 +123,7 @@ help:
 	@echo   make scenario          - executa um cenario .ini com SCENARIO=configs/arquivo.ini
 	@echo   make scenario-random   - executa configs/random.ini
 	@echo   make scenario-small-world - executa configs/small_world.ini
+	@echo   make scenario-working-memory - executa configs/working_memory_demo.ini
 	@echo   make scenario-adex-regular - executa o demo AdEx regular
 	@echo   make scenario-adex-adapting - executa o demo AdEx com adaptacao
 	@echo   make scenario-hh-action-potential - executa o demo HH de potencial de acao
@@ -212,6 +215,9 @@ check-c5-interface: test-neuron-model
 check-c5: check-c5-interface test-model-checkpoints test-adex test-hodgkin-huxley test-model-error-propagation test-model-provenance test-models-long test-compare-neuron-models
 	@echo C5 advanced neuron models validation OK
 
+check-c6: test-working-memory
+	$(PYTHON) scripts/check_c6.py
+
 $(BUILD_DIR)/test_plasticity.exe: tests/test_plasticity.c $(API_SOURCES) | $(BUILD_DIR)
 	$(CC) $(CFLAGS) tests/test_plasticity.c $(API_SOURCES) $(INCLUDES) -o $@
 
@@ -262,6 +268,9 @@ $(BUILD_DIR)/test_scenario_config.exe: tests/test_scenario_config.c $(APP_SOURCE
 
 $(BUILD_DIR)/test_scenario_runner.exe: tests/test_scenario_runner.c $(SCENARIO_RUNNER_SOURCES) $(API_SOURCES) app/scenario_runner.h app/scenario_config.h | $(BUILD_DIR)
 	$(CC) $(CFLAGS) tests/test_scenario_runner.c $(SCENARIO_RUNNER_SOURCES) $(API_SOURCES) $(INCLUDES) -o $@
+
+$(BUILD_DIR)/test_working_memory.exe: tests/test_working_memory.c $(SCENARIO_RUNNER_SOURCES) $(API_SOURCES) app/working_memory.h | $(BUILD_DIR)
+	$(CC) $(CFLAGS) -DMINISNN_TESTING tests/test_working_memory.c $(SCENARIO_RUNNER_SOURCES) $(API_SOURCES) $(INCLUDES) -o $@
 
 $(BUILD_DIR)/test_runner_topologies.exe: tests/test_runner_topologies.c $(SCENARIO_RUNNER_SOURCES) $(API_SOURCES) app/scenario_runner.h app/scenario_config.h | $(BUILD_DIR)
 	$(CC) $(CFLAGS) tests/test_runner_topologies.c $(SCENARIO_RUNNER_SOURCES) $(API_SOURCES) $(INCLUDES) -o $@
@@ -400,6 +409,9 @@ test-scenario: $(BUILD_DIR)/test_scenario_config.exe
 test-runner: $(BUILD_DIR)/test_scenario_runner.exe
 	$(BUILD_DIR)/test_scenario_runner.exe
 
+test-working-memory: $(BUILD_DIR)/test_working_memory.exe
+	$(BUILD_DIR)/test_working_memory.exe
+
 test-runner-topologies: $(BUILD_DIR)/test_runner_topologies.exe
 	$(BUILD_DIR)/test_runner_topologies.exe
 
@@ -494,7 +506,7 @@ test-history-report: | $(BUILD_DIR)
 test-docs: | $(BUILD_DIR)
 	$(PYTHON) tests/test_docs.py
 
-test: test-api test-core test-lif test-neuron-model test-adex test-hodgkin-huxley test-model-error-propagation test-plasticity test-homeostasis test-reward test-structure test-structural-plasticity test-scenario test-runner test-runner-topologies test-reproducibility test-memory
+test: test-api test-core test-lif test-neuron-model test-adex test-hodgkin-huxley test-model-error-propagation test-plasticity test-homeostasis test-reward test-structure test-structural-plasticity test-scenario test-runner test-runner-topologies test-working-memory test-reproducibility test-memory
 
 $(BUILD_DIR)/example_api_single_neuron.exe: examples/api/example_api_single_neuron.c $(API_SOURCES) include/minisnn.h include/minisnn_types.h | $(BUILD_DIR)
 	$(CC) $(CFLAGS) examples/api/example_api_single_neuron.c $(API_SOURCES) $(INCLUDES) -o $@
@@ -533,6 +545,9 @@ scenario-random: $(BUILD_DIR)/minisnn_runner.exe
 
 scenario-small-world: $(BUILD_DIR)/minisnn_runner.exe
 	$(BUILD_DIR)/minisnn_runner.exe configs/small_world.ini
+
+scenario-working-memory: $(BUILD_DIR)/minisnn_runner.exe
+	$(BUILD_DIR)/minisnn_runner.exe configs/working_memory_demo.ini
 
 scenario-adex-regular: $(BUILD_DIR)/minisnn_runner.exe
 	$(BUILD_DIR)/minisnn_runner.exe configs/adex_regular_spiking_demo.ini

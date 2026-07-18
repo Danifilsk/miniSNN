@@ -11,6 +11,15 @@ no INI e sao preservados ao carregar e salvar. Resultados avancados incluem
 Homeostase intrinseca so e valida para LIF. Scaling sinaptico e ganho inibitorio
 continuam disponiveis para os tres modelos.
 
+## Memoria de trabalho C6.1
+
+`MEMORIA DE TRABALHO` abre os controles minimos do protocolo temporal: `ATIVAR`,
+`CUE`, `DELAY`, `PROBE` e `TRIALS`. Os demais campos do protocolo permanecem
+na secao `[working_memory]` do INI. Depois de uma execucao com o recurso ativo,
+`ABRIR RELATORIO` abre `working_memory_report.html` na pasta real da run. O
+relatorio e local e os CSVs continuam sendo os dados brutos. Consulte o
+[Guia de memoria de trabalho](GUIA_DE_MEMORIA_DE_TRABALHO.md).
+
 ## RECOMPENSA
 
 `RECOMPENSA` abre o modal de R-STDP sem sobrecarregar o painel principal. Ele
@@ -84,6 +93,7 @@ random
 random_balanced
 small_world
 feedforward
+working_memory
 ```
 
 ## 5.1. Como usar `OPCOES`
@@ -110,7 +120,7 @@ Campos que nao se aplicam a topologia atual ficam desabilitados. Regras:
 - `Small-world`: usado somente em `small_world`.
 - `Feedforward`: usado somente em `feedforward`.
 - `Permitir auto-conexao`: habilitado em `all_to_all`, `random`,
-  `random_balanced` e `small_world`; desabilitado em `chain`, `ring` e
+  `random_balanced`, `small_world` e `working_memory`; desabilitado em `chain`, `ring` e
   `feedforward`.
 - `Permitir INH -> INH`: so faz diferenca quando ha neuronios inibitorios.
 

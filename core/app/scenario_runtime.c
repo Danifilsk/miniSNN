@@ -369,11 +369,13 @@ int scenario_runtime_configure_modules(
     return 1;
 }
 
-int scenario_runtime_step(
+int scenario_runtime_step_with_inputs(
     MiniSNN *snn,
     const ScenarioConfig *config,
     int inhibitory_count,
     int step,
+    const double *inputs,
+    int input_count,
     ScenarioRuntimeStep *out_step,
     char *error_message,
     size_t error_message_size)
@@ -385,6 +387,13 @@ int scenario_runtime_step(
         inhibitory_count < 0 || inhibitory_count > config->neurons)
     {
         set_error(error_message, error_message_size, "argumento invalido no passo do runtime");
+        return 0;
+    }
+
+    if (inputs != NULL && input_count != config->neurons)
+    {
+        set_error(error_message, error_message_size,
+                  "entradas explicitas invalidas no passo do runtime");
         return 0;
     }
 
@@ -412,9 +421,17 @@ int scenario_runtime_step(
     }
 
     minisnn_clear_inputs(snn);
-    for (int source = 0; source < config->source_count; source++)
+    for (int neuron_id = 0; neuron_id < config->neurons; neuron_id++)
     {
-        if (!minisnn_set_input(snn, source, config->input_current))
+        double current = 0.0;
+
+        if (inputs != NULL)
+            current = inputs[neuron_id];
+        else if (neuron_id < config->source_count)
+            current = config->input_current;
+
+        if (!isfinite(current) ||
+            (current != 0.0 && !minisnn_set_input(snn, neuron_id, current)))
         {
             set_error(error_message, error_message_size, "erro ao aplicar entrada externa");
             return 0;
@@ -498,4 +515,18 @@ int scenario_runtime_step(
     }
 
     return 1;
+}
+
+int scenario_runtime_step(
+    MiniSNN *snn,
+    const ScenarioConfig *config,
+    int inhibitory_count,
+    int step,
+    ScenarioRuntimeStep *out_step,
+    char *error_message,
+    size_t error_message_size)
+{
+    return scenario_runtime_step_with_inputs(
+        snn, config, inhibitory_count, step, NULL, 0, out_step,
+        error_message, error_message_size);
 }

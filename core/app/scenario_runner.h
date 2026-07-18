@@ -51,6 +51,17 @@ typedef struct
     double hh_peak_voltage;
     int hh_action_potential_count;
 
+    int working_memory_enabled;
+    int working_memory_trial_count;
+    int working_memory_correct_trials;
+    double working_memory_recall_accuracy;
+    double working_memory_mean_recall_score;
+    double working_memory_recall_score_stddev;
+    double working_memory_mean_response_latency;
+    double working_memory_chance_accuracy;
+    double working_memory_control_accuracy;
+    double working_memory_retention_margin;
+
     char output_directory[SCENARIO_OUTPUT_PATH_MAX];
     char actual_run_name[SCENARIO_ACTUAL_RUN_NAME_MAX];
 } ScenarioRunResult;

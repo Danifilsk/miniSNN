@@ -19,7 +19,7 @@ validada.
 ## Estado atual
 
 **Implementado:** neurônios LIF, pesos EXC/INH, delays sinápticos, corrente com
-decaimento, sete topologias configuráveis, API pública opaca, cenários INI,
+decaimento, oito topologias configuráveis, API pública opaca, cenários INI,
 Studio Win32, CSVs, gráficos, comparação, histórico e diagnóstico
 `off/basic/full`, inspeção de conexões, STDP aditivo por traces para sinapses
 de origem EXC, homeostase opcional de threshold, scaling EXC e ganho INH, e
@@ -124,6 +124,22 @@ No Studio, `ABRIR EVENTOS ESTRUTURAIS` gera e abre
 `best_topology_report.html`. Os CSVs `structural_events.csv` e
 `best_topology.csv` continuam sendo os dados cientificos brutos.
 
+## Memoria de trabalho temporal
+
+O C6.1 adiciona um protocolo opt-in de `cue -> delay -> probe` para medir
+retencao pela dinamica da rede, sem copiar o cue para a resposta. Execute o
+demo deterministico com:
+
+```powershell
+mingw32-make scenario-working-memory
+```
+
+Os resultados incluem `working_memory_trials.csv`,
+`working_memory_summary.txt` e `working_memory_report.html` na pasta normal da
+run. O demo usa duas assembleias recorrentes com inibicao cruzada e registra
+acaso, controle de rotulos embaralhados e margem de retencao. Veja o [Guia de
+memoria de trabalho](docs/GUIA_DE_MEMORIA_DE_TRABALHO.md).
+
 ## Estrutura
 
 ```text
@@ -159,6 +175,7 @@ Referências diretas:
 - [Guia de recompensa](docs/GUIA_DE_RECOMPENSA.md)
 - [Guia de neuroevolução](docs/GUIA_DE_NEUROEVOLUCAO.md)
 - [Guia de topologia adaptativa](docs/GUIA_DE_TOPOLOGIA_ADAPTATIVA.md)
+- [Guia de memoria de trabalho](docs/GUIA_DE_MEMORIA_DE_TRABALHO.md)
 - [Referência da API pública](API_REFERENCE.md)
 - [Roadmap](docs/ROADMAP.md)
 

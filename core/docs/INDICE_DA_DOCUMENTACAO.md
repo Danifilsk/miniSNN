@@ -23,6 +23,7 @@ implementados, experimentais e planejados.
 - [Guia de recompensa](GUIA_DE_RECOMPENSA.md) — R-STDP, elegibilidade, punição, eventos e outputs.
 - [Guia de neuroevolução](GUIA_DE_NEUROEVOLUCAO.md) — genomas, fitness, operadores, checkpoint, Studio e limites C3.
 - [Guia de topologia adaptativa](GUIA_DE_TOPOLOGIA_ADAPTATIVA.md) — genoma estrutural, patches, lifetime plasticity, outputs e limites C4.
+- [Guia de memoria de trabalho](GUIA_DE_MEMORIA_DE_TRABALHO.md) — protocolo temporal C6.1, metricas de recall, outputs e limites.
 
 Os guias de diagnóstico e plasticidade também explicam os relatórios locais
 `metrics_report.html` e `weights_report.html`. Eles são a camada de leitura;

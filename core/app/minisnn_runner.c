@@ -41,6 +41,19 @@ static void print_summary(
     printf("plasticity_learning_mode: %s\n", config->plasticity_learning_mode);
     printf("reward_enabled: %s\n", config->reward_enabled ? "true" : "false");
     printf("homeostasis_enabled: %s\n", config->homeostasis_enabled ? "true" : "false");
+    if (result->working_memory_enabled)
+    {
+        printf("working_memory_accuracy: %.6f\n",
+               result->working_memory_recall_accuracy);
+        printf("working_memory_mean_score: %.6f\n",
+               result->working_memory_mean_recall_score);
+        printf("working_memory_chance_accuracy: %.6f\n",
+               result->working_memory_chance_accuracy);
+        printf("working_memory_control_accuracy: %.6f\n",
+               result->working_memory_control_accuracy);
+        printf("working_memory_retention_margin: %.6f\n",
+               result->working_memory_retention_margin);
+    }
 }
 
 int main(int argc, char **argv)
@@ -143,6 +156,13 @@ int main(int argc, char **argv)
         printf("- %s/reward_connections.csv\n", result.output_directory);
         printf("- %s/reward_report.txt\n", result.output_directory);
         printf("- %s/reward_report.html\n", result.output_directory);
+    }
+
+    if (result.working_memory_enabled)
+    {
+        printf("- %s/working_memory_trials.csv\n", result.output_directory);
+        printf("- %s/working_memory_summary.txt\n", result.output_directory);
+        printf("- %s/working_memory_report.html\n", result.output_directory);
     }
 
     return 0;

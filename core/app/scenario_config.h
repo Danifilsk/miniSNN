@@ -14,6 +14,7 @@
 #define SCENARIO_SCALING_TARGET_MODE_MAX 32
 #define SCENARIO_REWARD_MODE_MAX 16
 #define SCENARIO_MAX_REWARD_EVENTS 256
+#define SCENARIO_WORKING_MEMORY_PATTERN_MAX 24
 
 typedef struct
 {
@@ -147,6 +148,22 @@ typedef struct
     int reward_record_connection_limit;
     int reward_event_count;
     ScenarioRewardEvent reward_events[SCENARIO_MAX_REWARD_EVENTS];
+
+    int working_memory_enabled;
+    int working_memory_trials;
+    int working_memory_cue_steps;
+    int working_memory_delay_steps;
+    int working_memory_probe_steps;
+    char working_memory_cue_pattern[SCENARIO_WORKING_MEMORY_PATTERN_MAX];
+    int working_memory_cue_start;
+    int working_memory_cue_group_size;
+    int working_memory_readout_start;
+    int working_memory_readout_count;
+    int working_memory_readout_group_size;
+    unsigned int working_memory_seed;
+    int working_memory_reset_between_trials;
+    double working_memory_recall_tolerance;
+    double working_memory_recall_threshold;
 } ScenarioConfig;
 
 void scenario_config_default(ScenarioConfig *config);

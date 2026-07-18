@@ -210,6 +210,39 @@ static int configure_advanced_base(
     return scenario_config_save_file(path, &config, error, sizeof(error));
 }
 
+static int configure_working_memory_base(const char *path)
+{
+    ScenarioConfig config;
+    char error[256] = {0};
+
+    scenario_config_default(&config);
+    snprintf(config.run_name, sizeof(config.run_name), "working_memory_evolution_base");
+    snprintf(config.topology, sizeof(config.topology), "all_to_all");
+    config.neurons = 4;
+    config.inhibitory_fraction = 0.0;
+    config.source_count = 2;
+    config.input_current = 400.0;
+    config.steps = 16;
+    config.record_neuron = 0;
+    config.auto_unique_run = 0;
+    config.history_enabled = 0;
+    snprintf(config.diagnostics_level, sizeof(config.diagnostics_level), "off");
+    config.working_memory_enabled = 1;
+    config.working_memory_trials = 2;
+    config.working_memory_cue_steps = 20;
+    config.working_memory_delay_steps = 40;
+    config.working_memory_probe_steps = 20;
+    snprintf(config.working_memory_cue_pattern,
+             sizeof(config.working_memory_cue_pattern), "alternating");
+    config.working_memory_readout_start = 0;
+    config.working_memory_readout_count = 2;
+    config.working_memory_seed = 31U;
+    config.working_memory_reset_between_trials = 1;
+    config.working_memory_recall_tolerance = 0.25;
+    config.working_memory_recall_threshold = 0.75;
+    return scenario_config_save_file(path, &config, error, sizeof(error));
+}
+
 static void configure_evolution(
     EvolutionExperimentConfig *config,
     const char *experiment_name,
@@ -470,6 +503,62 @@ static int test_darwinian_replay(
            fabs(initial_weight - final_weight) > 1e-9;
 }
 
+static int test_working_memory_fitness(
+    const char *base_path,
+    const char *config_path)
+{
+    EvolutionExperimentConfig config;
+    EvolutionRunnerOptions options;
+    EvolutionRunResult result;
+    ScenarioConfig base;
+    char error[512] = {0};
+
+    if (!configure_working_memory_base(base_path))
+        return 0;
+    configure_evolution(&config, "working_memory_fitness", base_path, 0);
+    config.population_size = 2;
+    config.generations = 1;
+    config.elite_count = 1;
+    config.tournament_size = 2;
+    config.evaluation_replicates = 1;
+    config.save_best_run = 0;
+    config.fitness_term_count = 2;
+    snprintf(config.fitness_terms[0].metric,
+             sizeof(config.fitness_terms[0].metric),
+             "working_memory_recall_accuracy");
+    config.fitness_terms[0].goal = EVOLUTION_FITNESS_MAXIMIZE;
+    config.fitness_terms[0].target = 1.0;
+    config.fitness_terms[0].scale = 1.0;
+    config.fitness_terms[0].weight = 1.0;
+    config.fitness_terms[0].has_neuron_id = 0;
+    snprintf(config.fitness_terms[1].metric,
+             sizeof(config.fitness_terms[1].metric),
+             "working_memory_mean_recall_score");
+    config.fitness_terms[1].goal = EVOLUTION_FITNESS_MAXIMIZE;
+    config.fitness_terms[1].target = 1.0;
+    config.fitness_terms[1].scale = 1.0;
+    config.fitness_terms[1].weight = 1.0;
+    config.fitness_terms[1].has_neuron_id = 0;
+
+    scenario_config_default(&base);
+    if (evolution_config_validate(&config, &base, error, sizeof(error)))
+        return 0;
+
+    if (!evolution_config_save_file(config_path, &config, error, sizeof(error)) ||
+        !evolution_config_load_file(config_path, &config, &base,
+                                    error, sizeof(error)) ||
+        !evolution_config_validate(&config, &base, error, sizeof(error)))
+    {
+        return 0;
+    }
+
+    evolution_runner_default_options(&options);
+    options.output_root = TEST_ROOT "/working_memory";
+    return evolution_runner_execute(config_path, &options, &result,
+                                    error, sizeof(error)) &&
+           result.completed && result.generations_completed == 1;
+}
+
 static int test_advanced_model_evolution(
     MiniSNNNeuronModel model,
     const char *legacy_model_name,
@@ -522,6 +611,8 @@ int main(void)
     const char *plasticity_base_path = TEST_ROOT "/plasticity_base.ini";
     const char *config_path = TEST_ROOT "/evolution.ini";
     const char *darwinian_config_path = TEST_ROOT "/darwinian.ini";
+    const char *working_memory_base_path = TEST_ROOT "/working_memory_base.ini";
+    const char *working_memory_config_path = TEST_ROOT "/working_memory.ini";
     EvolutionExperimentConfig config;
     ScenarioConfig loaded_base;
     char error[512] = {0};
@@ -561,6 +652,13 @@ int main(void)
         ok = test_darwinian_replay(plasticity_base_path, darwinian_config_path);
         if (!ok)
             fprintf(stderr, "Etapa darwiniana falhou.\n");
+    }
+    if (ok)
+    {
+        ok = test_working_memory_fitness(
+            working_memory_base_path, working_memory_config_path);
+        if (!ok)
+            fprintf(stderr, "Etapa fitness de memoria de trabalho falhou.\n");
     }
     if (ok)
     {

@@ -731,6 +731,9 @@ static int metric_supported(
         strcmp(term->metric, "reward_weight_total_absolute_change") == 0 ||
         strcmp(term->metric, "reward_modified_connection_fraction") == 0)
         return base->reward_enabled;
+    if (strcmp(term->metric, "working_memory_recall_accuracy") == 0 ||
+        strcmp(term->metric, "working_memory_mean_recall_score") == 0)
+        return base->working_memory_enabled;
     return 0;
 }
 

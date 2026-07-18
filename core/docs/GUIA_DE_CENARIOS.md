@@ -118,6 +118,15 @@ mostra erro com numero de linha.
 | `correlation_sample_size` | Limite de neuronios na correlacao |
 | `neuron_sample_limit` | Limite da amostra de neuronios |
 | `sample_stride` | Passo deterministico da amostra |
+| `working_memory.enabled` | Ativa o protocolo temporal C6.1 |
+| `working_memory.trials` | Quantidade de trials cue-delay-probe |
+| `working_memory.cue_steps`, `delay_steps`, `probe_steps` | Duracoes inteiras do protocolo |
+| `working_memory.cue_pattern` | `alternating` ou `seeded` |
+| `working_memory.cue_start`, `cue_group_size` | Populacoes excitatorias de cue |
+| `working_memory.readout_start`, `readout_count`, `readout_group_size` | Populacoes de readout para o recall |
+| `working_memory.seed` | Seed deterministica do padrao de cue |
+| `working_memory.reset_between_trials` | Recria a rede entre trials |
+| `working_memory.recall_tolerance`, `recall_threshold` | Criterios de recall correto |
 
 Configs antigas sem `[diagnostics]` usam `off`. Arquivos salvos pelo Studio
 registram a secao, e o padrao de um novo cenario e `basic`.
@@ -128,7 +137,7 @@ Regras principais:
 
 - `run_name`: 1 a 48 caracteres, usando apenas letras, numeros, `_` e `-`.
 - `topology`: `chain`, `ring`, `all_to_all`, `random`, `random_balanced`,
-  `small_world` ou `feedforward`.
+  `small_world`, `feedforward` ou `working_memory`.
 - `neurons`: entre 1 e 1000.
 - `steps`: maior que zero.
 - `source_count`: entre 1 e `neurons`.
@@ -137,7 +146,8 @@ Regras principais:
 - `connection_probability`: entre 0.0 e 1.0.
 - `allow_self_connections` e `allow_inh_to_inh`: `true` ou `false`.
 - `allow_self_connections` se aplica a `all_to_all`, `random`,
-  `random_balanced` e `small_world`. Em `chain`, `ring` e `feedforward`, nao ha
+  `random_balanced`, `small_world` e `working_memory`. Em `chain`, `ring` e
+  `feedforward`, nao ha
   candidato natural de self-loop.
 - `delay`: entre 1 e `max_synaptic_delay`.
 - `max_synaptic_delay`: maior que zero.
@@ -149,6 +159,12 @@ Regras principais:
 - `inhibitory_weight`: menor que zero.
 - `dt`, `tau`, `resistance` e `synaptic_decay`: positivos.
 - `auto_unique_run` e `history_enabled`: `true` ou `false`.
+
+Quando `working_memory.enabled = true`, `trials`, `cue_steps` e `probe_steps`
+devem ser positivos; `delay_steps` pode ser zero; cue e readout precisam ter
+ao menos dois canais dentro da rede;
+e `recall_tolerance` fica entre zero e um, enquanto `recall_threshold` fica em
+`(0, 1]`. Veja o [Guia de memoria de trabalho](GUIA_DE_MEMORIA_DE_TRABALHO.md).
 
 ## 5. Topologias suportadas
 
@@ -199,6 +215,13 @@ pode ser escolhido com `allow_self_connections = true`.
 
 Divide os neuronios em `feedforward_layers` camadas e cria conexoes apenas de
 uma camada para a proxima, usando `connection_probability`.
+
+### `working_memory`
+
+Topologia experimental deterministica para o protocolo C6.1. Ela cria uma
+assembleia EXC recorrente por canal de readout e conecta cada assembleia a um
+INH que inibe apenas os grupos EXC concorrentes. Requer ao menos um INH por
+canal de readout e grupos cue/readout inteiramente excitatorios.
 
 ## 6. Como executar `chain.ini`
 
@@ -331,8 +354,8 @@ allow_inh_to_inh = false
 allow_self_connections = true
 ```
 
-Essa opcao cria self-loops reais apenas em `all_to_all`, `random`,
-`random_balanced` e na etapa de reconexao de `small_world`.
+Essa opcao cria self-loops reais em `all_to_all`, `random`, `random_balanced`,
+`working_memory` e na etapa de reconexao de `small_world`.
 
 ### Mudar small-world
 

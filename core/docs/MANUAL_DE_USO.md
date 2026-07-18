@@ -26,6 +26,21 @@ camada gráfica/HTML; a simulação em C não depende dele.
 Leia [Recompensa, punição e R-STDP](GUIA_DE_RECOMPENSA.md) para a ordem
 temporal, API, significado das métricas e limitações científicas.
 
+## Memoria de trabalho temporal
+
+O bloco C6.1 mede `cue -> delay sem estimulo -> probe` sem armazenar uma copia
+do cue como resposta. Para executar o exemplo reproduzivel:
+
+```powershell
+mingw32-make scenario-working-memory
+```
+
+O runner cria `working_memory_trials.csv`, `working_memory_summary.txt` e
+`working_memory_report.html` na pasta da run. No Studio, use `MEMORIA DE
+TRABALHO` para ativar e ajustar cue, delay, probe e trials; depois de executar,
+`ABRIR RELATORIO` abre o HTML. Veja o
+[Guia de memoria de trabalho](GUIA_DE_MEMORIA_DE_TRABALHO.md).
+
 [Voltar ao índice da documentação](INDICE_DA_DOCUMENTACAO.md)
 
 ## O que e a miniSNN
@@ -232,8 +247,8 @@ mingw32-make scenario SCENARIO=configs/random_balanced.ini
 
 Use cenarios para mudar topologia, pesos, seed, numero de neuronios, duracao,
 entrada externa e opcoes de conectividade. As topologias disponiveis sao:
-`chain`, `ring`, `all_to_all`, `random`, `random_balanced`, `small_world` e
-`feedforward`. Nao altere `src/` para testes normais de parametros.
+`chain`, `ring`, `all_to_all`, `random`, `random_balanced`, `small_world`,
+`feedforward` e `working_memory`. Nao altere `src/` para testes normais de parametros.
 
 ## miniSNN Studio
 
@@ -290,7 +305,7 @@ O botao `OPCOES`, ao lado da topologia, edita configuracoes menos frequentes:
 auto-conexao, conexoes `INH -> INH`, densidade, seed, delays, parametros
 `small_world` e numero de camadas `feedforward`. O Studio desabilita campos que
 nao se aplicam a topologia selecionada. Auto-conexoes reais podem ser ativadas
-em `all_to_all`, `random`, `random_balanced` e `small_world`; em `chain`,
+em `all_to_all`, `random`, `random_balanced`, `small_world` e `working_memory`; em `chain`,
 `ring` e `feedforward`, a opcao fica desabilitada.
 
 Na API publica, as chamadas antigas `minisnn_connect()` e

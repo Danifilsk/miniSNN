@@ -9,6 +9,7 @@
 
 #include "minisnn.h"
 #include "scenario_runtime.h"
+#include "working_memory.h"
 
 #define COMMAND_BUFFER_SIZE 640
 #define SCENARIO_MAX_NEURONS 1000
@@ -886,6 +887,86 @@ static int build_feedforward(
     return 1;
 }
 
+/* Two recurrent EXC assemblies compete through separate cross-inhibitory cells. */
+static int build_working_memory(
+    MiniSNN *snn,
+    const ScenarioConfig *config,
+    const int *neuron_is_inhibitory,
+    ConnectivityStats *stats)
+{
+    int inhibitory_count = calculate_inhibitory_count(config);
+    int inhibitory_start = config->neurons - inhibitory_count;
+    int group_count = config->working_memory_readout_count;
+    int group_size = config->working_memory_readout_group_size;
+
+    if (inhibitory_count < group_count)
+        return 0;
+
+    for (int group = 0; group < group_count; group++)
+    {
+        int excitatory_start = config->working_memory_readout_start +
+                               group * group_size;
+        int inhibitory_neuron = inhibitory_start + group;
+
+        for (int source_offset = 0; source_offset < group_size;
+             source_offset++)
+        {
+            int source = excitatory_start + source_offset;
+
+            for (int target_offset = 0; target_offset < group_size;
+                 target_offset++)
+            {
+                int target = excitatory_start + target_offset;
+
+                if (!connection_is_allowed(
+                        config, neuron_is_inhibitory, source, target))
+                {
+                    continue;
+                }
+                if (!connect_pair(
+                        snn, config, neuron_is_inhibitory, source, target,
+                        stats))
+                {
+                    return 0;
+                }
+            }
+
+            if (!connect_pair(
+                    snn, config, neuron_is_inhibitory, source,
+                    inhibitory_neuron, stats))
+            {
+                return 0;
+            }
+        }
+
+        for (int target_group = 0; target_group < group_count;
+             target_group++)
+        {
+            int target_start;
+
+            if (target_group == group)
+                continue;
+
+            target_start = config->working_memory_readout_start +
+                           target_group * group_size;
+            for (int target_offset = 0; target_offset < group_size;
+                 target_offset++)
+            {
+                int target = target_start + target_offset;
+
+                if (!connect_pair(
+                        snn, config, neuron_is_inhibitory,
+                        inhibitory_neuron, target, stats))
+                {
+                    return 0;
+                }
+            }
+        }
+    }
+
+    return 1;
+}
+
 static int build_topology(
     MiniSNN *snn,
     const ScenarioConfig *config,
@@ -931,6 +1012,13 @@ static int build_topology(
 
     if (strcmp(config->topology, "feedforward") == 0)
         return build_feedforward(
+            snn,
+            config,
+            neuron_is_inhibitory,
+            stats);
+
+    if (strcmp(config->topology, "working_memory") == 0)
+        return build_working_memory(
             snn,
             config,
             neuron_is_inhibitory,
@@ -2699,6 +2787,32 @@ static int write_summary(
     else if (fprintf(file, "mean_isi=NA\n") < 0)
         return 0;
 
+    if (fprintf(
+            file,
+            "working_memory_enabled=%s\n"
+            "working_memory_trial_count=%d\n"
+            "working_memory_correct_trials=%d\n"
+            "working_memory_recall_accuracy=%.17g\n"
+            "working_memory_mean_recall_score=%.17g\n"
+            "working_memory_recall_score_stddev=%.17g\n"
+            "working_memory_mean_response_latency=%.17g\n"
+            "working_memory_chance_accuracy=%.17g\n"
+            "working_memory_control_accuracy=%.17g\n"
+            "working_memory_retention_margin=%.17g\n",
+            result->working_memory_enabled ? "true" : "false",
+            result->working_memory_trial_count,
+            result->working_memory_correct_trials,
+            result->working_memory_recall_accuracy,
+            result->working_memory_mean_recall_score,
+            result->working_memory_recall_score_stddev,
+            result->working_memory_mean_response_latency,
+            result->working_memory_chance_accuracy,
+            result->working_memory_control_accuracy,
+            result->working_memory_retention_margin) < 0)
+    {
+        return 0;
+    }
+
     if (config->neuron_model == MINISNN_NEURON_MODEL_ADEX)
     {
         return fprintf(
@@ -3205,6 +3319,7 @@ static int write_run_manifest(
     char plasticity_files[256] = "NA";
     char homeostasis_files[384] = "NA";
     char reward_files[384] = "NA";
+    char working_memory_files[160] = "";
     FILE *pipe;
     MiniSNNConfig minisnn_config;
     MiniSNNNeuronModelCapabilities capabilities;
@@ -3253,7 +3368,15 @@ static int write_run_manifest(
         snprintf(
             reward_files,
             sizeof(reward_files),
-            "reward_metrics.csv;reward_events.csv;reward_history.csv;eligibility_history.csv;reward_connections.csv;reward_report.txt;reward_report.html");
+                "reward_metrics.csv;reward_events.csv;reward_history.csv;eligibility_history.csv;reward_connections.csv;reward_report.txt;reward_report.html");
+    }
+
+    if (config->working_memory_enabled)
+    {
+        snprintf(
+            working_memory_files,
+            sizeof(working_memory_files),
+            ";working_memory_trials.csv;working_memory_summary.txt;working_memory_report.html");
     }
 
     pipe = _popen("git rev-parse --short HEAD 2>NUL", "r");
@@ -3358,7 +3481,7 @@ static int write_run_manifest(
             "python_version=NA\n"
             "pandas_version=NA\n"
             "matplotlib_version=NA\n"
-            "files=config_used.ini;summary.txt;population.csv;raster.csv;neuron_%d.csv;run_manifest.txt%s\n",
+            "files=config_used.ini;summary.txt;population.csv;raster.csv;neuron_%d.csv;run_manifest.txt%s%s\n",
             MINISNN_VERSION,
             git_commit,
             git_status,
@@ -3429,7 +3552,8 @@ static int write_run_manifest(
             config->reward_record_connection_limit,
             reward_files,
             config->record_neuron,
-            metrics_generated ? ";metrics.csv" : "") < 0)
+            metrics_generated ? ";metrics.csv" : "",
+            working_memory_files) < 0)
     {
         fclose(file);
         return 0;
@@ -4208,6 +4332,8 @@ int scenario_runner_execute(
     HomeostasisRunData homeostasis_data;
     RewardRunData reward_data;
     StructuralRunData structural_data;
+    ScenarioBlueprint working_memory_blueprint;
+    WorkingMemoryResult working_memory_result;
     ULONGLONG wall_start;
     ULONGLONG simulation_start;
     double simulation_seconds;
@@ -4227,6 +4353,8 @@ int scenario_runner_execute(
     memset(&homeostasis_data, 0, sizeof(homeostasis_data));
     memset(&reward_data, 0, sizeof(reward_data));
     memset(&structural_data, 0, sizeof(structural_data));
+    memset(&working_memory_blueprint, 0, sizeof(working_memory_blueprint));
+    memset(&working_memory_result, 0, sizeof(working_memory_result));
 
     if (!scenario_config_validate(config, error_message, error_message_size))
         return 0;
@@ -4434,6 +4562,59 @@ int scenario_runner_execute(
         reward_run_data_close(&reward_data);
         minisnn_destroy(&snn);
         return 0;
+    }
+
+    if (config->working_memory_enabled)
+    {
+        if (!scenario_runner_capture_blueprint(
+                config, &working_memory_blueprint, error_message,
+                error_message_size) ||
+            !working_memory_execute(
+                config, &working_memory_blueprint, &working_memory_result,
+                error_message, error_message_size) ||
+            !working_memory_write_outputs(
+                config, &working_memory_result, result.output_directory,
+                error_message, error_message_size))
+        {
+            if (error_message != NULL && error_message_size > 0 &&
+                error_message[0] == '\0')
+            {
+                set_error(error_message, error_message_size,
+                          "erro durante memoria de trabalho");
+            }
+            scenario_blueprint_destroy(&working_memory_blueprint);
+            working_memory_result_destroy(&working_memory_result);
+            close_file_if_open(population_file);
+            close_file_if_open(raster_file);
+            close_file_if_open(neuron_file);
+            close_file_if_open(model_state_file);
+            close_file_if_open(summary_file);
+            plasticity_run_data_close(&plasticity_data);
+            homeostasis_run_data_close(&homeostasis_data);
+            reward_run_data_close(&reward_data);
+            minisnn_destroy(&snn);
+            return 0;
+        }
+
+        result.working_memory_enabled = 1;
+        result.working_memory_trial_count = working_memory_result.trial_count;
+        result.working_memory_correct_trials = working_memory_result.correct_trials;
+        result.working_memory_recall_accuracy =
+            working_memory_result.recall_accuracy;
+        result.working_memory_mean_recall_score =
+            working_memory_result.mean_recall_score;
+        result.working_memory_recall_score_stddev =
+            working_memory_result.recall_score_stddev;
+        result.working_memory_mean_response_latency =
+            working_memory_result.mean_response_latency;
+        result.working_memory_chance_accuracy =
+            working_memory_result.chance_accuracy;
+        result.working_memory_control_accuracy =
+            working_memory_result.control_accuracy;
+        result.working_memory_retention_margin =
+            working_memory_result.retention_margin;
+        scenario_blueprint_destroy(&working_memory_blueprint);
+        working_memory_result_destroy(&working_memory_result);
     }
 
     simulation_seconds =

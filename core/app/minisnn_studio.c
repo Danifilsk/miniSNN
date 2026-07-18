@@ -108,6 +108,8 @@
 #define IDC_BTN_MODEL_OPTIONS 2029
 #define IDC_BTN_OPEN_MODEL_STATE 2030
 #define IDC_BTN_COMPARE_MODELS 2031
+#define IDC_BTN_WORKING_MEMORY 2032
+#define IDC_BTN_OPEN_WORKING_MEMORY 2033
 
 #define IDC_STATUS 3001
 #define IDC_SUMMARY 3002
@@ -271,6 +273,14 @@
 #define IDC_MODEL_APPLY 10020
 #define IDC_MODEL_CANCEL 10021
 
+#define IDC_WORKING_MEMORY_ENABLED 11001
+#define IDC_WORKING_MEMORY_CUE 11002
+#define IDC_WORKING_MEMORY_DELAY 11003
+#define IDC_WORKING_MEMORY_PROBE 11004
+#define IDC_WORKING_MEMORY_TRIALS 11005
+#define IDC_WORKING_MEMORY_APPLY 11006
+#define IDC_WORKING_MEMORY_CANCEL 11007
+
 #define STUDIO_INIT_TIMER_ID 1
 #define STUDIO_EVOLUTION_TIMER_ID 2
 
@@ -318,6 +328,8 @@ typedef struct
     HWND homeostasis_button;
     HWND reward_button;
     HWND evolution_button;
+    HWND working_memory_button;
+    HWND working_memory_report_button;
     HWND status_label;
     HWND summary_box;
     HWND execution_section_label;
@@ -517,6 +529,17 @@ typedef struct
     int field_count;
 } NeuronModelDialog;
 
+typedef struct
+{
+    HWND window;
+    ScenarioConfig working_config;
+    HWND enabled_checkbox;
+    HWND cue_edit;
+    HWND delay_edit;
+    HWND probe_edit;
+    HWND trials_edit;
+} WorkingMemoryDialog;
+
 static StudioState g_app;
 static TopologyOptionsDialog g_options;
 static PlasticityDialog g_plasticity;
@@ -525,6 +548,7 @@ static RewardDialog g_reward;
 static EvolutionDialog g_evolution;
 static AdaptiveTopologyDialog g_adaptive;
 static NeuronModelDialog g_neuron_model;
+static WorkingMemoryDialog g_working_memory;
 
 static void draw_button(const DRAWITEMSTRUCT *item);
 static LRESULT handle_color(HDC hdc, HWND hwnd);
@@ -598,7 +622,8 @@ static int topology_can_allow_self_connections(const char *topology)
     return strcmp(topology, "all_to_all") == 0 ||
            strcmp(topology, "random") == 0 ||
            strcmp(topology, "random_balanced") == 0 ||
-           strcmp(topology, "small_world") == 0;
+           strcmp(topology, "small_world") == 0 ||
+           strcmp(topology, "working_memory") == 0;
 }
 
 static int topology_uses_small_world_options(const char *topology)
@@ -1723,6 +1748,9 @@ static void set_result_buttons_enabled(BOOL enabled)
         enabled &&
         g_app.current_config.neuron_model != MINISNN_NEURON_MODEL_LIF);
     EnableWindow(g_app.buttons[24], TRUE);
+    EnableWindow(
+        g_app.working_memory_report_button,
+        enabled && g_app.last_result.working_memory_enabled);
 }
 
 static void set_comparison_buttons_enabled(void)
@@ -5198,6 +5226,227 @@ static void open_homeostasis_options(void)
     SetActiveWindow(g_app.window);
 }
 
+static void working_memory_to_controls(void)
+{
+    char text[TEXT_BUFFER_SIZE];
+    const ScenarioConfig *config = &g_working_memory.working_config;
+
+    SendMessageA(
+        g_working_memory.enabled_checkbox,
+        BM_SETCHECK,
+        config->working_memory_enabled ? BST_CHECKED : BST_UNCHECKED,
+        0);
+    snprintf(text, sizeof(text), "%d", config->working_memory_cue_steps);
+    SetWindowTextA(g_working_memory.cue_edit, text);
+    snprintf(text, sizeof(text), "%d", config->working_memory_delay_steps);
+    SetWindowTextA(g_working_memory.delay_edit, text);
+    snprintf(text, sizeof(text), "%d", config->working_memory_probe_steps);
+    SetWindowTextA(g_working_memory.probe_edit, text);
+    snprintf(text, sizeof(text), "%d", config->working_memory_trials);
+    SetWindowTextA(g_working_memory.trials_edit, text);
+}
+
+static int apply_working_memory_options(void)
+{
+    ScenarioConfig candidate = g_working_memory.working_config;
+    char error[256];
+
+    candidate.working_memory_enabled =
+        SendMessageA(g_working_memory.enabled_checkbox, BM_GETCHECK, 0, 0) ==
+        BST_CHECKED;
+    if (!parse_int_from_window(
+            g_working_memory.cue_edit, "CUE",
+            &candidate.working_memory_cue_steps, error, sizeof(error)) ||
+        !parse_int_from_window(
+            g_working_memory.delay_edit, "DELAY",
+            &candidate.working_memory_delay_steps, error, sizeof(error)) ||
+        !parse_int_from_window(
+            g_working_memory.probe_edit, "PROBE",
+            &candidate.working_memory_probe_steps, error, sizeof(error)) ||
+        !parse_int_from_window(
+            g_working_memory.trials_edit, "TRIALS",
+            &candidate.working_memory_trials, error, sizeof(error)) ||
+        !scenario_config_validate(&candidate, error, sizeof(error)))
+    {
+        show_error("Memoria de trabalho invalida", error);
+        return 0;
+    }
+
+    g_app.current_config = candidate;
+    config_to_controls(&candidate);
+    set_status(candidate.working_memory_enabled ?
+        "MEMORIA DE TRABALHO ATIVADA" : "MEMORIA DE TRABALHO DESATIVADA");
+    DestroyWindow(g_working_memory.window);
+    return 1;
+}
+
+static LRESULT CALLBACK working_memory_options_proc(
+    HWND hwnd,
+    UINT message,
+    WPARAM wparam,
+    LPARAM lparam)
+{
+    (void)lparam;
+    switch (message)
+    {
+    case WM_CREATE:
+        g_working_memory.window = hwnd;
+        create_static(hwnd, "MEMORIA DE TRABALHO", 24, 18, 360, 26, 0);
+        g_working_memory.enabled_checkbox = create_checkbox(
+            hwnd, "ATIVAR", IDC_WORKING_MEMORY_ENABLED, 24, 54, 160, 28);
+        create_static(hwnd, "CUE (passos)", 24, 102, 170, 24, 0);
+        g_working_memory.cue_edit = create_edit(
+            hwnd, IDC_WORKING_MEMORY_CUE, 210, 98, 110, 28);
+        create_static(hwnd, "DELAY (passos)", 24, 142, 170, 24, 0);
+        g_working_memory.delay_edit = create_edit(
+            hwnd, IDC_WORKING_MEMORY_DELAY, 210, 138, 110, 28);
+        create_static(hwnd, "PROBE (passos)", 24, 182, 170, 24, 0);
+        g_working_memory.probe_edit = create_edit(
+            hwnd, IDC_WORKING_MEMORY_PROBE, 210, 178, 110, 28);
+        create_static(hwnd, "TRIALS", 24, 222, 170, 24, 0);
+        g_working_memory.trials_edit = create_edit(
+            hwnd, IDC_WORKING_MEMORY_TRIALS, 210, 218, 110, 28);
+        create_button(hwnd, "APLICAR", IDC_WORKING_MEMORY_APPLY,
+                      94, 282, 130, 36);
+        create_button(hwnd, "CANCELAR", IDC_WORKING_MEMORY_CANCEL,
+                      244, 282, 130, 36);
+        working_memory_to_controls();
+        enable_dark_title_bar(hwnd);
+        return 0;
+    case WM_COMMAND:
+        if (HIWORD(wparam) == BN_CLICKED)
+        {
+            if (LOWORD(wparam) == IDC_WORKING_MEMORY_APPLY)
+            {
+                apply_working_memory_options();
+                return 0;
+            }
+            if (LOWORD(wparam) == IDC_WORKING_MEMORY_CANCEL)
+            {
+                DestroyWindow(hwnd);
+                return 0;
+            }
+        }
+        break;
+    case WM_CTLCOLORSTATIC:
+        return handle_color((HDC)wparam, (HWND)lparam);
+    case WM_CTLCOLOREDIT:
+        return handle_edit_color((HDC)wparam);
+    case WM_DRAWITEM:
+        draw_button((const DRAWITEMSTRUCT *)lparam);
+        return TRUE;
+    case WM_CLOSE:
+        DestroyWindow(hwnd);
+        return 0;
+    case WM_DESTROY:
+        g_working_memory.window = NULL;
+        return 0;
+    default:
+        break;
+    }
+    return DefWindowProcA(hwnd, message, wparam, lparam);
+}
+
+static int ensure_working_memory_class_registered(void)
+{
+    static int registered = 0;
+    WNDCLASSA window_class;
+
+    if (registered)
+        return 1;
+    memset(&window_class, 0, sizeof(window_class));
+    window_class.lpfnWndProc = working_memory_options_proc;
+    window_class.hInstance = GetModuleHandleA(NULL);
+    window_class.lpszClassName = "MiniSNNWorkingMemoryOptionsWindow";
+    window_class.hCursor = LoadCursor(NULL, IDC_ARROW);
+    window_class.hbrBackground = g_app.background_brush;
+    if (!RegisterClassA(&window_class))
+        return 0;
+    registered = 1;
+    return 1;
+}
+
+static void open_working_memory_options(void)
+{
+    ScenarioConfig config;
+    char error[256];
+    HWND dialog;
+    MSG message;
+
+    if (!controls_to_config(&config, error, sizeof(error)))
+    {
+        show_error("Configuracao invalida", error);
+        return;
+    }
+    if (!ensure_working_memory_class_registered())
+    {
+        show_error("Erro interno",
+                   "Nao foi possivel criar a janela de memoria de trabalho.");
+        return;
+    }
+
+    memset(&g_working_memory, 0, sizeof(g_working_memory));
+    g_working_memory.working_config = config;
+    dialog = CreateWindowExA(
+        WS_EX_DLGMODALFRAME,
+        "MiniSNNWorkingMemoryOptionsWindow",
+        "MEMORIA DE TRABALHO",
+        WS_POPUP | WS_CAPTION | WS_SYSMENU,
+        CW_USEDEFAULT,
+        CW_USEDEFAULT,
+        490,
+        380,
+        g_app.window,
+        NULL,
+        GetModuleHandleA(NULL),
+        NULL);
+    if (dialog == NULL)
+    {
+        show_error("Erro interno",
+                   "Nao foi possivel abrir a memoria de trabalho.");
+        return;
+    }
+
+    EnableWindow(g_app.window, FALSE);
+    ShowWindow(dialog, SW_SHOW);
+    UpdateWindow(dialog);
+    while (g_working_memory.window != NULL &&
+           GetMessageA(&message, NULL, 0, 0) > 0)
+    {
+        if (!IsDialogMessageA(dialog, &message))
+        {
+            TranslateMessage(&message);
+            DispatchMessageA(&message);
+        }
+    }
+    EnableWindow(g_app.window, TRUE);
+    SetActiveWindow(g_app.window);
+}
+
+static void open_working_memory_report(void)
+{
+    char path[MAX_PATH];
+
+    if (!g_app.has_result || !g_app.last_result.working_memory_enabled)
+    {
+        show_info("Memoria de trabalho",
+                  "A ultima execucao nao possui memoria de trabalho ativa.");
+        return;
+    }
+    if (!build_run_artifact_path(path, sizeof(path),
+                                 "working_memory_report.html"))
+    {
+        show_error("Erro interno",
+                   "Nao foi possivel montar o caminho do relatorio.");
+        return;
+    }
+    open_existing_file(
+        path,
+        "Memoria de trabalho",
+        "working_memory_report.html nao existe. Execute o cenario novamente.",
+        "RELATORIO DE MEMORIA DE TRABALHO ABERTO");
+}
+
 static char *trim_reward_token(char *text)
 {
     char *end;
@@ -7208,6 +7457,7 @@ static void create_controls(HWND hwnd)
     SendMessageA(g_app.topology_combo, CB_ADDSTRING, 0, (LPARAM)"random_balanced");
     SendMessageA(g_app.topology_combo, CB_ADDSTRING, 0, (LPARAM)"small_world");
     SendMessageA(g_app.topology_combo, CB_ADDSTRING, 0, (LPARAM)"feedforward");
+    SendMessageA(g_app.topology_combo, CB_ADDSTRING, 0, (LPARAM)"working_memory");
     SendMessageA(g_app.topology_combo, CB_SETDROPPEDWIDTH, (WPARAM)topology_w, 0);
     g_app.topology_options_button = create_button(
         hwnd,
@@ -7294,6 +7544,22 @@ static void create_controls(HWND hwnd)
         IDC_BTN_EVOLUTION,
         x2,
         y + 9 * STUDIO_ROW_HEIGHT + 2,
+        280,
+        STUDIO_BUTTON_HEIGHT);
+    g_app.working_memory_button = create_button(
+        hwnd,
+        "MEMORIA DE TRABALHO",
+        IDC_BTN_WORKING_MEMORY,
+        x2,
+        y + 10 * STUDIO_ROW_HEIGHT + 2,
+        280,
+        STUDIO_BUTTON_HEIGHT);
+    g_app.working_memory_report_button = create_button(
+        hwnd,
+        "ABRIR RELATORIO",
+        IDC_BTN_OPEN_WORKING_MEMORY,
+        x2,
+        y + 11 * STUDIO_ROW_HEIGHT + 2,
         280,
         STUDIO_BUTTON_HEIGHT);
 
@@ -7426,6 +7692,12 @@ static void layout_controls(HWND hwnd)
     MoveWindow(g_app.buttons[20], right_x + STUDIO_BUTTON_WIDTH_LEFT + STUDIO_BUTTON_GAP, 116 + 11 * STUDIO_BUTTON_ROW_HEIGHT, STUDIO_BUTTON_WIDTH_RIGHT, STUDIO_BUTTON_HEIGHT, TRUE);
     MoveWindow(g_app.buttons[21], right_x, 116 + 12 * STUDIO_BUTTON_ROW_HEIGHT, STUDIO_BUTTON_WIDTH_LEFT, STUDIO_BUTTON_HEIGHT, TRUE);
     MoveWindow(g_app.buttons[22], right_x + STUDIO_BUTTON_WIDTH_LEFT + STUDIO_BUTTON_GAP, 116 + 12 * STUDIO_BUTTON_ROW_HEIGHT, STUDIO_BUTTON_WIDTH_RIGHT, STUDIO_BUTTON_HEIGHT, TRUE);
+    MoveWindow(g_app.working_memory_button, STUDIO_MIDDLE_X,
+               STUDIO_TOP_Y + 10 * STUDIO_ROW_HEIGHT + 2, 280,
+               STUDIO_BUTTON_HEIGHT, TRUE);
+    MoveWindow(g_app.working_memory_report_button, STUDIO_MIDDLE_X,
+               STUDIO_TOP_Y + 11 * STUDIO_ROW_HEIGHT + 2, 280,
+               STUDIO_BUTTON_HEIGHT, TRUE);
 
     InvalidateRect(hwnd, NULL, TRUE);
 }
@@ -7712,6 +7984,12 @@ static LRESULT CALLBACK window_proc(
                 return 0;
             case IDC_BTN_EVOLUTION:
                 open_evolution_options();
+                return 0;
+            case IDC_BTN_WORKING_MEMORY:
+                open_working_memory_options();
+                return 0;
+            case IDC_BTN_OPEN_WORKING_MEMORY:
+                open_working_memory_report();
                 return 0;
             case IDC_BTN_PLOT_PLASTICITY:
                 generate_plasticity_graph();

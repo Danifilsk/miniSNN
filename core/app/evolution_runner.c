@@ -14,6 +14,7 @@
 #include "scenario_runner.h"
 #include "scenario_runtime.h"
 #include "structure.h"
+#include "working_memory.h"
 
 #define EVOLUTION_DEFAULT_OUTPUT_ROOT "results/evolution"
 #define EVOLUTION_INDEX_HEADER_LEGACY \
@@ -62,6 +63,8 @@ typedef struct
     double reward_weight_total_signed_change;
     double reward_weight_total_absolute_change;
     double reward_modified_connection_fraction;
+    double working_memory_recall_accuracy;
+    double working_memory_mean_recall_score;
     double term_observed[EVOLUTION_MAX_FITNESS_TERMS];
     double term_scores[EVOLUTION_MAX_FITNESS_TERMS];
     size_t final_lifetime_connection_count;
@@ -1034,6 +1037,10 @@ static int observed_metric(
         *out_value = (double)evaluation->exc_spikes;
     else if (strcmp(term->metric, "inh_total_spikes") == 0)
         *out_value = (double)evaluation->inh_spikes;
+    else if (strcmp(term->metric, "working_memory_recall_accuracy") == 0)
+        *out_value = evaluation->working_memory_recall_accuracy;
+    else if (strcmp(term->metric, "working_memory_mean_recall_score") == 0)
+        *out_value = evaluation->working_memory_mean_recall_score;
     else if (term->has_neuron_id)
         *out_value = (double)evaluation->neuron_spikes[term->neuron_id];
     else if (strcmp(term->metric, "network_final_weight_mean") == 0)
@@ -1144,6 +1151,41 @@ static int evaluate_genome(
         minisnn_destroy(&snn);
         *out_evaluation = evaluation;
         return 1;
+    }
+
+    if (scenario.working_memory_enabled)
+    {
+        ScenarioBlueprint working_memory_blueprint = {0};
+        WorkingMemoryResult working_memory_result = {0};
+        uint64_t topology_signature = 0U;
+
+        if (!scenario_runtime_capture_network(
+                snn, context->blueprint.inhibitory_count,
+                minisnn_get_topology_signature(snn, &topology_signature) ?
+                    topology_signature : 0U,
+                &working_memory_blueprint,
+                runtime_error, sizeof(runtime_error)) ||
+            !working_memory_execute(
+                &scenario, &working_memory_blueprint,
+                &working_memory_result, runtime_error,
+                sizeof(runtime_error)))
+        {
+            snprintf(evaluation.failure_reason, sizeof(evaluation.failure_reason),
+                     "%s", runtime_error[0] != '\0' ? runtime_error :
+                         "falha na avaliacao de memoria de trabalho");
+            scenario_blueprint_destroy(&working_memory_blueprint);
+            working_memory_result_destroy(&working_memory_result);
+            minisnn_destroy(&snn);
+            *out_evaluation = evaluation;
+            return 1;
+        }
+
+        evaluation.working_memory_recall_accuracy =
+            working_memory_result.recall_accuracy;
+        evaluation.working_memory_mean_recall_score =
+            working_memory_result.mean_recall_score;
+        scenario_blueprint_destroy(&working_memory_blueprint);
+        working_memory_result_destroy(&working_memory_result);
     }
 
     for (int step = 0; step < scenario.steps; step++)

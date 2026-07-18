@@ -134,6 +134,21 @@ typedef enum
     FIELD_REWARD_RECORD_HISTORY,
     FIELD_REWARD_RECORD_INTERVAL_STEPS,
     FIELD_REWARD_RECORD_CONNECTION_LIMIT,
+    FIELD_WORKING_MEMORY_ENABLED,
+    FIELD_WORKING_MEMORY_TRIALS,
+    FIELD_WORKING_MEMORY_CUE_STEPS,
+    FIELD_WORKING_MEMORY_DELAY_STEPS,
+    FIELD_WORKING_MEMORY_PROBE_STEPS,
+    FIELD_WORKING_MEMORY_CUE_PATTERN,
+    FIELD_WORKING_MEMORY_CUE_START,
+    FIELD_WORKING_MEMORY_CUE_GROUP_SIZE,
+    FIELD_WORKING_MEMORY_READOUT_START,
+    FIELD_WORKING_MEMORY_READOUT_COUNT,
+    FIELD_WORKING_MEMORY_READOUT_GROUP_SIZE,
+    FIELD_WORKING_MEMORY_SEED,
+    FIELD_WORKING_MEMORY_RESET_BETWEEN_TRIALS,
+    FIELD_WORKING_MEMORY_RECALL_TOLERANCE,
+    FIELD_WORKING_MEMORY_RECALL_THRESHOLD,
     FIELD_COUNT
 } ScenarioField;
 
@@ -426,6 +441,43 @@ static int find_field(
             *out_field = FIELD_REWARD_RECORD_INTERVAL_STEPS;
         else if (strcmp(key, "record_connection_limit") == 0)
             *out_field = FIELD_REWARD_RECORD_CONNECTION_LIMIT;
+        else
+            return 0;
+        return 1;
+    }
+
+    if (strcmp(section, "working_memory") == 0)
+    {
+        if (strcmp(key, "enabled") == 0)
+            *out_field = FIELD_WORKING_MEMORY_ENABLED;
+        else if (strcmp(key, "trials") == 0)
+            *out_field = FIELD_WORKING_MEMORY_TRIALS;
+        else if (strcmp(key, "cue_steps") == 0)
+            *out_field = FIELD_WORKING_MEMORY_CUE_STEPS;
+        else if (strcmp(key, "delay_steps") == 0)
+            *out_field = FIELD_WORKING_MEMORY_DELAY_STEPS;
+        else if (strcmp(key, "probe_steps") == 0)
+            *out_field = FIELD_WORKING_MEMORY_PROBE_STEPS;
+        else if (strcmp(key, "cue_pattern") == 0)
+            *out_field = FIELD_WORKING_MEMORY_CUE_PATTERN;
+        else if (strcmp(key, "cue_start") == 0)
+            *out_field = FIELD_WORKING_MEMORY_CUE_START;
+        else if (strcmp(key, "cue_group_size") == 0)
+            *out_field = FIELD_WORKING_MEMORY_CUE_GROUP_SIZE;
+        else if (strcmp(key, "readout_start") == 0)
+            *out_field = FIELD_WORKING_MEMORY_READOUT_START;
+        else if (strcmp(key, "readout_count") == 0)
+            *out_field = FIELD_WORKING_MEMORY_READOUT_COUNT;
+        else if (strcmp(key, "readout_group_size") == 0)
+            *out_field = FIELD_WORKING_MEMORY_READOUT_GROUP_SIZE;
+        else if (strcmp(key, "seed") == 0)
+            *out_field = FIELD_WORKING_MEMORY_SEED;
+        else if (strcmp(key, "reset_between_trials") == 0)
+            *out_field = FIELD_WORKING_MEMORY_RESET_BETWEEN_TRIALS;
+        else if (strcmp(key, "recall_tolerance") == 0)
+            *out_field = FIELD_WORKING_MEMORY_RECALL_TOLERANCE;
+        else if (strcmp(key, "recall_threshold") == 0)
+            *out_field = FIELD_WORKING_MEMORY_RECALL_THRESHOLD;
         else
             return 0;
         return 1;
@@ -772,6 +824,18 @@ static int assign_value(
         }
         return 1;
 
+    case FIELD_WORKING_MEMORY_CUE_PATTERN:
+        if (!copy_string_value(
+                config->working_memory_cue_pattern,
+                sizeof(config->working_memory_cue_pattern),
+                value))
+        {
+            set_line_error(error_message, error_message_size, line_number,
+                           "cue_pattern muito longo");
+            return 0;
+        }
+        return 1;
+
     case FIELD_SEED:
         if (!parse_uint_value(value, &uint_value))
         {
@@ -783,6 +847,16 @@ static int assign_value(
             return 0;
         }
         config->seed = uint_value;
+        return 1;
+
+    case FIELD_WORKING_MEMORY_SEED:
+        if (!parse_uint_value(value, &uint_value))
+        {
+            set_line_error(error_message, error_message_size, line_number,
+                           "seed de memoria de trabalho invalido");
+            return 0;
+        }
+        config->working_memory_seed = uint_value;
         return 1;
 
     case FIELD_STRUCTURAL_GROWTH_SEED:
@@ -814,6 +888,8 @@ static int assign_value(
     case FIELD_STRUCTURAL_PRUNING_ENABLED:
     case FIELD_STRUCTURAL_GROWTH_ENABLED:
     case FIELD_STRUCTURAL_RECORD_HISTORY:
+    case FIELD_WORKING_MEMORY_ENABLED:
+    case FIELD_WORKING_MEMORY_RESET_BETWEEN_TRIALS:
         if (!parse_bool_value(value, &bool_value))
         {
             set_line_error(
@@ -860,6 +936,10 @@ static int assign_value(
             config->structural_growth_enabled = bool_value;
         else if (field == FIELD_STRUCTURAL_RECORD_HISTORY)
             config->structural_record_history = bool_value;
+        else if (field == FIELD_WORKING_MEMORY_ENABLED)
+            config->working_memory_enabled = bool_value;
+        else if (field == FIELD_WORKING_MEMORY_RESET_BETWEEN_TRIALS)
+            config->working_memory_reset_between_trials = bool_value;
         else
             config->reward_record_history = bool_value;
 
@@ -895,6 +975,15 @@ static int assign_value(
     case FIELD_STRUCTURAL_MIN_CONNECTIONS:
     case FIELD_STRUCTURAL_MAX_CONNECTIONS:
     case FIELD_STRUCTURAL_RECORD_INTERVAL_STEPS:
+    case FIELD_WORKING_MEMORY_TRIALS:
+    case FIELD_WORKING_MEMORY_CUE_STEPS:
+    case FIELD_WORKING_MEMORY_DELAY_STEPS:
+    case FIELD_WORKING_MEMORY_PROBE_STEPS:
+    case FIELD_WORKING_MEMORY_CUE_START:
+    case FIELD_WORKING_MEMORY_CUE_GROUP_SIZE:
+    case FIELD_WORKING_MEMORY_READOUT_START:
+    case FIELD_WORKING_MEMORY_READOUT_COUNT:
+    case FIELD_WORKING_MEMORY_READOUT_GROUP_SIZE:
         if (!parse_int_value(value, &int_value))
         {
             set_line_error(
@@ -963,6 +1052,24 @@ static int assign_value(
             config->structural_max_connections = int_value;
         else if (field == FIELD_STRUCTURAL_RECORD_INTERVAL_STEPS)
             config->structural_record_interval_steps = int_value;
+        else if (field == FIELD_WORKING_MEMORY_TRIALS)
+            config->working_memory_trials = int_value;
+        else if (field == FIELD_WORKING_MEMORY_CUE_STEPS)
+            config->working_memory_cue_steps = int_value;
+        else if (field == FIELD_WORKING_MEMORY_DELAY_STEPS)
+            config->working_memory_delay_steps = int_value;
+        else if (field == FIELD_WORKING_MEMORY_PROBE_STEPS)
+            config->working_memory_probe_steps = int_value;
+        else if (field == FIELD_WORKING_MEMORY_CUE_START)
+            config->working_memory_cue_start = int_value;
+        else if (field == FIELD_WORKING_MEMORY_CUE_GROUP_SIZE)
+            config->working_memory_cue_group_size = int_value;
+        else if (field == FIELD_WORKING_MEMORY_READOUT_START)
+            config->working_memory_readout_start = int_value;
+        else if (field == FIELD_WORKING_MEMORY_READOUT_COUNT)
+            config->working_memory_readout_count = int_value;
+        else if (field == FIELD_WORKING_MEMORY_READOUT_GROUP_SIZE)
+            config->working_memory_readout_group_size = int_value;
         else
             config->record_neuron = int_value;
 
@@ -1033,6 +1140,8 @@ static int assign_value(
     case FIELD_STRUCTURAL_GROWTH_SCORE_THRESHOLD:
     case FIELD_STRUCTURAL_NEW_EXC_WEIGHT:
     case FIELD_STRUCTURAL_NEW_INH_MAGNITUDE:
+    case FIELD_WORKING_MEMORY_RECALL_TOLERANCE:
+    case FIELD_WORKING_MEMORY_RECALL_THRESHOLD:
         if (!parse_double_value(value, &double_value))
         {
             set_line_error(
@@ -1171,6 +1280,10 @@ static int assign_value(
             config->structural_new_exc_weight = double_value;
         else if (field == FIELD_STRUCTURAL_NEW_INH_MAGNITUDE)
             config->structural_new_inh_magnitude = double_value;
+        else if (field == FIELD_WORKING_MEMORY_RECALL_TOLERANCE)
+            config->working_memory_recall_tolerance = double_value;
+        else if (field == FIELD_WORKING_MEMORY_RECALL_THRESHOLD)
+            config->working_memory_recall_threshold = double_value;
         else
             config->reward_max = double_value;
 
@@ -1196,7 +1309,8 @@ static int topology_is_supported(const char *topology)
            strcmp(topology, "random") == 0 ||
            strcmp(topology, "random_balanced") == 0 ||
            strcmp(topology, "small_world") == 0 ||
-           strcmp(topology, "feedforward") == 0;
+           strcmp(topology, "feedforward") == 0 ||
+           strcmp(topology, "working_memory") == 0;
 }
 
 static int run_name_is_valid(const char *run_name)
@@ -1351,6 +1465,23 @@ void scenario_config_default(ScenarioConfig *config)
     config->reward_record_interval_steps = 10;
     config->reward_record_connection_limit = 256;
     config->reward_event_count = 0;
+
+    config->working_memory_enabled = 0;
+    config->working_memory_trials = 8;
+    config->working_memory_cue_steps = 20;
+    config->working_memory_delay_steps = 40;
+    config->working_memory_probe_steps = 20;
+    snprintf(config->working_memory_cue_pattern,
+             sizeof(config->working_memory_cue_pattern), "alternating");
+    config->working_memory_cue_start = 0;
+    config->working_memory_cue_group_size = 1;
+    config->working_memory_readout_start = 0;
+    config->working_memory_readout_count = 2;
+    config->working_memory_readout_group_size = 1;
+    config->working_memory_seed = 1U;
+    config->working_memory_reset_between_trials = 1;
+    config->working_memory_recall_tolerance = 0.25;
+    config->working_memory_recall_threshold = 0.75;
 }
 
 int scenario_config_validate(
@@ -1695,6 +1826,49 @@ int scenario_config_validate(
         return 0;
     }
 
+    if ((config->working_memory_enabled != 0 &&
+         config->working_memory_enabled != 1) ||
+        (config->working_memory_reset_between_trials != 0 &&
+         config->working_memory_reset_between_trials != 1))
+    {
+        set_error(error_message, error_message_size,
+                  "opcoes de memoria de trabalho invalidas");
+        return 0;
+    }
+
+    if (config->working_memory_enabled &&
+        (config->working_memory_trials <= 0 ||
+         config->working_memory_trials > 10000 ||
+         config->working_memory_cue_steps <= 0 ||
+         config->working_memory_delay_steps < 0 ||
+         config->working_memory_probe_steps <= 0 ||
+         config->working_memory_cue_start < 0 ||
+         config->working_memory_cue_group_size <= 0 ||
+         config->working_memory_readout_start < 0 ||
+         config->working_memory_readout_count < 2 ||
+         config->working_memory_readout_group_size <= 0 ||
+         config->working_memory_cue_start +
+                 config->working_memory_readout_count *
+                     config->working_memory_cue_group_size >
+             config->neurons ||
+         config->working_memory_readout_start +
+                 config->working_memory_readout_count *
+                     config->working_memory_readout_group_size >
+             config->neurons ||
+         (strcmp(config->working_memory_cue_pattern, "alternating") != 0 &&
+          strcmp(config->working_memory_cue_pattern, "seeded") != 0) ||
+         !isfinite(config->working_memory_recall_tolerance) ||
+         config->working_memory_recall_tolerance < 0.0 ||
+         config->working_memory_recall_tolerance > 1.0 ||
+         !isfinite(config->working_memory_recall_threshold) ||
+         config->working_memory_recall_threshold <= 0.0 ||
+         config->working_memory_recall_threshold > 1.0))
+    {
+        set_error(error_message, error_message_size,
+                  "configuracao de memoria de trabalho invalida");
+        return 0;
+    }
+
     if (config->source_count < 1 || config->source_count > config->neurons)
     {
         set_error(error_message, error_message_size, "source_count invalido");
@@ -1769,6 +1943,28 @@ int scenario_config_validate(
     {
         set_error(error_message, error_message_size, "feedforward_layers invalido");
         return 0;
+    }
+
+    if (strcmp(config->topology, "working_memory") == 0)
+    {
+        int inhibitory_count = (int)((double)config->neurons *
+                                     config->inhibitory_fraction + 0.5);
+        int excitatory_limit = config->neurons - inhibitory_count;
+
+        if (inhibitory_count < config->working_memory_readout_count ||
+            config->working_memory_cue_start +
+                    config->working_memory_readout_count *
+                        config->working_memory_cue_group_size >
+                excitatory_limit ||
+            config->working_memory_readout_start +
+                    config->working_memory_readout_count *
+                        config->working_memory_readout_group_size >
+                excitatory_limit)
+        {
+            set_error(error_message, error_message_size,
+                      "topologia working_memory requer grupos EXC e INH suficientes");
+            return 0;
+        }
     }
 
     if (config->excitatory_weight <= 0.0)
@@ -2433,6 +2629,46 @@ int scenario_config_save_file(
             set_error(error_message, error_message_size, "erro ao escrever reward_events");
             return 0;
         }
+    }
+
+    if (fprintf(
+            file,
+            "\n[working_memory]\n"
+            "enabled = %s\n"
+            "trials = %d\n"
+            "cue_steps = %d\n"
+            "delay_steps = %d\n"
+            "probe_steps = %d\n"
+            "cue_pattern = %s\n"
+            "cue_start = %d\n"
+            "cue_group_size = %d\n"
+            "readout_start = %d\n"
+            "readout_count = %d\n"
+            "readout_group_size = %d\n"
+            "seed = %u\n"
+            "reset_between_trials = %s\n"
+            "recall_tolerance = %.17g\n"
+            "recall_threshold = %.17g\n",
+            config->working_memory_enabled ? "true" : "false",
+            config->working_memory_trials,
+            config->working_memory_cue_steps,
+            config->working_memory_delay_steps,
+            config->working_memory_probe_steps,
+            config->working_memory_cue_pattern,
+            config->working_memory_cue_start,
+            config->working_memory_cue_group_size,
+            config->working_memory_readout_start,
+            config->working_memory_readout_count,
+            config->working_memory_readout_group_size,
+            config->working_memory_seed,
+            config->working_memory_reset_between_trials ? "true" : "false",
+            config->working_memory_recall_tolerance,
+            config->working_memory_recall_threshold) < 0)
+    {
+        fclose(file);
+        set_error(error_message, error_message_size,
+                  "erro ao escrever memoria de trabalho");
+        return 0;
     }
 
     if (fclose(file) != 0)
