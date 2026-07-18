@@ -10,6 +10,7 @@
 #include "minisnn.h"
 #include "scenario_runtime.h"
 #include "working_memory.h"
+#include "associative_memory.h"
 
 #define COMMAND_BUFFER_SIZE 640
 #define SCENARIO_MAX_NEURONS 1000
@@ -481,16 +482,15 @@ static int connection_is_allowed(
     return 1;
 }
 
-static int connect_pair(
+static int connect_pair_with_weight(
     MiniSNN *snn,
     const ScenarioConfig *config,
     const int *neuron_is_inhibitory,
     int source,
     int target,
+    double weight,
     ConnectivityStats *stats)
 {
-    double weight = outgoing_weight(config, source, neuron_is_inhibitory);
-
     if (!minisnn_connect_delayed_ex(
             snn,
             source,
@@ -550,6 +550,19 @@ static int connect_pair(
         config->delay,
         neuron_is_inhibitory[source]);
     return 1;
+}
+
+static int connect_pair(
+    MiniSNN *snn,
+    const ScenarioConfig *config,
+    const int *neuron_is_inhibitory,
+    int source,
+    int target,
+    ConnectivityStats *stats)
+{
+    return connect_pair_with_weight(
+        snn, config, neuron_is_inhibitory, source, target,
+        outgoing_weight(config, source, neuron_is_inhibitory), stats);
 }
 
 static int build_chain(
@@ -967,6 +980,83 @@ static int build_working_memory(
     return 1;
 }
 
+/*
+ * Experimental C6.2 motif: cue assemblies project through weak candidate
+ * synapses to every target assembly, while each target assembly has recurrent
+ * support. STDP differentiates the associations through paired coactivation.
+ */
+static int build_associative_memory(
+    MiniSNN *snn,
+    const ScenarioConfig *config,
+    const int *neuron_is_inhibitory,
+    ConnectivityStats *stats)
+{
+    for (int pair = 0; pair < config->associative_memory_pair_count; pair++)
+    {
+        int cue_start = config->associative_memory_cue_start +
+                        pair * config->associative_memory_cue_group_size;
+        int target_start = config->associative_memory_target_start +
+                           pair * config->associative_memory_target_group_size;
+
+        for (int source_offset = 0;
+             source_offset < config->associative_memory_cue_group_size;
+             source_offset++)
+        {
+            int source = cue_start + source_offset;
+
+            for (int target_pair = 0;
+                 target_pair < config->associative_memory_pair_count;
+                 target_pair++)
+            {
+                int candidate_target_start =
+                    config->associative_memory_target_start +
+                    target_pair * config->associative_memory_target_group_size;
+
+                for (int target_offset = 0;
+                     target_offset < config->associative_memory_target_group_size;
+                     target_offset++)
+                {
+                    if (!connect_pair_with_weight(
+                            snn, config, neuron_is_inhibitory, source,
+                            candidate_target_start + target_offset,
+                            config->associative_memory_initial_weight, stats))
+                    {
+                        return 0;
+                    }
+                }
+            }
+        }
+
+        for (int source_offset = 0;
+             source_offset < config->associative_memory_target_group_size;
+             source_offset++)
+        {
+            int source = target_start + source_offset;
+
+            for (int target_offset = 0;
+                 target_offset < config->associative_memory_target_group_size;
+                 target_offset++)
+            {
+                int target = target_start + target_offset;
+
+                if (!connection_is_allowed(
+                        config, neuron_is_inhibitory, source, target))
+                {
+                    continue;
+                }
+                if (!connect_pair(
+                        snn, config, neuron_is_inhibitory, source, target,
+                        stats))
+                {
+                    return 0;
+                }
+            }
+        }
+    }
+
+    return 1;
+}
+
 static int build_topology(
     MiniSNN *snn,
     const ScenarioConfig *config,
@@ -1019,6 +1109,13 @@ static int build_topology(
 
     if (strcmp(config->topology, "working_memory") == 0)
         return build_working_memory(
+            snn,
+            config,
+            neuron_is_inhibitory,
+            stats);
+
+    if (strcmp(config->topology, "associative_memory") == 0)
+        return build_associative_memory(
             snn,
             config,
             neuron_is_inhibitory,
@@ -2813,6 +2910,32 @@ static int write_summary(
         return 0;
     }
 
+    if (fprintf(
+            file,
+            "associative_memory_enabled=%s\n"
+            "associative_memory_trial_count=%d\n"
+            "associative_memory_correct_trials=%d\n"
+            "associative_memory_recall_accuracy=%.17g\n"
+            "associative_memory_mean_pattern_similarity=%.17g\n"
+            "associative_memory_mean_completion_score=%.17g\n"
+            "associative_memory_mean_response_latency=%.17g\n"
+            "associative_memory_chance_accuracy=%.17g\n"
+            "associative_memory_control_accuracy=%.17g\n"
+            "associative_memory_association_margin=%.17g\n",
+            result->associative_memory_enabled ? "true" : "false",
+            result->associative_memory_trial_count,
+            result->associative_memory_correct_trials,
+            result->associative_memory_recall_accuracy,
+            result->associative_memory_mean_pattern_similarity,
+            result->associative_memory_mean_completion_score,
+            result->associative_memory_mean_response_latency,
+            result->associative_memory_chance_accuracy,
+            result->associative_memory_control_accuracy,
+            result->associative_memory_association_margin) < 0)
+    {
+        return 0;
+    }
+
     if (config->neuron_model == MINISNN_NEURON_MODEL_ADEX)
     {
         return fprintf(
@@ -3320,6 +3443,7 @@ static int write_run_manifest(
     char homeostasis_files[384] = "NA";
     char reward_files[384] = "NA";
     char working_memory_files[160] = "";
+    char associative_memory_files[192] = "";
     FILE *pipe;
     MiniSNNConfig minisnn_config;
     MiniSNNNeuronModelCapabilities capabilities;
@@ -3377,6 +3501,15 @@ static int write_run_manifest(
             working_memory_files,
             sizeof(working_memory_files),
             ";working_memory_trials.csv;working_memory_summary.txt;working_memory_report.html");
+    }
+
+    if (config->associative_memory_enabled)
+    {
+        snprintf(
+            associative_memory_files,
+            sizeof(associative_memory_files),
+            ";associative_memory_training.csv;associative_memory_trials.csv;"
+            "associative_memory_summary.txt;associative_memory_report.html");
     }
 
     pipe = _popen("git rev-parse --short HEAD 2>NUL", "r");
@@ -3481,7 +3614,7 @@ static int write_run_manifest(
             "python_version=NA\n"
             "pandas_version=NA\n"
             "matplotlib_version=NA\n"
-            "files=config_used.ini;summary.txt;population.csv;raster.csv;neuron_%d.csv;run_manifest.txt%s%s\n",
+            "files=config_used.ini;summary.txt;population.csv;raster.csv;neuron_%d.csv;run_manifest.txt%s%s%s\n",
             MINISNN_VERSION,
             git_commit,
             git_status,
@@ -3553,7 +3686,8 @@ static int write_run_manifest(
             reward_files,
             config->record_neuron,
             metrics_generated ? ";metrics.csv" : "",
-            working_memory_files) < 0)
+            working_memory_files,
+            associative_memory_files) < 0)
     {
         fclose(file);
         return 0;
@@ -4334,6 +4468,8 @@ int scenario_runner_execute(
     StructuralRunData structural_data;
     ScenarioBlueprint working_memory_blueprint;
     WorkingMemoryResult working_memory_result;
+    ScenarioBlueprint associative_memory_blueprint;
+    AssociativeMemoryResult associative_memory_result;
     ULONGLONG wall_start;
     ULONGLONG simulation_start;
     double simulation_seconds;
@@ -4355,6 +4491,9 @@ int scenario_runner_execute(
     memset(&structural_data, 0, sizeof(structural_data));
     memset(&working_memory_blueprint, 0, sizeof(working_memory_blueprint));
     memset(&working_memory_result, 0, sizeof(working_memory_result));
+    memset(&associative_memory_blueprint, 0,
+           sizeof(associative_memory_blueprint));
+    memset(&associative_memory_result, 0, sizeof(associative_memory_result));
 
     if (!scenario_config_validate(config, error_message, error_message_size))
         return 0;
@@ -4615,6 +4754,62 @@ int scenario_runner_execute(
             working_memory_result.retention_margin;
         scenario_blueprint_destroy(&working_memory_blueprint);
         working_memory_result_destroy(&working_memory_result);
+    }
+
+    if (config->associative_memory_enabled)
+    {
+        if (!scenario_runner_capture_blueprint(
+                config, &associative_memory_blueprint, error_message,
+                error_message_size) ||
+            !associative_memory_execute(
+                config, &associative_memory_blueprint,
+                &associative_memory_result, error_message,
+                error_message_size) ||
+            !associative_memory_write_outputs(
+                config, &associative_memory_result, result.output_directory,
+                error_message, error_message_size))
+        {
+            if (error_message != NULL && error_message_size > 0 &&
+                error_message[0] == '\0')
+            {
+                set_error(error_message, error_message_size,
+                          "erro durante memoria associativa");
+            }
+            scenario_blueprint_destroy(&associative_memory_blueprint);
+            associative_memory_result_destroy(&associative_memory_result);
+            close_file_if_open(population_file);
+            close_file_if_open(raster_file);
+            close_file_if_open(neuron_file);
+            close_file_if_open(model_state_file);
+            close_file_if_open(summary_file);
+            plasticity_run_data_close(&plasticity_data);
+            homeostasis_run_data_close(&homeostasis_data);
+            reward_run_data_close(&reward_data);
+            minisnn_destroy(&snn);
+            return 0;
+        }
+
+        result.associative_memory_enabled = 1;
+        result.associative_memory_trial_count =
+            associative_memory_result.trial_count;
+        result.associative_memory_correct_trials =
+            associative_memory_result.correct_trials;
+        result.associative_memory_recall_accuracy =
+            associative_memory_result.recall_accuracy;
+        result.associative_memory_mean_pattern_similarity =
+            associative_memory_result.mean_pattern_similarity;
+        result.associative_memory_mean_completion_score =
+            associative_memory_result.mean_completion_score;
+        result.associative_memory_mean_response_latency =
+            associative_memory_result.mean_response_latency;
+        result.associative_memory_chance_accuracy =
+            associative_memory_result.chance_accuracy;
+        result.associative_memory_control_accuracy =
+            associative_memory_result.control_accuracy;
+        result.associative_memory_association_margin =
+            associative_memory_result.association_margin;
+        scenario_blueprint_destroy(&associative_memory_blueprint);
+        associative_memory_result_destroy(&associative_memory_result);
     }
 
     simulation_seconds =

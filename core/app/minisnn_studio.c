@@ -110,6 +110,8 @@
 #define IDC_BTN_COMPARE_MODELS 2031
 #define IDC_BTN_WORKING_MEMORY 2032
 #define IDC_BTN_OPEN_WORKING_MEMORY 2033
+#define IDC_BTN_ASSOCIATIVE_MEMORY 2034
+#define IDC_BTN_OPEN_ASSOCIATIVE_MEMORY 2035
 
 #define IDC_STATUS 3001
 #define IDC_SUMMARY 3002
@@ -281,6 +283,14 @@
 #define IDC_WORKING_MEMORY_APPLY 11006
 #define IDC_WORKING_MEMORY_CANCEL 11007
 
+#define IDC_ASSOCIATIVE_MEMORY_ENABLED 11101
+#define IDC_ASSOCIATIVE_MEMORY_PAIRS 11102
+#define IDC_ASSOCIATIVE_MEMORY_EPOCHS 11103
+#define IDC_ASSOCIATIVE_MEMORY_CORRUPTION 11104
+#define IDC_ASSOCIATIVE_MEMORY_TRIALS 11105
+#define IDC_ASSOCIATIVE_MEMORY_APPLY 11106
+#define IDC_ASSOCIATIVE_MEMORY_CANCEL 11107
+
 #define STUDIO_INIT_TIMER_ID 1
 #define STUDIO_EVOLUTION_TIMER_ID 2
 
@@ -330,6 +340,8 @@ typedef struct
     HWND evolution_button;
     HWND working_memory_button;
     HWND working_memory_report_button;
+    HWND associative_memory_button;
+    HWND associative_memory_report_button;
     HWND status_label;
     HWND summary_box;
     HWND execution_section_label;
@@ -540,6 +552,17 @@ typedef struct
     HWND trials_edit;
 } WorkingMemoryDialog;
 
+typedef struct
+{
+    HWND window;
+    ScenarioConfig working_config;
+    HWND enabled_checkbox;
+    HWND pairs_edit;
+    HWND epochs_edit;
+    HWND corruption_edit;
+    HWND trials_edit;
+} AssociativeMemoryDialog;
+
 static StudioState g_app;
 static TopologyOptionsDialog g_options;
 static PlasticityDialog g_plasticity;
@@ -549,6 +572,7 @@ static EvolutionDialog g_evolution;
 static AdaptiveTopologyDialog g_adaptive;
 static NeuronModelDialog g_neuron_model;
 static WorkingMemoryDialog g_working_memory;
+static AssociativeMemoryDialog g_associative_memory;
 
 static void draw_button(const DRAWITEMSTRUCT *item);
 static LRESULT handle_color(HDC hdc, HWND hwnd);
@@ -623,7 +647,8 @@ static int topology_can_allow_self_connections(const char *topology)
            strcmp(topology, "random") == 0 ||
            strcmp(topology, "random_balanced") == 0 ||
            strcmp(topology, "small_world") == 0 ||
-           strcmp(topology, "working_memory") == 0;
+           strcmp(topology, "working_memory") == 0 ||
+           strcmp(topology, "associative_memory") == 0;
 }
 
 static int topology_uses_small_world_options(const char *topology)
@@ -1751,6 +1776,9 @@ static void set_result_buttons_enabled(BOOL enabled)
     EnableWindow(
         g_app.working_memory_report_button,
         enabled && g_app.last_result.working_memory_enabled);
+    EnableWindow(
+        g_app.associative_memory_report_button,
+        enabled && g_app.last_result.associative_memory_enabled);
 }
 
 static void set_comparison_buttons_enabled(void)
@@ -5447,6 +5475,230 @@ static void open_working_memory_report(void)
         "RELATORIO DE MEMORIA DE TRABALHO ABERTO");
 }
 
+static void associative_memory_to_controls(void)
+{
+    char text[TEXT_BUFFER_SIZE];
+    const ScenarioConfig *config = &g_associative_memory.working_config;
+
+    SendMessageA(
+        g_associative_memory.enabled_checkbox,
+        BM_SETCHECK,
+        config->associative_memory_enabled ? BST_CHECKED : BST_UNCHECKED,
+        0);
+    snprintf(text, sizeof(text), "%d", config->associative_memory_pair_count);
+    SetWindowTextA(g_associative_memory.pairs_edit, text);
+    snprintf(text, sizeof(text), "%d",
+             config->associative_memory_training_epochs);
+    SetWindowTextA(g_associative_memory.epochs_edit, text);
+    format_double_for_field(text, sizeof(text),
+                            config->associative_memory_cue_corruption);
+    SetWindowTextA(g_associative_memory.corruption_edit, text);
+    snprintf(text, sizeof(text), "%d", config->associative_memory_trial_count);
+    SetWindowTextA(g_associative_memory.trials_edit, text);
+}
+
+static int apply_associative_memory_options(void)
+{
+    ScenarioConfig candidate = g_associative_memory.working_config;
+    char error[256];
+
+    candidate.associative_memory_enabled =
+        SendMessageA(g_associative_memory.enabled_checkbox, BM_GETCHECK, 0, 0) ==
+        BST_CHECKED;
+    if (!parse_int_from_window(
+            g_associative_memory.pairs_edit, "PARES",
+            &candidate.associative_memory_pair_count, error, sizeof(error)) ||
+        !parse_int_from_window(
+            g_associative_memory.epochs_edit, "EPOCAS",
+            &candidate.associative_memory_training_epochs, error,
+            sizeof(error)) ||
+        !parse_double_from_window(
+            g_associative_memory.corruption_edit, "CORRUPCAO DO CUE",
+            &candidate.associative_memory_cue_corruption, error,
+            sizeof(error)) ||
+        !parse_int_from_window(
+            g_associative_memory.trials_edit, "TRIALS",
+            &candidate.associative_memory_trial_count, error, sizeof(error)) ||
+        !scenario_config_validate(&candidate, error, sizeof(error)))
+    {
+        show_error("Memoria associativa invalida", error);
+        return 0;
+    }
+
+    g_app.current_config = candidate;
+    config_to_controls(&candidate);
+    set_status(candidate.associative_memory_enabled ?
+        "MEMORIA ASSOCIATIVA ATIVADA" : "MEMORIA ASSOCIATIVA DESATIVADA");
+    DestroyWindow(g_associative_memory.window);
+    return 1;
+}
+
+static LRESULT CALLBACK associative_memory_options_proc(
+    HWND hwnd,
+    UINT message,
+    WPARAM wparam,
+    LPARAM lparam)
+{
+    (void)lparam;
+    switch (message)
+    {
+    case WM_CREATE:
+        g_associative_memory.window = hwnd;
+        create_static(hwnd, "MEMORIA ASSOCIATIVA", 24, 18, 360, 26, 0);
+        g_associative_memory.enabled_checkbox = create_checkbox(
+            hwnd, "ATIVAR", IDC_ASSOCIATIVE_MEMORY_ENABLED, 24, 54, 160, 28);
+        create_static(hwnd, "PARES", 24, 102, 170, 24, 0);
+        g_associative_memory.pairs_edit = create_edit(
+            hwnd, IDC_ASSOCIATIVE_MEMORY_PAIRS, 240, 98, 110, 28);
+        create_static(hwnd, "EPOCAS", 24, 142, 170, 24, 0);
+        g_associative_memory.epochs_edit = create_edit(
+            hwnd, IDC_ASSOCIATIVE_MEMORY_EPOCHS, 240, 138, 110, 28);
+        create_static(hwnd, "CORRUPCAO DO CUE", 24, 182, 190, 24, 0);
+        g_associative_memory.corruption_edit = create_edit(
+            hwnd, IDC_ASSOCIATIVE_MEMORY_CORRUPTION, 240, 178, 110, 28);
+        create_static(hwnd, "TRIALS", 24, 222, 170, 24, 0);
+        g_associative_memory.trials_edit = create_edit(
+            hwnd, IDC_ASSOCIATIVE_MEMORY_TRIALS, 240, 218, 110, 28);
+        create_button(hwnd, "APLICAR", IDC_ASSOCIATIVE_MEMORY_APPLY,
+                      104, 282, 130, 36);
+        create_button(hwnd, "CANCELAR", IDC_ASSOCIATIVE_MEMORY_CANCEL,
+                      254, 282, 130, 36);
+        associative_memory_to_controls();
+        enable_dark_title_bar(hwnd);
+        return 0;
+    case WM_COMMAND:
+        if (HIWORD(wparam) == BN_CLICKED)
+        {
+            if (LOWORD(wparam) == IDC_ASSOCIATIVE_MEMORY_APPLY)
+            {
+                apply_associative_memory_options();
+                return 0;
+            }
+            if (LOWORD(wparam) == IDC_ASSOCIATIVE_MEMORY_CANCEL)
+            {
+                DestroyWindow(hwnd);
+                return 0;
+            }
+        }
+        break;
+    case WM_CTLCOLORSTATIC:
+        return handle_color((HDC)wparam, (HWND)lparam);
+    case WM_CTLCOLOREDIT:
+        return handle_edit_color((HDC)wparam);
+    case WM_DRAWITEM:
+        draw_button((const DRAWITEMSTRUCT *)lparam);
+        return TRUE;
+    case WM_CLOSE:
+        DestroyWindow(hwnd);
+        return 0;
+    case WM_DESTROY:
+        g_associative_memory.window = NULL;
+        return 0;
+    default:
+        break;
+    }
+    return DefWindowProcA(hwnd, message, wparam, lparam);
+}
+
+static int ensure_associative_memory_class_registered(void)
+{
+    static int registered = 0;
+    WNDCLASSA window_class;
+
+    if (registered)
+        return 1;
+    memset(&window_class, 0, sizeof(window_class));
+    window_class.lpfnWndProc = associative_memory_options_proc;
+    window_class.hInstance = GetModuleHandleA(NULL);
+    window_class.lpszClassName = "MiniSNNAssociativeMemoryOptionsWindow";
+    window_class.hCursor = LoadCursor(NULL, IDC_ARROW);
+    window_class.hbrBackground = g_app.background_brush;
+    if (!RegisterClassA(&window_class))
+        return 0;
+    registered = 1;
+    return 1;
+}
+
+static void open_associative_memory_options(void)
+{
+    ScenarioConfig config;
+    char error[256];
+    HWND dialog;
+    MSG message;
+
+    if (!controls_to_config(&config, error, sizeof(error)))
+    {
+        show_error("Configuracao invalida", error);
+        return;
+    }
+    if (!ensure_associative_memory_class_registered())
+    {
+        show_error("Erro interno",
+                   "Nao foi possivel criar a janela de memoria associativa.");
+        return;
+    }
+
+    memset(&g_associative_memory, 0, sizeof(g_associative_memory));
+    g_associative_memory.working_config = config;
+    dialog = CreateWindowExA(
+        WS_EX_DLGMODALFRAME,
+        "MiniSNNAssociativeMemoryOptionsWindow",
+        "MEMORIA ASSOCIATIVA",
+        WS_POPUP | WS_CAPTION | WS_SYSMENU,
+        CW_USEDEFAULT,
+        CW_USEDEFAULT,
+        500,
+        380,
+        g_app.window,
+        NULL,
+        GetModuleHandleA(NULL),
+        NULL);
+    if (dialog == NULL)
+    {
+        show_error("Erro interno", "Nao foi possivel abrir a memoria associativa.");
+        return;
+    }
+
+    EnableWindow(g_app.window, FALSE);
+    ShowWindow(dialog, SW_SHOW);
+    UpdateWindow(dialog);
+    while (g_associative_memory.window != NULL &&
+           GetMessageA(&message, NULL, 0, 0) > 0)
+    {
+        if (!IsDialogMessageA(dialog, &message))
+        {
+            TranslateMessage(&message);
+            DispatchMessageA(&message);
+        }
+    }
+    EnableWindow(g_app.window, TRUE);
+    SetActiveWindow(g_app.window);
+}
+
+static void open_associative_memory_report(void)
+{
+    char path[MAX_PATH];
+
+    if (!g_app.has_result || !g_app.last_result.associative_memory_enabled)
+    {
+        show_info("Memoria associativa",
+                  "A ultima execucao nao possui memoria associativa ativa.");
+        return;
+    }
+    if (!build_run_artifact_path(path, sizeof(path),
+                                 "associative_memory_report.html"))
+    {
+        show_error("Erro interno",
+                   "Nao foi possivel montar o caminho do relatorio.");
+        return;
+    }
+    open_existing_file(
+        path,
+        "Memoria associativa",
+        "associative_memory_report.html nao existe. Execute o cenario novamente.",
+        "RELATORIO DE MEMORIA ASSOCIATIVA ABERTO");
+}
+
 static char *trim_reward_token(char *text)
 {
     char *end;
@@ -7458,6 +7710,7 @@ static void create_controls(HWND hwnd)
     SendMessageA(g_app.topology_combo, CB_ADDSTRING, 0, (LPARAM)"small_world");
     SendMessageA(g_app.topology_combo, CB_ADDSTRING, 0, (LPARAM)"feedforward");
     SendMessageA(g_app.topology_combo, CB_ADDSTRING, 0, (LPARAM)"working_memory");
+    SendMessageA(g_app.topology_combo, CB_ADDSTRING, 0, (LPARAM)"associative_memory");
     SendMessageA(g_app.topology_combo, CB_SETDROPPEDWIDTH, (WPARAM)topology_w, 0);
     g_app.topology_options_button = create_button(
         hwnd,
@@ -7560,6 +7813,22 @@ static void create_controls(HWND hwnd)
         IDC_BTN_OPEN_WORKING_MEMORY,
         x2,
         y + 11 * STUDIO_ROW_HEIGHT + 2,
+        280,
+        STUDIO_BUTTON_HEIGHT);
+    g_app.associative_memory_button = create_button(
+        hwnd,
+        "MEMORIA ASSOCIATIVA",
+        IDC_BTN_ASSOCIATIVE_MEMORY,
+        x2,
+        y + 12 * STUDIO_ROW_HEIGHT + 2,
+        280,
+        STUDIO_BUTTON_HEIGHT);
+    g_app.associative_memory_report_button = create_button(
+        hwnd,
+        "ABRIR RELATORIO ASSOC.",
+        IDC_BTN_OPEN_ASSOCIATIVE_MEMORY,
+        x2,
+        y + 13 * STUDIO_ROW_HEIGHT + 2,
         280,
         STUDIO_BUTTON_HEIGHT);
 
@@ -7697,6 +7966,12 @@ static void layout_controls(HWND hwnd)
                STUDIO_BUTTON_HEIGHT, TRUE);
     MoveWindow(g_app.working_memory_report_button, STUDIO_MIDDLE_X,
                STUDIO_TOP_Y + 11 * STUDIO_ROW_HEIGHT + 2, 280,
+               STUDIO_BUTTON_HEIGHT, TRUE);
+    MoveWindow(g_app.associative_memory_button, STUDIO_MIDDLE_X,
+               STUDIO_TOP_Y + 12 * STUDIO_ROW_HEIGHT + 2, 280,
+               STUDIO_BUTTON_HEIGHT, TRUE);
+    MoveWindow(g_app.associative_memory_report_button, STUDIO_MIDDLE_X,
+               STUDIO_TOP_Y + 13 * STUDIO_ROW_HEIGHT + 2, 280,
                STUDIO_BUTTON_HEIGHT, TRUE);
 
     InvalidateRect(hwnd, NULL, TRUE);
@@ -7990,6 +8265,12 @@ static LRESULT CALLBACK window_proc(
                 return 0;
             case IDC_BTN_OPEN_WORKING_MEMORY:
                 open_working_memory_report();
+                return 0;
+            case IDC_BTN_ASSOCIATIVE_MEMORY:
+                open_associative_memory_options();
+                return 0;
+            case IDC_BTN_OPEN_ASSOCIATIVE_MEMORY:
+                open_associative_memory_report();
                 return 0;
             case IDC_BTN_PLOT_PLASTICITY:
                 generate_plasticity_graph();

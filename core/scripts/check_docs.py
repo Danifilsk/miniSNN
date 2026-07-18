@@ -51,7 +51,7 @@ CENTRAL_DOCUMENTS = (
     "docs/GUIA_DE_TOPOLOGIA_ADAPTATIVA.md",
     "docs/BENCHMARKS_C4_TOPOLOGIA.md",
     "docs/GUIA_DE_MEMORIA_DE_TRABALHO.md",
-    "docs/GUIA_DE_MEMORIA_DE_TRABALHO.md",
+    "docs/GUIA_DE_MEMORIA_ASSOCIATIVA.md",
     "docs/GUIA_DE_MODELOS_NEURONAIS.md",
     "docs/CHECKLIST_DE_VALIDACAO_DO_STUDIO.md",
 )
@@ -96,7 +96,7 @@ IMPORTANT_FILES = (
     "app/evolution_config.c",
     "app/evolution_runner.c",
     "app/working_memory.c",
-    "app/working_memory.c",
+    "app/associative_memory.c",
     "configs/evolution_weight_target_demo.ini",
     "configs/evolution_homeostasis_demo.ini",
     "configs/evolution_plasticity_demo.ini",
@@ -114,7 +114,7 @@ IMPORTANT_FILES = (
     "configs/reward_delayed_demo.ini",
     "configs/reward_mixed_demo.ini",
     "configs/working_memory_demo.ini",
-    "configs/working_memory_demo.ini",
+    "configs/associative_memory_demo.ini",
     "tests/test_minisnn_api.c",
     "tests/test_topology.c",
     "tests/test_LIF.c",
@@ -151,7 +151,7 @@ IMPORTANT_FILES = (
     "tests/test_structure_long.c",
     "tests/test_plot_topology.py",
     "tests/test_working_memory.c",
-    "tests/test_working_memory.c",
+    "tests/test_associative_memory.c",
 )
 
 REQUIRED_TARGETS = (
@@ -231,6 +231,8 @@ REQUIRED_TARGETS = (
     "check-c4",
     "test-working-memory",
     "scenario-working-memory",
+    "test-associative-memory",
+    "scenario-associative-memory",
     "check-c6",
 )
 

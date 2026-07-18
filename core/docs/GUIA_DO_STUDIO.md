@@ -20,6 +20,14 @@ na secao `[working_memory]` do INI. Depois de uma execucao com o recurso ativo,
 relatorio e local e os CSVs continuam sendo os dados brutos. Consulte o
 [Guia de memoria de trabalho](GUIA_DE_MEMORIA_DE_TRABALHO.md).
 
+## Memoria associativa C6.2
+
+`MEMORIA ASSOCIATIVA` abre controles minimos para `ATIVAR`, `PARES`, `EPOCAS`,
+`CORRUPCAO DO CUE` e `TRIALS`. Os demais detalhes ficam em
+`[associative_memory]`. Depois de executar um cenario ativo, `ABRIR RELATORIO`
+abre `associative_memory_report.html`; os CSVs permanecem os dados brutos.
+Veja o [Guia de memoria associativa](GUIA_DE_MEMORIA_ASSOCIATIVA.md).
+
 ## RECOMPENSA
 
 `RECOMPENSA` abre o modal de R-STDP sem sobrecarregar o painel principal. Ele
@@ -94,6 +102,7 @@ random_balanced
 small_world
 feedforward
 working_memory
+associative_memory
 ```
 
 ## 5.1. Como usar `OPCOES`
@@ -120,7 +129,7 @@ Campos que nao se aplicam a topologia atual ficam desabilitados. Regras:
 - `Small-world`: usado somente em `small_world`.
 - `Feedforward`: usado somente em `feedforward`.
 - `Permitir auto-conexao`: habilitado em `all_to_all`, `random`,
-  `random_balanced`, `small_world` e `working_memory`; desabilitado em `chain`, `ring` e
+  `random_balanced`, `small_world`, `working_memory` e `associative_memory`; desabilitado em `chain`, `ring` e
   `feedforward`.
 - `Permitir INH -> INH`: so faz diferenca quando ha neuronios inibitorios.
 

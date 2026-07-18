@@ -41,6 +41,11 @@ TRABALHO` para ativar e ajustar cue, delay, probe e trials; depois de executar,
 `ABRIR RELATORIO` abre o HTML. Veja o
 [Guia de memoria de trabalho](GUIA_DE_MEMORIA_DE_TRABALHO.md).
 
+O C6.2 treina pares cue-alvo com o STDP existente e mede recuperacao de um
+alvo a partir de cue parcial. O runner grava arquivos `associative_memory_*`
+na pasta da run; o protocolo, controles e limitacoes estao no
+[Guia de memoria associativa](GUIA_DE_MEMORIA_ASSOCIATIVA.md).
+
 [Voltar ao índice da documentação](INDICE_DA_DOCUMENTACAO.md)
 
 ## O que e a miniSNN

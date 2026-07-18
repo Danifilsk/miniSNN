@@ -140,6 +140,17 @@ run. O demo usa duas assembleias recorrentes com inibicao cruzada e registra
 acaso, controle de rotulos embaralhados e margem de retencao. Veja o [Guia de
 memoria de trabalho](docs/GUIA_DE_MEMORIA_DE_TRABALHO.md).
 
+O C6.2 adiciona associacao aprendida por STDP entre pares cue-alvo, seguida de
+recall com cue parcial e probe sem entrada externa. Execute:
+
+```powershell
+mingw32-make scenario-associative-memory
+```
+
+Os resultados incluem `associative_memory_training.csv`,
+`associative_memory_trials.csv`, `associative_memory_summary.txt` e
+`associative_memory_report.html`. Veja o [Guia de memoria associativa](docs/GUIA_DE_MEMORIA_ASSOCIATIVA.md).
+
 ## Estrutura
 
 ```text
@@ -176,6 +187,7 @@ Referências diretas:
 - [Guia de neuroevolução](docs/GUIA_DE_NEUROEVOLUCAO.md)
 - [Guia de topologia adaptativa](docs/GUIA_DE_TOPOLOGIA_ADAPTATIVA.md)
 - [Guia de memoria de trabalho](docs/GUIA_DE_MEMORIA_DE_TRABALHO.md)
+- [Guia de memoria associativa](docs/GUIA_DE_MEMORIA_ASSOCIATIVA.md)
 - [Referência da API pública](API_REFERENCE.md)
 - [Roadmap](docs/ROADMAP.md)
 

@@ -22,7 +22,7 @@ O roadmap indica ordem de trabalho, não promessa de prazo.
 
 ## Próximo
 
-- [ ] C6 — memória.
+- [x] C6 — memoria: C6.1 memoria de trabalho e C6.2 memoria associativa.
 - [ ] C7 — estados internos.
 - [ ] D1 — integração do Core com o próximo estágio de domínio.
 - [ ] Revisão humana do checklist do Studio.

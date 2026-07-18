@@ -149,6 +149,26 @@ typedef enum
     FIELD_WORKING_MEMORY_RESET_BETWEEN_TRIALS,
     FIELD_WORKING_MEMORY_RECALL_TOLERANCE,
     FIELD_WORKING_MEMORY_RECALL_THRESHOLD,
+    FIELD_ASSOCIATIVE_MEMORY_ENABLED,
+    FIELD_ASSOCIATIVE_MEMORY_PAIR_COUNT,
+    FIELD_ASSOCIATIVE_MEMORY_TRAINING_EPOCHS,
+    FIELD_ASSOCIATIVE_MEMORY_TRAINING_CUE_STEPS,
+    FIELD_ASSOCIATIVE_MEMORY_TRAINING_GAP_STEPS,
+    FIELD_ASSOCIATIVE_MEMORY_INITIAL_WEIGHT,
+    FIELD_ASSOCIATIVE_MEMORY_RECALL_CUE_STEPS,
+    FIELD_ASSOCIATIVE_MEMORY_RECALL_DELAY_STEPS,
+    FIELD_ASSOCIATIVE_MEMORY_RECALL_PROBE_STEPS,
+    FIELD_ASSOCIATIVE_MEMORY_CUE_CORRUPTION,
+    FIELD_ASSOCIATIVE_MEMORY_TRIAL_COUNT,
+    FIELD_ASSOCIATIVE_MEMORY_RESET_BETWEEN_PAIRS,
+    FIELD_ASSOCIATIVE_MEMORY_FREEZE_PLASTICITY,
+    FIELD_ASSOCIATIVE_MEMORY_SEED,
+    FIELD_ASSOCIATIVE_MEMORY_RECALL_THRESHOLD,
+    FIELD_ASSOCIATIVE_MEMORY_PATTERN_MODE,
+    FIELD_ASSOCIATIVE_MEMORY_CUE_START,
+    FIELD_ASSOCIATIVE_MEMORY_CUE_GROUP_SIZE,
+    FIELD_ASSOCIATIVE_MEMORY_TARGET_START,
+    FIELD_ASSOCIATIVE_MEMORY_TARGET_GROUP_SIZE,
     FIELD_COUNT
 } ScenarioField;
 
@@ -478,6 +498,53 @@ static int find_field(
             *out_field = FIELD_WORKING_MEMORY_RECALL_TOLERANCE;
         else if (strcmp(key, "recall_threshold") == 0)
             *out_field = FIELD_WORKING_MEMORY_RECALL_THRESHOLD;
+        else
+            return 0;
+        return 1;
+    }
+
+    if (strcmp(section, "associative_memory") == 0)
+    {
+        if (strcmp(key, "enabled") == 0)
+            *out_field = FIELD_ASSOCIATIVE_MEMORY_ENABLED;
+        else if (strcmp(key, "pair_count") == 0)
+            *out_field = FIELD_ASSOCIATIVE_MEMORY_PAIR_COUNT;
+        else if (strcmp(key, "training_epochs") == 0)
+            *out_field = FIELD_ASSOCIATIVE_MEMORY_TRAINING_EPOCHS;
+        else if (strcmp(key, "training_cue_steps") == 0)
+            *out_field = FIELD_ASSOCIATIVE_MEMORY_TRAINING_CUE_STEPS;
+        else if (strcmp(key, "training_gap_steps") == 0)
+            *out_field = FIELD_ASSOCIATIVE_MEMORY_TRAINING_GAP_STEPS;
+        else if (strcmp(key, "initial_association_weight") == 0)
+            *out_field = FIELD_ASSOCIATIVE_MEMORY_INITIAL_WEIGHT;
+        else if (strcmp(key, "recall_cue_steps") == 0)
+            *out_field = FIELD_ASSOCIATIVE_MEMORY_RECALL_CUE_STEPS;
+        else if (strcmp(key, "recall_delay_steps") == 0)
+            *out_field = FIELD_ASSOCIATIVE_MEMORY_RECALL_DELAY_STEPS;
+        else if (strcmp(key, "recall_probe_steps") == 0)
+            *out_field = FIELD_ASSOCIATIVE_MEMORY_RECALL_PROBE_STEPS;
+        else if (strcmp(key, "cue_corruption") == 0)
+            *out_field = FIELD_ASSOCIATIVE_MEMORY_CUE_CORRUPTION;
+        else if (strcmp(key, "trial_count") == 0)
+            *out_field = FIELD_ASSOCIATIVE_MEMORY_TRIAL_COUNT;
+        else if (strcmp(key, "reset_between_pairs") == 0)
+            *out_field = FIELD_ASSOCIATIVE_MEMORY_RESET_BETWEEN_PAIRS;
+        else if (strcmp(key, "freeze_plasticity_during_recall") == 0)
+            *out_field = FIELD_ASSOCIATIVE_MEMORY_FREEZE_PLASTICITY;
+        else if (strcmp(key, "seed") == 0)
+            *out_field = FIELD_ASSOCIATIVE_MEMORY_SEED;
+        else if (strcmp(key, "recall_threshold") == 0)
+            *out_field = FIELD_ASSOCIATIVE_MEMORY_RECALL_THRESHOLD;
+        else if (strcmp(key, "pattern_mode") == 0)
+            *out_field = FIELD_ASSOCIATIVE_MEMORY_PATTERN_MODE;
+        else if (strcmp(key, "cue_start") == 0)
+            *out_field = FIELD_ASSOCIATIVE_MEMORY_CUE_START;
+        else if (strcmp(key, "cue_group_size") == 0)
+            *out_field = FIELD_ASSOCIATIVE_MEMORY_CUE_GROUP_SIZE;
+        else if (strcmp(key, "target_start") == 0)
+            *out_field = FIELD_ASSOCIATIVE_MEMORY_TARGET_START;
+        else if (strcmp(key, "target_group_size") == 0)
+            *out_field = FIELD_ASSOCIATIVE_MEMORY_TARGET_GROUP_SIZE;
         else
             return 0;
         return 1;
@@ -836,6 +903,17 @@ static int assign_value(
         }
         return 1;
 
+    case FIELD_ASSOCIATIVE_MEMORY_PATTERN_MODE:
+        if (!copy_string_value(
+                config->associative_memory_pattern_mode,
+                sizeof(config->associative_memory_pattern_mode), value))
+        {
+            set_line_error(error_message, error_message_size, line_number,
+                           "pattern_mode associativo muito longo");
+            return 0;
+        }
+        return 1;
+
     case FIELD_SEED:
         if (!parse_uint_value(value, &uint_value))
         {
@@ -857,6 +935,16 @@ static int assign_value(
             return 0;
         }
         config->working_memory_seed = uint_value;
+        return 1;
+
+    case FIELD_ASSOCIATIVE_MEMORY_SEED:
+        if (!parse_uint_value(value, &uint_value))
+        {
+            set_line_error(error_message, error_message_size, line_number,
+                           "seed de memoria associativa invalido");
+            return 0;
+        }
+        config->associative_memory_seed = uint_value;
         return 1;
 
     case FIELD_STRUCTURAL_GROWTH_SEED:
@@ -890,6 +978,9 @@ static int assign_value(
     case FIELD_STRUCTURAL_RECORD_HISTORY:
     case FIELD_WORKING_MEMORY_ENABLED:
     case FIELD_WORKING_MEMORY_RESET_BETWEEN_TRIALS:
+    case FIELD_ASSOCIATIVE_MEMORY_ENABLED:
+    case FIELD_ASSOCIATIVE_MEMORY_RESET_BETWEEN_PAIRS:
+    case FIELD_ASSOCIATIVE_MEMORY_FREEZE_PLASTICITY:
         if (!parse_bool_value(value, &bool_value))
         {
             set_line_error(
@@ -940,6 +1031,12 @@ static int assign_value(
             config->working_memory_enabled = bool_value;
         else if (field == FIELD_WORKING_MEMORY_RESET_BETWEEN_TRIALS)
             config->working_memory_reset_between_trials = bool_value;
+        else if (field == FIELD_ASSOCIATIVE_MEMORY_ENABLED)
+            config->associative_memory_enabled = bool_value;
+        else if (field == FIELD_ASSOCIATIVE_MEMORY_RESET_BETWEEN_PAIRS)
+            config->associative_memory_reset_between_pairs = bool_value;
+        else if (field == FIELD_ASSOCIATIVE_MEMORY_FREEZE_PLASTICITY)
+            config->associative_memory_freeze_plasticity_during_recall = bool_value;
         else
             config->reward_record_history = bool_value;
 
@@ -984,6 +1081,18 @@ static int assign_value(
     case FIELD_WORKING_MEMORY_READOUT_START:
     case FIELD_WORKING_MEMORY_READOUT_COUNT:
     case FIELD_WORKING_MEMORY_READOUT_GROUP_SIZE:
+    case FIELD_ASSOCIATIVE_MEMORY_PAIR_COUNT:
+    case FIELD_ASSOCIATIVE_MEMORY_TRAINING_EPOCHS:
+    case FIELD_ASSOCIATIVE_MEMORY_TRAINING_CUE_STEPS:
+    case FIELD_ASSOCIATIVE_MEMORY_TRAINING_GAP_STEPS:
+    case FIELD_ASSOCIATIVE_MEMORY_RECALL_CUE_STEPS:
+    case FIELD_ASSOCIATIVE_MEMORY_RECALL_DELAY_STEPS:
+    case FIELD_ASSOCIATIVE_MEMORY_RECALL_PROBE_STEPS:
+    case FIELD_ASSOCIATIVE_MEMORY_TRIAL_COUNT:
+    case FIELD_ASSOCIATIVE_MEMORY_CUE_START:
+    case FIELD_ASSOCIATIVE_MEMORY_CUE_GROUP_SIZE:
+    case FIELD_ASSOCIATIVE_MEMORY_TARGET_START:
+    case FIELD_ASSOCIATIVE_MEMORY_TARGET_GROUP_SIZE:
         if (!parse_int_value(value, &int_value))
         {
             set_line_error(
@@ -1070,6 +1179,30 @@ static int assign_value(
             config->working_memory_readout_count = int_value;
         else if (field == FIELD_WORKING_MEMORY_READOUT_GROUP_SIZE)
             config->working_memory_readout_group_size = int_value;
+        else if (field == FIELD_ASSOCIATIVE_MEMORY_PAIR_COUNT)
+            config->associative_memory_pair_count = int_value;
+        else if (field == FIELD_ASSOCIATIVE_MEMORY_TRAINING_EPOCHS)
+            config->associative_memory_training_epochs = int_value;
+        else if (field == FIELD_ASSOCIATIVE_MEMORY_TRAINING_CUE_STEPS)
+            config->associative_memory_training_cue_steps = int_value;
+        else if (field == FIELD_ASSOCIATIVE_MEMORY_TRAINING_GAP_STEPS)
+            config->associative_memory_training_gap_steps = int_value;
+        else if (field == FIELD_ASSOCIATIVE_MEMORY_RECALL_CUE_STEPS)
+            config->associative_memory_recall_cue_steps = int_value;
+        else if (field == FIELD_ASSOCIATIVE_MEMORY_RECALL_DELAY_STEPS)
+            config->associative_memory_recall_delay_steps = int_value;
+        else if (field == FIELD_ASSOCIATIVE_MEMORY_RECALL_PROBE_STEPS)
+            config->associative_memory_recall_probe_steps = int_value;
+        else if (field == FIELD_ASSOCIATIVE_MEMORY_TRIAL_COUNT)
+            config->associative_memory_trial_count = int_value;
+        else if (field == FIELD_ASSOCIATIVE_MEMORY_CUE_START)
+            config->associative_memory_cue_start = int_value;
+        else if (field == FIELD_ASSOCIATIVE_MEMORY_CUE_GROUP_SIZE)
+            config->associative_memory_cue_group_size = int_value;
+        else if (field == FIELD_ASSOCIATIVE_MEMORY_TARGET_START)
+            config->associative_memory_target_start = int_value;
+        else if (field == FIELD_ASSOCIATIVE_MEMORY_TARGET_GROUP_SIZE)
+            config->associative_memory_target_group_size = int_value;
         else
             config->record_neuron = int_value;
 
@@ -1142,6 +1275,9 @@ static int assign_value(
     case FIELD_STRUCTURAL_NEW_INH_MAGNITUDE:
     case FIELD_WORKING_MEMORY_RECALL_TOLERANCE:
     case FIELD_WORKING_MEMORY_RECALL_THRESHOLD:
+    case FIELD_ASSOCIATIVE_MEMORY_CUE_CORRUPTION:
+    case FIELD_ASSOCIATIVE_MEMORY_RECALL_THRESHOLD:
+    case FIELD_ASSOCIATIVE_MEMORY_INITIAL_WEIGHT:
         if (!parse_double_value(value, &double_value))
         {
             set_line_error(
@@ -1284,6 +1420,12 @@ static int assign_value(
             config->working_memory_recall_tolerance = double_value;
         else if (field == FIELD_WORKING_MEMORY_RECALL_THRESHOLD)
             config->working_memory_recall_threshold = double_value;
+        else if (field == FIELD_ASSOCIATIVE_MEMORY_CUE_CORRUPTION)
+            config->associative_memory_cue_corruption = double_value;
+        else if (field == FIELD_ASSOCIATIVE_MEMORY_RECALL_THRESHOLD)
+            config->associative_memory_recall_threshold = double_value;
+        else if (field == FIELD_ASSOCIATIVE_MEMORY_INITIAL_WEIGHT)
+            config->associative_memory_initial_weight = double_value;
         else
             config->reward_max = double_value;
 
@@ -1310,7 +1452,8 @@ static int topology_is_supported(const char *topology)
            strcmp(topology, "random_balanced") == 0 ||
            strcmp(topology, "small_world") == 0 ||
            strcmp(topology, "feedforward") == 0 ||
-           strcmp(topology, "working_memory") == 0;
+           strcmp(topology, "working_memory") == 0 ||
+           strcmp(topology, "associative_memory") == 0;
 }
 
 static int run_name_is_valid(const char *run_name)
@@ -1482,6 +1625,28 @@ void scenario_config_default(ScenarioConfig *config)
     config->working_memory_reset_between_trials = 1;
     config->working_memory_recall_tolerance = 0.25;
     config->working_memory_recall_threshold = 0.75;
+
+    config->associative_memory_enabled = 0;
+    config->associative_memory_pair_count = 2;
+    config->associative_memory_training_epochs = 20;
+    config->associative_memory_training_cue_steps = 20;
+    config->associative_memory_training_gap_steps = 20;
+    config->associative_memory_initial_weight = 20.0;
+    config->associative_memory_recall_cue_steps = 10;
+    config->associative_memory_recall_delay_steps = 20;
+    config->associative_memory_recall_probe_steps = 20;
+    config->associative_memory_cue_corruption = 0.50;
+    config->associative_memory_trial_count = 20;
+    config->associative_memory_reset_between_pairs = 0;
+    config->associative_memory_freeze_plasticity_during_recall = 1;
+    config->associative_memory_seed = 1234U;
+    config->associative_memory_recall_threshold = 0.75;
+    snprintf(config->associative_memory_pattern_mode,
+             sizeof(config->associative_memory_pattern_mode), "fixed");
+    config->associative_memory_cue_start = 0;
+    config->associative_memory_cue_group_size = 2;
+    config->associative_memory_target_start = 4;
+    config->associative_memory_target_group_size = 2;
 }
 
 int scenario_config_validate(
@@ -1866,6 +2031,69 @@ int scenario_config_validate(
     {
         set_error(error_message, error_message_size,
                   "configuracao de memoria de trabalho invalida");
+        return 0;
+    }
+
+    if ((config->associative_memory_enabled != 0 &&
+         config->associative_memory_enabled != 1) ||
+        (config->associative_memory_reset_between_pairs != 0 &&
+         config->associative_memory_reset_between_pairs != 1) ||
+        (config->associative_memory_freeze_plasticity_during_recall != 0 &&
+         config->associative_memory_freeze_plasticity_during_recall != 1))
+    {
+        set_error(error_message, error_message_size,
+                  "opcoes de memoria associativa invalidas");
+        return 0;
+    }
+
+    if (config->associative_memory_enabled &&
+        (config->associative_memory_pair_count < 2 ||
+         config->associative_memory_pair_count > 100 ||
+         config->associative_memory_training_epochs <= 0 ||
+         config->associative_memory_training_epochs > 10000 ||
+         config->associative_memory_training_cue_steps <= 1 ||
+         config->associative_memory_training_gap_steps < 0 ||
+         !isfinite(config->associative_memory_initial_weight) ||
+         config->associative_memory_initial_weight <= 0.0 ||
+         config->associative_memory_initial_weight >
+             config->plasticity_weight_max ||
+         config->associative_memory_recall_cue_steps <= 0 ||
+         config->associative_memory_recall_delay_steps < 0 ||
+         config->associative_memory_recall_probe_steps <= 0 ||
+         config->associative_memory_trial_count <= 0 ||
+         config->associative_memory_trial_count > 10000 ||
+         config->associative_memory_cue_start < 0 ||
+         config->associative_memory_cue_group_size <= 0 ||
+         config->associative_memory_target_start < 0 ||
+         config->associative_memory_target_group_size <= 0 ||
+         config->associative_memory_cue_start +
+                 config->associative_memory_pair_count *
+                     config->associative_memory_cue_group_size >
+             config->neurons ||
+         config->associative_memory_target_start +
+                 config->associative_memory_pair_count *
+                     config->associative_memory_target_group_size >
+             config->neurons ||
+         (config->associative_memory_cue_start <
+              config->associative_memory_target_start +
+                  config->associative_memory_pair_count *
+                      config->associative_memory_target_group_size &&
+          config->associative_memory_target_start <
+              config->associative_memory_cue_start +
+                  config->associative_memory_pair_count *
+                      config->associative_memory_cue_group_size) ||
+         (strcmp(config->associative_memory_pattern_mode, "fixed") != 0 &&
+          strcmp(config->associative_memory_pattern_mode, "seeded") != 0) ||
+         !isfinite(config->associative_memory_cue_corruption) ||
+         config->associative_memory_cue_corruption < 0.0 ||
+         config->associative_memory_cue_corruption >= 1.0 ||
+         !isfinite(config->associative_memory_recall_threshold) ||
+         config->associative_memory_recall_threshold <= 0.0 ||
+         config->associative_memory_recall_threshold > 1.0 ||
+         !config->plasticity_enabled))
+    {
+        set_error(error_message, error_message_size,
+                  "configuracao de memoria associativa invalida");
         return 0;
     }
 
@@ -2668,6 +2896,57 @@ int scenario_config_save_file(
         fclose(file);
         set_error(error_message, error_message_size,
                   "erro ao escrever memoria de trabalho");
+        return 0;
+    }
+
+    if (fprintf(
+            file,
+            "\n[associative_memory]\n"
+            "enabled = %s\n"
+            "pair_count = %d\n"
+            "training_epochs = %d\n"
+            "training_cue_steps = %d\n"
+            "training_gap_steps = %d\n"
+            "initial_association_weight = %.17g\n"
+            "recall_cue_steps = %d\n"
+            "recall_delay_steps = %d\n"
+            "recall_probe_steps = %d\n"
+            "cue_corruption = %.17g\n"
+            "trial_count = %d\n"
+            "reset_between_pairs = %s\n"
+            "freeze_plasticity_during_recall = %s\n"
+            "seed = %u\n"
+            "recall_threshold = %.17g\n"
+            "pattern_mode = %s\n"
+            "cue_start = %d\n"
+            "cue_group_size = %d\n"
+            "target_start = %d\n"
+            "target_group_size = %d\n",
+            config->associative_memory_enabled ? "true" : "false",
+            config->associative_memory_pair_count,
+            config->associative_memory_training_epochs,
+            config->associative_memory_training_cue_steps,
+            config->associative_memory_training_gap_steps,
+            config->associative_memory_initial_weight,
+            config->associative_memory_recall_cue_steps,
+            config->associative_memory_recall_delay_steps,
+            config->associative_memory_recall_probe_steps,
+            config->associative_memory_cue_corruption,
+            config->associative_memory_trial_count,
+            config->associative_memory_reset_between_pairs ? "true" : "false",
+            config->associative_memory_freeze_plasticity_during_recall ?
+                "true" : "false",
+            config->associative_memory_seed,
+            config->associative_memory_recall_threshold,
+            config->associative_memory_pattern_mode,
+            config->associative_memory_cue_start,
+            config->associative_memory_cue_group_size,
+            config->associative_memory_target_start,
+            config->associative_memory_target_group_size) < 0)
+    {
+        fclose(file);
+        set_error(error_message, error_message_size,
+                  "erro ao escrever memoria associativa");
         return 0;
     }
 

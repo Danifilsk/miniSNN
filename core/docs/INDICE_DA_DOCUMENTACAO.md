@@ -24,6 +24,7 @@ implementados, experimentais e planejados.
 - [Guia de neuroevolução](GUIA_DE_NEUROEVOLUCAO.md) — genomas, fitness, operadores, checkpoint, Studio e limites C3.
 - [Guia de topologia adaptativa](GUIA_DE_TOPOLOGIA_ADAPTATIVA.md) — genoma estrutural, patches, lifetime plasticity, outputs e limites C4.
 - [Guia de memoria de trabalho](GUIA_DE_MEMORIA_DE_TRABALHO.md) — protocolo temporal C6.1, metricas de recall, outputs e limites.
+- [Guia de memoria associativa](GUIA_DE_MEMORIA_ASSOCIATIVA.md) — treino STDP cue-alvo, recall parcial, controles e limites C6.2.
 
 Os guias de diagnóstico e plasticidade também explicam os relatórios locais
 `metrics_report.html` e `weights_report.html`. Eles são a camada de leitura;

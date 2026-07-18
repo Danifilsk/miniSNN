@@ -12,7 +12,7 @@ endif
 endif
 CORE_DIR = core
 
-.PHONY: all help clean core core-tests core-studio core-evolution test test-architecture test-working-memory scenario-working-memory check-c6
+.PHONY: all help clean core core-tests core-studio core-evolution test test-architecture test-working-memory test-associative-memory scenario-working-memory scenario-associative-memory check-c6
 
 all: test
 
@@ -23,8 +23,10 @@ help:
 	@echo   mingw32-make core-studio      - compila o miniSNN Studio
 	@echo   mingw32-make core-evolution   - compila o runner de neuroevolucao
 	@echo   mingw32-make test-working-memory - valida o protocolo temporal C6.1
+	@echo   mingw32-make test-associative-memory - valida o protocolo associativo C6.2
 	@echo   mingw32-make scenario-working-memory - executa o demonstrador C6.1
-	@echo   mingw32-make check-c6         - verifica o fechamento C6.1
+	@echo   mingw32-make scenario-associative-memory - executa o demonstrador C6.2
+	@echo   mingw32-make check-c6         - verifica C6.1 e C6.2
 	@echo   mingw32-make test             - testes do Core e arquitetura do monorepo
 	@echo   mingw32-make test-architecture - valida isolamento e estrutura M1
 	@echo   mingw32-make <target-do-core> - encaminha targets legados ao Core
@@ -44,8 +46,14 @@ core-evolution:
 test-working-memory:
 	$(MAKE) -C $(CORE_DIR) test-working-memory
 
+test-associative-memory:
+	$(MAKE) -C $(CORE_DIR) test-associative-memory
+
 scenario-working-memory:
 	$(MAKE) -C $(CORE_DIR) scenario-working-memory
+
+scenario-associative-memory:
+	$(MAKE) -C $(CORE_DIR) scenario-associative-memory
 
 check-c6:
 	$(MAKE) -C $(CORE_DIR) check-c6

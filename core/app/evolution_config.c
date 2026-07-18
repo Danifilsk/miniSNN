@@ -734,6 +734,11 @@ static int metric_supported(
     if (strcmp(term->metric, "working_memory_recall_accuracy") == 0 ||
         strcmp(term->metric, "working_memory_mean_recall_score") == 0)
         return base->working_memory_enabled;
+    if (strcmp(term->metric, "associative_memory_recall_accuracy") == 0 ||
+        strcmp(term->metric, "associative_memory_mean_pattern_similarity") == 0 ||
+        strcmp(term->metric, "associative_memory_mean_completion_score") == 0 ||
+        strcmp(term->metric, "associative_memory_association_margin") == 0)
+        return base->associative_memory_enabled;
     return 0;
 }
 

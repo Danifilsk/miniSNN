@@ -15,6 +15,7 @@
 #define SCENARIO_REWARD_MODE_MAX 16
 #define SCENARIO_MAX_REWARD_EVENTS 256
 #define SCENARIO_WORKING_MEMORY_PATTERN_MAX 24
+#define SCENARIO_ASSOCIATIVE_MEMORY_PATTERN_MAX 16
 
 typedef struct
 {
@@ -164,6 +165,27 @@ typedef struct
     int working_memory_reset_between_trials;
     double working_memory_recall_tolerance;
     double working_memory_recall_threshold;
+
+    int associative_memory_enabled;
+    int associative_memory_pair_count;
+    int associative_memory_training_epochs;
+    int associative_memory_training_cue_steps;
+    int associative_memory_training_gap_steps;
+    double associative_memory_initial_weight;
+    int associative_memory_recall_cue_steps;
+    int associative_memory_recall_delay_steps;
+    int associative_memory_recall_probe_steps;
+    double associative_memory_cue_corruption;
+    int associative_memory_trial_count;
+    int associative_memory_reset_between_pairs;
+    int associative_memory_freeze_plasticity_during_recall;
+    unsigned int associative_memory_seed;
+    double associative_memory_recall_threshold;
+    char associative_memory_pattern_mode[SCENARIO_ASSOCIATIVE_MEMORY_PATTERN_MAX];
+    int associative_memory_cue_start;
+    int associative_memory_cue_group_size;
+    int associative_memory_target_start;
+    int associative_memory_target_group_size;
 } ScenarioConfig;
 
 void scenario_config_default(ScenarioConfig *config);

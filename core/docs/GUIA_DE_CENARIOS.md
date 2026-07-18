@@ -127,6 +127,12 @@ mostra erro com numero de linha.
 | `working_memory.seed` | Seed deterministica do padrao de cue |
 | `working_memory.reset_between_trials` | Recria a rede entre trials |
 | `working_memory.recall_tolerance`, `recall_threshold` | Criterios de recall correto |
+| `associative_memory.enabled` | Ativa o protocolo C6.2 de treino STDP e recall parcial |
+| `associative_memory.pair_count`, `training_epochs` | Pares binarios e repeticoes de treino |
+| `associative_memory.initial_association_weight` | Peso inicial das sinapses cue-alvo candidatas |
+| `associative_memory.cue_corruption`, `trial_count`, `seed` | Cue parcial e agenda reprodutivel de recall |
+| `associative_memory.recall_cue_steps`, `recall_delay_steps`, `recall_probe_steps` | Fases em passos inteiros |
+| `associative_memory.freeze_plasticity_during_recall` | Congela STDP durante a medicao |
 
 Configs antigas sem `[diagnostics]` usam `off`. Arquivos salvos pelo Studio
 registram a secao, e o padrao de um novo cenario e `basic`.
@@ -137,7 +143,7 @@ Regras principais:
 
 - `run_name`: 1 a 48 caracteres, usando apenas letras, numeros, `_` e `-`.
 - `topology`: `chain`, `ring`, `all_to_all`, `random`, `random_balanced`,
-  `small_world`, `feedforward` ou `working_memory`.
+  `small_world`, `feedforward`, `working_memory` ou `associative_memory`.
 - `neurons`: entre 1 e 1000.
 - `steps`: maior que zero.
 - `source_count`: entre 1 e `neurons`.
@@ -146,7 +152,7 @@ Regras principais:
 - `connection_probability`: entre 0.0 e 1.0.
 - `allow_self_connections` e `allow_inh_to_inh`: `true` ou `false`.
 - `allow_self_connections` se aplica a `all_to_all`, `random`,
-  `random_balanced`, `small_world` e `working_memory`. Em `chain`, `ring` e
+  `random_balanced`, `small_world`, `working_memory` e `associative_memory`. Em `chain`, `ring` e
   `feedforward`, nao ha
   candidato natural de self-loop.
 - `delay`: entre 1 e `max_synaptic_delay`.
@@ -222,6 +228,13 @@ Topologia experimental deterministica para o protocolo C6.1. Ela cria uma
 assembleia EXC recorrente por canal de readout e conecta cada assembleia a um
 INH que inibe apenas os grupos EXC concorrentes. Requer ao menos um INH por
 canal de readout e grupos cue/readout inteiramente excitatorios.
+
+### `associative_memory`
+
+Topologia experimental deterministica C6.2. Ela cria sinapses candidatas
+fracas entre grupos cue e seus grupos alvo pareados, mais recorrencia dentro de
+cada grupo alvo. O STDP durante treino determina os pesos efetivos. Veja o
+[Guia de memoria associativa](GUIA_DE_MEMORIA_ASSOCIATIVA.md).
 
 ## 6. Como executar `chain.ini`
 

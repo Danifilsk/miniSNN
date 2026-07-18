@@ -559,6 +559,98 @@ static int test_working_memory_fitness(
            result.completed && result.generations_completed == 1;
 }
 
+static int configure_associative_memory_base(const char *path)
+{
+    ScenarioConfig config;
+    char error[256] = {0};
+
+    scenario_config_default(&config);
+    snprintf(config.run_name, sizeof(config.run_name), "associative_memory_evolution_base");
+    snprintf(config.topology, sizeof(config.topology), "associative_memory");
+    config.neurons = 8;
+    config.inhibitory_fraction = 0.0;
+    config.allow_self_connections = 1;
+    config.source_count = 1;
+    config.input_current = 4000.0;
+    config.excitatory_weight = 200.0;
+    config.synaptic_decay = 0.98;
+    config.steps = 16;
+    config.record_neuron = 0;
+    config.auto_unique_run = 0;
+    config.history_enabled = 0;
+    snprintf(config.diagnostics_level, sizeof(config.diagnostics_level), "off");
+    config.plasticity_enabled = 1;
+    config.plasticity_a_plus = 0.5;
+    config.plasticity_a_minus = 0.525;
+    config.associative_memory_enabled = 1;
+    config.associative_memory_training_epochs = 2;
+    config.associative_memory_training_cue_steps = 5;
+    config.associative_memory_training_gap_steps = 10;
+    config.associative_memory_initial_weight = 1.0;
+    config.associative_memory_recall_cue_steps = 10;
+    config.associative_memory_recall_delay_steps = 10;
+    config.associative_memory_recall_probe_steps = 10;
+    config.associative_memory_trial_count = 2;
+    config.associative_memory_cue_corruption = 0.5;
+    config.associative_memory_reset_between_pairs = 1;
+    config.associative_memory_freeze_plasticity_during_recall = 1;
+    return scenario_config_save_file(path, &config, error, sizeof(error));
+}
+
+static int test_associative_memory_fitness(
+    const char *base_path,
+    const char *config_path)
+{
+    EvolutionExperimentConfig config;
+    EvolutionRunnerOptions options;
+    EvolutionRunResult result;
+    ScenarioConfig base;
+    char error[512] = {0};
+
+    if (!configure_associative_memory_base(base_path))
+        return 0;
+    configure_evolution(&config, "associative_memory_fitness", base_path, 0);
+    config.population_size = 2;
+    config.generations = 1;
+    config.elite_count = 1;
+    config.tournament_size = 2;
+    config.evaluation_replicates = 1;
+    config.save_best_run = 0;
+    config.fitness_term_count = 2;
+    snprintf(config.fitness_terms[0].metric,
+             sizeof(config.fitness_terms[0].metric),
+             "associative_memory_recall_accuracy");
+    config.fitness_terms[0].goal = EVOLUTION_FITNESS_MAXIMIZE;
+    config.fitness_terms[0].target = 1.0;
+    config.fitness_terms[0].scale = 1.0;
+    config.fitness_terms[0].weight = 1.0;
+    config.fitness_terms[0].has_neuron_id = 0;
+    snprintf(config.fitness_terms[1].metric,
+             sizeof(config.fitness_terms[1].metric),
+             "associative_memory_association_margin");
+    config.fitness_terms[1].goal = EVOLUTION_FITNESS_MAXIMIZE;
+    config.fitness_terms[1].target = 0.25;
+    config.fitness_terms[1].scale = 0.25;
+    config.fitness_terms[1].weight = 1.0;
+    config.fitness_terms[1].has_neuron_id = 0;
+
+    scenario_config_default(&base);
+    if (evolution_config_validate(&config, &base, error, sizeof(error)))
+        return 0;
+    if (!evolution_config_save_file(config_path, &config, error, sizeof(error)) ||
+        !evolution_config_load_file(config_path, &config, &base,
+                                    error, sizeof(error)) ||
+        !evolution_config_validate(&config, &base, error, sizeof(error)))
+    {
+        return 0;
+    }
+    evolution_runner_default_options(&options);
+    options.output_root = TEST_ROOT "/associative_memory";
+    return evolution_runner_execute(config_path, &options, &result,
+                                    error, sizeof(error)) &&
+           result.completed && result.generations_completed == 1;
+}
+
 static int test_advanced_model_evolution(
     MiniSNNNeuronModel model,
     const char *legacy_model_name,
@@ -613,6 +705,8 @@ int main(void)
     const char *darwinian_config_path = TEST_ROOT "/darwinian.ini";
     const char *working_memory_base_path = TEST_ROOT "/working_memory_base.ini";
     const char *working_memory_config_path = TEST_ROOT "/working_memory.ini";
+    const char *associative_memory_base_path = TEST_ROOT "/associative_memory_base.ini";
+    const char *associative_memory_config_path = TEST_ROOT "/associative_memory.ini";
     EvolutionExperimentConfig config;
     ScenarioConfig loaded_base;
     char error[512] = {0};
@@ -659,6 +753,13 @@ int main(void)
             working_memory_base_path, working_memory_config_path);
         if (!ok)
             fprintf(stderr, "Etapa fitness de memoria de trabalho falhou.\n");
+    }
+    if (ok)
+    {
+        ok = test_associative_memory_fitness(
+            associative_memory_base_path, associative_memory_config_path);
+        if (!ok)
+            fprintf(stderr, "Etapa fitness de memoria associativa falhou.\n");
     }
     if (ok)
     {

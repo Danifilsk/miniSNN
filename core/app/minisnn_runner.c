@@ -54,6 +54,19 @@ static void print_summary(
         printf("working_memory_retention_margin: %.6f\n",
                result->working_memory_retention_margin);
     }
+    if (result->associative_memory_enabled)
+    {
+        printf("associative_memory_accuracy: %.6f\n",
+               result->associative_memory_recall_accuracy);
+        printf("associative_memory_similarity: %.6f\n",
+               result->associative_memory_mean_pattern_similarity);
+        printf("associative_memory_completion: %.6f\n",
+               result->associative_memory_mean_completion_score);
+        printf("associative_memory_control_accuracy: %.6f\n",
+               result->associative_memory_control_accuracy);
+        printf("associative_memory_margin: %.6f\n",
+               result->associative_memory_association_margin);
+    }
 }
 
 int main(int argc, char **argv)
@@ -163,6 +176,13 @@ int main(int argc, char **argv)
         printf("- %s/working_memory_trials.csv\n", result.output_directory);
         printf("- %s/working_memory_summary.txt\n", result.output_directory);
         printf("- %s/working_memory_report.html\n", result.output_directory);
+    }
+    if (result.associative_memory_enabled)
+    {
+        printf("- %s/associative_memory_training.csv\n", result.output_directory);
+        printf("- %s/associative_memory_trials.csv\n", result.output_directory);
+        printf("- %s/associative_memory_summary.txt\n", result.output_directory);
+        printf("- %s/associative_memory_report.html\n", result.output_directory);
     }
 
     return 0;

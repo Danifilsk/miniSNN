@@ -7,7 +7,7 @@ ROOT = Path(__file__).resolve().parent.parent
 
 
 def fail(message: str) -> None:
-    print(f"C6.1 check failed: {message}", file=sys.stderr)
+    print(f"C6 check failed: {message}", file=sys.stderr)
     raise SystemExit(1)
 
 
@@ -20,10 +20,13 @@ def require(path: Path) -> str:
 def main() -> None:
     config = require(ROOT / "app" / "scenario_config.c")
     protocol = require(ROOT / "app" / "working_memory.c")
+    associative_protocol = require(ROOT / "app" / "associative_memory.c")
     runner = require(ROOT / "app" / "scenario_runner.c")
     makefile = require(ROOT / "Makefile")
     require(ROOT / "configs" / "working_memory_demo.ini")
     require(ROOT / "tests" / "test_working_memory.c")
+    require(ROOT / "configs" / "associative_memory_demo.ini")
+    require(ROOT / "tests" / "test_associative_memory.c")
 
     for token in (
         "working_memory_enabled",
@@ -61,7 +64,43 @@ def main() -> None:
         if re.search(expression, protocol):
             fail("protocol copies the cue directly into the recall result")
 
-    print("C6.1 working memory validation OK")
+    for token in (
+        "associative_memory_enabled",
+        "associative_memory_pair_count",
+        "associative_memory_training_epochs",
+        "associative_memory_cue_corruption",
+        "associative_memory_freeze_plasticity_during_recall",
+    ):
+        if token not in config:
+            fail(f"associative-memory configuration is missing {token}")
+    for token in (
+        "train_pairs",
+        "run_recall_trials",
+        "scenario_runtime_step_with_inputs",
+        "associative_memory_write_outputs",
+        "association_margin",
+        "untrained_accuracy",
+        "shuffled_target_accuracy",
+        "frozen_training_accuracy",
+    ):
+        if token not in associative_protocol:
+            fail(f"associative-memory protocol is missing {token}")
+    if "build_associative_memory" not in runner:
+        fail("scenario runner does not build the associative-memory motif")
+    if ("test-associative-memory" not in makefile or
+            "scenario-associative-memory" not in makefile):
+        fail("Makefile targets for C6.2 are missing")
+
+    forbidden_associative = (
+        r"trial\.recalled_pattern\s*=\s*(?:trial\.)?expected_pattern",
+        r"trial\.recalled_pattern\s*=\s*(?:trial\.)?pair_id",
+        r"inputs\s*\[[^]]+\]\s*=\s*.*expected_pattern",
+    )
+    for expression in forbidden_associative:
+        if re.search(expression, associative_protocol):
+            fail("associative protocol bypasses neural recall")
+
+    print("C6.2 associative memory validation OK")
 
 
 if __name__ == "__main__":

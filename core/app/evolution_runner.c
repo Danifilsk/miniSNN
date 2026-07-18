@@ -15,6 +15,7 @@
 #include "scenario_runtime.h"
 #include "structure.h"
 #include "working_memory.h"
+#include "associative_memory.h"
 
 #define EVOLUTION_DEFAULT_OUTPUT_ROOT "results/evolution"
 #define EVOLUTION_INDEX_HEADER_LEGACY \
@@ -65,6 +66,10 @@ typedef struct
     double reward_modified_connection_fraction;
     double working_memory_recall_accuracy;
     double working_memory_mean_recall_score;
+    double associative_memory_recall_accuracy;
+    double associative_memory_mean_pattern_similarity;
+    double associative_memory_mean_completion_score;
+    double associative_memory_association_margin;
     double term_observed[EVOLUTION_MAX_FITNESS_TERMS];
     double term_scores[EVOLUTION_MAX_FITNESS_TERMS];
     size_t final_lifetime_connection_count;
@@ -1041,6 +1046,14 @@ static int observed_metric(
         *out_value = evaluation->working_memory_recall_accuracy;
     else if (strcmp(term->metric, "working_memory_mean_recall_score") == 0)
         *out_value = evaluation->working_memory_mean_recall_score;
+    else if (strcmp(term->metric, "associative_memory_recall_accuracy") == 0)
+        *out_value = evaluation->associative_memory_recall_accuracy;
+    else if (strcmp(term->metric, "associative_memory_mean_pattern_similarity") == 0)
+        *out_value = evaluation->associative_memory_mean_pattern_similarity;
+    else if (strcmp(term->metric, "associative_memory_mean_completion_score") == 0)
+        *out_value = evaluation->associative_memory_mean_completion_score;
+    else if (strcmp(term->metric, "associative_memory_association_margin") == 0)
+        *out_value = evaluation->associative_memory_association_margin;
     else if (term->has_neuron_id)
         *out_value = (double)evaluation->neuron_spikes[term->neuron_id];
     else if (strcmp(term->metric, "network_final_weight_mean") == 0)
@@ -1186,6 +1199,45 @@ static int evaluate_genome(
             working_memory_result.mean_recall_score;
         scenario_blueprint_destroy(&working_memory_blueprint);
         working_memory_result_destroy(&working_memory_result);
+    }
+
+    if (scenario.associative_memory_enabled)
+    {
+        ScenarioBlueprint associative_memory_blueprint = {0};
+        AssociativeMemoryResult associative_memory_result = {0};
+        uint64_t topology_signature = 0U;
+
+        if (!scenario_runtime_capture_network(
+                snn, context->blueprint.inhibitory_count,
+                minisnn_get_topology_signature(snn, &topology_signature) ?
+                    topology_signature : 0U,
+                &associative_memory_blueprint,
+                runtime_error, sizeof(runtime_error)) ||
+            !associative_memory_execute(
+                &scenario, &associative_memory_blueprint,
+                &associative_memory_result, runtime_error,
+                sizeof(runtime_error)))
+        {
+            snprintf(evaluation.failure_reason, sizeof(evaluation.failure_reason),
+                     "%s", runtime_error[0] != '\0' ? runtime_error :
+                         "falha na avaliacao de memoria associativa");
+            scenario_blueprint_destroy(&associative_memory_blueprint);
+            associative_memory_result_destroy(&associative_memory_result);
+            minisnn_destroy(&snn);
+            *out_evaluation = evaluation;
+            return 1;
+        }
+
+        evaluation.associative_memory_recall_accuracy =
+            associative_memory_result.recall_accuracy;
+        evaluation.associative_memory_mean_pattern_similarity =
+            associative_memory_result.mean_pattern_similarity;
+        evaluation.associative_memory_mean_completion_score =
+            associative_memory_result.mean_completion_score;
+        evaluation.associative_memory_association_margin =
+            associative_memory_result.association_margin;
+        scenario_blueprint_destroy(&associative_memory_blueprint);
+        associative_memory_result_destroy(&associative_memory_result);
     }
 
     for (int step = 0; step < scenario.steps; step++)
