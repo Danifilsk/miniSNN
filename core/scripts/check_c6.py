@@ -21,12 +21,16 @@ def main() -> None:
     config = require(ROOT / "app" / "scenario_config.c")
     protocol = require(ROOT / "app" / "working_memory.c")
     associative_protocol = require(ROOT / "app" / "associative_memory.c")
+    sequence_protocol = require(ROOT / "app" / "sequence_prediction.c")
     runner = require(ROOT / "app" / "scenario_runner.c")
     makefile = require(ROOT / "Makefile")
     require(ROOT / "configs" / "working_memory_demo.ini")
     require(ROOT / "tests" / "test_working_memory.c")
     require(ROOT / "configs" / "associative_memory_demo.ini")
     require(ROOT / "tests" / "test_associative_memory.c")
+    require(ROOT / "configs" / "sequence_prediction_demo.ini")
+    require(ROOT / "configs" / "sequence_prediction_context_demo.ini")
+    require(ROOT / "tests" / "test_sequence_prediction.c")
 
     for token in (
         "working_memory_enabled",
@@ -100,7 +104,59 @@ def main() -> None:
         if re.search(expression, associative_protocol):
             fail("associative protocol bypasses neural recall")
 
-    print("C6.2 associative memory validation OK")
+    for token in (
+        "sequence_prediction_enabled",
+        "sequence_prediction_sequence_count",
+        "sequence_prediction_sequence_length",
+        "sequence_prediction_prefix_length",
+        "sequence_prediction_prediction_delay_steps",
+        "sequence_prediction_prediction_probe_steps",
+        "sequence_prediction_freeze_plasticity_during_evaluation",
+    ):
+        if token not in config:
+            fail(f"sequence-prediction configuration is missing {token}")
+    for token in (
+        "train_sequences",
+        "run_prediction_trials",
+        "decode_prediction",
+        "scenario_runtime_step_with_inputs",
+        "sequence_prediction_write_outputs",
+        "prediction_margin",
+        "untrained_control_accuracy",
+        "shuffled_order_control_accuracy",
+        "frozen_training_control_accuracy",
+        "permuted_labels_control_accuracy",
+        "last_symbol_only_control_accuracy",
+        "context_margin",
+        "teacher pulse supervisionado",
+    ):
+        if token not in sequence_protocol:
+            fail(f"sequence-prediction protocol is missing {token}")
+    if "build_sequence_prediction" not in runner:
+        fail("scenario runner does not build the sequence-prediction motif")
+    if ("test-sequence-prediction" not in makefile or
+            "scenario-sequence-prediction" not in makefile or
+            "scenario-sequence-prediction-context" not in makefile):
+        fail("Makefile targets for C6.3 are missing")
+    if "prediction_frame_recorded" in sequence_protocol:
+        fail("sequence prediction must decode the complete probe")
+
+    decode_index = sequence_protocol.find("if (!decode_prediction(")
+    expected_index = sequence_protocol.rfind("trial.expected_next_pattern =")
+    if decode_index < 0 or expected_index < 0 or decode_index > expected_index:
+        fail("expected next pattern must be scored after neural decoding")
+    forbidden_sequence = (
+        r"trial\.predicted_pattern\s*=\s*(?:trial\.)?expected_next_pattern",
+        r"trial\.predicted_pattern\s*=\s*(?:trial\.)?sequence_id",
+        r"predicted_pattern\s*=\s*sequence_prediction_pattern_id",
+        r"transition_table",
+        r"inputs\s*\[[^]]+\]\s*=\s*.*expected_next_pattern",
+    )
+    for expression in forbidden_sequence:
+        if re.search(expression, sequence_protocol):
+            fail("sequence-prediction protocol bypasses neural dynamics")
+
+    print("C6.3 sequence prediction validation OK")
 
 
 if __name__ == "__main__":

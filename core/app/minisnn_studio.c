@@ -112,6 +112,8 @@
 #define IDC_BTN_OPEN_WORKING_MEMORY 2033
 #define IDC_BTN_ASSOCIATIVE_MEMORY 2034
 #define IDC_BTN_OPEN_ASSOCIATIVE_MEMORY 2035
+#define IDC_BTN_SEQUENCE_PREDICTION 2036
+#define IDC_BTN_OPEN_SEQUENCE_PREDICTION 2037
 
 #define IDC_STATUS 3001
 #define IDC_SUMMARY 3002
@@ -291,6 +293,15 @@
 #define IDC_ASSOCIATIVE_MEMORY_APPLY 11106
 #define IDC_ASSOCIATIVE_MEMORY_CANCEL 11107
 
+#define IDC_SEQUENCE_PREDICTION_ENABLED 11201
+#define IDC_SEQUENCE_PREDICTION_SEQUENCES 11202
+#define IDC_SEQUENCE_PREDICTION_LENGTH 11203
+#define IDC_SEQUENCE_PREDICTION_EPOCHS 11204
+#define IDC_SEQUENCE_PREDICTION_PREFIX 11205
+#define IDC_SEQUENCE_PREDICTION_TRIALS 11206
+#define IDC_SEQUENCE_PREDICTION_APPLY 11207
+#define IDC_SEQUENCE_PREDICTION_CANCEL 11208
+
 #define STUDIO_INIT_TIMER_ID 1
 #define STUDIO_EVOLUTION_TIMER_ID 2
 
@@ -342,6 +353,8 @@ typedef struct
     HWND working_memory_report_button;
     HWND associative_memory_button;
     HWND associative_memory_report_button;
+    HWND sequence_prediction_button;
+    HWND sequence_prediction_report_button;
     HWND status_label;
     HWND summary_box;
     HWND execution_section_label;
@@ -563,6 +576,18 @@ typedef struct
     HWND trials_edit;
 } AssociativeMemoryDialog;
 
+typedef struct
+{
+    HWND window;
+    ScenarioConfig working_config;
+    HWND enabled_checkbox;
+    HWND sequences_edit;
+    HWND length_edit;
+    HWND epochs_edit;
+    HWND prefix_edit;
+    HWND trials_edit;
+} SequencePredictionDialog;
+
 static StudioState g_app;
 static TopologyOptionsDialog g_options;
 static PlasticityDialog g_plasticity;
@@ -573,6 +598,7 @@ static AdaptiveTopologyDialog g_adaptive;
 static NeuronModelDialog g_neuron_model;
 static WorkingMemoryDialog g_working_memory;
 static AssociativeMemoryDialog g_associative_memory;
+static SequencePredictionDialog g_sequence_prediction;
 
 static void draw_button(const DRAWITEMSTRUCT *item);
 static LRESULT handle_color(HDC hdc, HWND hwnd);
@@ -1779,6 +1805,9 @@ static void set_result_buttons_enabled(BOOL enabled)
     EnableWindow(
         g_app.associative_memory_report_button,
         enabled && g_app.last_result.associative_memory_enabled);
+    EnableWindow(
+        g_app.sequence_prediction_report_button,
+        enabled && g_app.last_result.sequence_prediction_enabled);
 }
 
 static void set_comparison_buttons_enabled(void)
@@ -5699,6 +5728,244 @@ static void open_associative_memory_report(void)
         "RELATORIO DE MEMORIA ASSOCIATIVA ABERTO");
 }
 
+static void sequence_prediction_to_controls(void)
+{
+    char text[TEXT_BUFFER_SIZE];
+    const ScenarioConfig *config = &g_sequence_prediction.working_config;
+
+    SendMessageA(
+        g_sequence_prediction.enabled_checkbox,
+        BM_SETCHECK,
+        config->sequence_prediction_enabled ? BST_CHECKED : BST_UNCHECKED,
+        0);
+    snprintf(text, sizeof(text), "%d", config->sequence_prediction_sequence_count);
+    SetWindowTextA(g_sequence_prediction.sequences_edit, text);
+    snprintf(text, sizeof(text), "%d", config->sequence_prediction_sequence_length);
+    SetWindowTextA(g_sequence_prediction.length_edit, text);
+    snprintf(text, sizeof(text), "%d", config->sequence_prediction_training_epochs);
+    SetWindowTextA(g_sequence_prediction.epochs_edit, text);
+    snprintf(text, sizeof(text), "%d", config->sequence_prediction_prefix_length);
+    SetWindowTextA(g_sequence_prediction.prefix_edit, text);
+    snprintf(text, sizeof(text), "%d", config->sequence_prediction_trial_count);
+    SetWindowTextA(g_sequence_prediction.trials_edit, text);
+}
+
+static int apply_sequence_prediction_options(void)
+{
+    ScenarioConfig candidate = g_sequence_prediction.working_config;
+    char error[256];
+
+    candidate.sequence_prediction_enabled =
+        SendMessageA(
+            g_sequence_prediction.enabled_checkbox,
+            BM_GETCHECK,
+            0,
+            0) == BST_CHECKED;
+    if (!parse_int_from_window(
+            g_sequence_prediction.sequences_edit, "SEQUENCIAS",
+            &candidate.sequence_prediction_sequence_count, error,
+            sizeof(error)) ||
+        !parse_int_from_window(
+            g_sequence_prediction.length_edit, "COMPRIMENTO",
+            &candidate.sequence_prediction_sequence_length, error,
+            sizeof(error)) ||
+        !parse_int_from_window(
+            g_sequence_prediction.epochs_edit, "EPOCAS",
+            &candidate.sequence_prediction_training_epochs, error,
+            sizeof(error)) ||
+        !parse_int_from_window(
+            g_sequence_prediction.prefix_edit, "PREFIXO",
+            &candidate.sequence_prediction_prefix_length, error,
+            sizeof(error)) ||
+        !parse_int_from_window(
+            g_sequence_prediction.trials_edit, "TRIALS",
+            &candidate.sequence_prediction_trial_count, error,
+            sizeof(error)) ||
+        !scenario_config_validate(&candidate, error, sizeof(error)))
+    {
+        show_error("Sequencias e predicao invalidas", error);
+        return 0;
+    }
+
+    g_app.current_config = candidate;
+    config_to_controls(&candidate);
+    set_status(candidate.sequence_prediction_enabled ?
+        "SEQUENCIAS E PREDICAO ATIVADAS" :
+        "SEQUENCIAS E PREDICAO DESATIVADAS");
+    DestroyWindow(g_sequence_prediction.window);
+    return 1;
+}
+
+static LRESULT CALLBACK sequence_prediction_options_proc(
+    HWND hwnd,
+    UINT message,
+    WPARAM wparam,
+    LPARAM lparam)
+{
+    (void)lparam;
+    switch (message)
+    {
+    case WM_CREATE:
+        g_sequence_prediction.window = hwnd;
+        create_static(hwnd, "SEQUENCIAS E PREDICAO", 24, 18, 360, 26, 0);
+        g_sequence_prediction.enabled_checkbox = create_checkbox(
+            hwnd, "ATIVAR", IDC_SEQUENCE_PREDICTION_ENABLED, 24, 54, 160, 28);
+        create_static(hwnd, "SEQUENCIAS", 24, 102, 190, 24, 0);
+        g_sequence_prediction.sequences_edit = create_edit(
+            hwnd, IDC_SEQUENCE_PREDICTION_SEQUENCES, 240, 98, 110, 28);
+        create_static(hwnd, "COMPRIMENTO", 24, 142, 190, 24, 0);
+        g_sequence_prediction.length_edit = create_edit(
+            hwnd, IDC_SEQUENCE_PREDICTION_LENGTH, 240, 138, 110, 28);
+        create_static(hwnd, "EPOCAS", 24, 182, 190, 24, 0);
+        g_sequence_prediction.epochs_edit = create_edit(
+            hwnd, IDC_SEQUENCE_PREDICTION_EPOCHS, 240, 178, 110, 28);
+        create_static(hwnd, "PREFIXO", 24, 222, 190, 24, 0);
+        g_sequence_prediction.prefix_edit = create_edit(
+            hwnd, IDC_SEQUENCE_PREDICTION_PREFIX, 240, 218, 110, 28);
+        create_static(hwnd, "TRIALS", 24, 262, 190, 24, 0);
+        g_sequence_prediction.trials_edit = create_edit(
+            hwnd, IDC_SEQUENCE_PREDICTION_TRIALS, 240, 258, 110, 28);
+        create_button(hwnd, "APLICAR", IDC_SEQUENCE_PREDICTION_APPLY,
+                      104, 322, 130, 36);
+        create_button(hwnd, "CANCELAR", IDC_SEQUENCE_PREDICTION_CANCEL,
+                      254, 322, 130, 36);
+        sequence_prediction_to_controls();
+        enable_dark_title_bar(hwnd);
+        return 0;
+    case WM_COMMAND:
+        if (HIWORD(wparam) == BN_CLICKED)
+        {
+            if (LOWORD(wparam) == IDC_SEQUENCE_PREDICTION_APPLY)
+            {
+                apply_sequence_prediction_options();
+                return 0;
+            }
+            if (LOWORD(wparam) == IDC_SEQUENCE_PREDICTION_CANCEL)
+            {
+                DestroyWindow(hwnd);
+                return 0;
+            }
+        }
+        break;
+    case WM_CTLCOLORSTATIC:
+        return handle_color((HDC)wparam, (HWND)lparam);
+    case WM_CTLCOLOREDIT:
+        return handle_edit_color((HDC)wparam);
+    case WM_DRAWITEM:
+        draw_button((const DRAWITEMSTRUCT *)lparam);
+        return TRUE;
+    case WM_CLOSE:
+        DestroyWindow(hwnd);
+        return 0;
+    case WM_DESTROY:
+        g_sequence_prediction.window = NULL;
+        return 0;
+    default:
+        break;
+    }
+    return DefWindowProcA(hwnd, message, wparam, lparam);
+}
+
+static int ensure_sequence_prediction_class_registered(void)
+{
+    static int registered = 0;
+    WNDCLASSA window_class;
+
+    if (registered)
+        return 1;
+    memset(&window_class, 0, sizeof(window_class));
+    window_class.lpfnWndProc = sequence_prediction_options_proc;
+    window_class.hInstance = GetModuleHandleA(NULL);
+    window_class.lpszClassName = "MiniSNNSequencePredictionOptionsWindow";
+    window_class.hCursor = LoadCursor(NULL, IDC_ARROW);
+    window_class.hbrBackground = g_app.background_brush;
+    if (!RegisterClassA(&window_class))
+        return 0;
+    registered = 1;
+    return 1;
+}
+
+static void open_sequence_prediction_options(void)
+{
+    ScenarioConfig config;
+    char error[256];
+    HWND dialog;
+    MSG message;
+
+    if (!controls_to_config(&config, error, sizeof(error)))
+    {
+        show_error("Configuracao invalida", error);
+        return;
+    }
+    if (!ensure_sequence_prediction_class_registered())
+    {
+        show_error("Erro interno",
+                   "Nao foi possivel criar a janela de sequencias e predicao.");
+        return;
+    }
+
+    memset(&g_sequence_prediction, 0, sizeof(g_sequence_prediction));
+    g_sequence_prediction.working_config = config;
+    dialog = CreateWindowExA(
+        WS_EX_DLGMODALFRAME,
+        "MiniSNNSequencePredictionOptionsWindow",
+        "SEQUENCIAS E PREDICAO",
+        WS_POPUP | WS_CAPTION | WS_SYSMENU,
+        CW_USEDEFAULT,
+        CW_USEDEFAULT,
+        500,
+        430,
+        g_app.window,
+        NULL,
+        GetModuleHandleA(NULL),
+        NULL);
+    if (dialog == NULL)
+    {
+        show_error("Erro interno",
+                   "Nao foi possivel abrir sequencias e predicao.");
+        return;
+    }
+
+    EnableWindow(g_app.window, FALSE);
+    ShowWindow(dialog, SW_SHOW);
+    UpdateWindow(dialog);
+    while (g_sequence_prediction.window != NULL &&
+           GetMessageA(&message, NULL, 0, 0) > 0)
+    {
+        if (!IsDialogMessageA(dialog, &message))
+        {
+            TranslateMessage(&message);
+            DispatchMessageA(&message);
+        }
+    }
+    EnableWindow(g_app.window, TRUE);
+    SetActiveWindow(g_app.window);
+}
+
+static void open_sequence_prediction_report(void)
+{
+    char path[MAX_PATH];
+
+    if (!g_app.has_result || !g_app.last_result.sequence_prediction_enabled)
+    {
+        show_info("Sequencias e predicao",
+                  "A ultima execucao nao possui sequencias e predicao ativas.");
+        return;
+    }
+    if (!build_run_artifact_path(path, sizeof(path),
+                                 "sequence_prediction_report.html"))
+    {
+        show_error("Erro interno",
+                   "Nao foi possivel montar o caminho do relatorio.");
+        return;
+    }
+    open_existing_file(
+        path,
+        "Sequencias e predicao",
+        "sequence_prediction_report.html nao existe. Execute o cenario novamente.",
+        "RELATORIO DE SEQUENCIAS E PREDICAO ABERTO");
+}
+
 static char *trim_reward_token(char *text)
 {
     char *end;
@@ -7711,6 +7978,7 @@ static void create_controls(HWND hwnd)
     SendMessageA(g_app.topology_combo, CB_ADDSTRING, 0, (LPARAM)"feedforward");
     SendMessageA(g_app.topology_combo, CB_ADDSTRING, 0, (LPARAM)"working_memory");
     SendMessageA(g_app.topology_combo, CB_ADDSTRING, 0, (LPARAM)"associative_memory");
+    SendMessageA(g_app.topology_combo, CB_ADDSTRING, 0, (LPARAM)"sequence_prediction");
     SendMessageA(g_app.topology_combo, CB_SETDROPPEDWIDTH, (WPARAM)topology_w, 0);
     g_app.topology_options_button = create_button(
         hwnd,
@@ -7829,6 +8097,22 @@ static void create_controls(HWND hwnd)
         IDC_BTN_OPEN_ASSOCIATIVE_MEMORY,
         x2,
         y + 13 * STUDIO_ROW_HEIGHT + 2,
+        280,
+        STUDIO_BUTTON_HEIGHT);
+    g_app.sequence_prediction_button = create_button(
+        hwnd,
+        "SEQUENCIAS E PREDICAO",
+        IDC_BTN_SEQUENCE_PREDICTION,
+        x2,
+        y + 14 * STUDIO_ROW_HEIGHT + 2,
+        280,
+        STUDIO_BUTTON_HEIGHT);
+    g_app.sequence_prediction_report_button = create_button(
+        hwnd,
+        "ABRIR RELATORIO SEQ.",
+        IDC_BTN_OPEN_SEQUENCE_PREDICTION,
+        x2,
+        y + 15 * STUDIO_ROW_HEIGHT + 2,
         280,
         STUDIO_BUTTON_HEIGHT);
 
@@ -7972,6 +8256,12 @@ static void layout_controls(HWND hwnd)
                STUDIO_BUTTON_HEIGHT, TRUE);
     MoveWindow(g_app.associative_memory_report_button, STUDIO_MIDDLE_X,
                STUDIO_TOP_Y + 13 * STUDIO_ROW_HEIGHT + 2, 280,
+               STUDIO_BUTTON_HEIGHT, TRUE);
+    MoveWindow(g_app.sequence_prediction_button, STUDIO_MIDDLE_X,
+               STUDIO_TOP_Y + 14 * STUDIO_ROW_HEIGHT + 2, 280,
+               STUDIO_BUTTON_HEIGHT, TRUE);
+    MoveWindow(g_app.sequence_prediction_report_button, STUDIO_MIDDLE_X,
+               STUDIO_TOP_Y + 15 * STUDIO_ROW_HEIGHT + 2, 280,
                STUDIO_BUTTON_HEIGHT, TRUE);
 
     InvalidateRect(hwnd, NULL, TRUE);
@@ -8271,6 +8561,12 @@ static LRESULT CALLBACK window_proc(
                 return 0;
             case IDC_BTN_OPEN_ASSOCIATIVE_MEMORY:
                 open_associative_memory_report();
+                return 0;
+            case IDC_BTN_SEQUENCE_PREDICTION:
+                open_sequence_prediction_options();
+                return 0;
+            case IDC_BTN_OPEN_SEQUENCE_PREDICTION:
+                open_sequence_prediction_report();
                 return 0;
             case IDC_BTN_PLOT_PLASTICITY:
                 generate_plasticity_graph();

@@ -46,6 +46,18 @@ alvo a partir de cue parcial. O runner grava arquivos `associative_memory_*`
 na pasta da run; o protocolo, controles e limitacoes estao no
 [Guia de memoria associativa](GUIA_DE_MEMORIA_ASSOCIATIVA.md).
 
+O C6.3 treina a ordem de sequencias temporais com o STDP existente e mede a
+previsao do proximo padrao a partir de um prefixo incompleto. Execute:
+
+```powershell
+mingw32-make scenario-sequence-prediction
+```
+
+O runner grava `sequence_prediction_*` na pasta da run. No Studio, use
+`SEQUENCIAS E PREDICAO` e depois `ABRIR RELATORIO SEQ.`. O protocolo, os
+controles e as limitacoes estao no
+[Guia de sequencias e previsao](GUIA_DE_SEQUENCIAS_E_PREVISAO.md).
+
 [Voltar ao índice da documentação](INDICE_DA_DOCUMENTACAO.md)
 
 ## O que e a miniSNN

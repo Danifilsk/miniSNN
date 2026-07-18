@@ -11,6 +11,7 @@
 #include "scenario_runtime.h"
 #include "working_memory.h"
 #include "associative_memory.h"
+#include "sequence_prediction.h"
 
 #define COMMAND_BUFFER_SIZE 640
 #define SCENARIO_MAX_NEURONS 1000
@@ -1057,6 +1058,93 @@ static int build_associative_memory(
     return 1;
 }
 
+/*
+ * C6.3 motif: every input assembly reaches every prediction assembly through
+ * weak candidate synapses. Causal teacher pulses during training differentiate
+ * temporal transitions; evaluation never injects current into prediction
+ * assemblies. Contextual patterns add only recurrent input assemblies.
+ */
+static int build_sequence_prediction(
+    MiniSNN *snn,
+    const ScenarioConfig *config,
+    const int *neuron_is_inhibitory,
+    ConnectivityStats *stats)
+{
+    int pattern_count = config->sequence_prediction_sequence_count *
+                        config->sequence_prediction_sequence_length;
+
+    for (int pattern_id = 0; pattern_id < pattern_count; pattern_id++)
+    {
+        int input_start = config->sequence_prediction_input_start +
+            pattern_id * config->sequence_prediction_input_group_size;
+        for (int source_offset = 0;
+             source_offset < config->sequence_prediction_input_group_size;
+             source_offset++)
+        {
+            int source = input_start + source_offset;
+
+            for (int target_pattern = 0;
+                 target_pattern < pattern_count;
+                 target_pattern++)
+            {
+                int target_start =
+                    config->sequence_prediction_prediction_start +
+                    target_pattern *
+                        config->sequence_prediction_prediction_group_size;
+
+                for (int target_offset = 0;
+                     target_offset < config->sequence_prediction_prediction_group_size;
+                     target_offset++)
+                {
+                    if (!connect_pair_with_weight(
+                            snn, config, neuron_is_inhibitory,
+                            source,
+                            target_start + target_offset,
+                            config->sequence_prediction_initial_weight,
+                            stats))
+                    {
+                        return 0;
+                    }
+                }
+            }
+        }
+    }
+
+    if (strcmp(config->sequence_prediction_pattern_mode, "contextual") == 0)
+    {
+        for (int pattern_id = 0; pattern_id < pattern_count; pattern_id++)
+        {
+            int input_start = config->sequence_prediction_input_start +
+                pattern_id * config->sequence_prediction_input_group_size;
+
+            for (int source_offset = 0;
+                 source_offset < config->sequence_prediction_input_group_size;
+                 source_offset++)
+            {
+                int source = input_start + source_offset;
+
+                for (int target_offset = 0;
+                     target_offset < config->sequence_prediction_input_group_size;
+                     target_offset++)
+                {
+                    int target = input_start + target_offset;
+
+                    if (source == target)
+                        continue;
+                    if (!connect_pair(
+                            snn, config, neuron_is_inhibitory,
+                            source, target, stats))
+                    {
+                        return 0;
+                    }
+                }
+            }
+        }
+    }
+
+    return 1;
+}
+
 static int build_topology(
     MiniSNN *snn,
     const ScenarioConfig *config,
@@ -1116,6 +1204,13 @@ static int build_topology(
 
     if (strcmp(config->topology, "associative_memory") == 0)
         return build_associative_memory(
+            snn,
+            config,
+            neuron_is_inhibitory,
+            stats);
+
+    if (strcmp(config->topology, "sequence_prediction") == 0)
+        return build_sequence_prediction(
             snn,
             config,
             neuron_is_inhibitory,
@@ -2936,6 +3031,42 @@ static int write_summary(
         return 0;
     }
 
+    if (fprintf(
+            file,
+            "sequence_prediction_enabled=%s\n"
+            "sequence_prediction_trial_count=%d\n"
+            "sequence_prediction_correct_predictions=%d\n"
+            "sequence_prediction_next_pattern_accuracy=%.17g\n"
+            "sequence_prediction_mean_similarity=%.17g\n"
+            "sequence_prediction_mean_error=%.17g\n"
+            "sequence_prediction_mean_latency=%.17g\n"
+            "sequence_prediction_chance_accuracy=%.17g\n"
+            "sequence_prediction_untrained_control_accuracy=%.17g\n"
+            "sequence_prediction_shuffled_order_control_accuracy=%.17g\n"
+            "sequence_prediction_context_accuracy=%.17g\n"
+            "sequence_prediction_last_symbol_only_control_accuracy=%.17g\n"
+            "sequence_prediction_context_margin=%.17g\n"
+            "sequence_prediction_control_accuracy=%.17g\n"
+            "sequence_prediction_margin=%.17g\n",
+            result->sequence_prediction_enabled ? "true" : "false",
+            result->sequence_prediction_trial_count,
+            result->sequence_prediction_correct_predictions,
+            result->sequence_prediction_next_pattern_accuracy,
+            result->sequence_prediction_mean_similarity,
+            result->sequence_prediction_mean_error,
+            result->sequence_prediction_mean_latency,
+            result->sequence_prediction_chance_accuracy,
+            result->sequence_prediction_untrained_control_accuracy,
+            result->sequence_prediction_shuffled_order_control_accuracy,
+            result->sequence_prediction_context_accuracy,
+            result->sequence_prediction_last_symbol_only_control_accuracy,
+            result->sequence_prediction_context_margin,
+            result->sequence_prediction_control_accuracy,
+            result->sequence_prediction_margin) < 0)
+    {
+        return 0;
+    }
+
     if (config->neuron_model == MINISNN_NEURON_MODEL_ADEX)
     {
         return fprintf(
@@ -3444,6 +3575,7 @@ static int write_run_manifest(
     char reward_files[384] = "NA";
     char working_memory_files[160] = "";
     char associative_memory_files[192] = "";
+    char sequence_prediction_files[208] = "";
     FILE *pipe;
     MiniSNNConfig minisnn_config;
     MiniSNNNeuronModelCapabilities capabilities;
@@ -3510,6 +3642,15 @@ static int write_run_manifest(
             sizeof(associative_memory_files),
             ";associative_memory_training.csv;associative_memory_trials.csv;"
             "associative_memory_summary.txt;associative_memory_report.html");
+    }
+
+    if (config->sequence_prediction_enabled)
+    {
+        snprintf(
+            sequence_prediction_files,
+            sizeof(sequence_prediction_files),
+            ";sequence_prediction_training.csv;sequence_prediction_trials.csv;"
+            "sequence_prediction_summary.txt;sequence_prediction_report.html");
     }
 
     pipe = _popen("git rev-parse --short HEAD 2>NUL", "r");
@@ -3614,7 +3755,7 @@ static int write_run_manifest(
             "python_version=NA\n"
             "pandas_version=NA\n"
             "matplotlib_version=NA\n"
-            "files=config_used.ini;summary.txt;population.csv;raster.csv;neuron_%d.csv;run_manifest.txt%s%s%s\n",
+            "files=config_used.ini;summary.txt;population.csv;raster.csv;neuron_%d.csv;run_manifest.txt%s%s%s%s\n",
             MINISNN_VERSION,
             git_commit,
             git_status,
@@ -3687,7 +3828,8 @@ static int write_run_manifest(
             config->record_neuron,
             metrics_generated ? ";metrics.csv" : "",
             working_memory_files,
-            associative_memory_files) < 0)
+            associative_memory_files,
+            sequence_prediction_files) < 0)
     {
         fclose(file);
         return 0;
@@ -4470,6 +4612,8 @@ int scenario_runner_execute(
     WorkingMemoryResult working_memory_result;
     ScenarioBlueprint associative_memory_blueprint;
     AssociativeMemoryResult associative_memory_result;
+    ScenarioBlueprint sequence_prediction_blueprint;
+    SequencePredictionResult sequence_prediction_result;
     ULONGLONG wall_start;
     ULONGLONG simulation_start;
     double simulation_seconds;
@@ -4494,6 +4638,9 @@ int scenario_runner_execute(
     memset(&associative_memory_blueprint, 0,
            sizeof(associative_memory_blueprint));
     memset(&associative_memory_result, 0, sizeof(associative_memory_result));
+    memset(&sequence_prediction_blueprint, 0,
+           sizeof(sequence_prediction_blueprint));
+    memset(&sequence_prediction_result, 0, sizeof(sequence_prediction_result));
 
     if (!scenario_config_validate(config, error_message, error_message_size))
         return 0;
@@ -4810,6 +4957,72 @@ int scenario_runner_execute(
             associative_memory_result.association_margin;
         scenario_blueprint_destroy(&associative_memory_blueprint);
         associative_memory_result_destroy(&associative_memory_result);
+    }
+
+    if (config->sequence_prediction_enabled)
+    {
+        if (!scenario_runner_capture_blueprint(
+                config, &sequence_prediction_blueprint, error_message,
+                error_message_size) ||
+            !sequence_prediction_execute(
+                config, &sequence_prediction_blueprint,
+                &sequence_prediction_result, error_message,
+                error_message_size) ||
+            !sequence_prediction_write_outputs(
+                config, &sequence_prediction_result, result.output_directory,
+                error_message, error_message_size))
+        {
+            if (error_message != NULL && error_message_size > 0 &&
+                error_message[0] == '\0')
+            {
+                set_error(error_message, error_message_size,
+                          "erro durante predicao de sequencia");
+            }
+            scenario_blueprint_destroy(&sequence_prediction_blueprint);
+            sequence_prediction_result_destroy(&sequence_prediction_result);
+            close_file_if_open(population_file);
+            close_file_if_open(raster_file);
+            close_file_if_open(neuron_file);
+            close_file_if_open(model_state_file);
+            close_file_if_open(summary_file);
+            plasticity_run_data_close(&plasticity_data);
+            homeostasis_run_data_close(&homeostasis_data);
+            reward_run_data_close(&reward_data);
+            minisnn_destroy(&snn);
+            return 0;
+        }
+
+        result.sequence_prediction_enabled = 1;
+        result.sequence_prediction_trial_count =
+            sequence_prediction_result.trial_count;
+        result.sequence_prediction_correct_predictions =
+            sequence_prediction_result.correct_predictions;
+        result.sequence_prediction_next_pattern_accuracy =
+            sequence_prediction_result.next_pattern_accuracy;
+        result.sequence_prediction_mean_similarity =
+            sequence_prediction_result.mean_prediction_similarity;
+        result.sequence_prediction_mean_error =
+            sequence_prediction_result.mean_prediction_error;
+        result.sequence_prediction_mean_latency =
+            sequence_prediction_result.mean_prediction_latency;
+        result.sequence_prediction_chance_accuracy =
+            sequence_prediction_result.chance_accuracy;
+        result.sequence_prediction_untrained_control_accuracy =
+            sequence_prediction_result.untrained_control_accuracy;
+        result.sequence_prediction_shuffled_order_control_accuracy =
+            sequence_prediction_result.shuffled_order_control_accuracy;
+        result.sequence_prediction_context_accuracy =
+            sequence_prediction_result.context_accuracy;
+        result.sequence_prediction_last_symbol_only_control_accuracy =
+            sequence_prediction_result.last_symbol_only_control_accuracy;
+        result.sequence_prediction_context_margin =
+            sequence_prediction_result.context_margin;
+        result.sequence_prediction_control_accuracy =
+            sequence_prediction_result.control_accuracy;
+        result.sequence_prediction_margin =
+            sequence_prediction_result.prediction_margin;
+        scenario_blueprint_destroy(&sequence_prediction_blueprint);
+        sequence_prediction_result_destroy(&sequence_prediction_result);
     }
 
     simulation_seconds =

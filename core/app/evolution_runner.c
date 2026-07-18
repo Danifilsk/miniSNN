@@ -16,6 +16,7 @@
 #include "structure.h"
 #include "working_memory.h"
 #include "associative_memory.h"
+#include "sequence_prediction.h"
 
 #define EVOLUTION_DEFAULT_OUTPUT_ROOT "results/evolution"
 #define EVOLUTION_INDEX_HEADER_LEGACY \
@@ -70,6 +71,9 @@ typedef struct
     double associative_memory_mean_pattern_similarity;
     double associative_memory_mean_completion_score;
     double associative_memory_association_margin;
+    double sequence_prediction_next_pattern_accuracy;
+    double sequence_prediction_mean_prediction_similarity;
+    double sequence_prediction_prediction_margin;
     double term_observed[EVOLUTION_MAX_FITNESS_TERMS];
     double term_scores[EVOLUTION_MAX_FITNESS_TERMS];
     size_t final_lifetime_connection_count;
@@ -1054,6 +1058,12 @@ static int observed_metric(
         *out_value = evaluation->associative_memory_mean_completion_score;
     else if (strcmp(term->metric, "associative_memory_association_margin") == 0)
         *out_value = evaluation->associative_memory_association_margin;
+    else if (strcmp(term->metric, "sequence_prediction_next_pattern_accuracy") == 0)
+        *out_value = evaluation->sequence_prediction_next_pattern_accuracy;
+    else if (strcmp(term->metric, "sequence_prediction_mean_prediction_similarity") == 0)
+        *out_value = evaluation->sequence_prediction_mean_prediction_similarity;
+    else if (strcmp(term->metric, "sequence_prediction_prediction_margin") == 0)
+        *out_value = evaluation->sequence_prediction_prediction_margin;
     else if (term->has_neuron_id)
         *out_value = (double)evaluation->neuron_spikes[term->neuron_id];
     else if (strcmp(term->metric, "network_final_weight_mean") == 0)
@@ -1238,6 +1248,43 @@ static int evaluate_genome(
             associative_memory_result.association_margin;
         scenario_blueprint_destroy(&associative_memory_blueprint);
         associative_memory_result_destroy(&associative_memory_result);
+    }
+
+    if (scenario.sequence_prediction_enabled)
+    {
+        ScenarioBlueprint sequence_prediction_blueprint = {0};
+        SequencePredictionResult sequence_prediction_result = {0};
+        uint64_t topology_signature = 0U;
+
+        if (!scenario_runtime_capture_network(
+                snn, context->blueprint.inhibitory_count,
+                minisnn_get_topology_signature(snn, &topology_signature) ?
+                    topology_signature : 0U,
+                &sequence_prediction_blueprint,
+                runtime_error, sizeof(runtime_error)) ||
+            !sequence_prediction_execute(
+                &scenario, &sequence_prediction_blueprint,
+                &sequence_prediction_result, runtime_error,
+                sizeof(runtime_error)))
+        {
+            snprintf(evaluation.failure_reason, sizeof(evaluation.failure_reason),
+                     "%s", runtime_error[0] != '\0' ? runtime_error :
+                         "falha na avaliacao de predicao de sequencia");
+            scenario_blueprint_destroy(&sequence_prediction_blueprint);
+            sequence_prediction_result_destroy(&sequence_prediction_result);
+            minisnn_destroy(&snn);
+            *out_evaluation = evaluation;
+            return 1;
+        }
+
+        evaluation.sequence_prediction_next_pattern_accuracy =
+            sequence_prediction_result.next_pattern_accuracy;
+        evaluation.sequence_prediction_mean_prediction_similarity =
+            sequence_prediction_result.mean_prediction_similarity;
+        evaluation.sequence_prediction_prediction_margin =
+            sequence_prediction_result.prediction_margin;
+        scenario_blueprint_destroy(&sequence_prediction_blueprint);
+        sequence_prediction_result_destroy(&sequence_prediction_result);
     }
 
     for (int step = 0; step < scenario.steps; step++)

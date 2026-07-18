@@ -16,6 +16,7 @@
 #define SCENARIO_MAX_REWARD_EVENTS 256
 #define SCENARIO_WORKING_MEMORY_PATTERN_MAX 24
 #define SCENARIO_ASSOCIATIVE_MEMORY_PATTERN_MAX 16
+#define SCENARIO_SEQUENCE_PREDICTION_PATTERN_MAX 16
 
 typedef struct
 {
@@ -186,6 +187,27 @@ typedef struct
     int associative_memory_cue_group_size;
     int associative_memory_target_start;
     int associative_memory_target_group_size;
+
+    int sequence_prediction_enabled;
+    int sequence_prediction_sequence_count;
+    int sequence_prediction_sequence_length;
+    int sequence_prediction_training_epochs;
+    int sequence_prediction_pattern_steps;
+    int sequence_prediction_inter_pattern_gap_steps;
+    double sequence_prediction_initial_weight;
+    int sequence_prediction_prefix_length;
+    int sequence_prediction_prediction_delay_steps;
+    int sequence_prediction_prediction_probe_steps;
+    int sequence_prediction_trial_count;
+    int sequence_prediction_freeze_plasticity_during_evaluation;
+    int sequence_prediction_reset_between_sequences;
+    unsigned int sequence_prediction_seed;
+    double sequence_prediction_prediction_threshold;
+    char sequence_prediction_pattern_mode[SCENARIO_SEQUENCE_PREDICTION_PATTERN_MAX];
+    int sequence_prediction_input_start;
+    int sequence_prediction_input_group_size;
+    int sequence_prediction_prediction_start;
+    int sequence_prediction_prediction_group_size;
 } ScenarioConfig;
 
 void scenario_config_default(ScenarioConfig *config);

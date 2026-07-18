@@ -651,6 +651,109 @@ static int test_associative_memory_fitness(
            result.completed && result.generations_completed == 1;
 }
 
+static int configure_sequence_prediction_base(const char *path)
+{
+    ScenarioConfig config;
+    char error[256] = {0};
+
+    scenario_config_default(&config);
+    snprintf(config.run_name, sizeof(config.run_name),
+             "sequence_prediction_evolution_base");
+    snprintf(config.topology, sizeof(config.topology), "sequence_prediction");
+    config.neurons = 12;
+    config.inhibitory_fraction = 0.0;
+    config.source_count = 1;
+    config.input_current = 4000.0;
+    config.excitatory_weight = 200.0;
+    config.steps = 24;
+    config.record_neuron = 0;
+    config.auto_unique_run = 0;
+    config.history_enabled = 0;
+    snprintf(config.diagnostics_level, sizeof(config.diagnostics_level), "off");
+    config.plasticity_enabled = 1;
+    config.plasticity_a_plus = 0.5;
+    config.plasticity_a_minus = 0.525;
+    config.plasticity_tau_plus = 1.0;
+    config.plasticity_tau_minus = 1.0;
+    config.sequence_prediction_enabled = 1;
+    config.sequence_prediction_sequence_count = 2;
+    config.sequence_prediction_sequence_length = 3;
+    config.sequence_prediction_training_epochs = 2;
+    config.sequence_prediction_pattern_steps = 4;
+    config.sequence_prediction_inter_pattern_gap_steps = 8;
+    config.sequence_prediction_initial_weight = 1.0;
+    config.sequence_prediction_prefix_length = 2;
+    config.sequence_prediction_prediction_delay_steps = 0;
+    config.sequence_prediction_prediction_probe_steps = 10;
+    config.sequence_prediction_trial_count = 2;
+    config.sequence_prediction_freeze_plasticity_during_evaluation = 1;
+    config.sequence_prediction_reset_between_sequences = 1;
+    config.sequence_prediction_seed = 19U;
+    config.sequence_prediction_prediction_threshold = 0.75;
+    snprintf(config.sequence_prediction_pattern_mode,
+             sizeof(config.sequence_prediction_pattern_mode), "seeded");
+    config.sequence_prediction_input_start = 0;
+    config.sequence_prediction_input_group_size = 1;
+    config.sequence_prediction_prediction_start = 6;
+    config.sequence_prediction_prediction_group_size = 1;
+    return scenario_config_save_file(path, &config, error, sizeof(error));
+}
+
+static int test_sequence_prediction_fitness(
+    const char *base_path,
+    const char *config_path)
+{
+    EvolutionExperimentConfig config;
+    EvolutionRunnerOptions options;
+    EvolutionRunResult result;
+    ScenarioConfig base;
+    char error[512] = {0};
+
+    if (!configure_sequence_prediction_base(base_path))
+        return 0;
+    configure_evolution(&config, "sequence_prediction_fitness", base_path, 0);
+    config.population_size = 2;
+    config.generations = 1;
+    config.elite_count = 1;
+    config.tournament_size = 2;
+    config.evaluation_replicates = 1;
+    config.save_best_run = 0;
+    config.fitness_term_count = 3;
+    snprintf(config.fitness_terms[0].metric,
+             sizeof(config.fitness_terms[0].metric),
+             "sequence_prediction_next_pattern_accuracy");
+    snprintf(config.fitness_terms[1].metric,
+             sizeof(config.fitness_terms[1].metric),
+             "sequence_prediction_mean_prediction_similarity");
+    snprintf(config.fitness_terms[2].metric,
+             sizeof(config.fitness_terms[2].metric),
+             "sequence_prediction_prediction_margin");
+    for (int index = 0; index < config.fitness_term_count; index++)
+    {
+        config.fitness_terms[index].goal = EVOLUTION_FITNESS_MAXIMIZE;
+        config.fitness_terms[index].target = 1.0;
+        config.fitness_terms[index].scale = 1.0;
+        config.fitness_terms[index].weight = 1.0;
+        config.fitness_terms[index].has_neuron_id = 0;
+    }
+
+    scenario_config_default(&base);
+    if (evolution_config_validate(&config, &base, error, sizeof(error)))
+        return 0;
+    if (!evolution_config_save_file(config_path, &config, error, sizeof(error)) ||
+        !evolution_config_load_file(config_path, &config, &base,
+                                    error, sizeof(error)) ||
+        !evolution_config_validate(&config, &base, error, sizeof(error)))
+    {
+        return 0;
+    }
+    evolution_runner_default_options(&options);
+    options.output_root = TEST_ROOT "/sequence_prediction";
+    return evolution_runner_execute(config_path, &options, &result,
+                                    error, sizeof(error)) &&
+           result.completed && result.generations_completed == 1;
+}
+
 static int test_advanced_model_evolution(
     MiniSNNNeuronModel model,
     const char *legacy_model_name,
@@ -707,6 +810,8 @@ int main(void)
     const char *working_memory_config_path = TEST_ROOT "/working_memory.ini";
     const char *associative_memory_base_path = TEST_ROOT "/associative_memory_base.ini";
     const char *associative_memory_config_path = TEST_ROOT "/associative_memory.ini";
+    const char *sequence_prediction_base_path = TEST_ROOT "/sequence_prediction_base.ini";
+    const char *sequence_prediction_config_path = TEST_ROOT "/sequence_prediction.ini";
     EvolutionExperimentConfig config;
     ScenarioConfig loaded_base;
     char error[512] = {0};
@@ -760,6 +865,13 @@ int main(void)
             associative_memory_base_path, associative_memory_config_path);
         if (!ok)
             fprintf(stderr, "Etapa fitness de memoria associativa falhou.\n");
+    }
+    if (ok)
+    {
+        ok = test_sequence_prediction_fitness(
+            sequence_prediction_base_path, sequence_prediction_config_path);
+        if (!ok)
+            fprintf(stderr, "Etapa fitness de sequencias e predicao falhou.\n");
     }
     if (ok)
     {

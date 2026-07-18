@@ -739,6 +739,10 @@ static int metric_supported(
         strcmp(term->metric, "associative_memory_mean_completion_score") == 0 ||
         strcmp(term->metric, "associative_memory_association_margin") == 0)
         return base->associative_memory_enabled;
+    if (strcmp(term->metric, "sequence_prediction_next_pattern_accuracy") == 0 ||
+        strcmp(term->metric, "sequence_prediction_mean_prediction_similarity") == 0 ||
+        strcmp(term->metric, "sequence_prediction_prediction_margin") == 0)
+        return base->sequence_prediction_enabled;
     return 0;
 }
 

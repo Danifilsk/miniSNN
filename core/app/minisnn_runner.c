@@ -15,6 +15,9 @@ static void print_usage(const char *program_name)
     printf("- random_balanced\n");
     printf("- small_world\n");
     printf("- feedforward\n");
+    printf("- working_memory\n");
+    printf("- associative_memory\n");
+    printf("- sequence_prediction\n");
 }
 
 static void print_summary(
@@ -66,6 +69,25 @@ static void print_summary(
                result->associative_memory_control_accuracy);
         printf("associative_memory_margin: %.6f\n",
                result->associative_memory_association_margin);
+    }
+    if (result->sequence_prediction_enabled)
+    {
+        printf("sequence_prediction_accuracy: %.6f\n",
+               result->sequence_prediction_next_pattern_accuracy);
+        printf("sequence_prediction_similarity: %.6f\n",
+               result->sequence_prediction_mean_similarity);
+        printf("sequence_prediction_error: %.6f\n",
+               result->sequence_prediction_mean_error);
+        printf("sequence_prediction_context_accuracy: %.6f\n",
+               result->sequence_prediction_context_accuracy);
+        printf("sequence_prediction_last_symbol_only_control_accuracy: %.6f\n",
+               result->sequence_prediction_last_symbol_only_control_accuracy);
+        printf("sequence_prediction_context_margin: %.6f\n",
+               result->sequence_prediction_context_margin);
+        printf("sequence_prediction_control_accuracy: %.6f\n",
+               result->sequence_prediction_control_accuracy);
+        printf("sequence_prediction_margin: %.6f\n",
+               result->sequence_prediction_margin);
     }
 }
 
@@ -183,6 +205,13 @@ int main(int argc, char **argv)
         printf("- %s/associative_memory_trials.csv\n", result.output_directory);
         printf("- %s/associative_memory_summary.txt\n", result.output_directory);
         printf("- %s/associative_memory_report.html\n", result.output_directory);
+    }
+    if (result.sequence_prediction_enabled)
+    {
+        printf("- %s/sequence_prediction_training.csv\n", result.output_directory);
+        printf("- %s/sequence_prediction_trials.csv\n", result.output_directory);
+        printf("- %s/sequence_prediction_summary.txt\n", result.output_directory);
+        printf("- %s/sequence_prediction_report.html\n", result.output_directory);
     }
 
     return 0;

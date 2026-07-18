@@ -133,6 +133,14 @@ mostra erro com numero de linha.
 | `associative_memory.cue_corruption`, `trial_count`, `seed` | Cue parcial e agenda reprodutivel de recall |
 | `associative_memory.recall_cue_steps`, `recall_delay_steps`, `recall_probe_steps` | Fases em passos inteiros |
 | `associative_memory.freeze_plasticity_during_recall` | Congela STDP durante a medicao |
+| `sequence_prediction.enabled` | Ativa o protocolo temporal C6.3 de previsao do proximo padrao |
+| `sequence_prediction.sequence_count`, `sequence_length`, `training_epochs` | Estrutura das sequencias e repeticoes de treino |
+| `sequence_prediction.pattern_steps`, `inter_pattern_gap_steps`, `prefix_length` | Apresentacao temporal e prefixo incompleto |
+| `sequence_prediction.prediction_delay_steps`, `prediction_probe_steps` | Fases sem entrada externa da avaliacao |
+| `sequence_prediction.trial_count`, `seed`, `pattern_mode` | Agenda balanceada e padroes reprodutiveis; `contextual` usa ultimo simbolo compartilhado e requer grupos de entrada com pelo menos duas unidades |
+| `sequence_prediction.input_start`, `input_group_size` | Grupo que recebe o prefixo |
+| `sequence_prediction.prediction_start`, `prediction_group_size` | Grupo separado usado na decodificacao |
+| `sequence_prediction.freeze_plasticity_during_evaluation` | Congela STDP durante os trials |
 
 Configs antigas sem `[diagnostics]` usam `off`. Arquivos salvos pelo Studio
 registram a secao, e o padrao de um novo cenario e `basic`.
@@ -143,7 +151,8 @@ Regras principais:
 
 - `run_name`: 1 a 48 caracteres, usando apenas letras, numeros, `_` e `-`.
 - `topology`: `chain`, `ring`, `all_to_all`, `random`, `random_balanced`,
-  `small_world`, `feedforward`, `working_memory` ou `associative_memory`.
+  `small_world`, `feedforward`, `working_memory`, `associative_memory` ou
+  `sequence_prediction`.
 - `neurons`: entre 1 e 1000.
 - `steps`: maior que zero.
 - `source_count`: entre 1 e `neurons`.
@@ -152,7 +161,8 @@ Regras principais:
 - `connection_probability`: entre 0.0 e 1.0.
 - `allow_self_connections` e `allow_inh_to_inh`: `true` ou `false`.
 - `allow_self_connections` se aplica a `all_to_all`, `random`,
-  `random_balanced`, `small_world`, `working_memory` e `associative_memory`. Em `chain`, `ring` e
+  `random_balanced`, `small_world`, `working_memory` e `associative_memory`. Em
+  `chain`, `ring`, `feedforward` e `sequence_prediction`,
   `feedforward`, nao ha
   candidato natural de self-loop.
 - `delay`: entre 1 e `max_synaptic_delay`.
@@ -235,6 +245,16 @@ Topologia experimental deterministica C6.2. Ela cria sinapses candidatas
 fracas entre grupos cue e seus grupos alvo pareados, mais recorrencia dentro de
 cada grupo alvo. O STDP durante treino determina os pesos efetivos. Veja o
 [Guia de memoria associativa](GUIA_DE_MEMORIA_ASSOCIATIVA.md).
+
+### `sequence_prediction`
+
+Topologia experimental deterministica C6.3. Ela cria sinapses candidatas entre
+populacoes separadas de entrada e previsao para que o STDP associe a ordem dos
+padroes. Durante o treino, um teacher pulse supervisionado ativa o grupo alvo
+para fornecer atividade pos-sinaptica ao STDP; ele nunca e aplicado na
+avaliacao. Na avaliacao, apenas o prefixo recebe entrada; o delay e o probe
+permanecem sem estimulo externo. Veja o
+[Guia de sequencias e previsao](GUIA_DE_SEQUENCIAS_E_PREVISAO.md).
 
 ## 6. Como executar `chain.ini`
 

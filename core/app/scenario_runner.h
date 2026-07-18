@@ -73,6 +73,22 @@ typedef struct
     double associative_memory_control_accuracy;
     double associative_memory_association_margin;
 
+    int sequence_prediction_enabled;
+    int sequence_prediction_trial_count;
+    int sequence_prediction_correct_predictions;
+    double sequence_prediction_next_pattern_accuracy;
+    double sequence_prediction_mean_similarity;
+    double sequence_prediction_mean_error;
+    double sequence_prediction_mean_latency;
+    double sequence_prediction_chance_accuracy;
+    double sequence_prediction_untrained_control_accuracy;
+    double sequence_prediction_shuffled_order_control_accuracy;
+    double sequence_prediction_context_accuracy;
+    double sequence_prediction_last_symbol_only_control_accuracy;
+    double sequence_prediction_context_margin;
+    double sequence_prediction_control_accuracy;
+    double sequence_prediction_margin;
+
     char output_directory[SCENARIO_OUTPUT_PATH_MAX];
     char actual_run_name[SCENARIO_ACTUAL_RUN_NAME_MAX];
 } ScenarioRunResult;

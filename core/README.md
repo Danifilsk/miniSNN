@@ -151,6 +151,18 @@ Os resultados incluem `associative_memory_training.csv`,
 `associative_memory_trials.csv`, `associative_memory_summary.txt` e
 `associative_memory_report.html`. Veja o [Guia de memoria associativa](docs/GUIA_DE_MEMORIA_ASSOCIATIVA.md).
 
+O C6.3 mede previsao do proximo padrao em sequencias temporais. O treino usa o
+STDP existente; a avaliacao apresenta apenas um prefixo e observa a populacao
+de previsao sem entrada durante delay ou probe. Execute:
+
+```powershell
+mingw32-make scenario-sequence-prediction
+```
+
+Os resultados incluem `sequence_prediction_training.csv`,
+`sequence_prediction_trials.csv`, `sequence_prediction_summary.txt` e
+`sequence_prediction_report.html`. Veja o [Guia de sequencias e previsao](docs/GUIA_DE_SEQUENCIAS_E_PREVISAO.md).
+
 ## Estrutura
 
 ```text
@@ -188,6 +200,7 @@ Referências diretas:
 - [Guia de topologia adaptativa](docs/GUIA_DE_TOPOLOGIA_ADAPTATIVA.md)
 - [Guia de memoria de trabalho](docs/GUIA_DE_MEMORIA_DE_TRABALHO.md)
 - [Guia de memoria associativa](docs/GUIA_DE_MEMORIA_ASSOCIATIVA.md)
+- [Guia de sequencias e previsao](docs/GUIA_DE_SEQUENCIAS_E_PREVISAO.md)
 - [Referência da API pública](API_REFERENCE.md)
 - [Roadmap](docs/ROADMAP.md)
 

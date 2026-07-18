@@ -28,6 +28,15 @@ relatorio e local e os CSVs continuam sendo os dados brutos. Consulte o
 abre `associative_memory_report.html`; os CSVs permanecem os dados brutos.
 Veja o [Guia de memoria associativa](GUIA_DE_MEMORIA_ASSOCIATIVA.md).
 
+## Sequencias e previsao C6.3
+
+`SEQUENCIAS E PREDICAO` abre os controles minimos `ATIVAR`, `SEQUENCIAS`,
+`COMPRIMENTO`, `EPOCAS`, `PREFIXO` e `TRIALS`. Os detalhes temporais e grupos
+de entrada/previsao permanecem em `[sequence_prediction]`. Depois de executar
+um cenario ativo, `ABRIR RELATORIO SEQ.` abre
+`sequence_prediction_report.html`; os CSVs continuam sendo os dados brutos.
+Veja o [Guia de sequencias e previsao](GUIA_DE_SEQUENCIAS_E_PREVISAO.md).
+
 ## RECOMPENSA
 
 `RECOMPENSA` abre o modal de R-STDP sem sobrecarregar o painel principal. Ele
@@ -103,6 +112,7 @@ small_world
 feedforward
 working_memory
 associative_memory
+sequence_prediction
 ```
 
 ## 5.1. Como usar `OPCOES`
@@ -129,8 +139,8 @@ Campos que nao se aplicam a topologia atual ficam desabilitados. Regras:
 - `Small-world`: usado somente em `small_world`.
 - `Feedforward`: usado somente em `feedforward`.
 - `Permitir auto-conexao`: habilitado em `all_to_all`, `random`,
-  `random_balanced`, `small_world`, `working_memory` e `associative_memory`; desabilitado em `chain`, `ring` e
-  `feedforward`.
+  `random_balanced`, `small_world`, `working_memory` e `associative_memory`;
+  desabilitado em `chain`, `ring`, `feedforward` e `sequence_prediction`.
 - `Permitir INH -> INH`: so faz diferenca quando ha neuronios inibitorios.
 
 Quando um checkbox fica desabilitado, o valor e mantido no cenario, mas a

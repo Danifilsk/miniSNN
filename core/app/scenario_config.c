@@ -169,6 +169,26 @@ typedef enum
     FIELD_ASSOCIATIVE_MEMORY_CUE_GROUP_SIZE,
     FIELD_ASSOCIATIVE_MEMORY_TARGET_START,
     FIELD_ASSOCIATIVE_MEMORY_TARGET_GROUP_SIZE,
+    FIELD_SEQUENCE_PREDICTION_ENABLED,
+    FIELD_SEQUENCE_PREDICTION_SEQUENCE_COUNT,
+    FIELD_SEQUENCE_PREDICTION_SEQUENCE_LENGTH,
+    FIELD_SEQUENCE_PREDICTION_TRAINING_EPOCHS,
+    FIELD_SEQUENCE_PREDICTION_PATTERN_STEPS,
+    FIELD_SEQUENCE_PREDICTION_INTER_PATTERN_GAP_STEPS,
+    FIELD_SEQUENCE_PREDICTION_INITIAL_WEIGHT,
+    FIELD_SEQUENCE_PREDICTION_PREFIX_LENGTH,
+    FIELD_SEQUENCE_PREDICTION_DELAY_STEPS,
+    FIELD_SEQUENCE_PREDICTION_PROBE_STEPS,
+    FIELD_SEQUENCE_PREDICTION_TRIAL_COUNT,
+    FIELD_SEQUENCE_PREDICTION_FREEZE_PLASTICITY,
+    FIELD_SEQUENCE_PREDICTION_RESET_BETWEEN_SEQUENCES,
+    FIELD_SEQUENCE_PREDICTION_SEED,
+    FIELD_SEQUENCE_PREDICTION_THRESHOLD,
+    FIELD_SEQUENCE_PREDICTION_PATTERN_MODE,
+    FIELD_SEQUENCE_PREDICTION_INPUT_START,
+    FIELD_SEQUENCE_PREDICTION_INPUT_GROUP_SIZE,
+    FIELD_SEQUENCE_PREDICTION_PREDICTION_START,
+    FIELD_SEQUENCE_PREDICTION_PREDICTION_GROUP_SIZE,
     FIELD_COUNT
 } ScenarioField;
 
@@ -550,6 +570,53 @@ static int find_field(
         return 1;
     }
 
+    if (strcmp(section, "sequence_prediction") == 0)
+    {
+        if (strcmp(key, "enabled") == 0)
+            *out_field = FIELD_SEQUENCE_PREDICTION_ENABLED;
+        else if (strcmp(key, "sequence_count") == 0)
+            *out_field = FIELD_SEQUENCE_PREDICTION_SEQUENCE_COUNT;
+        else if (strcmp(key, "sequence_length") == 0)
+            *out_field = FIELD_SEQUENCE_PREDICTION_SEQUENCE_LENGTH;
+        else if (strcmp(key, "training_epochs") == 0)
+            *out_field = FIELD_SEQUENCE_PREDICTION_TRAINING_EPOCHS;
+        else if (strcmp(key, "pattern_steps") == 0)
+            *out_field = FIELD_SEQUENCE_PREDICTION_PATTERN_STEPS;
+        else if (strcmp(key, "inter_pattern_gap_steps") == 0)
+            *out_field = FIELD_SEQUENCE_PREDICTION_INTER_PATTERN_GAP_STEPS;
+        else if (strcmp(key, "initial_prediction_weight") == 0)
+            *out_field = FIELD_SEQUENCE_PREDICTION_INITIAL_WEIGHT;
+        else if (strcmp(key, "prefix_length") == 0)
+            *out_field = FIELD_SEQUENCE_PREDICTION_PREFIX_LENGTH;
+        else if (strcmp(key, "prediction_delay_steps") == 0)
+            *out_field = FIELD_SEQUENCE_PREDICTION_DELAY_STEPS;
+        else if (strcmp(key, "prediction_probe_steps") == 0)
+            *out_field = FIELD_SEQUENCE_PREDICTION_PROBE_STEPS;
+        else if (strcmp(key, "trial_count") == 0)
+            *out_field = FIELD_SEQUENCE_PREDICTION_TRIAL_COUNT;
+        else if (strcmp(key, "freeze_plasticity_during_evaluation") == 0)
+            *out_field = FIELD_SEQUENCE_PREDICTION_FREEZE_PLASTICITY;
+        else if (strcmp(key, "reset_between_sequences") == 0)
+            *out_field = FIELD_SEQUENCE_PREDICTION_RESET_BETWEEN_SEQUENCES;
+        else if (strcmp(key, "seed") == 0)
+            *out_field = FIELD_SEQUENCE_PREDICTION_SEED;
+        else if (strcmp(key, "prediction_threshold") == 0)
+            *out_field = FIELD_SEQUENCE_PREDICTION_THRESHOLD;
+        else if (strcmp(key, "pattern_mode") == 0)
+            *out_field = FIELD_SEQUENCE_PREDICTION_PATTERN_MODE;
+        else if (strcmp(key, "input_start") == 0)
+            *out_field = FIELD_SEQUENCE_PREDICTION_INPUT_START;
+        else if (strcmp(key, "input_group_size") == 0)
+            *out_field = FIELD_SEQUENCE_PREDICTION_INPUT_GROUP_SIZE;
+        else if (strcmp(key, "prediction_start") == 0)
+            *out_field = FIELD_SEQUENCE_PREDICTION_PREDICTION_START;
+        else if (strcmp(key, "prediction_group_size") == 0)
+            *out_field = FIELD_SEQUENCE_PREDICTION_PREDICTION_GROUP_SIZE;
+        else
+            return 0;
+        return 1;
+    }
+
     for (size_t i = 0; i < count; i++)
     {
         if (strcmp(key, KEY_MAP[i].key) == 0)
@@ -914,6 +981,17 @@ static int assign_value(
         }
         return 1;
 
+    case FIELD_SEQUENCE_PREDICTION_PATTERN_MODE:
+        if (!copy_string_value(
+                config->sequence_prediction_pattern_mode,
+                sizeof(config->sequence_prediction_pattern_mode), value))
+        {
+            set_line_error(error_message, error_message_size, line_number,
+                           "pattern_mode de sequencia muito longo");
+            return 0;
+        }
+        return 1;
+
     case FIELD_SEED:
         if (!parse_uint_value(value, &uint_value))
         {
@@ -945,6 +1023,16 @@ static int assign_value(
             return 0;
         }
         config->associative_memory_seed = uint_value;
+        return 1;
+
+    case FIELD_SEQUENCE_PREDICTION_SEED:
+        if (!parse_uint_value(value, &uint_value))
+        {
+            set_line_error(error_message, error_message_size, line_number,
+                           "seed de sequencia invalido");
+            return 0;
+        }
+        config->sequence_prediction_seed = uint_value;
         return 1;
 
     case FIELD_STRUCTURAL_GROWTH_SEED:
@@ -981,6 +1069,9 @@ static int assign_value(
     case FIELD_ASSOCIATIVE_MEMORY_ENABLED:
     case FIELD_ASSOCIATIVE_MEMORY_RESET_BETWEEN_PAIRS:
     case FIELD_ASSOCIATIVE_MEMORY_FREEZE_PLASTICITY:
+    case FIELD_SEQUENCE_PREDICTION_ENABLED:
+    case FIELD_SEQUENCE_PREDICTION_FREEZE_PLASTICITY:
+    case FIELD_SEQUENCE_PREDICTION_RESET_BETWEEN_SEQUENCES:
         if (!parse_bool_value(value, &bool_value))
         {
             set_line_error(
@@ -1037,6 +1128,12 @@ static int assign_value(
             config->associative_memory_reset_between_pairs = bool_value;
         else if (field == FIELD_ASSOCIATIVE_MEMORY_FREEZE_PLASTICITY)
             config->associative_memory_freeze_plasticity_during_recall = bool_value;
+        else if (field == FIELD_SEQUENCE_PREDICTION_ENABLED)
+            config->sequence_prediction_enabled = bool_value;
+        else if (field == FIELD_SEQUENCE_PREDICTION_FREEZE_PLASTICITY)
+            config->sequence_prediction_freeze_plasticity_during_evaluation = bool_value;
+        else if (field == FIELD_SEQUENCE_PREDICTION_RESET_BETWEEN_SEQUENCES)
+            config->sequence_prediction_reset_between_sequences = bool_value;
         else
             config->reward_record_history = bool_value;
 
@@ -1093,6 +1190,19 @@ static int assign_value(
     case FIELD_ASSOCIATIVE_MEMORY_CUE_GROUP_SIZE:
     case FIELD_ASSOCIATIVE_MEMORY_TARGET_START:
     case FIELD_ASSOCIATIVE_MEMORY_TARGET_GROUP_SIZE:
+    case FIELD_SEQUENCE_PREDICTION_SEQUENCE_COUNT:
+    case FIELD_SEQUENCE_PREDICTION_SEQUENCE_LENGTH:
+    case FIELD_SEQUENCE_PREDICTION_TRAINING_EPOCHS:
+    case FIELD_SEQUENCE_PREDICTION_PATTERN_STEPS:
+    case FIELD_SEQUENCE_PREDICTION_INTER_PATTERN_GAP_STEPS:
+    case FIELD_SEQUENCE_PREDICTION_PREFIX_LENGTH:
+    case FIELD_SEQUENCE_PREDICTION_DELAY_STEPS:
+    case FIELD_SEQUENCE_PREDICTION_PROBE_STEPS:
+    case FIELD_SEQUENCE_PREDICTION_TRIAL_COUNT:
+    case FIELD_SEQUENCE_PREDICTION_INPUT_START:
+    case FIELD_SEQUENCE_PREDICTION_INPUT_GROUP_SIZE:
+    case FIELD_SEQUENCE_PREDICTION_PREDICTION_START:
+    case FIELD_SEQUENCE_PREDICTION_PREDICTION_GROUP_SIZE:
         if (!parse_int_value(value, &int_value))
         {
             set_line_error(
@@ -1203,6 +1313,32 @@ static int assign_value(
             config->associative_memory_target_start = int_value;
         else if (field == FIELD_ASSOCIATIVE_MEMORY_TARGET_GROUP_SIZE)
             config->associative_memory_target_group_size = int_value;
+        else if (field == FIELD_SEQUENCE_PREDICTION_SEQUENCE_COUNT)
+            config->sequence_prediction_sequence_count = int_value;
+        else if (field == FIELD_SEQUENCE_PREDICTION_SEQUENCE_LENGTH)
+            config->sequence_prediction_sequence_length = int_value;
+        else if (field == FIELD_SEQUENCE_PREDICTION_TRAINING_EPOCHS)
+            config->sequence_prediction_training_epochs = int_value;
+        else if (field == FIELD_SEQUENCE_PREDICTION_PATTERN_STEPS)
+            config->sequence_prediction_pattern_steps = int_value;
+        else if (field == FIELD_SEQUENCE_PREDICTION_INTER_PATTERN_GAP_STEPS)
+            config->sequence_prediction_inter_pattern_gap_steps = int_value;
+        else if (field == FIELD_SEQUENCE_PREDICTION_PREFIX_LENGTH)
+            config->sequence_prediction_prefix_length = int_value;
+        else if (field == FIELD_SEQUENCE_PREDICTION_DELAY_STEPS)
+            config->sequence_prediction_prediction_delay_steps = int_value;
+        else if (field == FIELD_SEQUENCE_PREDICTION_PROBE_STEPS)
+            config->sequence_prediction_prediction_probe_steps = int_value;
+        else if (field == FIELD_SEQUENCE_PREDICTION_TRIAL_COUNT)
+            config->sequence_prediction_trial_count = int_value;
+        else if (field == FIELD_SEQUENCE_PREDICTION_INPUT_START)
+            config->sequence_prediction_input_start = int_value;
+        else if (field == FIELD_SEQUENCE_PREDICTION_INPUT_GROUP_SIZE)
+            config->sequence_prediction_input_group_size = int_value;
+        else if (field == FIELD_SEQUENCE_PREDICTION_PREDICTION_START)
+            config->sequence_prediction_prediction_start = int_value;
+        else if (field == FIELD_SEQUENCE_PREDICTION_PREDICTION_GROUP_SIZE)
+            config->sequence_prediction_prediction_group_size = int_value;
         else
             config->record_neuron = int_value;
 
@@ -1278,6 +1414,8 @@ static int assign_value(
     case FIELD_ASSOCIATIVE_MEMORY_CUE_CORRUPTION:
     case FIELD_ASSOCIATIVE_MEMORY_RECALL_THRESHOLD:
     case FIELD_ASSOCIATIVE_MEMORY_INITIAL_WEIGHT:
+    case FIELD_SEQUENCE_PREDICTION_INITIAL_WEIGHT:
+    case FIELD_SEQUENCE_PREDICTION_THRESHOLD:
         if (!parse_double_value(value, &double_value))
         {
             set_line_error(
@@ -1426,6 +1564,10 @@ static int assign_value(
             config->associative_memory_recall_threshold = double_value;
         else if (field == FIELD_ASSOCIATIVE_MEMORY_INITIAL_WEIGHT)
             config->associative_memory_initial_weight = double_value;
+        else if (field == FIELD_SEQUENCE_PREDICTION_INITIAL_WEIGHT)
+            config->sequence_prediction_initial_weight = double_value;
+        else if (field == FIELD_SEQUENCE_PREDICTION_THRESHOLD)
+            config->sequence_prediction_prediction_threshold = double_value;
         else
             config->reward_max = double_value;
 
@@ -1453,7 +1595,8 @@ static int topology_is_supported(const char *topology)
            strcmp(topology, "small_world") == 0 ||
            strcmp(topology, "feedforward") == 0 ||
            strcmp(topology, "working_memory") == 0 ||
-           strcmp(topology, "associative_memory") == 0;
+           strcmp(topology, "associative_memory") == 0 ||
+           strcmp(topology, "sequence_prediction") == 0;
 }
 
 static int run_name_is_valid(const char *run_name)
@@ -1647,6 +1790,28 @@ void scenario_config_default(ScenarioConfig *config)
     config->associative_memory_cue_group_size = 2;
     config->associative_memory_target_start = 4;
     config->associative_memory_target_group_size = 2;
+
+    config->sequence_prediction_enabled = 0;
+    config->sequence_prediction_sequence_count = 2;
+    config->sequence_prediction_sequence_length = 4;
+    config->sequence_prediction_training_epochs = 30;
+    config->sequence_prediction_pattern_steps = 12;
+    config->sequence_prediction_inter_pattern_gap_steps = 4;
+    config->sequence_prediction_initial_weight = 1.0;
+    config->sequence_prediction_prefix_length = 3;
+    config->sequence_prediction_prediction_delay_steps = 8;
+    config->sequence_prediction_prediction_probe_steps = 16;
+    config->sequence_prediction_trial_count = 20;
+    config->sequence_prediction_freeze_plasticity_during_evaluation = 1;
+    config->sequence_prediction_reset_between_sequences = 0;
+    config->sequence_prediction_seed = 1234U;
+    config->sequence_prediction_prediction_threshold = 0.75;
+    snprintf(config->sequence_prediction_pattern_mode,
+             sizeof(config->sequence_prediction_pattern_mode), "fixed");
+    config->sequence_prediction_input_start = 0;
+    config->sequence_prediction_input_group_size = 1;
+    config->sequence_prediction_prediction_start = 8;
+    config->sequence_prediction_prediction_group_size = 1;
 }
 
 int scenario_config_validate(
@@ -2094,6 +2259,79 @@ int scenario_config_validate(
     {
         set_error(error_message, error_message_size,
                   "configuracao de memoria associativa invalida");
+        return 0;
+    }
+
+    if ((config->sequence_prediction_enabled != 0 &&
+         config->sequence_prediction_enabled != 1) ||
+        (config->sequence_prediction_freeze_plasticity_during_evaluation != 0 &&
+         config->sequence_prediction_freeze_plasticity_during_evaluation != 1) ||
+        (config->sequence_prediction_reset_between_sequences != 0 &&
+         config->sequence_prediction_reset_between_sequences != 1))
+    {
+        set_error(error_message, error_message_size,
+                  "opcoes de predicao de sequencia invalidas");
+        return 0;
+    }
+
+    if (config->sequence_prediction_enabled &&
+        (config->sequence_prediction_sequence_count < 2 ||
+         config->sequence_prediction_sequence_count > 100 ||
+         config->sequence_prediction_sequence_length < 3 ||
+         config->sequence_prediction_sequence_length > 100 ||
+         config->sequence_prediction_sequence_count *
+                 config->sequence_prediction_sequence_length > 400 ||
+         config->sequence_prediction_training_epochs <= 0 ||
+         config->sequence_prediction_training_epochs > 10000 ||
+         config->sequence_prediction_pattern_steps <= 1 ||
+         config->sequence_prediction_inter_pattern_gap_steps < 0 ||
+         !isfinite(config->sequence_prediction_initial_weight) ||
+         config->sequence_prediction_initial_weight <= 0.0 ||
+         config->sequence_prediction_initial_weight >
+             config->plasticity_weight_max ||
+         config->sequence_prediction_prefix_length <= 0 ||
+         config->sequence_prediction_prefix_length >=
+             config->sequence_prediction_sequence_length ||
+         config->sequence_prediction_prediction_delay_steps < 0 ||
+         config->sequence_prediction_prediction_probe_steps <= 0 ||
+         config->sequence_prediction_trial_count <= 0 ||
+         config->sequence_prediction_trial_count > 10000 ||
+         config->sequence_prediction_input_start < 0 ||
+         config->sequence_prediction_input_group_size <= 0 ||
+         config->sequence_prediction_prediction_start < 0 ||
+         config->sequence_prediction_prediction_group_size <= 0 ||
+         config->sequence_prediction_input_start +
+                 config->sequence_prediction_sequence_count *
+                     config->sequence_prediction_sequence_length *
+                     config->sequence_prediction_input_group_size >
+             config->neurons ||
+         config->sequence_prediction_prediction_start +
+                 config->sequence_prediction_sequence_count *
+                     config->sequence_prediction_sequence_length *
+                     config->sequence_prediction_prediction_group_size >
+             config->neurons ||
+         (config->sequence_prediction_input_start <
+              config->sequence_prediction_prediction_start +
+                  config->sequence_prediction_sequence_count *
+                      config->sequence_prediction_sequence_length *
+                      config->sequence_prediction_prediction_group_size &&
+          config->sequence_prediction_prediction_start <
+              config->sequence_prediction_input_start +
+                  config->sequence_prediction_sequence_count *
+                      config->sequence_prediction_sequence_length *
+                      config->sequence_prediction_input_group_size) ||
+         (strcmp(config->sequence_prediction_pattern_mode, "fixed") != 0 &&
+          strcmp(config->sequence_prediction_pattern_mode, "seeded") != 0 &&
+          strcmp(config->sequence_prediction_pattern_mode, "contextual") != 0) ||
+         (strcmp(config->sequence_prediction_pattern_mode, "contextual") == 0 &&
+          config->sequence_prediction_input_group_size < 2) ||
+         !isfinite(config->sequence_prediction_prediction_threshold) ||
+         config->sequence_prediction_prediction_threshold <= 0.0 ||
+         config->sequence_prediction_prediction_threshold > 1.0 ||
+         !config->plasticity_enabled))
+    {
+        set_error(error_message, error_message_size,
+                  "configuracao de predicao de sequencia invalida");
         return 0;
     }
 
@@ -2947,6 +3185,58 @@ int scenario_config_save_file(
         fclose(file);
         set_error(error_message, error_message_size,
                   "erro ao escrever memoria associativa");
+        return 0;
+    }
+
+    if (fprintf(
+            file,
+            "\n[sequence_prediction]\n"
+            "enabled = %s\n"
+            "sequence_count = %d\n"
+            "sequence_length = %d\n"
+            "training_epochs = %d\n"
+            "pattern_steps = %d\n"
+            "inter_pattern_gap_steps = %d\n"
+            "initial_prediction_weight = %.17g\n"
+            "prefix_length = %d\n"
+            "prediction_delay_steps = %d\n"
+            "prediction_probe_steps = %d\n"
+            "trial_count = %d\n"
+            "freeze_plasticity_during_evaluation = %s\n"
+            "reset_between_sequences = %s\n"
+            "seed = %u\n"
+            "prediction_threshold = %.17g\n"
+            "pattern_mode = %s\n"
+            "input_start = %d\n"
+            "input_group_size = %d\n"
+            "prediction_start = %d\n"
+            "prediction_group_size = %d\n",
+            config->sequence_prediction_enabled ? "true" : "false",
+            config->sequence_prediction_sequence_count,
+            config->sequence_prediction_sequence_length,
+            config->sequence_prediction_training_epochs,
+            config->sequence_prediction_pattern_steps,
+            config->sequence_prediction_inter_pattern_gap_steps,
+            config->sequence_prediction_initial_weight,
+            config->sequence_prediction_prefix_length,
+            config->sequence_prediction_prediction_delay_steps,
+            config->sequence_prediction_prediction_probe_steps,
+            config->sequence_prediction_trial_count,
+            config->sequence_prediction_freeze_plasticity_during_evaluation ?
+                "true" : "false",
+            config->sequence_prediction_reset_between_sequences ?
+                "true" : "false",
+            config->sequence_prediction_seed,
+            config->sequence_prediction_prediction_threshold,
+            config->sequence_prediction_pattern_mode,
+            config->sequence_prediction_input_start,
+            config->sequence_prediction_input_group_size,
+            config->sequence_prediction_prediction_start,
+            config->sequence_prediction_prediction_group_size) < 0)
+    {
+        fclose(file);
+        set_error(error_message, error_message_size,
+                  "erro ao escrever predicao de sequencia");
         return 0;
     }
 
