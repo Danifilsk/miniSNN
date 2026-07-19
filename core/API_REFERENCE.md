@@ -990,3 +990,38 @@ produzem schemas versionados e legiveis. O formato usa bits hexadecimais para
 valores double e nao depende do locale; arquivo incompativel e rejeitado.
 Caracteres de nome fora de `A-Z`, `a-z`, `0-9`, `_`, `-` e `.` sao
 percent-encoded no texto estavel.
+
+## Codificacao sensor-neural C7.2
+
+`include/minisnn_sensor_encoder.h` converte um `MiniSNNSensorFrame` em um
+`MiniSNNNeuralInputFrame` de propriedade do chamador. Um
+`MiniSNNSensorEncodingSpec` referencia um canal exclusivamente por
+`sensor_channel_id` e define um intervalo contiguo de neuronios sem sobreposicao.
+Os nomes dos canais nao participam da codificacao.
+
+Os modos sao `MINISNN_SENSOR_ENCODING_LINEAR_CURRENT`,
+`MINISNN_SENSOR_ENCODING_BIPOLAR_CURRENT` e
+`MINISNN_SENSOR_ENCODING_DETERMINISTIC_RATE`. Os dois primeiros aplicam a
+normalizacao do schema (`min == max` normaliza para zero). O modo de taxa usa
+acumulador de fase por mapeamento e `maximum_rate` em pulsos por passo neural;
+ele produz correntes de pulso, nunca spikes forcados e nunca usa aleatoriedade.
+`phase_offset` usa milesimos de fase e aceita somente `0..999`; aliases como
+`1000` sao rejeitados para que assinatura e dinamica sejam identicas.
+
+`minisnn_sensor_encoder_encode_frame` e
+`minisnn_sensor_encoder_encode_from_agent_io` preenchem um frame inteiro de
+forma atomica. A segunda variante consome exatamente um frame de sensor do
+contexto C7.1, depois de validar dimensoes e assinatura de schema. Falhas nao
+alteram o frame de destino nem avancam fases.
+
+`minisnn_neural_input_frame_apply_step(frame, brain_step, network, out_error)` somente chama
+`minisnn_clear_inputs` e `minisnn_set_input` para um passo escolhido. Ela nao
+chama `minisnn_step`; o chamador conserva a ordem temporal da rede.
+Ela valida frame, passo e dimensoes antes de limpar entradas. `out_error`
+distingue argumento invalido, dimensao incompativel e corrente nao finita.
+
+`minisnn_sensor_encoding_mapping_signature` e
+`minisnn_sensor_encoder_contract_signature` usam FNV-1a 64-bit com
+serializacao explicita. `minisnn_sensor_encoder_write_file` e `read_file`
+persistem o contrato textual versionado e rejeitam schema ou assinatura
+incompativel.

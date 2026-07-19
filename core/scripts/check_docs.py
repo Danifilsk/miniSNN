@@ -63,6 +63,10 @@ IMPORTANT_FILES = (
     "include/minisnn_types.h",
     "include/minisnn_agent_io.h",
     "src/agent_io.c",
+    "include/minisnn_sensor_encoder.h",
+    "src/sensor_encoder.c",
+    "app/sensor_encoding_demo_config.c",
+    "app/sensor_encoding_demo_config.h",
     "app/minisnn_studio.c",
     "app/minisnn_runner.c",
     "app/scenario_config.c",
@@ -156,6 +160,8 @@ IMPORTANT_FILES = (
     "tests/test_working_memory.c",
     "tests/test_associative_memory.c",
     "tests/test_agent_io.c",
+    "tests/test_sensor_encoder.c",
+    "tests/test_sensor_encoding_demo.py",
 )
 
 REQUIRED_TARGETS = (
@@ -531,6 +537,8 @@ def validate_docs(root: Path) -> list[str]:
         errors.append("roadmap não documenta o caminho oficial para Worlds")
     if "C7 — estados internos" in roadmap:
         errors.append("roadmap ainda apresenta a descricao antiga de C7")
+    if "[x] C7.2 - codificacao generica de sensores numericos para entrada neural" not in roadmap:
+        errors.append("roadmap nao marca C7.2 como concluido")
     if "D1 — integração do Core com o próximo estágio de domínio" in roadmap:
         errors.append("roadmap ainda apresenta a descricao antiga de D1")
     for token in (

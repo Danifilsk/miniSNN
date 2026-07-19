@@ -144,6 +144,8 @@ void minisnn_agent_io_reset(MiniSNNAgentIOContext *context);
 
 uint64_t minisnn_agent_io_contract_signature(
     const MiniSNNAgentIOContext *context);
+uint64_t minisnn_agent_io_sensor_schema_signature(
+    const MiniSNNAgentIOContext *context);
 MiniSNNAgentIOError minisnn_agent_io_last_error(
     const MiniSNNAgentIOContext *context);
 const char *minisnn_agent_io_error_string(MiniSNNAgentIOError error);

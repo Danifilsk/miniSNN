@@ -1031,6 +1031,12 @@ uint64_t minisnn_agent_io_contract_signature(
     return context != NULL ? context->signature : 0U;
 }
 
+uint64_t minisnn_agent_io_sensor_schema_signature(
+    const MiniSNNAgentIOContext *context)
+{
+    return context != NULL ? context->sensor_schema.signature : 0U;
+}
+
 MiniSNNAgentIOError minisnn_agent_io_last_error(
     const MiniSNNAgentIOContext *context)
 {

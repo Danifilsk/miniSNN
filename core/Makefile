@@ -4,7 +4,7 @@ INCLUDES = -Iinclude -Isrc -Iapp
 BUILD_DIR = build
 
 STRUCTURE_SOURCES = src/structure.c src/structural_plasticity.c
-API_SOURCES = src/minisnn.c src/neuron.c src/neuron_model.c src/network.c src/plasticity.c src/reward.c src/homeostasis.c src/agent_io.c $(STRUCTURE_SOURCES)
+API_SOURCES = src/minisnn.c src/neuron.c src/neuron_model.c src/network.c src/plasticity.c src/reward.c src/homeostasis.c src/agent_io.c src/sensor_encoder.c $(STRUCTURE_SOURCES)
 APP_SOURCES = app/scenario_config.c
 SCENARIO_RUNNER_SOURCES = app/scenario_config.c app/scenario_runtime.c app/scenario_runner.c app/working_memory.c app/associative_memory.c app/sequence_prediction.c
 C6_SUITE_SOURCES = app/c6_suite.c $(SCENARIO_RUNNER_SOURCES)
@@ -27,12 +27,12 @@ endif
 endif
 ANALYZER_CFLAGS = -std=c11 -Wall -Wextra -pedantic -fanalyzer -Wformat=2 -Wshadow -Wnull-dereference
 
-.PHONY: all help clean test test-api test-core test-lif test-neuron-model test-adex test-hodgkin-huxley test-model-checkpoints test-model-error-propagation test-model-provenance test-adex-long test-hh-long test-models-long test-plasticity test-plasticity-long test-homeostasis test-homeostasis-long test-reward test-reward-long test-evolution test-structure test-structural-plasticity test-structure-resume test-structure-long test-evolution-runner test-evolution-resume test-evolution-long test-plot-evolution test-plot-topology test-evolution-report test-structural-html evolution-build evolution-weight-demo evolution-homeostasis-demo evolution-plasticity-demo evolution-structure-demo structural-pruning-demo structural-growth-demo evolution-structure-learning-demo plot-evolution plot-topology report-evolution report-evolution-history report-structural-events report-best-topology test-scenario test-runner test-runner-topologies test-working-memory test-associative-memory test-sequence-prediction test-c6-checkpoints test-c6-integration test-c6-long test-agent-io test-reproducibility test-regression test-memory test-long test-analyzer test-sanitize benchmark-v02 benchmark-c1 benchmark-c15 benchmark-c2 benchmark-c3 benchmark-c4 benchmark-c5 check-v02 check-c1 check-c15 check-c2 check-c3 check-c4 check-c5-interface check-c5 check-c6 check-c7 compare-neuron-models test-compare-neuron-models \
+.PHONY: all help clean test test-api test-core test-lif test-neuron-model test-adex test-hodgkin-huxley test-model-checkpoints test-model-error-propagation test-model-provenance test-adex-long test-hh-long test-models-long test-plasticity test-plasticity-long test-homeostasis test-homeostasis-long test-reward test-reward-long test-evolution test-structure test-structural-plasticity test-structure-resume test-structure-long test-evolution-runner test-evolution-resume test-evolution-long test-plot-evolution test-plot-topology test-evolution-report test-structural-html evolution-build evolution-weight-demo evolution-homeostasis-demo evolution-plasticity-demo evolution-structure-demo structural-pruning-demo structural-growth-demo evolution-structure-learning-demo plot-evolution plot-topology report-evolution report-evolution-history report-structural-events report-best-topology test-scenario test-runner test-runner-topologies test-working-memory test-associative-memory test-sequence-prediction test-c6-checkpoints test-c6-integration test-c6-long test-agent-io test-sensor-encoder test-reproducibility test-regression test-memory test-long test-analyzer test-sanitize benchmark-v02 benchmark-c1 benchmark-c15 benchmark-c2 benchmark-c3 benchmark-c4 benchmark-c5 check-v02 check-c1 check-c15 check-c2 check-c3 check-c4 check-c5-interface check-c5 check-c6 check-c7 compare-neuron-models test-compare-neuron-models \
 	test-plot-neuron test-plot-plasticity test-compare-runs test-diagnostics test-run-reports test-history-report test-docs \
 	test-plot-homeostasis plot-homeostasis test-plot-reward plot-reward \
 	api-examples api-single api-chain api-exc-inh \
 	demo ei-balance inhibition-fine inh-to-inh sparse-ei scenario \
-    scenario-random scenario-small-world scenario-working-memory scenario-associative-memory scenario-sequence-prediction scenario-sequence-prediction-context scenario-c6-suite scenario-feedforward \
+    scenario-random scenario-small-world scenario-working-memory scenario-associative-memory scenario-sequence-prediction scenario-sequence-prediction-context scenario-c6-suite scenario-sensor-encoding scenario-feedforward \
 	scenario-stdp-ltp scenario-stdp-ltd scenario-stdp-mixed plot-stdp-ltp \
 	scenario-homeostasis-silence scenario-homeostasis-explosion scenario-homeostasis-stdp \
 	scenario-reward-positive scenario-punishment-negative scenario-reward-delayed scenario-reward-mixed \
@@ -94,6 +94,8 @@ help:
 	@echo   make test-c6-integration - contratos integrados C6.1-C6.3
 	@echo   make test-c6-long        - robustez moderada dos protocolos C6
 	@echo   make test-agent-io       - valida contratos genericos de I/O C7.1
+	@echo   make test-sensor-encoder - valida codificacao sensor-neural C7.2
+	@echo   make scenario-sensor-encoding - executa o demo reproduzivel C7.2
 	@echo   make test-runner-topologies - validacao estrutural das topologias do runner
 	@echo   make test-reproducibility - determinismo de topologia e CSVs por seed
 	@echo   make test-regression    - golden pequeno e resultados historicos conhecidos
@@ -114,7 +116,7 @@ help:
 	@echo   make check-c3          - verifica o fechamento automatico do Bloco C3
 	@echo   make check-c4          - verifica o fechamento automatico do Bloco C4
 	@echo   make check-c6          - verifica os protocolos C6.1-C6.4
-	@echo   make check-c7          - verifica os contratos de I/O C7.1
+	@echo   make check-c7          - verifica C7.1 e a codificacao neural C7.2
 	@echo   make test-plot-neuron  - teste Python do grafico de neuronio
 	@echo   make test-plot-plasticity - teste Python do grafico STDP
 	@echo   make test-plot-homeostasis - teste Python do panorama homeostatico
@@ -175,6 +177,12 @@ $(BUILD_DIR)/test_minisnn_api.exe: tests/test_minisnn_api.c $(API_SOURCES) inclu
 $(BUILD_DIR)/test_agent_io.exe: tests/test_agent_io.c src/agent_io.c include/minisnn_agent_io.h | $(BUILD_DIR)
 	$(CC) $(CFLAGS) tests/test_agent_io.c src/agent_io.c $(INCLUDES) -o $@
 
+$(BUILD_DIR)/test_sensor_encoder.exe: tests/test_sensor_encoder.c $(API_SOURCES) include/minisnn_sensor_encoder.h | $(BUILD_DIR)
+	$(CC) $(CFLAGS) tests/test_sensor_encoder.c $(API_SOURCES) $(INCLUDES) -o $@
+
+$(BUILD_DIR)/sensor_encoding_demo.exe: app/sensor_encoding_demo.c app/sensor_encoding_demo_config.c app/sensor_encoding_demo_config.h $(API_SOURCES) include/minisnn_sensor_encoder.h | $(BUILD_DIR)
+	$(CC) $(CFLAGS) app/sensor_encoding_demo.c app/sensor_encoding_demo_config.c $(API_SOURCES) $(INCLUDES) -o $@
+
 $(BUILD_DIR)/test_topology.exe: tests/test_topology.c $(CORE_SOURCES) | $(BUILD_DIR)
 	$(CC) $(CFLAGS) tests/test_topology.c $(CORE_SOURCES) $(INCLUDES) -o $@
 
@@ -233,7 +241,7 @@ check-c5: check-c5-interface test-model-checkpoints test-adex test-hodgkin-huxle
 check-c6: test-working-memory test-associative-memory test-sequence-prediction test-c6-checkpoints test-c6-integration test-c6-long
 	$(PYTHON) scripts/check_c6.py
 
-check-c7: test-agent-io
+check-c7: test-agent-io test-sensor-encoder
 	$(PYTHON) scripts/check_c7.py
 
 $(BUILD_DIR)/test_plasticity.exe: tests/test_plasticity.c $(API_SOURCES) | $(BUILD_DIR)
@@ -466,6 +474,13 @@ test-c6-long: $(BUILD_DIR)/test_c6_long.exe
 test-agent-io: $(BUILD_DIR)/test_agent_io.exe
 	$(BUILD_DIR)/test_agent_io.exe
 
+test-sensor-encoder: $(BUILD_DIR)/test_sensor_encoder.exe $(BUILD_DIR)/sensor_encoding_demo.exe
+	$(BUILD_DIR)/test_sensor_encoder.exe
+	$(PYTHON) tests/test_sensor_encoding_demo.py $(BUILD_DIR)/sensor_encoding_demo.exe
+
+scenario-sensor-encoding: $(BUILD_DIR)/sensor_encoding_demo.exe
+	$(BUILD_DIR)/sensor_encoding_demo.exe configs/sensor_encoding_demo.ini
+
 test-runner-topologies: $(BUILD_DIR)/test_runner_topologies.exe
 	$(BUILD_DIR)/test_runner_topologies.exe
 
@@ -560,7 +575,7 @@ test-history-report: | $(BUILD_DIR)
 test-docs: | $(BUILD_DIR)
 	$(PYTHON) tests/test_docs.py
 
-test: test-api test-core test-lif test-neuron-model test-adex test-hodgkin-huxley test-model-error-propagation test-plasticity test-homeostasis test-reward test-structure test-structural-plasticity test-scenario test-runner test-runner-topologies test-working-memory test-associative-memory test-sequence-prediction test-c6-checkpoints test-c6-integration test-agent-io test-reproducibility test-memory
+test: test-api test-core test-lif test-neuron-model test-adex test-hodgkin-huxley test-model-error-propagation test-plasticity test-homeostasis test-reward test-structure test-structural-plasticity test-scenario test-runner test-runner-topologies test-working-memory test-associative-memory test-sequence-prediction test-c6-checkpoints test-c6-integration test-agent-io test-sensor-encoder test-reproducibility test-memory
 
 $(BUILD_DIR)/example_api_single_neuron.exe: examples/api/example_api_single_neuron.c $(API_SOURCES) include/minisnn.h include/minisnn_types.h | $(BUILD_DIR)
 	$(CC) $(CFLAGS) examples/api/example_api_single_neuron.c $(API_SOURCES) $(INCLUDES) -o $@

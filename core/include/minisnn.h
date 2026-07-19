@@ -6,6 +6,8 @@
 
 typedef struct MiniSNN MiniSNN;
 
+#include "minisnn_sensor_encoder.h"
+
 typedef struct
 {
     int neuron_count;

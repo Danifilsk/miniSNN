@@ -64,13 +64,15 @@ observar e comparar cenários do Core.
 **PLANEJADO — miniSNN Worlds:** futura camada de simulação de agentes e vida.
 Ela não existe no código atual e não deve ser confundida com o Studio.
 
-## Contratos C7.1 de entrada e saida
+## Contratos C7.1/C7.2 de entrada e codificacao
 
-`include/minisnn_agent_io.h` e `src/agent_io.c` formam uma fronteira publica
+`include/minisnn_agent_io.h` e `src/agent_io.c` formam a fronteira publica
 numericamente generica. Schemas definem canais ordenados; frames carregam
 valores por tick; `MiniSNNAgentIOContext` valida o ciclo sensor, action e
-finalizacao. O modulo nao inclui o motor neural, `app/` ou qualquer codigo de
-dominio. A futura ponte entre esses frames e a SNN pertence a C7.2, nao a C7.1.
+finalizacao. `include/minisnn_sensor_encoder.h` e `src/sensor_encoder.c`
+formam a ponte C7.2: convertem sensores por id para uma matriz de correntes e
+aplicam um passo somente pela API publica. O encoder nao conhece topologia
+interna, nao avanca a rede e nao possui semantica de dominio.
 
 ## Encapsulamento
 

@@ -3,9 +3,10 @@
 ## Objetivo
 
 C7.1 define uma fronteira numerica e deterministica entre um produtor de
-sensores e um consumidor de acoes. Ela ainda nao converte valores em corrente,
-spikes ou qualquer formato neuronal. Tambem nao interpreta os canais como
-objetos de um dominio externo.
+sensores e um consumidor de acoes. C7.2 conecta o frame de sensores a entradas
+neuronais por um encoder publico, sem interpretar os canais como objetos de um
+dominio externo. C7.3 permanece reservado para a decodificacao de atividade
+neural em acoes.
 
 O fluxo valido e:
 
@@ -58,7 +59,9 @@ envie uma action frame com o mesmo tick, finalize e consuma a action uma vez:
 ```c
 minisnn_agent_io_submit_sensor_frame(context, &sensors);
 minisnn_agent_io_consume_sensor_frame(context, &sensors_for_encoder);
-/* C7.2 conectara o encoder neural neste ponto. */
+minisnn_sensor_encoder_encode_frame(encoder, &sensors_for_encoder, &inputs);
+minisnn_neural_input_frame_apply_step(&inputs, brain_step, network, &encoder_error);
+/* O chamador, e somente ele, chama minisnn_step(network). */
 minisnn_agent_io_submit_action_frame(context, &actions);
 minisnn_agent_io_finish_tick(context);
 minisnn_agent_io_consume_action_frame(context, &actions_for_consumer);
@@ -96,21 +99,60 @@ deterministica.
 Um schema de sensores pode descrever dois canais normalizados, com defaults
 `0.0` e limites `[0.0, 1.0]`. Um schema de acoes pode descrever dois valores em
 `[-1.0, 1.0]`. Esses nomes e limites sao apenas contrato de transporte: C7.1
-nao assume o que eles significam e nao os aplica a uma rede neural.
+nao assume o que eles significam. C7.2 referencia canais por id, nunca pelo
+nome, e aplica somente normalizacao e mapeamentos numericos declarados.
+
+## Codificacao neural C7.2
+
+Inclua `minisnn_sensor_encoder.h` (ou `minisnn.h`) para criar um
+`MiniSNNSensorEncoder`. Cada `MiniSNNSensorEncodingSpec` declara o id do canal,
+um intervalo contiguo de neuronios e um modo. Intervalos sobrepostos, ids
+inexistentes, parametros nao finitos e taxa fora de `(0, 1]` sao rejeitados.
+Neuronios sem mapeamento recebem corrente zero.
+
+- `linear_current`: `bias + gain * normalizado`.
+- `bipolar_current`: `bias + gain * (2 * normalizado - 1)`.
+- `deterministic_rate`: acumulador de fase por mapeamento; `maximum_rate` e
+  expresso em pulsos por passo neural e cada pulso escreve `pulse_current`.
+
+Para `minimum == maximum`, o valor normalizado e zero. `phase_offset` representa
+milesimos de fase e deve estar em `0..999`; valores fora do intervalo sao
+rejeitados, sem aliases por modulo. A taxa e deterministica
+para o mesmo frame, especificacao e estado de fase; ela nao usa PRNG nem
+forca spikes. `minisnn_sensor_encoder_reset` restaura as fases iniciais.
+
+`MiniSNNNeuralInputFrame` pertence ao chamador e armazena uma matriz
+`brain_step x neuron_count`. O encoder calcula em buffers internos e so copia
+o resultado e as fases quando o frame inteiro e valido. Em seguida,
+`minisnn_neural_input_frame_apply_step` recebe tambem `out_error`, valida todo o
+frame, o passo e as dimensoes antes de limpar entradas e entao aplica as
+correntes pela API publica. Ela nao avanca a simulacao. Isso preserva explicitamente a ordem:
+codificar, aplicar, chamar `minisnn_step` no chamador.
+
+Os mapeamentos e o contrato possuem assinaturas FNV-1a 64-bit. O formato textual
+versionado persiste somente ids, dimensoes e parametros numericos; leitura com
+schema ou assinatura incompativel falha. Execute
+`mingw32-make scenario-sensor-encoding` para gerar `config_source.ini` (copia
+byte a byte do INI fornecido), `config_used.ini` (forma canonica efetivamente
+executada), `sensor_encoding_trace.csv`, `sensor_encoding_summary.txt` e
+`sensor_encoding_report.html`. O parser vive em `app/`, resolve nomes de canais
+para IDs somente nessa fronteira e rejeita secoes, chaves e valores invalidos.
 
 ## Limitacoes
 
-C7.1 nao implementa codificacao sensorial, entradas de corrente, spike
-encoding, decodificacao, recompensa, reset da rede neural, evolucao, Studio ou
-qualquer camada de dominio. C7.2 cuidara somente da codificacao de sensores;
-C7.3 cuidara somente da decodificacao de acoes.
+C7.2 nao implementa decodificacao, recompensa, reset da rede neural, evolucao,
+Studio ou qualquer camada de dominio. Ele tambem nao chama o passo neural e nao
+forca spikes. C7.3 cuidara somente da decodificacao de acoes.
 
 ## Validacao
 
 ```powershell
 mingw32-make test-agent-io
+mingw32-make test-sensor-encoder
+mingw32-make scenario-sensor-encoding
 mingw32-make check-c7
 ```
 
-O teste cobre schemas, ownership, assinaturas, serializacao, atomicidade,
-ticks, isolamento de duas instancias e destruicao repetida.
+Os testes cobrem schemas, ownership, assinaturas, serializacao, atomicidade,
+ticks, isolamento, faixas neuronais, normalizacao, taxa deterministica e os
+modelos LIF, AdEx e Hodgkin-Huxley.

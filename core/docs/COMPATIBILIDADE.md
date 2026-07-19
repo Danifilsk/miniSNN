@@ -176,3 +176,17 @@ propria e so sao aceitos quando o formato e os limites sao compativeis.
 O contexto copia schemas e frames, por isso o chamador pode liberar seus dados
 externos apos criacao ou submit. Assinaturas C7.1 nao substituem assinaturas
 neuronais ou topologicas do Core.
+
+# Compatibilidade C7.2
+
+O encoder sensorial e uma API publica adicional em
+`include/minisnn_sensor_encoder.h`. Ele nao altera checkpoints, topologias,
+modelos neuronais, dinamica ou formatos cientificos historicos. Arquivos de
+mapeamento sao versionados e so sao aceitos quando o schema de sensores, as
+dimensoes e as assinaturas FNV-1a correspondem. O estado de fase e reinicializado
+por criacao/reset e nao e uma persistencia de estado neural.
+
+`phase_offset` e canonico em `0..999` milesimos; configuracoes antigas que
+usassem um alias maior ou igual a 1000 devem ser corrigidas explicitamente.
+O demo preserva o INI original como `config_source.ini` e registra a forma
+canonica realmente executada como `config_used.ini`.

@@ -171,13 +171,22 @@ somente pelos pesos em blueprints recarregaveis. Execute
 `mingw32-make scenario-c6-suite` para gerar um resumo local sem score cognitivo
 universal. Veja o [Guia de cognicao C6](docs/GUIA_DE_COGNICAO_C6.md).
 
-## Interface cerebro-agente C7.1
+## Interface cerebro-agente C7
 
 O C7.1 fornece contratos numericos para schemas de sensores e acoes, frames
-copiados e um ciclo deterministico por tick. Ele nao codifica spikes, nao
-decodifica acoes e nao conhece nenhum dominio externo. Use
-`mingw32-make test-agent-io` para validar o contrato. Veja o
+copiados e um ciclo deterministico por tick. O C7.2 adiciona
+`minisnn_sensor_encoder.h`: mapeamentos por id de canal para correntes lineares,
+bipolares ou pulsos de taxa deterministica. O encoder nao usa nomes como
+semantica, nao usa PRNG, nao forca spikes e nao avanca a rede; a aplicacao de
+um passo apenas limpa e define as correntes externas via API publica. Use
+`mingw32-make test-agent-io`, `mingw32-make test-sensor-encoder` e
+`mingw32-make scenario-sensor-encoding`. O C7.3, ainda pendente, decodificara
+atividade neural em acoes. Veja o
 [Guia da interface cerebro-agente](docs/GUIA_DA_INTERFACE_CEREBRO_AGENTE.md).
+
+O demo C7.2 le de fato `configs/sensor_encoding_demo.ini`. A execucao preserva
+o arquivo fornecido byte a byte como `config_source.ini` e grava a configuracao
+canonica efetivamente usada em `config_used.ini`.
 
 ## Estrutura
 

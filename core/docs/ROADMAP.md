@@ -21,10 +21,10 @@ O roadmap indica ordem de trabalho, não promessa de prazo.
 - [x] C5 — modelos neuronais avançados: LIF, AdEx e Hodgkin-Huxley.
 - [x] C6 — memória de trabalho, memória associativa, predição contextual e integração/auditoria.
 - [x] C7.1 - contratos genericos de sensores, acoes e frames numericos.
+- [x] C7.2 - codificacao generica de sensores numericos para entrada neural.
 
 ## Próximo
 
-- [ ] C7.2 - codificacao generica de sensores numericos para entrada neural.
 - [ ] C7.3 - decodificacao generica de atividade neural para acoes numericas.
 - [ ] C7.4 - reward, reset e ciclo cerebro-agente.
 - [ ] C7.5 - integracao e auditoria da interface cerebro-agente.
