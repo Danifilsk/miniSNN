@@ -693,3 +693,14 @@ int structural_plasticity_reset(
     }
     return 1;
 }
+
+int structural_plasticity_clear_transient_rate_traces(
+    StructuralPlasticityState *state)
+{
+    if (state == NULL || state->neuron_count <= 0 || state->rate_traces == NULL)
+        return 0;
+
+    memset(state->rate_traces, 0,
+           (size_t)state->neuron_count * sizeof(*state->rate_traces));
+    return 1;
+}

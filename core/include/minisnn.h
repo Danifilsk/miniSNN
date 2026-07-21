@@ -164,6 +164,15 @@ int minisnn_get_pending_reward(
 
 int minisnn_clear_pending_reward(MiniSNN *snn);
 
+/* Applies an already queued R-STDP reward without advancing the neural
+ * simulation or creating new plasticity candidates. It is a no-op when no
+ * reward is pending. */
+int minisnn_apply_pending_reward_now(MiniSNN *snn);
+
+/* Resets transient neuron, current, trace, eligibility, and homeostasis state.
+ * It preserves connections, weights, neuron types, and configured parameters. */
+int minisnn_reset_transient_state(MiniSNN *snn);
+
 int minisnn_get_last_applied_reward(
     const MiniSNN *snn,
     double *out_value);
@@ -287,6 +296,15 @@ int minisnn_reset_structural_plasticity(
     MiniSNN *snn,
     MiniSNNStructuralResetMode mode);
 
+#ifdef MINISNN_TESTING
+/* Test-only visibility for verifying episode reset does not preserve rate
+ * traces from structural plasticity. This is not part of the production ABI. */
+int minisnn_test_get_structural_rate_trace(
+    const MiniSNN *snn,
+    int neuron_id,
+    double *out_rate_trace);
+#endif
+
 /* Entrada externa */
 int minisnn_set_input(
     MiniSNN *snn,
@@ -325,5 +343,7 @@ int minisnn_get_synaptic_current(
     const MiniSNN *snn,
     int neuron_id,
     double *out_current);
+
+#include "minisnn_agent_cycle.h"
 
 #endif

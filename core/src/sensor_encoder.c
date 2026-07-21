@@ -609,6 +609,25 @@ void minisnn_sensor_encoder_reset(MiniSNNSensorEncoder *encoder)
     encoder->last_error = MINISNN_SENSOR_ENCODER_ERROR_NONE;
 }
 
+uint32_t minisnn_sensor_encoder_neuron_count(
+    const MiniSNNSensorEncoder *encoder)
+{
+    return encoder != NULL ? encoder->neuron_count : 0U;
+}
+
+uint32_t minisnn_sensor_encoder_brain_steps_per_tick(
+    const MiniSNNSensorEncoder *encoder)
+{
+    return encoder != NULL ? encoder->brain_steps_per_tick : 0U;
+}
+
+uint64_t minisnn_sensor_encoder_sensor_schema_signature(
+    const MiniSNNSensorEncoder *encoder)
+{
+    return encoder != NULL ? minisnn_sensor_schema_signature(encoder->sensor_schema) :
+        UINT64_C(0);
+}
+
 uint64_t minisnn_sensor_encoding_mapping_signature(
     const MiniSNNSensorEncoder *encoder)
 {

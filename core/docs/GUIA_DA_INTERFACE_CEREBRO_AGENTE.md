@@ -173,12 +173,43 @@ C7.2 permanece restrito a codificacao de sensores: nao implementa recompensa,
 reset da rede neural, evolucao, Studio ou camada de dominio. Ele tambem nao
 chama o passo neural e nao forca spikes.
 
+## Ciclo generico C7.4
+
+`MiniSNNAgentCycle` conecta somente contratos numericos existentes e nao possui
+semantica de dominio. A rede, `MiniSNNAgentIOContext`, encoder e decoder sao
+referencias nao proprietarias; o ciclo possui os frames temporarios e feedbacks.
+
+Para um tick aceito, a ordem e: validar contratos e ausencia de action pendente;
+entregar feedback devido; consumir e codificar sensor; aplicar entrada e avancar
+a rede exatamente `brain_steps_per_tick` vezes; capturar cada passo; decodificar
+a janela completa; publicar e finalizar a action atomicamente. A action nao e
+consumida pelo ciclo. O proximo tick somente inicia depois do consumo externo.
+
+Feedback e externo: `source_tick` aponta uma action ja produzida e
+`delivery_tick` define quando o valor chega a C2. Com `episode_terminal = 0`,
+ele e entregue antes do passo zero do tick de destino. Com
+`episode_terminal = 1`, a action deve ter sido consumida e o feedback e aplicado
+na fronteira do episodio por C2, sem passo neural ficticio e sem reset
+automatico. O ciclo nunca calcula recompensa. Sem R-STDP, somente reward zero e
+aceito. O reset explicito descarta feedback futuro do episodio, limpa estado
+transitorio, traces e rewards pendentes, mas preserva pesos, topologia e a
+cronologia estrutural; somente os rate traces estruturais transitorios sao
+limpos. `episode_tick` no diagnostico descreve o tick executado. Nao existe
+rollback da rede depois do primeiro passo: falha inesperada deixa o ciclo em
+`FAULTED` ate o reset.
+
+`scenario-agent-cycle` gera `config_source.ini`, `config_used.ini`, trace,
+feedback, resumo e HTML locais. O demo e uma tarefa numerica fechada; nao
+demonstra um dominio externo nem afirma aprendizado estatistico.
+
 ## Validacao
 
 ```powershell
 mingw32-make test-agent-io
 mingw32-make test-sensor-encoder
 mingw32-make scenario-sensor-encoding
+mingw32-make test-agent-cycle
+mingw32-make scenario-agent-cycle
 mingw32-make check-c7
 ```
 

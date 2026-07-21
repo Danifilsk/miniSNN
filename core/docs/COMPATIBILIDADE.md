@@ -198,3 +198,15 @@ por criacao/reset e nao e uma persistencia de estado neural.
 usassem um alias maior ou igual a 1000 devem ser corrigidas explicitamente.
 O demo preserva o INI original como `config_source.ini` e registra a forma
 canonica realmente executada como `config_used.ini`.
+
+# Compatibilidade C7.4
+
+O ciclo cerebro-agente e uma API aditiva em `include/minisnn_agent_cycle.h`.
+Ele nao altera a dinamica de cenarios, checkpoints, schemas existentes ou
+formatos CSV historicos. A publicacao atomica de action e um novo atalho seguro
+do AgentIO, sem remover `submit_action_frame` ou `finish_tick`. O reset C7.4
+preserva pesos e topologia e limpa somente estado transitorio; ele nao e um
+restore de checkpoint ou blueprint. A extensao de feedback terminal e aditiva:
+`episode_terminal` aceita somente `0` ou `1`; o terminal e aplicado no limite do
+episodio sem passo neural e nao provoca reset automatico. O contador neural
+interno e a historia estrutural permanecem monotonos atraves de resets.

@@ -33,7 +33,7 @@ static void plasticity_free_index(PlasticityState *state)
     state->index_valid = 0;
 }
 
-static void plasticity_reset_runtime(PlasticityState *state)
+void plasticity_state_reset_runtime(PlasticityState *state)
 {
     if (state == NULL)
         return;
@@ -371,7 +371,7 @@ int plasticity_state_configure(
         return 0;
 
     state->config = *config;
-    plasticity_reset_runtime(state);
+    plasticity_state_reset_runtime(state);
     plasticity_free_index(state);
 
     if (!config->enabled)

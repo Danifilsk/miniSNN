@@ -56,6 +56,11 @@ int structural_plasticity_reset(
     struct Network *net,
     MiniSNNStructuralResetMode mode);
 
+/* Clears only per-episode rate traces. Structural history, statistics, and
+ * the structural PRNG remain intact. */
+int structural_plasticity_clear_transient_rate_traces(
+    StructuralPlasticityState *state);
+
 int structural_plasticity_rebuild_connection_states(
     StructuralPlasticityState *state,
     const StructureGenome *before,

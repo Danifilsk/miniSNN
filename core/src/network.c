@@ -772,6 +772,69 @@ int network_reset_reward_learning(Network *net)
         net->plasticity);
 }
 
+int network_apply_pending_reward_now(Network *net)
+{
+    if (net == NULL || net->reward == NULL || net->plasticity == NULL ||
+        net->neurons == NULL || net->connections == NULL ||
+        !isfinite(neuron_model_dt(&net->model_config)) ||
+        neuron_model_dt(&net->model_config) <= 0.0)
+    {
+        return 0;
+    }
+
+    if (!net->reward->pending_queued)
+        return 1;
+
+    return reward_state_apply_pending(
+        net->reward,
+        net->neurons,
+        net->connections,
+        net->plasticity,
+        (unsigned long long)net->step,
+        neuron_model_dt(&net->model_config));
+}
+
+int network_reset_transient_state(Network *net)
+{
+    if (net == NULL || net->size <= 0 || net->max_synaptic_delay <= 0 ||
+        net->neurons == NULL || net->connections == NULL ||
+        net->spikes == NULL || net->syn_current == NULL ||
+        net->used_syn_current == NULL || net->pending_current == NULL ||
+        net->ext_current == NULL || net->plasticity == NULL ||
+        net->reward == NULL || net->homeostasis == NULL ||
+        net->step_snapshot == NULL ||
+        !neuron_model_validate_config(&net->model_config) ||
+        (net->structural_plasticity != NULL &&
+         (net->structural_plasticity->neuron_count != net->size ||
+          net->structural_plasticity->rate_traces == NULL)))
+    {
+        return 0;
+    }
+    for (int index = 0; index < net->size; index++)
+    {
+        if (!neuron_model_reset(&net->neurons[index], &net->model_config))
+            return 0;
+    }
+    memcpy(net->step_snapshot, net->neurons,
+           (size_t)net->size * sizeof(*net->step_snapshot));
+    memset(net->spikes, 0, (size_t)net->size * sizeof(*net->spikes));
+    memset(net->syn_current, 0, (size_t)net->size * sizeof(*net->syn_current));
+    memset(net->used_syn_current, 0,
+           (size_t)net->size * sizeof(*net->used_syn_current));
+    memset(net->pending_current, 0,
+           (size_t)net->size * (size_t)net->max_synaptic_delay *
+               sizeof(*net->pending_current));
+    network_clear_external_currents(net);
+    net->delay_cursor = 0;
+    plasticity_state_reset_runtime(net->plasticity);
+    if ((net->structural_plasticity != NULL &&
+         !structural_plasticity_clear_transient_rate_traces(
+             net->structural_plasticity)) ||
+        !network_reset_reward_learning(net) || !network_reset_homeostasis(net))
+        return 0;
+    return 1;
+}
+
 int network_set_structural_plasticity_config(
     Network *net,
     const MiniSNNStructuralPlasticityConfig *config)

@@ -184,6 +184,15 @@ um passo apenas limpa e define as correntes externas via API publica. Use
 `minisnn_action_decoder.h`: janela de spikes para actions numericas por
 population rate, diferenca bipolar, threshold e WTA. Use
 `mingw32-make test-action-decoder` e `mingw32-make scenario-action-decoding`.
+O C7.4 adiciona `minisnn_agent_cycle.h`, o unico orquestrador C7 que executa
+passos neurais: ele consome sensor, codifica, aplica N entradas, captura a
+atividade, decodifica e publica a action atomicamente. Feedback externo e
+opcional, chega a C2 antes do primeiro passo neural do tick de entrega e nunca
+e calculado pelo Core. Feedback terminal e aplicado na fronteira do episodio,
+depois do consumo da action e sem passo neural; ele nao reseta o episodio. O
+reset preserva cronologia neural e historico estrutural, mas limpa os traces
+transitorios. Use `mingw32-make test-agent-cycle` e
+`mingw32-make scenario-agent-cycle`.
 Veja o
 [Guia da interface cerebro-agente](docs/GUIA_DA_INTERFACE_CEREBRO_AGENTE.md).
 

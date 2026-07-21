@@ -129,6 +129,10 @@ int network_set_reward_config(
 
 int network_reset_reward_learning(Network *net);
 
+int network_apply_pending_reward_now(Network *net);
+
+int network_reset_transient_state(Network *net);
+
 int network_set_structural_plasticity_config(
     Network *net,
     const MiniSNNStructuralPlasticityConfig *config);

@@ -20,6 +20,12 @@ DECODER_DEMO = ROOT / "app" / "action_decoding_demo.c"
 DECODER_CONFIG_SOURCE = ROOT / "app" / "action_decoding_demo_config.c"
 DECODER_CONFIG_HEADER = ROOT / "app" / "action_decoding_demo_config.h"
 DECODER_DEMO_TEST = ROOT / "tests" / "test_action_decoding_demo.py"
+AGENT_CYCLE_HEADER = ROOT / "include" / "minisnn_agent_cycle.h"
+AGENT_CYCLE_SOURCE = ROOT / "src" / "agent_cycle.c"
+AGENT_CYCLE_TEST = ROOT / "tests" / "test_agent_cycle.c"
+AGENT_CYCLE_DEMO = ROOT / "app" / "agent_cycle_demo.c"
+AGENT_CYCLE_CONFIG_SOURCE = ROOT / "app" / "agent_cycle_demo_config.c"
+AGENT_CYCLE_DEMO_TEST = ROOT / "tests" / "test_agent_cycle_demo.py"
 MAKEFILE = ROOT / "Makefile"
 
 
@@ -32,7 +38,9 @@ def main() -> None:
     for path in (SOURCE, HEADER, TEST, ENCODER_SOURCE, ENCODER_HEADER, ENCODER_TEST,
                  DEMO_CONFIG_SOURCE, DEMO_CONFIG_HEADER, DEMO_TEST, DECODER_SOURCE,
                  DECODER_HEADER, DECODER_TEST, DECODER_DEMO, DECODER_CONFIG_SOURCE,
-                 DECODER_CONFIG_HEADER, DECODER_DEMO_TEST):
+                 DECODER_CONFIG_HEADER, DECODER_DEMO_TEST, AGENT_CYCLE_HEADER,
+                 AGENT_CYCLE_SOURCE, AGENT_CYCLE_TEST, AGENT_CYCLE_DEMO,
+                 AGENT_CYCLE_CONFIG_SOURCE, AGENT_CYCLE_DEMO_TEST):
         if not path.is_file():
             fail(f"arquivo obrigatorio ausente: {path.relative_to(ROOT)}")
 
@@ -50,6 +58,12 @@ def main() -> None:
     decoder_demo = DECODER_DEMO.read_text(encoding="utf-8")
     decoder_config_source = DECODER_CONFIG_SOURCE.read_text(encoding="utf-8")
     decoder_demo_test = DECODER_DEMO_TEST.read_text(encoding="utf-8")
+    agent_cycle_header = AGENT_CYCLE_HEADER.read_text(encoding="utf-8")
+    agent_cycle_source = AGENT_CYCLE_SOURCE.read_text(encoding="utf-8")
+    agent_cycle_test = AGENT_CYCLE_TEST.read_text(encoding="utf-8")
+    agent_cycle_demo = AGENT_CYCLE_DEMO.read_text(encoding="utf-8")
+    agent_cycle_config_source = AGENT_CYCLE_CONFIG_SOURCE.read_text(encoding="utf-8")
+    agent_cycle_demo_test = AGENT_CYCLE_DEMO_TEST.read_text(encoding="utf-8")
     makefile = MAKEFILE.read_text(encoding="utf-8")
 
     for token in (
@@ -192,6 +206,7 @@ def main() -> None:
         "MINISNN_AGENT_IO_ERROR_PREVIOUS_ACTION_NOT_CONSUMED",
         "test_ascii_names_and_reader_errors",
         "test_frame_public_errors",
+        "test_atomic_action_publication",
         "UINT64_C(12815672321792322842)",
     ):
         if token not in test:
@@ -261,12 +276,67 @@ def main() -> None:
     if "minisnn_step(network)" not in decoder_demo:
         fail("demo C7.3 nao produz atividade pela API publica")
 
+    for token in (
+        "MiniSNNAgentCycle", "MINISNN_AGENT_CYCLE_STATE_FAULTED",
+        "MiniSNNAgentFeedback", "MiniSNNAgentCycleDiagnostics",
+        "minisnn_agent_cycle_run_tick", "minisnn_agent_cycle_submit_feedback",
+        "minisnn_agent_cycle_reset_episode",
+    ):
+        if token not in agent_cycle_header:
+            fail(f"API C7.4 ausente: {token}")
+
+    for token in (
+        "minisnn_sensor_encoder_encode_from_agent_io",
+        "minisnn_neural_input_frame_apply_step", "minisnn_step(cycle->network)",
+        "minisnn_neural_activity_frame_capture_step", "minisnn_action_decoder_decode",
+        "minisnn_agent_io_submit_action_and_finish_tick",
+        "MINISNN_AGENT_CYCLE_STATE_FAULTED", "deliver_due_feedback",
+        "deliver_terminal_feedback", "minisnn_apply_pending_reward_now",
+        "minisnn_reset_transient_state", "episode_terminal > 1U",
+    ):
+        if token not in agent_cycle_source:
+            fail(f"contrato C7.4 ausente: {token}")
+
+    cycle_code = re.sub(r"/\*.*?\*/|//[^\n]*", "", agent_cycle_source,
+                        flags=re.DOTALL)
+    for term in forbidden + ("lifneuron", "minisnn_agent_io_consume_action_frame"):
+        if re.search(rf"\b{re.escape(term)}\b", cycle_code.lower()):
+            fail(f"termo ou consumo proibido no ciclo C7.4: {term}")
+    if "minisnn_step(" in encoder_source or "minisnn_step(" in decoder_source:
+        fail("somente agent_cycle pode avancar a rede na camada C7")
+    if "minisnn_agent_io_submit_action_and_finish_tick" not in source:
+        fail("publicacao atomica de acao C7.4 ausente no AgentIO")
+
+    for token in (
+        "test_creation_contracts", "test_tick_feedback_and_reset",
+        "test_fault_and_models", "test_reward_delivery_contract",
+        "test_terminal_feedback_contract", "test_structural_transient_reset",
+        "neuron_model_test_fail_after_calls",
+        "MINISNN_AGENT_CYCLE_ERROR_REWARD_UNAVAILABLE",
+    ):
+        if token not in agent_cycle_test:
+            fail(f"cobertura de teste C7.4 ausente: {token}")
+    for token in (
+        "agent_cycle_demo_config_load_file", "minisnn_agent_cycle_run_tick",
+        "minisnn_agent_cycle_submit_feedback", "config_source.ini", "config_used.ini",
+        "delivered_at_episode_boundary", "delivered_on_tick",
+    ):
+        if token not in agent_cycle_demo:
+            fail(f"demo C7.4 ausente: {token}")
+    if "neuron_model_from_name" not in agent_cycle_config_source:
+        fail("parser do demo C7.4 nao usa conversao central de modelos")
+    for token in ("agent_cycle_alternate", "config_source.ini", "agent_cycle_trace.csv",
+                  "delivered_at_episode_boundary", "total_reward=1"):
+        if token not in agent_cycle_demo_test:
+            fail(f"teste de proveniencia C7.4 ausente: {token}")
+
     for target in ("test-agent-io", "test-sensor-encoder", "scenario-sensor-encoding",
-                   "test-action-decoder", "scenario-action-decoding", "check-c7"):
+                   "test-action-decoder", "scenario-action-decoding", "test-agent-cycle",
+                   "scenario-agent-cycle", "check-c7"):
         if target not in makefile:
             fail(f"target Makefile ausente: {target}")
 
-    print("C7.3 action decoding validation OK")
+    print("C7.4 agent cycle validation OK")
 
 
 if __name__ == "__main__":

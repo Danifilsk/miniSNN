@@ -508,6 +508,16 @@ int minisnn_clear_pending_reward(MiniSNN *snn)
     return reward_state_clear_pending(snn->net.reward);
 }
 
+int minisnn_apply_pending_reward_now(MiniSNN *snn)
+{
+    return snn != NULL && network_apply_pending_reward_now(&snn->net);
+}
+
+int minisnn_reset_transient_state(MiniSNN *snn)
+{
+    return snn != NULL && network_reset_transient_state(&snn->net);
+}
+
 int minisnn_get_last_applied_reward(
     const MiniSNN *snn,
     double *out_value)
@@ -891,6 +901,25 @@ int minisnn_reset_structural_plasticity(
         return 0;
     return network_reset_structural_plasticity(&snn->net, mode);
 }
+
+#ifdef MINISNN_TESTING
+int minisnn_test_get_structural_rate_trace(
+    const MiniSNN *snn,
+    int neuron_id,
+    double *out_rate_trace)
+{
+    if (!minisnn_valid_neuron_id(snn, neuron_id) || out_rate_trace == NULL ||
+        snn->net.structural_plasticity == NULL ||
+        snn->net.structural_plasticity->rate_traces == NULL)
+    {
+        return 0;
+    }
+
+    *out_rate_trace =
+        snn->net.structural_plasticity->rate_traces[neuron_id];
+    return 1;
+}
+#endif
 
 int minisnn_set_input(
     MiniSNN *snn,

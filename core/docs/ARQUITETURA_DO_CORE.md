@@ -1,5 +1,13 @@
 # Arquitetura do Core
 
+## C7.4 - Ciclo generico cerebro-agente
+
+`src/agent_cycle.c` e o unico modulo C7 que aplica frames de entrada, avanca a
+rede e captura atividade. Ele depende apenas das APIs publicas de MiniSNN,
+AgentIO, encoder e decoder. Nao acessa neuronios, conexoes ou buffers privados,
+nao interpreta nomes de canais e nao calcula reward. `app/agent_cycle_demo*.c`
+permanece na camada de aplicacao e calcula seu feedback numerico externo.
+
 ## C7.3 - Decoder de atividade
 
 `src/action_decoder.c` e um modulo de borda neural: le apenas indices de
@@ -72,7 +80,7 @@ observar e comparar cenários do Core.
 **PLANEJADO — miniSNN Worlds:** futura camada de simulação de agentes e vida.
 Ela não existe no código atual e não deve ser confundida com o Studio.
 
-## Contratos C7.1/C7.2 de entrada e codificacao
+## Contratos C7.1-C7.4 de entrada, codificacao e ciclo
 
 `include/minisnn_agent_io.h` e `src/agent_io.c` formam a fronteira publica
 numericamente generica. Schemas definem canais ordenados; frames carregam
@@ -80,7 +88,13 @@ valores por tick; `MiniSNNAgentIOContext` valida o ciclo sensor, action e
 finalizacao. `include/minisnn_sensor_encoder.h` e `src/sensor_encoder.c`
 formam a ponte C7.2: convertem sensores por id para uma matriz de correntes e
 aplicam um passo somente pela API publica. O encoder nao conhece topologia
-interna, nao avanca a rede e nao possui semantica de dominio.
+interna, nao avanca a rede e nao possui semantica de dominio. O decoder C7.3
+le uma janela completa sem avancar a rede. O ciclo C7.4 e a camada que coordena
+ambos, entrega reward pelo caminho C2 e faz reset transiente com aprendizado
+preservado. Feedback comum e entregue antes do passo zero do tick de destino;
+feedback terminal e aplicado por C2 na fronteira do episodio, sem avancar a
+rede. O reset preserva `Network.step`, PRNG, eventos e estatisticas estruturais,
+limpando apenas rate traces estruturais transitorios.
 
 ## Encapsulamento
 

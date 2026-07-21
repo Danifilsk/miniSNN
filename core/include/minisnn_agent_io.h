@@ -156,10 +156,19 @@ const char *minisnn_agent_io_error_string(MiniSNNAgentIOError error);
 int minisnn_agent_io_submit_sensor_frame(
     MiniSNNAgentIOContext *context,
     const MiniSNNSensorFrame *frame);
+int minisnn_agent_io_pending_sensor_tick(
+    MiniSNNAgentIOContext *context,
+    uint64_t *out_tick);
+int minisnn_agent_io_action_pending(
+    const MiniSNNAgentIOContext *context);
 int minisnn_agent_io_consume_sensor_frame(
     MiniSNNAgentIOContext *context,
     MiniSNNSensorFrame *out_frame);
 int minisnn_agent_io_submit_action_frame(
+    MiniSNNAgentIOContext *context,
+    const MiniSNNActionFrame *frame);
+/* Atomically validates, publishes, and finalizes an action without consuming it. */
+int minisnn_agent_io_submit_action_and_finish_tick(
     MiniSNNAgentIOContext *context,
     const MiniSNNActionFrame *frame);
 int minisnn_agent_io_finish_tick(MiniSNNAgentIOContext *context);

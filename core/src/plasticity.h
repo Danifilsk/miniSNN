@@ -45,6 +45,7 @@ int plasticity_config_is_valid(
 int plasticity_state_init(
     PlasticityState *state,
     int neuron_count);
+void plasticity_state_reset_runtime(PlasticityState *state);
 
 void plasticity_state_destroy(PlasticityState *state);
 

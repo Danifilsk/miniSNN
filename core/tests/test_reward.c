@@ -708,6 +708,37 @@ static int test_public_validation_and_independence(void)
     return first == NULL && second == NULL;
 }
 
+static int test_public_immediate_pending_reward(void)
+{
+    MiniSNN *snn = minisnn_create(2);
+    double pending = 0.0;
+    double applied = 0.0;
+    int step_before;
+
+    if (snn == NULL || !minisnn_connect(snn, 0, 1, 1.0) ||
+        !configure_public_rstdp(snn, 0.5, 1.0))
+    {
+        minisnn_destroy(&snn);
+        return 0;
+    }
+
+    step_before = minisnn_current_step(snn);
+    if (!minisnn_apply_pending_reward_now(snn) ||
+        minisnn_current_step(snn) != step_before ||
+        !minisnn_queue_reward(snn, 0.5) ||
+        !minisnn_apply_pending_reward_now(snn) ||
+        minisnn_current_step(snn) != step_before ||
+        !minisnn_get_pending_reward(snn, &pending) || !nearly_equal(pending, 0.0) ||
+        !minisnn_get_last_applied_reward(snn, &applied) || !nearly_equal(applied, 0.5))
+    {
+        minisnn_destroy(&snn);
+        return 0;
+    }
+
+    minisnn_destroy(&snn);
+    return snn == NULL;
+}
+
 int main(void)
 {
     if (!test_exact_eligibility_signs() ||
@@ -718,7 +749,8 @@ int main(void)
         !test_inhibitory_and_self_connection() ||
         !test_public_timing_and_reset() ||
         !test_reward_then_scaling_order() ||
-        !test_public_validation_and_independence())
+        !test_public_validation_and_independence() ||
+        !test_public_immediate_pending_reward())
     {
         fprintf(stderr, "Reward-modulated STDP numerical validation FAILED\n");
         return 1;

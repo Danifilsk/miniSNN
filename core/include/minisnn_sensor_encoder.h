@@ -94,6 +94,14 @@ MiniSNNSensorEncoder *minisnn_sensor_encoder_create(
 void minisnn_sensor_encoder_destroy(MiniSNNSensorEncoder **encoder_ptr);
 void minisnn_sensor_encoder_reset(MiniSNNSensorEncoder *encoder);
 
+/* Contract dimensions and schema identity; no internal buffers are exposed. */
+uint32_t minisnn_sensor_encoder_neuron_count(
+    const MiniSNNSensorEncoder *encoder);
+uint32_t minisnn_sensor_encoder_brain_steps_per_tick(
+    const MiniSNNSensorEncoder *encoder);
+uint64_t minisnn_sensor_encoder_sensor_schema_signature(
+    const MiniSNNSensorEncoder *encoder);
+
 uint64_t minisnn_sensor_encoding_mapping_signature(
     const MiniSNNSensorEncoder *encoder);
 uint64_t minisnn_sensor_encoder_contract_signature(

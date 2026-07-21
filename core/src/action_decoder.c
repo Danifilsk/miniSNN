@@ -769,6 +769,32 @@ void minisnn_action_decoder_reset(MiniSNNActionDecoder *decoder)
     decoder->last_error = MINISNN_ACTION_DECODER_ERROR_NONE;
 }
 
+uint32_t minisnn_action_decoder_neuron_count(
+    const MiniSNNActionDecoder *decoder)
+{
+    return decoder != NULL ? decoder->neuron_count : 0U;
+}
+
+uint32_t minisnn_action_decoder_brain_steps_per_tick(
+    const MiniSNNActionDecoder *decoder)
+{
+    return decoder != NULL ? decoder->brain_steps_per_tick : 0U;
+}
+
+uint32_t minisnn_action_decoder_action_count(
+    const MiniSNNActionDecoder *decoder)
+{
+    return decoder != NULL ?
+        minisnn_action_schema_channel_count(decoder->action_schema) : 0U;
+}
+
+uint64_t minisnn_action_decoder_action_schema_signature(
+    const MiniSNNActionDecoder *decoder)
+{
+    return decoder != NULL ? minisnn_action_schema_signature(decoder->action_schema) :
+        UINT64_C(0);
+}
+
 uint64_t minisnn_action_decoding_mapping_signature(
     const MiniSNNActionDecoder *decoder)
 {

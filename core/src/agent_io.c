@@ -1225,6 +1225,88 @@ int minisnn_agent_io_submit_action_frame(MiniSNNAgentIOContext *context,
     return 1;
 }
 
+int minisnn_agent_io_pending_sensor_tick(MiniSNNAgentIOContext *context,
+                                         uint64_t *out_tick)
+{
+    if (context == NULL)
+        return 0;
+    if (out_tick == NULL)
+    {
+        context_error(context, MINISNN_AGENT_IO_ERROR_INVALID_ARGUMENT);
+        return 0;
+    }
+    if (!context->sensor_submitted || context->sensor_consumed)
+    {
+        context_error(context, MINISNN_AGENT_IO_ERROR_SENSOR_NOT_AVAILABLE);
+        return 0;
+    }
+    *out_tick = context->active_tick;
+    context->last_error = MINISNN_AGENT_IO_ERROR_NONE;
+    return 1;
+}
+
+int minisnn_agent_io_action_pending(const MiniSNNAgentIOContext *context)
+{
+    return context != NULL && context->has_finished_tick && !context->action_consumed;
+}
+
+int minisnn_agent_io_submit_action_and_finish_tick(
+    MiniSNNAgentIOContext *context,
+    const MiniSNNActionFrame *frame)
+{
+    MiniSNNAgentIOError error = MINISNN_AGENT_IO_ERROR_NONE;
+
+    if (context == NULL)
+        return 0;
+    if (frame == NULL || !context->sensor_submitted || !context->sensor_consumed ||
+        context->action_submitted || frame->tick != context->active_tick ||
+        !frame_matches_schema(frame->values, frame->value_count,
+                              &context->action_schema, &error) ||
+        context->pending_sensor.values == NULL || context->pending_action.values == NULL ||
+        context->last_sensor.values == NULL ||
+        context->last_action.values == NULL ||
+        context->pending_action.value_count != frame->value_count ||
+        context->last_sensor.value_count != context->pending_sensor.value_count ||
+        context->last_action.value_count != frame->value_count)
+    {
+        if (frame == NULL || context->pending_sensor.values == NULL ||
+            context->pending_action.values == NULL ||
+            context->last_sensor.values == NULL || context->last_action.values == NULL)
+            context_error(context, MINISNN_AGENT_IO_ERROR_INVALID_ARGUMENT);
+        else if (!context->sensor_submitted)
+            context_error(context, MINISNN_AGENT_IO_ERROR_ACTION_BEFORE_SENSOR);
+        else if (!context->sensor_consumed)
+            context_error(context, MINISNN_AGENT_IO_ERROR_SENSOR_NOT_CONSUMED);
+        else if (context->action_submitted)
+            context_error(context, MINISNN_AGENT_IO_ERROR_ACTION_ALREADY_SUBMITTED);
+        else if (frame->tick != context->active_tick)
+            context_error(context, MINISNN_AGENT_IO_ERROR_ACTION_TICK_MISMATCH);
+        else if (error != MINISNN_AGENT_IO_ERROR_NONE)
+            context_error(context, error);
+        else
+            context_error(context, MINISNN_AGENT_IO_ERROR_VALUE_COUNT_MISMATCH);
+        return 0;
+    }
+    memcpy(context->pending_action.values, frame->values,
+           (size_t)frame->value_count * sizeof(*frame->values));
+    context->pending_action.tick = frame->tick;
+    memcpy(context->last_sensor.values, context->pending_sensor.values,
+           (size_t)context->pending_sensor.value_count *
+               sizeof(*context->pending_sensor.values));
+    context->last_sensor.tick = context->pending_sensor.tick;
+    memcpy(context->last_action.values, frame->values,
+           (size_t)frame->value_count * sizeof(*frame->values));
+    context->last_action.tick = frame->tick;
+    context->last_finished_tick = context->active_tick;
+    context->has_finished_tick = 1;
+    context->sensor_submitted = 0;
+    context->sensor_consumed = 0;
+    context->action_submitted = 0;
+    context->action_consumed = 0;
+    context->last_error = MINISNN_AGENT_IO_ERROR_NONE;
+    return 1;
+}
+
 int minisnn_agent_io_finish_tick(MiniSNNAgentIOContext *context)
 {
     if (context == NULL)

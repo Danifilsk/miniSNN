@@ -140,6 +140,16 @@ MiniSNNActionDecoder *minisnn_action_decoder_create(
 void minisnn_action_decoder_destroy(MiniSNNActionDecoder **decoder_ptr);
 void minisnn_action_decoder_reset(MiniSNNActionDecoder *decoder);
 
+/* Contract dimensions and schema identity; no internal buffers are exposed. */
+uint32_t minisnn_action_decoder_neuron_count(
+    const MiniSNNActionDecoder *decoder);
+uint32_t minisnn_action_decoder_brain_steps_per_tick(
+    const MiniSNNActionDecoder *decoder);
+uint32_t minisnn_action_decoder_action_count(
+    const MiniSNNActionDecoder *decoder);
+uint64_t minisnn_action_decoder_action_schema_signature(
+    const MiniSNNActionDecoder *decoder);
+
 uint64_t minisnn_action_decoding_mapping_signature(
     const MiniSNNActionDecoder *decoder);
 uint64_t minisnn_action_decoder_contract_signature(

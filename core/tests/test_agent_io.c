@@ -684,11 +684,66 @@ failure:
     return fail("contrato de frame, tick, isolamento ou atomicidade invalido");
 }
 
+static int test_atomic_action_publication(void)
+{
+    MiniSNNAgentIOError error = MINISNN_AGENT_IO_ERROR_NONE;
+    MiniSNNSensorSchema *sensor = create_sensor_schema(&error);
+    MiniSNNActionSchema *action = create_action_schema(&error);
+    MiniSNNAgentIOContext *context = NULL;
+    MiniSNNSensorFrame input = {0};
+    MiniSNNSensorFrame consumed_input = {0};
+    MiniSNNActionFrame output = {0};
+    MiniSNNActionFrame consumed_output = {0};
+
+    if (sensor == NULL || action == NULL ||
+        !minisnn_sensor_frame_init(&input, 2U) ||
+        !minisnn_sensor_frame_init(&consumed_input, 2U) ||
+        !minisnn_action_frame_init(&output, 2U) ||
+        !minisnn_action_frame_init(&consumed_output, 2U) ||
+        !set_sensor(&input, 7U, 0.5, -1.0) ||
+        !set_action(&output, 8U, 0.2, 3.0))
+        goto failure;
+    context = minisnn_agent_io_create(sensor, action, &error);
+    if (context == NULL || !minisnn_agent_io_submit_sensor_frame(context, &input) ||
+        !minisnn_agent_io_consume_sensor_frame(context, &consumed_input) ||
+        minisnn_agent_io_submit_action_and_finish_tick(context, &output) ||
+        minisnn_agent_io_last_error(context) !=
+            MINISNN_AGENT_IO_ERROR_ACTION_TICK_MISMATCH ||
+        minisnn_agent_io_action_pending(context))
+        goto failure;
+    if (!set_action(&output, 7U, 0.2, 3.0) ||
+        !minisnn_agent_io_submit_action_and_finish_tick(context, &output) ||
+        !minisnn_agent_io_action_pending(context) ||
+        !minisnn_agent_io_consume_action_frame(context, &consumed_output) ||
+        consumed_output.tick != 7U || consumed_output.values[0] != 0.2 ||
+        consumed_output.values[1] != 3.0)
+        goto failure;
+
+    minisnn_agent_io_destroy(&context);
+    minisnn_sensor_frame_destroy(&input);
+    minisnn_sensor_frame_destroy(&consumed_input);
+    minisnn_action_frame_destroy(&output);
+    minisnn_action_frame_destroy(&consumed_output);
+    minisnn_sensor_schema_destroy(&sensor);
+    minisnn_action_schema_destroy(&action);
+    return 1;
+
+failure:
+    minisnn_agent_io_destroy(&context);
+    minisnn_sensor_frame_destroy(&input);
+    minisnn_sensor_frame_destroy(&consumed_input);
+    minisnn_action_frame_destroy(&output);
+    minisnn_action_frame_destroy(&consumed_output);
+    minisnn_sensor_schema_destroy(&sensor);
+    minisnn_action_schema_destroy(&action);
+    return fail("publicacao atomica de action invalida");
+}
+
 int main(void)
 {
     if (!test_schema_contracts() || !test_signatures_and_serialization() ||
         !test_ascii_names_and_reader_errors() || !test_frame_public_errors() ||
-        !test_frames_and_context())
+        !test_frames_and_context() || !test_atomic_action_publication())
         return 1;
     printf("Agent I/O contracts validation OK\n");
     return 0;

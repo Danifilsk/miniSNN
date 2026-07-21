@@ -701,6 +701,17 @@ int minisnn_clear_pending_reward(MiniSNN *snn);
 Descarta reward e componentes ainda não aplicados, sem alterar pesos,
 elegibilidades ou estatísticas passadas.
 
+## minisnn_apply_pending_reward_now
+
+```c
+int minisnn_apply_pending_reward_now(MiniSNN *snn);
+```
+
+Aplica o reward R-STDP ja pendente pela mesma rotina C2 usada no step, mas sem
+avancar neuronios, produzir spikes, acumular candidatos STDP, executar
+homeostase ou alterar o contador de passos. Sem reward pendente, e um no-op
+bem-sucedido.
+
 ## minisnn_get_last_applied_reward
 
 ```c
@@ -861,6 +872,13 @@ int minisnn_reset_structural_plasticity(
     MiniSNN *snn,
     MiniSNNStructuralResetMode mode);
 ```
+
+## minisnn_test_get_structural_rate_trace
+
+Disponivel somente quando o Core e compilado com `MINISNN_TESTING`. Permite aos
+testes verificar que o reset transiente de episodio limpa rate traces da
+plasticidade estrutural sem apagar eventos, estatisticas ou o estado do PRNG.
+Nao faz parte da ABI de producao.
 
 `MINISNN_STRUCTURAL_RESET_STATE` preserva a topologia atual.
 `MINISNN_STRUCTURAL_RESTORE_INITIAL_TOPOLOGY` restaura arestas, pesos e delays
@@ -1117,3 +1135,46 @@ Escreve `action_decoder.txt` textual, versionado e independente de locale.
 ## minisnn_action_decoder_read_file
 Le o contrato textual e rejeita schema, assinatura, ranges ou formato
 incompativeis.
+
+## Ciclo cerebro-agente C7.4
+
+`include/minisnn_agent_cycle.h` define `MiniSNNAgentCycle`, que nao possui a
+rede, AgentIO, encoder nem decoder recebidos na criacao. O chamador mantem esses
+objetos vivos; o ciclo possui somente os frames temporarios e a fila de feedback.
+Ele valida contagem de neuronios, passos por tick e assinaturas completas dos
+schemas antes de evoluir a rede.
+
+`minisnn_agent_cycle_run_tick` executa, nesta ordem: feedback devido, consumo e
+codificacao do sensor, `apply_step` seguido de `minisnn_step` para cada passo,
+captura de atividade, decoding e
+`minisnn_agent_io_submit_action_and_finish_tick`. A action finalizada permanece
+no AgentIO para consumo externo. Falhas de preflight preservam todos os estados;
+falhas apos o primeiro passo colocam o ciclo em `FAULTED`, sem publicar action.
+
+`minisnn_agent_cycle_submit_feedback` recebe `source_tick`, `delivery_tick`,
+valor finito e `episode_terminal` estritamente `0` ou `1`. Eventos comuns
+(`0`) de `delivery_tick == T` chegam ao caminho publico de C2 antes do passo
+zero de T, na ordem de submissao. Um evento terminal (`1`) exige a action
+externa consumida, `source_tick == global_tick - 1` e `delivery_tick ==
+global_tick`; ele entrega os eventos comuns devidos e o terminal na fronteira
+do episodio por `minisnn_apply_pending_reward_now`, sem passo neural e sem reset
+automatico. Reward zero e no-op permitido sem R-STDP; reward nao zero exige
+R-STDP configurado.
+
+`minisnn_agent_cycle_reset_episode` exige action externa ja consumida. Ele
+mantem pesos, topologia, tipos e parametros, mas limpa correntes, estado
+fisiologico do modelo, spikes, traces STDP, eligibility R-STDP, reward pendente,
+frames e fases do encoder. `episode_tick` no diagnostico descreve o tick que
+acabou de executar; `global_tick` e o contador neural interno continuam
+monotonos. O reset remove feedback futuro do episodio, mas preserva topologia,
+pesos, delays, metadados e historico estrutural, limpando somente rate traces
+estruturais transitorios.
+
+## minisnn_reset_transient_state
+
+Limpa o estado dinamico da rede sem restaurar pesos, topologia, tipos ou
+parametros configurados. O reset inclui tensao e estado fisiologico do modelo,
+spikes, correntes externas e sinapticas pendentes, traces STDP, eligibility e
+reward pendente, estado de homeostase e cursor de delay. O contador neural e o
+historico/PRNG de plasticidade estrutural nao retrocedem; somente seus rate
+traces transitorios sao limpos. Retorna zero para uma rede invalida.
