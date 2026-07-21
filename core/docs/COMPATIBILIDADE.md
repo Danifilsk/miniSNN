@@ -1,5 +1,13 @@
 # Compatibilidade
 
+## C7.3 - Decodificacao de activity frames
+
+`action_decoder.txt` e um contrato textual novo e versionado. Ele exige o mesmo
+schema de actions, quantidade de neuronios e passos por tick; nomes de canais
+nao participam da politica. Mappings C7.1/C7.2 nao sao interpretados como
+decoder. A leitura rejeita assinatura, formato, sobreposicao e grupo WTA
+incompleto em vez de adotar conversao silenciosa.
+
 ## Compatibilidade C6
 
 Os tres protocolos cognitivos sao opt-in: configs sem `[working_memory]`,

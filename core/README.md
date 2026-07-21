@@ -180,8 +180,11 @@ bipolares ou pulsos de taxa deterministica. O encoder nao usa nomes como
 semantica, nao usa PRNG, nao forca spikes e nao avanca a rede; a aplicacao de
 um passo apenas limpa e define as correntes externas via API publica. Use
 `mingw32-make test-agent-io`, `mingw32-make test-sensor-encoder` e
-`mingw32-make scenario-sensor-encoding`. O C7.3, ainda pendente, decodificara
-atividade neural em acoes. Veja o
+`mingw32-make scenario-sensor-encoding`. O C7.3 adiciona
+`minisnn_action_decoder.h`: janela de spikes para actions numericas por
+population rate, diferenca bipolar, threshold e WTA. Use
+`mingw32-make test-action-decoder` e `mingw32-make scenario-action-decoding`.
+Veja o
 [Guia da interface cerebro-agente](docs/GUIA_DA_INTERFACE_CEREBRO_AGENTE.md).
 
 O demo C7.2 le de fato `configs/sensor_encoding_demo.ini`. A execucao preserva
@@ -275,9 +278,26 @@ reprodutibilidade e estresse de memória. Os testes
 Python e o validador documental são alvos separados. O escopo real de cada
 teste está em [Princípios de desenvolvimento](docs/PRINCIPIOS_DE_DESENVOLVIMENTO.md).
 
+## Decodificacao neural-acao C7.3
+
+O Core tambem possui um decoder abstrato de `spikes -> MiniSNNActionFrame`.
+Ele trabalha com janelas completas de atividade, schemas numericos e IDs de
+canais: nao conhece corpo, mapa ou significado externo de uma acao. Os modos
+disponiveis sao population rate, diferenca bipolar, threshold e WTA com
+desempate deterministico por menor ID. Execute:
+
+```powershell
+mingw32-make test-action-decoder
+mingw32-make scenario-action-decoding
+```
+
+O demo gera `config_source.ini`, `config_used.ini`, atividade, trace,
+`action_decoder.txt`, resumo e HTML em `results/scenarios/action_decoding_demo/`.
+
 ## Limitações atuais
 
-- O único modelo neural é o LIF simplificado, sem período refratário explícito.
+- O Core suporta LIF, AdEx e Hodg-Huxley; cada modelo exige calibracao propria
+  para obter atividade comparavel.
 - O STDP é aditivo, baseado em emissão e limitado a sinapses de origem EXC.
 - A homeostase é um controle simplificado e opcional; não garante estabilidade.
 - O reward é um escalar externo; não há política, agente, reward prediction error ou garantia de aprendizado de tarefa.

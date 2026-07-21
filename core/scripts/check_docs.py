@@ -65,8 +65,12 @@ IMPORTANT_FILES = (
     "src/agent_io.c",
     "include/minisnn_sensor_encoder.h",
     "src/sensor_encoder.c",
+    "include/minisnn_action_decoder.h",
+    "src/action_decoder.c",
     "app/sensor_encoding_demo_config.c",
     "app/sensor_encoding_demo_config.h",
+    "app/action_decoding_demo_config.c",
+    "app/action_decoding_demo_config.h",
     "app/minisnn_studio.c",
     "app/minisnn_runner.c",
     "app/scenario_config.c",
@@ -162,6 +166,8 @@ IMPORTANT_FILES = (
     "tests/test_agent_io.c",
     "tests/test_sensor_encoder.c",
     "tests/test_sensor_encoding_demo.py",
+    "tests/test_action_decoder.c",
+    "tests/test_action_decoding_demo.py",
 )
 
 REQUIRED_TARGETS = (
@@ -245,6 +251,8 @@ REQUIRED_TARGETS = (
     "scenario-associative-memory",
     "check-c6",
     "test-agent-io",
+    "test-action-decoder",
+    "scenario-action-decoding",
     "check-c7",
 )
 

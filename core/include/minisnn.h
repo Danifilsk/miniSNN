@@ -7,6 +7,7 @@
 typedef struct MiniSNN MiniSNN;
 
 #include "minisnn_sensor_encoder.h"
+#include "minisnn_action_decoder.h"
 
 typedef struct
 {

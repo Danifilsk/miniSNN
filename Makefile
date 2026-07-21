@@ -12,7 +12,7 @@ endif
 endif
 CORE_DIR = core
 
-.PHONY: all help clean core core-tests core-studio core-evolution test test-architecture test-working-memory test-associative-memory test-sequence-prediction test-c6-checkpoints test-c6-integration test-c6-long test-agent-io test-sensor-encoder scenario-working-memory scenario-associative-memory scenario-sequence-prediction scenario-sequence-prediction-context scenario-c6-suite scenario-sensor-encoding check-c6 check-c7
+.PHONY: all help clean core core-tests core-studio core-evolution test test-architecture test-working-memory test-associative-memory test-sequence-prediction test-c6-checkpoints test-c6-integration test-c6-long test-agent-io test-sensor-encoder test-action-decoder scenario-working-memory scenario-associative-memory scenario-sequence-prediction scenario-sequence-prediction-context scenario-c6-suite scenario-sensor-encoding scenario-action-decoding check-c6 check-c7
 
 all: test
 
@@ -34,7 +34,9 @@ help:
 	@echo   mingw32-make test-agent-io     - valida contratos de I/O C7.1
 	@echo   mingw32-make test-sensor-encoder - valida codificacao sensor-neural C7.2
 	@echo   mingw32-make scenario-sensor-encoding - executa o demo C7.2
-	@echo   mingw32-make check-c7          - verifica C7.1 e C7.2
+	@echo   mingw32-make test-action-decoder - valida decodificacao neural-acao C7.3
+	@echo   mingw32-make scenario-action-decoding - executa o demo C7.3
+	@echo   mingw32-make check-c7          - verifica C7.1-C7.3
 	@echo   mingw32-make test             - testes do Core e arquitetura do monorepo
 	@echo   mingw32-make test-architecture - valida isolamento e estrutura M1
 	@echo   mingw32-make <target-do-core> - encaminha targets legados ao Core
@@ -75,6 +77,9 @@ test-agent-io:
 test-sensor-encoder:
 	$(MAKE) -C $(CORE_DIR) test-sensor-encoder
 
+test-action-decoder:
+	$(MAKE) -C $(CORE_DIR) test-action-decoder
+
 scenario-working-memory:
 	$(MAKE) -C $(CORE_DIR) scenario-working-memory
 
@@ -92,6 +97,9 @@ scenario-c6-suite:
 
 scenario-sensor-encoding:
 	$(MAKE) -C $(CORE_DIR) scenario-sensor-encoding
+
+scenario-action-decoding:
+	$(MAKE) -C $(CORE_DIR) scenario-action-decoding
 
 check-c6:
 	$(MAKE) -C $(CORE_DIR) check-c6

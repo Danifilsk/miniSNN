@@ -1,5 +1,13 @@
 # Arquitetura do Core
 
+## C7.3 - Decoder de atividade
+
+`src/action_decoder.c` e um modulo de borda neural: le apenas indices de
+neuronios, spikes, passos, ticks e schemas numericos. Ele fica fora de
+`network.c`, nao chama o passo neural e nao conhece semantica de dominio.
+`app/action_decoding_demo*.c` mantem o parsing INI e os casos de demonstracao
+fora do Core neural.
+
 ## R-STDP opcional
 
 `src/plasticity.c` continua sendo a fonte única do candidato temporal do STDP.

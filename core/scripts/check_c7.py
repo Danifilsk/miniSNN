@@ -13,6 +13,13 @@ ENCODER_TEST = ROOT / "tests" / "test_sensor_encoder.c"
 DEMO_CONFIG_SOURCE = ROOT / "app" / "sensor_encoding_demo_config.c"
 DEMO_CONFIG_HEADER = ROOT / "app" / "sensor_encoding_demo_config.h"
 DEMO_TEST = ROOT / "tests" / "test_sensor_encoding_demo.py"
+DECODER_SOURCE = ROOT / "src" / "action_decoder.c"
+DECODER_HEADER = ROOT / "include" / "minisnn_action_decoder.h"
+DECODER_TEST = ROOT / "tests" / "test_action_decoder.c"
+DECODER_DEMO = ROOT / "app" / "action_decoding_demo.c"
+DECODER_CONFIG_SOURCE = ROOT / "app" / "action_decoding_demo_config.c"
+DECODER_CONFIG_HEADER = ROOT / "app" / "action_decoding_demo_config.h"
+DECODER_DEMO_TEST = ROOT / "tests" / "test_action_decoding_demo.py"
 MAKEFILE = ROOT / "Makefile"
 
 
@@ -23,7 +30,9 @@ def fail(message: str) -> None:
 
 def main() -> None:
     for path in (SOURCE, HEADER, TEST, ENCODER_SOURCE, ENCODER_HEADER, ENCODER_TEST,
-                 DEMO_CONFIG_SOURCE, DEMO_CONFIG_HEADER, DEMO_TEST):
+                 DEMO_CONFIG_SOURCE, DEMO_CONFIG_HEADER, DEMO_TEST, DECODER_SOURCE,
+                 DECODER_HEADER, DECODER_TEST, DECODER_DEMO, DECODER_CONFIG_SOURCE,
+                 DECODER_CONFIG_HEADER, DECODER_DEMO_TEST):
         if not path.is_file():
             fail(f"arquivo obrigatorio ausente: {path.relative_to(ROOT)}")
 
@@ -35,6 +44,12 @@ def main() -> None:
     encoder_test = ENCODER_TEST.read_text(encoding="utf-8")
     demo_config_source = DEMO_CONFIG_SOURCE.read_text(encoding="utf-8")
     demo_test = DEMO_TEST.read_text(encoding="utf-8")
+    decoder_source = DECODER_SOURCE.read_text(encoding="utf-8")
+    decoder_header = DECODER_HEADER.read_text(encoding="utf-8")
+    decoder_test = DECODER_TEST.read_text(encoding="utf-8")
+    decoder_demo = DECODER_DEMO.read_text(encoding="utf-8")
+    decoder_config_source = DECODER_CONFIG_SOURCE.read_text(encoding="utf-8")
+    decoder_demo_test = DECODER_DEMO_TEST.read_text(encoding="utf-8")
     makefile = MAKEFILE.read_text(encoding="utf-8")
 
     for token in (
@@ -182,11 +197,76 @@ def main() -> None:
         if token not in test:
             fail(f"cobertura de teste C7.1 ausente: {token}")
 
-    for target in ("test-agent-io", "test-sensor-encoder", "scenario-sensor-encoding", "check-c7"):
+    for token in (
+        "MiniSNNNeuralActivityFrame",
+        "MiniSNNActionDecodingSpec",
+        "MINISNN_ACTION_DECODING_POPULATION_RATE",
+        "MINISNN_ACTION_DECODING_BIPOLAR_DIFFERENCE",
+        "MINISNN_ACTION_DECODING_THRESHOLD",
+        "MINISNN_ACTION_DECODING_WTA_MEMBER",
+        "minisnn_neural_activity_frame_capture_step",
+        "minisnn_action_decoder_decode",
+        "minisnn_action_decoder_decode_to_agent_io",
+        "minisnn_action_decoder_write_file",
+        "minisnn_action_decoder_read_file",
+    ):
+        if token not in decoder_header:
+            fail(f"API C7.3 ausente: {token}")
+    if "minisnn_agent_io_action_schema_signature" not in header:
+        fail("accessor de assinatura de action schema C7.3 ausente")
+
+    for token in (
+        "ACTION_DECODER_FNV_OFFSET",
+        "UINT64_C(14695981039346656037)",
+        "population_rate",
+        "minimum_confidence",
+        "minisnn_get_spike",
+        "minisnn_agent_io_action_schema_signature",
+        "minisnn_agent_io_submit_action_frame",
+        "ACTION_DECODER_TEXT_VERSION",
+        "fgetc(file) != EOF",
+    ):
+        if token not in decoder_source:
+            fail(f"contrato C7.3 ausente: {token}")
+
+    decoder_forbidden = tuple(term for term in forbidden if term != "map") + (
+        "lifneuron", "minisnn_step(", "reward", "sensor_encoder", "finish_tick(",
+    )
+    lowered_decoder = (decoder_source + "\n" + decoder_header).lower()
+    for term in decoder_forbidden:
+        if re.search(rf"\b{re.escape(term)}", lowered_decoder):
+            fail(f"termo proibido no decoder C7.3: {term}")
+    if ".name" in decoder_source or "channel_name" in decoder_source:
+        fail("decoder C7.3 nao pode depender do nome de canal")
+
+    for token in (
+        "action_decoding_demo_config_load_file",
+        "action_decoding_demo_config_write_file",
+        "neuron_model_from_name",
+        "spec->action_channel_id = config->actions[action_index].id",
+    ):
+        if token not in decoder_config_source:
+            fail(f"parser efetivo do demo C7.3 ausente: {token}")
+    for token in (
+        "test_activity_frame", "test_modes_atomicity_and_signatures",
+        "test_defaults_agent_io_and_capture", "test_creation_contracts_and_signatures",
+        "test_wta_contracts", "test_agent_io_schema_signature_contract",
+        "test_file_rejections", "UINT64_C(1630198257262049785)",
+    ):
+        if token not in decoder_test:
+            fail(f"cobertura de teste C7.3 ausente: {token}")
+    for token in ("config_source.ini", "config_used.ini", "action_decoding_alternate"):
+        if token not in decoder_demo_test:
+            fail(f"proveniencia de demo C7.3 ausente: {token}")
+    if "minisnn_step(network)" not in decoder_demo:
+        fail("demo C7.3 nao produz atividade pela API publica")
+
+    for target in ("test-agent-io", "test-sensor-encoder", "scenario-sensor-encoding",
+                   "test-action-decoder", "scenario-action-decoding", "check-c7"):
         if target not in makefile:
             fail(f"target Makefile ausente: {target}")
 
-    print("C7.2 sensor encoding validation OK")
+    print("C7.3 action decoding validation OK")
 
 
 if __name__ == "__main__":

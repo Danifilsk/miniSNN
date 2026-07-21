@@ -966,6 +966,14 @@ sao rejeitados.
 `minisnn_agent_io_contract_signature` usam FNV-1a 64-bit padrao com serializacao
 explicita da versao, quantidade, id, nome, minimo, maximo e default.
 
+`minisnn_agent_io_action_schema_signature` retorna a assinatura do schema de
+acao copiado pelo contexto, ou zero para contexto nulo.
+
+## minisnn_agent_io_action_schema_signature
+Consulta sem mutacao a assinatura do schema de acao privado de um contexto
+AgentIO. O decoder C7.3 usa essa assinatura para rejeitar submissao para schema
+incompativel antes de alterar o contexto.
+
 ### Frames e ciclo por tick
 
 Inicialize `MiniSNNSensorFrame` e `MiniSNNActionFrame` com `{0}` e use as
@@ -1025,3 +1033,87 @@ distingue argumento invalido, dimensao incompativel e corrente nao finita.
 serializacao explicita. `minisnn_sensor_encoder_write_file` e `read_file`
 persistem o contrato textual versionado e rejeitam schema ou assinatura
 incompativel.
+
+## Decodificacao neural-acao C7.3
+
+`MiniSNNNeuralActivityFrame` pertence ao chamador e armazena spikes em ordem
+`spikes[brain_step][neuron]`. Ele nao retem ponteiros da rede: cada passo e
+capturado uma vez pela API publica e o decoder exige a janela completa.
+
+## minisnn_neural_activity_frame_init
+Inicializa buffers proprietarios de spikes e flags de captura.
+
+## minisnn_neural_activity_frame_destroy
+Libera os buffers do frame e zera a estrutura.
+
+## minisnn_neural_activity_frame_reset
+Limpa spikes e passos capturados para um novo tick.
+
+## minisnn_neural_activity_frame_copy
+Copia um frame compativel sem compartilhar buffers.
+
+## minisnn_neural_activity_frame_capture_step
+Le os spikes atuais por `minisnn_get_spike` sem avancar nem limpar a rede.
+
+## minisnn_neural_activity_frame_set_step
+Define um passo por buffer para testes, aceitando somente spikes `0` ou `1`.
+
+## minisnn_neural_activity_frame_get_spike
+Consulta um spike capturado por passo e indice neuronal.
+
+## minisnn_neural_activity_frame_validate
+Valida dimensoes, buffers, flags e valores binarios.
+
+## minisnn_neural_activity_frame_is_complete
+Confirma que todos os passos neurais previstos foram capturados.
+
+## minisnn_action_decoding_diagnostics_init
+Inicializa buffers opcionais por canal para score, confianca, selecao e valor.
+
+## minisnn_action_decoding_diagnostics_destroy
+Libera os buffers de diagnostico.
+
+## minisnn_action_decoding_diagnostics_reset
+Limpa diagnosticos sem alterar o decoder.
+
+## minisnn_action_decoder_create
+Cria decoder com copia do schema de action e mappings validados. Ranges de
+neuronios nao podem se sobrepor neste C7.3.
+
+## minisnn_action_decoder_destroy
+Libera o decoder e seus buffers internos.
+
+## minisnn_action_decoder_reset
+Limpa apenas o ultimo erro; o decoder nao mantem estado dinamico de decisao.
+
+## minisnn_action_decoding_mapping_signature
+Retorna assinatura FNV-1a versionada dos campos ativos dos mappings.
+
+## minisnn_action_decoder_contract_signature
+Retorna assinatura do contrato do decoder.
+
+## minisnn_action_decoder_last_error
+Consulta o ultimo erro local do decoder.
+
+## minisnn_action_decoder_error_string
+Converte um erro C7.3 em texto diagnostico.
+
+## minisnn_action_decoder_decode
+Decodifica uma janela completa atomicamente. Population rate usa clamp explicito;
+bipolar usa default quando ambas populacoes silenciam; threshold compara
+`rate >= threshold`; WTA exige ativacao e confianca, desempata pelo menor ID do
+canal e restaura defaults quando nao ha vencedor valido.
+
+## minisnn_action_decoder_decode_to_agent_io
+Produz e submete a action ao contexto C7.1, mas nao chama `finish_tick`, nao
+consome action e nao inicia tick. Recusa do AgentIO preserva diagnosticos do
+chamador. Antes de decodificar, exige schema de acao identico ao copiado pelo
+AgentIO; incompatibilidade retorna `SIGNATURE_MISMATCH` sem alterar o contexto,
+o action frame temporario ou os diagnosticos do chamador.
+
+## minisnn_action_decoder_write_file
+Escreve `action_decoder.txt` textual, versionado e independente de locale.
+
+## minisnn_action_decoder_read_file
+Le o contrato textual e rejeita schema, assinatura, ranges ou formato
+incompativeis.

@@ -473,6 +473,7 @@ static int test_frames_and_context(void)
     MiniSNNActionFrame copied_action = {0};
     const double nonfinite[] = {NAN, 0.0};
     const double outside[] = {2.0, 0.0};
+    uint64_t action_signature = 0U;
 
     if (sensor == NULL || action == NULL ||
         !minisnn_sensor_frame_init(&sensor_frame, 2U) ||
@@ -496,6 +497,7 @@ static int test_frames_and_context(void)
     }
     first = minisnn_agent_io_create(sensor, action, &error);
     second = minisnn_agent_io_create(sensor, action, &error);
+    action_signature = minisnn_action_schema_signature(action);
     if (!minisnn_sensor_frame_reset(&sensor_frame, sensor, &error) ||
         sensor_frame.values[0] != 0.25 || sensor_frame.values[1] != 0.0 ||
         !minisnn_action_frame_reset(&action_frame, action, &error) ||
@@ -508,7 +510,11 @@ static int test_frames_and_context(void)
     if (first == NULL || second == NULL ||
         minisnn_agent_io_contract_signature(first) == 0U ||
         minisnn_agent_io_contract_signature(first) !=
-            minisnn_agent_io_contract_signature(second))
+            minisnn_agent_io_contract_signature(second) || action_signature == 0U ||
+        minisnn_agent_io_action_schema_signature(NULL) != 0U ||
+        minisnn_agent_io_action_schema_signature(first) != action_signature ||
+        minisnn_agent_io_action_schema_signature(first) !=
+            minisnn_agent_io_action_schema_signature(second))
         goto failure;
 
     if (minisnn_agent_io_submit_action_frame(first, &action_frame) ||

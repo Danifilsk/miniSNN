@@ -1,5 +1,34 @@
 # Guia da interface cerebro-agente
 
+## Decodificacao de atividade C7.3
+
+`MiniSNNActionDecoder` recebe um `MiniSNNNeuralActivityFrame` proprietario do
+chamador. A matriz e `spikes[brain_step][neuron]`; todos os passos devem ser
+capturados antes da decisao. `capture_step` le `minisnn_get_spike`, nao chama
+`minisnn_step` e nao limpa o estado neural.
+
+Os mappings usam somente `action_channel_id` e intervalos de neuronios. Os
+modos sao `population_rate`, `bipolar_difference`, `threshold` e `wta_member`.
+Population rate limita explicitamente entre `minimum_rate` e `maximum_rate`;
+bipolar silencioso usa o default do canal; WTA calcula confianca como diferenca
+entre vencedor e segundo colocado e desempata pelo menor ID. Esse desempate e
+apenas deterministico, nao e preferencia semantica.
+
+`minisnn_action_decoder_decode_to_agent_io` valida a janela, produz a action e
+chama somente `minisnn_agent_io_submit_action_frame`. Ele nao finaliza o tick,
+nao consome a action e nao inicia outro tick. Falhas preservam frame e
+diagnosticos anteriores. Antes do decode, o decoder compara sua assinatura de
+schema de acao com a copia privada do AgentIO; diferenca retorna
+`SIGNATURE_MISMATCH` sem alterar o contexto. `action_decoder.txt` persiste schema signature,
+dimensoes, mappings ativos e assinaturas FNV-1a versionadas.
+
+O demo `mingw32-make scenario-action-decoding` usa o INI autoritativo em
+`configs/action_decoding_demo.ini` e registra `config_source.ini` byte a byte,
+`config_used.ini` canonico, atividade, trace, resumo e HTML. C7.3 nao
+implementa recompensa, consequencia externa, reset de episodio, Studio ou
+ciclo cerebro-agente completo; gera intencoes numericas abstratas cujo
+significado pertence a uma camada de dominio posterior.
+
 ## Objetivo
 
 C7.1 define uma fronteira numerica e deterministica entre um produtor de
@@ -140,9 +169,9 @@ para IDs somente nessa fronteira e rejeita secoes, chaves e valores invalidos.
 
 ## Limitacoes
 
-C7.2 nao implementa decodificacao, recompensa, reset da rede neural, evolucao,
-Studio ou qualquer camada de dominio. Ele tambem nao chama o passo neural e nao
-forca spikes. C7.3 cuidara somente da decodificacao de acoes.
+C7.2 permanece restrito a codificacao de sensores: nao implementa recompensa,
+reset da rede neural, evolucao, Studio ou camada de dominio. Ele tambem nao
+chama o passo neural e nao forca spikes.
 
 ## Validacao
 

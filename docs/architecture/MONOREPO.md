@@ -1,5 +1,12 @@
 # Arquitetura do monorepo
 
+## C7.3 - Decodificacao neural-acao
+
+O modulo publico `core/include/minisnn_action_decoder.h` e sua implementacao
+em `core/src/action_decoder.c` pertencem ao Core. O parser e demo
+`core/app/action_decoding_demo_config.c` e `core/app/action_decoding_demo.c`
+ficam na camada de aplicacao. Nenhum modulo C7 contem semantica de Worlds.
+
 ## M1: miniSNN Core
 
 `core/` contem a biblioteca, os runners, o Studio, configuracoes, testes,

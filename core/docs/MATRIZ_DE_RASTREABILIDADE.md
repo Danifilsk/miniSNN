@@ -1,5 +1,13 @@
 # Matriz de rastreabilidade
 
+## C7.3 - Decodificacao neural para acoes
+
+| Requisito | Implementacao | Validacao |
+| --- | --- | --- |
+| Frame proprietario de atividade | `include/minisnn_action_decoder.h`, `src/action_decoder.c` | `tests/test_action_decoder.c` |
+| Politicas e WTA deterministico | `MiniSNNActionDecodingSpec` | `mingw32-make test-action-decoder` |
+| Demo INI e proveniencia | `app/action_decoding_demo_config.c` | `tests/test_action_decoding_demo.py` |
+
 | Feature | Configuração | Implementação | Teste | Saída observável | Documentação | Status |
 |---|---|---|---|---|---|---|
 | Memoria de trabalho C6.1 | `[working_memory]` | `app/working_memory.c` | `test_working_memory`, integracao e long run | trials, resumo e HTML | [Memoria de trabalho](GUIA_DE_MEMORIA_DE_TRABALHO.md) | Dinamica; apagada por reset |
