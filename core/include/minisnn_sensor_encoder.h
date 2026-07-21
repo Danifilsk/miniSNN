@@ -135,4 +135,12 @@ MiniSNNSensorEncoder *minisnn_sensor_encoder_read_file(
     const MiniSNNSensorSchema *sensor_schema,
     MiniSNNSensorEncoderError *out_error);
 
+#ifdef MINISNN_TESTING
+/* Test-only visibility for checkpoint/replay verification. */
+int minisnn_test_sensor_encoder_phase(
+    const MiniSNNSensorEncoder *encoder,
+    uint32_t mapping_index,
+    double *out_phase);
+#endif
+
 #endif

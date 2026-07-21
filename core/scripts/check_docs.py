@@ -554,7 +554,8 @@ def validate_docs(root: Path) -> list[str]:
         "C7.2 - codificacao generica de sensores numericos para entrada neural",
         "C7.3 - decodificacao generica de atividade neural para acoes numericas",
         "C7.4 - reward, reset e ciclo cerebro-agente",
-        "C7.5 - integracao e auditoria da interface cerebro-agente",
+        "C7.5-A - persistencia, resume e replay deterministico do ciclo cerebro-agente",
+        "C7.5-B - integracao e auditoria final da interface cerebro-agente",
         "D1 — auditoria e congelamento do Core antes do Worlds",
         "Worlds Kernel -> Domain minimo -> Brain Bridge -> organismo headless -> App minimo -> D2 pos-integracao",
     ):

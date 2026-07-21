@@ -6,6 +6,7 @@
 #include <string.h>
 
 #include "minisnn.h"
+#include "agent_cycle_checkpoint_internal.h"
 
 #define SENSOR_ENCODER_FNV_OFFSET UINT64_C(14695981039346656037)
 #define SENSOR_ENCODER_FNV_PRIME UINT64_C(1099511628211)
@@ -647,6 +648,20 @@ MiniSNNSensorEncoderError minisnn_sensor_encoder_last_error(
         MINISNN_SENSOR_ENCODER_ERROR_INVALID_ARGUMENT;
 }
 
+#ifdef MINISNN_TESTING
+int minisnn_test_sensor_encoder_phase(
+    const MiniSNNSensorEncoder *encoder,
+    uint32_t mapping_index,
+    double *out_phase)
+{
+    if (encoder == NULL || out_phase == NULL ||
+        mapping_index >= encoder->mapping_count || encoder->phases == NULL)
+        return 0;
+    *out_phase = encoder->phases[mapping_index];
+    return isfinite(*out_phase);
+}
+#endif
+
 const char *minisnn_sensor_encoder_error_string(MiniSNNSensorEncoderError error)
 {
     static const char *const messages[] =
@@ -861,6 +876,7 @@ static int parse_mapping(const char *line, MiniSNNSensorEncodingSpec *out_spec)
     char copy[SENSOR_ENCODER_TEXT_LINE_MAX];
     char *fields[9] = {0};
     char *cursor;
+    char *delimiter;
     uint32_t raw_mode;
     uint64_t bits[4];
 
@@ -869,15 +885,16 @@ static int parse_mapping(const char *line, MiniSNNSensorEncodingSpec *out_spec)
         return 0;
     strcpy(copy, line + 8U);
     cursor = copy;
-    for (int index = 0; index < 9; index++)
+    for (int index = 0; index < 8; index++)
     {
         fields[index] = cursor;
-        cursor = index == 8 ? NULL : strchr(cursor, '|');
-        if (cursor == NULL && index != 8)
+        delimiter = strchr(cursor, '|');
+        if (delimiter == NULL)
             return 0;
-        if (cursor != NULL)
-            *cursor++ = '\0';
+        *delimiter = '\0';
+        cursor = delimiter + 1U;
     }
+    fields[8] = cursor;
     if (strchr(fields[8], '|') != NULL ||
         !parse_u32(fields[0], &out_spec->sensor_channel_id) ||
         !parse_u32(fields[1], &out_spec->target_neuron_start) ||
@@ -981,4 +998,133 @@ format_failure:
     free(mappings);
     set_error(out_error, MINISNN_SENSOR_ENCODER_ERROR_FORMAT);
     return NULL;
+}
+
+static int checkpoint_write_u32(FILE *file, uint32_t value)
+{
+    unsigned char bytes[4];
+    for (unsigned int shift = 0U; shift < 32U; shift += 8U)
+        bytes[shift / 8U] = (unsigned char)((value >> shift) & 0xffU);
+    return fwrite(bytes, 1U, sizeof(bytes), file) == sizeof(bytes);
+}
+
+static int checkpoint_write_u64(FILE *file, uint64_t value)
+{
+    unsigned char bytes[8];
+    for (unsigned int shift = 0U; shift < 64U; shift += 8U)
+        bytes[shift / 8U] = (unsigned char)((value >> shift) & 0xffU);
+    return fwrite(bytes, 1U, sizeof(bytes), file) == sizeof(bytes);
+}
+
+static int checkpoint_read_u32(FILE *file, uint32_t *out_value)
+{
+    unsigned char bytes[4];
+    uint32_t value = 0U;
+    if (out_value == NULL || fread(bytes, 1U, sizeof(bytes), file) != sizeof(bytes))
+        return 0;
+    for (unsigned int shift = 0U; shift < 32U; shift += 8U)
+        value |= (uint32_t)bytes[shift / 8U] << shift;
+    *out_value = value;
+    return 1;
+}
+
+static int checkpoint_read_u64(FILE *file, uint64_t *out_value)
+{
+    unsigned char bytes[8];
+    uint64_t value = 0U;
+    if (file == NULL || out_value == NULL ||
+        fread(bytes, 1U, sizeof(bytes), file) != sizeof(bytes))
+        return 0;
+    for (unsigned int shift = 0U; shift < 64U; shift += 8U)
+        value |= (uint64_t)bytes[shift / 8U] << shift;
+    *out_value = value;
+    return 1;
+}
+
+static int checkpoint_write_double(FILE *file, double value)
+{
+    return isfinite(value) && checkpoint_write_u64(file, double_bits(value));
+}
+
+static int checkpoint_read_double(FILE *file, double *out_value)
+{
+    uint64_t bits;
+    if (file == NULL || out_value == NULL || !checkpoint_read_u64(file, &bits))
+        return 0;
+    *out_value = bits_double(bits);
+    return isfinite(*out_value);
+}
+
+int minisnn_sensor_encoder_checkpoint_write(const MiniSNNSensorEncoder *encoder,
+                                            FILE *file)
+{
+    if (encoder == NULL || file == NULL ||
+        (encoder->mapping_count > 0U &&
+         (encoder->phases == NULL || encoder->next_phases == NULL)))
+        return 0;
+    if (!checkpoint_write_u32(file, UINT32_C(0x41374332)) ||
+        !checkpoint_write_u64(file, encoder->contract_signature) ||
+        !checkpoint_write_u64(file, encoder->mapping_signature) ||
+        !checkpoint_write_u32(file, encoder->mapping_count))
+        return 0;
+    for (uint32_t index = 0U; index < encoder->mapping_count; index++)
+    {
+        if (!checkpoint_write_double(file, encoder->phases[index]) ||
+            !checkpoint_write_double(file, encoder->next_phases[index]))
+            return 0;
+    }
+    return 1;
+}
+
+int minisnn_sensor_encoder_checkpoint_load(MiniSNNSensorEncoder *encoder,
+                                           FILE *file)
+{
+    uint32_t magic, count;
+    uint64_t contract, mapping;
+    double *phases = NULL;
+    double *next_phases = NULL;
+    int ok = 0;
+
+    if (encoder == NULL || file == NULL ||
+        (encoder->mapping_count > 0U &&
+         (encoder->phases == NULL || encoder->next_phases == NULL)))
+        return 0;
+    if (encoder->mapping_count > 0U)
+    {
+        phases = calloc(encoder->mapping_count, sizeof(*phases));
+        next_phases = calloc(encoder->mapping_count, sizeof(*next_phases));
+        if (phases == NULL || next_phases == NULL)
+            goto done;
+    }
+    if (!checkpoint_read_u32(file, &magic) || magic != UINT32_C(0x41374332) ||
+        !checkpoint_read_u64(file, &contract) || contract != encoder->contract_signature ||
+        !checkpoint_read_u64(file, &mapping) || mapping != encoder->mapping_signature ||
+        !checkpoint_read_u32(file, &count) || count != encoder->mapping_count)
+        goto done;
+    /* count == 0 has no phase buffers to access. When count is positive,
+     * the temporary buffers allocated above are mandatory before indexing. */
+    if (count > 0U && (phases == NULL || next_phases == NULL))
+        goto done;
+    for (uint32_t index = 0U; index < count; index++)
+    {
+        if (!checkpoint_read_double(file, &phases[index]) ||
+            !checkpoint_read_double(file, &next_phases[index]) ||
+            phases[index] < 0.0 || phases[index] >= 1.0 ||
+            next_phases[index] < 0.0 || next_phases[index] >= 1.0)
+            goto done;
+    }
+    if (fgetc(file) != EOF)
+        goto done;
+    if (count > 0U)
+    {
+        memcpy(encoder->phases, phases, (size_t)count * sizeof(*phases));
+        memcpy(encoder->next_phases, next_phases,
+               (size_t)count * sizeof(*next_phases));
+    }
+    encoder->last_error = MINISNN_SENSOR_ENCODER_ERROR_NONE;
+    ok = 1;
+done:
+    free(phases);
+    free(next_phases);
+    return ok;
 }

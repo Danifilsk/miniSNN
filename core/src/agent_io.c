@@ -1,4 +1,5 @@
 #include "minisnn_agent_io.h"
+#include "agent_cycle_checkpoint_internal.h"
 
 #include <errno.h>
 #include <math.h>
@@ -1503,4 +1504,229 @@ MiniSNNActionSchema *minisnn_action_schema_read_file(
         return NULL;
     }
     return schema;
+}
+
+/* C7.5-A private snapshot helpers. The on-disk representation is made of
+ * fixed-width primitives only; schemas themselves are supplied by the live
+ * context and are checked through their signatures before state is committed. */
+static int checkpoint_write_u32(FILE *file, uint32_t value)
+{
+    unsigned char bytes[4];
+    for (unsigned int shift = 0U; shift < 32U; shift += 8U)
+        bytes[shift / 8U] = (unsigned char)((value >> shift) & 0xffU);
+    return fwrite(bytes, 1U, sizeof(bytes), file) == sizeof(bytes);
+}
+
+static int checkpoint_write_u64(FILE *file, uint64_t value)
+{
+    unsigned char bytes[8];
+    for (unsigned int shift = 0U; shift < 64U; shift += 8U)
+        bytes[shift / 8U] = (unsigned char)((value >> shift) & 0xffU);
+    return fwrite(bytes, 1U, sizeof(bytes), file) == sizeof(bytes);
+}
+
+static int checkpoint_read_u32(FILE *file, uint32_t *out_value)
+{
+    unsigned char bytes[4];
+    uint32_t value = 0U;
+    if (out_value == NULL || fread(bytes, 1U, sizeof(bytes), file) != sizeof(bytes))
+        return 0;
+    for (unsigned int shift = 0U; shift < 32U; shift += 8U)
+        value |= (uint32_t)bytes[shift / 8U] << shift;
+    *out_value = value;
+    return 1;
+}
+
+static int checkpoint_read_u64(FILE *file, uint64_t *out_value)
+{
+    unsigned char bytes[8];
+    uint64_t value = 0U;
+    if (out_value == NULL || fread(bytes, 1U, sizeof(bytes), file) != sizeof(bytes))
+        return 0;
+    for (unsigned int shift = 0U; shift < 64U; shift += 8U)
+        value |= (uint64_t)bytes[shift / 8U] << shift;
+    *out_value = value;
+    return 1;
+}
+
+static int checkpoint_write_double(FILE *file, double value)
+{
+    return isfinite(value) && checkpoint_write_u64(file, double_bits(value));
+}
+
+static int checkpoint_read_double(FILE *file, double *out_value)
+{
+    uint64_t bits;
+    if (!checkpoint_read_u64(file, &bits))
+        return 0;
+    *out_value = bits_double(bits);
+    return isfinite(*out_value);
+}
+
+static int checkpoint_write_frame(FILE *file, const MiniSNNSensorFrame *frame)
+{
+    if (frame == NULL || frame->values == NULL ||
+        !checkpoint_write_u64(file, frame->tick) ||
+        !checkpoint_write_u32(file, frame->value_count))
+        return 0;
+    for (uint32_t index = 0U; index < frame->value_count; index++)
+        if (!checkpoint_write_double(file, frame->values[index]))
+            return 0;
+    return 1;
+}
+
+static int checkpoint_write_action_frame(FILE *file,
+                                         const MiniSNNActionFrame *frame)
+{
+    if (frame == NULL || frame->values == NULL ||
+        !checkpoint_write_u64(file, frame->tick) ||
+        !checkpoint_write_u32(file, frame->value_count))
+        return 0;
+    for (uint32_t index = 0U; index < frame->value_count; index++)
+        if (!checkpoint_write_double(file, frame->values[index]))
+            return 0;
+    return 1;
+}
+
+static int checkpoint_read_sensor_values(FILE *file, MiniSNNSensorFrame *frame,
+                                         uint32_t expected_count)
+{
+    uint32_t count;
+    if (frame == NULL || frame->values == NULL ||
+        !checkpoint_read_u64(file, &frame->tick) ||
+        !checkpoint_read_u32(file, &count) || count != expected_count)
+        return 0;
+    for (uint32_t index = 0U; index < count; index++)
+        if (!checkpoint_read_double(file, &frame->values[index]))
+            return 0;
+    return 1;
+}
+
+static int checkpoint_read_action_values(FILE *file, MiniSNNActionFrame *frame,
+                                         uint32_t expected_count)
+{
+    uint32_t count;
+    if (frame == NULL || frame->values == NULL ||
+        !checkpoint_read_u64(file, &frame->tick) ||
+        !checkpoint_read_u32(file, &count) || count != expected_count)
+        return 0;
+    for (uint32_t index = 0U; index < count; index++)
+        if (!checkpoint_read_double(file, &frame->values[index]))
+            return 0;
+    return 1;
+}
+
+int minisnn_agent_io_checkpoint_write(const MiniSNNAgentIOContext *context,
+                                      FILE *file)
+{
+    const uint32_t magic = UINT32_C(0x41374331); /* A7C1 */
+    if (context == NULL || file == NULL || context->pending_sensor.values == NULL ||
+        context->pending_action.values == NULL || context->last_sensor.values == NULL ||
+        context->last_action.values == NULL)
+        return 0;
+    return checkpoint_write_u32(file, magic) && checkpoint_write_u64(file, context->signature) &&
+        checkpoint_write_u64(file, context->sensor_schema.signature) &&
+        checkpoint_write_u64(file, context->action_schema.signature) &&
+        checkpoint_write_u64(file, context->active_tick) &&
+        checkpoint_write_u64(file, context->last_finished_tick) &&
+        checkpoint_write_u32(file, (uint32_t)context->sensor_submitted) &&
+        checkpoint_write_u32(file, (uint32_t)context->sensor_consumed) &&
+        checkpoint_write_u32(file, (uint32_t)context->action_submitted) &&
+        checkpoint_write_u32(file, (uint32_t)context->action_consumed) &&
+        checkpoint_write_u32(file, (uint32_t)context->has_finished_tick) &&
+        checkpoint_write_frame(file, &context->pending_sensor) &&
+        checkpoint_write_action_frame(file, &context->pending_action) &&
+        checkpoint_write_frame(file, &context->last_sensor) &&
+        checkpoint_write_action_frame(file, &context->last_action);
+}
+
+int minisnn_agent_io_checkpoint_load(MiniSNNAgentIOContext *context, FILE *file)
+{
+    MiniSNNSensorFrame pending_sensor = {0}, last_sensor = {0};
+    MiniSNNActionFrame pending_action = {0}, last_action = {0};
+    uint32_t magic, sensor_submitted, sensor_consumed, action_submitted;
+    uint32_t action_consumed, has_finished;
+    uint64_t signature, sensor_signature, action_signature, active_tick, last_finished;
+    int ok = 0;
+
+    if (context == NULL || file == NULL ||
+        !minisnn_sensor_frame_init(&pending_sensor, context->pending_sensor.value_count) ||
+        !minisnn_sensor_frame_init(&last_sensor, context->last_sensor.value_count) ||
+        !minisnn_action_frame_init(&pending_action, context->pending_action.value_count) ||
+        !minisnn_action_frame_init(&last_action, context->last_action.value_count))
+        goto done;
+    if (!checkpoint_read_u32(file, &magic) || magic != UINT32_C(0x41374331) ||
+        !checkpoint_read_u64(file, &signature) || signature != context->signature ||
+        !checkpoint_read_u64(file, &sensor_signature) ||
+        sensor_signature != context->sensor_schema.signature ||
+        !checkpoint_read_u64(file, &action_signature) ||
+        action_signature != context->action_schema.signature ||
+        !checkpoint_read_u64(file, &active_tick) || !checkpoint_read_u64(file, &last_finished) ||
+        !checkpoint_read_u32(file, &sensor_submitted) ||
+        !checkpoint_read_u32(file, &sensor_consumed) ||
+        !checkpoint_read_u32(file, &action_submitted) ||
+        !checkpoint_read_u32(file, &action_consumed) ||
+        !checkpoint_read_u32(file, &has_finished) ||
+        sensor_submitted > 1U || sensor_consumed > 1U || action_submitted > 1U ||
+        action_consumed > 1U || has_finished > 1U ||
+        !checkpoint_read_sensor_values(file, &pending_sensor,
+                                       context->pending_sensor.value_count) ||
+        !checkpoint_read_action_values(file, &pending_action,
+                                       context->pending_action.value_count) ||
+        !checkpoint_read_sensor_values(file, &last_sensor,
+                                       context->last_sensor.value_count) ||
+        !checkpoint_read_action_values(file, &last_action,
+                                       context->last_action.value_count) ||
+        fgetc(file) != EOF)
+        goto done;
+    if ((sensor_submitted && sensor_consumed && action_submitted) ||
+        (has_finished && (sensor_submitted || sensor_consumed || action_submitted)) ||
+        (!has_finished && action_consumed) ||
+        (has_finished && !action_consumed && last_action.tick != last_finished) ||
+        (sensor_submitted && pending_sensor.tick != active_tick) ||
+        (action_submitted && pending_action.tick != active_tick))
+        goto done;
+    memcpy(context->pending_sensor.values, pending_sensor.values,
+           (size_t)pending_sensor.value_count * sizeof(*pending_sensor.values));
+    memcpy(context->pending_action.values, pending_action.values,
+           (size_t)pending_action.value_count * sizeof(*pending_action.values));
+    memcpy(context->last_sensor.values, last_sensor.values,
+           (size_t)last_sensor.value_count * sizeof(*last_sensor.values));
+    memcpy(context->last_action.values, last_action.values,
+           (size_t)last_action.value_count * sizeof(*last_action.values));
+    context->pending_sensor.tick = pending_sensor.tick;
+    context->pending_action.tick = pending_action.tick;
+    context->last_sensor.tick = last_sensor.tick;
+    context->last_action.tick = last_action.tick;
+    context->active_tick = active_tick;
+    context->last_finished_tick = last_finished;
+    context->sensor_submitted = (int)sensor_submitted;
+    context->sensor_consumed = (int)sensor_consumed;
+    context->action_submitted = (int)action_submitted;
+    context->action_consumed = (int)action_consumed;
+    context->has_finished_tick = (int)has_finished;
+    context->last_error = MINISNN_AGENT_IO_ERROR_NONE;
+    ok = 1;
+done:
+    minisnn_sensor_frame_destroy(&pending_sensor);
+    minisnn_sensor_frame_destroy(&last_sensor);
+    minisnn_action_frame_destroy(&pending_action);
+    minisnn_action_frame_destroy(&last_action);
+    return ok;
+}
+
+int minisnn_agent_io_checkpoint_boundary(
+    const MiniSNNAgentIOContext *context, uint64_t next_global_tick)
+{
+    if (context == NULL || context->pending_sensor.values == NULL ||
+        context->pending_action.values == NULL || context->last_sensor.values == NULL ||
+        context->last_action.values == NULL || context->sensor_submitted ||
+        context->sensor_consumed || context->action_submitted)
+        return -1;
+    if (context->has_finished_tick && !context->action_consumed)
+    {
+        return context->last_finished_tick + 1U == next_global_tick &&
+            context->last_action.tick == context->last_finished_tick ? 1 : -1;
+    }
+    return context->action_consumed || !context->has_finished_tick ? 0 : -1;
 }

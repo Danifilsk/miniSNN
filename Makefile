@@ -12,7 +12,7 @@ endif
 endif
 CORE_DIR = core
 
-.PHONY: all help clean core core-tests core-studio core-evolution test test-architecture test-working-memory test-associative-memory test-sequence-prediction test-c6-checkpoints test-c6-integration test-c6-long test-agent-io test-sensor-encoder test-action-decoder test-agent-cycle scenario-working-memory scenario-associative-memory scenario-sequence-prediction scenario-sequence-prediction-context scenario-c6-suite scenario-sensor-encoding scenario-action-decoding scenario-agent-cycle check-c6 check-c7
+.PHONY: all help clean core core-tests core-studio core-evolution test test-architecture test-working-memory test-associative-memory test-sequence-prediction test-c6-checkpoints test-c6-integration test-c6-long test-agent-io test-sensor-encoder test-action-decoder test-agent-cycle test-agent-cycle-checkpoint scenario-working-memory scenario-associative-memory scenario-sequence-prediction scenario-sequence-prediction-context scenario-c6-suite scenario-sensor-encoding scenario-action-decoding scenario-agent-cycle scenario-agent-cycle-checkpoint check-c6 check-c7
 
 all: test
 
@@ -37,8 +37,10 @@ help:
 	@echo   mingw32-make test-action-decoder - valida decodificacao neural-acao C7.3
 	@echo   mingw32-make scenario-action-decoding - executa o demo C7.3
 	@echo   mingw32-make test-agent-cycle  - valida o ciclo cerebro-agente C7.4
+	@echo   mingw32-make test-agent-cycle-checkpoint - valida resume/replay C7.5-A
 	@echo   mingw32-make scenario-agent-cycle - executa o demo C7.4
-	@echo   mingw32-make check-c7          - verifica C7.1-C7.4
+	@echo   mingw32-make scenario-agent-cycle-checkpoint - executa o demo C7.5-A
+	@echo   mingw32-make check-c7          - verifica C7.1-C7.5-A
 	@echo   mingw32-make test             - testes do Core e arquitetura do monorepo
 	@echo   mingw32-make test-architecture - valida isolamento e estrutura M1
 	@echo   mingw32-make <target-do-core> - encaminha targets legados ao Core
@@ -85,6 +87,9 @@ test-action-decoder:
 test-agent-cycle:
 	$(MAKE) -C $(CORE_DIR) test-agent-cycle
 
+test-agent-cycle-checkpoint:
+	$(MAKE) -C $(CORE_DIR) test-agent-cycle-checkpoint
+
 scenario-working-memory:
 	$(MAKE) -C $(CORE_DIR) scenario-working-memory
 
@@ -108,6 +113,9 @@ scenario-action-decoding:
 
 scenario-agent-cycle:
 	$(MAKE) -C $(CORE_DIR) scenario-agent-cycle
+
+scenario-agent-cycle-checkpoint:
+	$(MAKE) -C $(CORE_DIR) scenario-agent-cycle-checkpoint
 
 check-c6:
 	$(MAKE) -C $(CORE_DIR) check-c6

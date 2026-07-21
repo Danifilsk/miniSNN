@@ -124,6 +124,22 @@ No Studio, `ABRIR EVENTOS ESTRUTURAIS` gera e abre
 `best_topology_report.html`. Os CSVs `structural_events.csv` e
 `best_topology.csv` continuam sendo os dados cientificos brutos.
 
+## Interface cerebro-agente
+
+C7.5-A acrescenta checkpoint e replay deterministico do ciclo numerico
+AgentIO, encoder, rede, decoder e feedback pendente. Ele aceita somente
+fronteiras `READY` e `ACTION_PENDING`, grava um manifesto FNV-1a e nao
+introduz semantica de dominio.
+
+```powershell
+mingw32-make test-agent-cycle-checkpoint
+mingw32-make scenario-agent-cycle-checkpoint
+```
+
+O demo gera traces continuo e retomados, manifesto, resumo e HTML em
+`results/scenarios/agent_cycle_checkpoint_demo/`. Veja o
+[Guia da interface cerebro-agente](docs/GUIA_DA_INTERFACE_CEREBRO_AGENTE.md).
+
 ## Memoria de trabalho temporal
 
 O C6.1 adiciona um protocolo opt-in de `cue -> delay -> probe` para medir

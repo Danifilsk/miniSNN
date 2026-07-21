@@ -4,7 +4,7 @@ INCLUDES = -Iinclude -Isrc -Iapp
 BUILD_DIR = build
 
 STRUCTURE_SOURCES = src/structure.c src/structural_plasticity.c
-API_SOURCES = src/minisnn.c src/neuron.c src/neuron_model.c src/network.c src/plasticity.c src/reward.c src/homeostasis.c src/agent_io.c src/sensor_encoder.c src/action_decoder.c src/agent_cycle.c $(STRUCTURE_SOURCES)
+API_SOURCES = src/minisnn.c src/neuron.c src/neuron_model.c src/network.c src/plasticity.c src/reward.c src/homeostasis.c src/agent_io.c src/sensor_encoder.c src/action_decoder.c src/agent_cycle.c src/agent_cycle_checkpoint.c $(STRUCTURE_SOURCES)
 APP_SOURCES = app/scenario_config.c
 SCENARIO_RUNNER_SOURCES = app/scenario_config.c app/scenario_runtime.c app/scenario_runner.c app/working_memory.c app/associative_memory.c app/sequence_prediction.c
 C6_SUITE_SOURCES = app/c6_suite.c $(SCENARIO_RUNNER_SOURCES)
@@ -28,11 +28,11 @@ endif
 ANALYZER_CFLAGS = -std=c11 -Wall -Wextra -pedantic -fanalyzer -Wformat=2 -Wshadow -Wnull-dereference
 
 .PHONY: all help clean test test-api test-core test-lif test-neuron-model test-adex test-hodgkin-huxley test-model-checkpoints test-model-error-propagation test-model-provenance test-adex-long test-hh-long test-models-long test-plasticity test-plasticity-long test-homeostasis test-homeostasis-long test-reward test-reward-long test-evolution test-structure test-structural-plasticity test-structure-resume test-structure-long test-evolution-runner test-evolution-resume test-evolution-long test-plot-evolution test-plot-topology test-evolution-report test-structural-html evolution-build evolution-weight-demo evolution-homeostasis-demo evolution-plasticity-demo evolution-structure-demo structural-pruning-demo structural-growth-demo evolution-structure-learning-demo plot-evolution plot-topology report-evolution report-evolution-history report-structural-events report-best-topology test-scenario test-runner test-runner-topologies test-working-memory test-associative-memory test-sequence-prediction test-c6-checkpoints test-c6-integration test-c6-long test-agent-io test-sensor-encoder test-action-decoder test-agent-cycle test-reproducibility test-regression test-memory test-long test-analyzer test-sanitize benchmark-v02 benchmark-c1 benchmark-c15 benchmark-c2 benchmark-c3 benchmark-c4 benchmark-c5 check-v02 check-c1 check-c15 check-c2 check-c3 check-c4 check-c5-interface check-c5 check-c6 check-c7 compare-neuron-models test-compare-neuron-models \
-	test-plot-neuron test-plot-plasticity test-compare-runs test-diagnostics test-run-reports test-history-report test-docs \
+	test-plot-neuron test-plot-plasticity test-compare-runs test-diagnostics test-run-reports test-history-report test-docs test-agent-cycle-checkpoint \
 	test-plot-homeostasis plot-homeostasis test-plot-reward plot-reward \
 	api-examples api-single api-chain api-exc-inh \
 	demo ei-balance inhibition-fine inh-to-inh sparse-ei scenario \
-    scenario-random scenario-small-world scenario-working-memory scenario-associative-memory scenario-sequence-prediction scenario-sequence-prediction-context scenario-c6-suite scenario-sensor-encoding scenario-action-decoding scenario-feedforward \
+    scenario-random scenario-small-world scenario-working-memory scenario-associative-memory scenario-sequence-prediction scenario-sequence-prediction-context scenario-c6-suite scenario-sensor-encoding scenario-action-decoding scenario-agent-cycle-checkpoint scenario-feedforward \
 	scenario-stdp-ltp scenario-stdp-ltd scenario-stdp-mixed plot-stdp-ltp \
 	scenario-homeostasis-silence scenario-homeostasis-explosion scenario-homeostasis-stdp \
 	scenario-reward-positive scenario-punishment-negative scenario-reward-delayed scenario-reward-mixed \
@@ -99,7 +99,9 @@ help:
 	@echo   make test-action-decoder - valida decodificacao neural-acao C7.3
 	@echo   make scenario-action-decoding - executa o demo reproduzivel C7.3
 	@echo   make test-agent-cycle    - valida orquestracao generica C7.4
+	@echo   make test-agent-cycle-checkpoint - valida persistencia e replay C7.5-A
 	@echo   make scenario-agent-cycle - executa o demo reproduzivel C7.4
+	@echo   make scenario-agent-cycle-checkpoint - executa o demo C7.5-A
 	@echo   make test-runner-topologies - validacao estrutural das topologias do runner
 	@echo   make test-reproducibility - determinismo de topologia e CSVs por seed
 	@echo   make test-regression    - golden pequeno e resultados historicos conhecidos
@@ -120,7 +122,7 @@ help:
 	@echo   make check-c3          - verifica o fechamento automatico do Bloco C3
 	@echo   make check-c4          - verifica o fechamento automatico do Bloco C4
 	@echo   make check-c6          - verifica os protocolos C6.1-C6.4
-	@echo   make check-c7          - verifica C7.1-C7.3 da interface cerebro-agente
+	@echo   make check-c7          - verifica C7.1-C7.5-A da interface cerebro-agente
 	@echo   make test-plot-neuron  - teste Python do grafico de neuronio
 	@echo   make test-plot-plasticity - teste Python do grafico STDP
 	@echo   make test-plot-homeostasis - teste Python do panorama homeostatico
@@ -190,8 +192,14 @@ $(BUILD_DIR)/test_action_decoder.exe: tests/test_action_decoder.c $(API_SOURCES)
 $(BUILD_DIR)/test_agent_cycle.exe: tests/test_agent_cycle.c $(API_SOURCES) include/minisnn_agent_cycle.h | $(BUILD_DIR)
 	$(CC) $(CFLAGS) -DMINISNN_TESTING tests/test_agent_cycle.c $(API_SOURCES) $(INCLUDES) -o $@
 
+$(BUILD_DIR)/test_agent_cycle_checkpoint.exe: tests/test_agent_cycle_checkpoint.c $(API_SOURCES) include/minisnn_agent_cycle.h | $(BUILD_DIR)
+	$(CC) $(CFLAGS) -DMINISNN_TESTING tests/test_agent_cycle_checkpoint.c $(API_SOURCES) $(INCLUDES) -o $@
+
 $(BUILD_DIR)/agent_cycle_demo.exe: app/agent_cycle_demo.c app/agent_cycle_demo_config.c app/agent_cycle_demo_config.h $(API_SOURCES) include/minisnn_agent_cycle.h | $(BUILD_DIR)
 	$(CC) $(CFLAGS) app/agent_cycle_demo.c app/agent_cycle_demo_config.c $(API_SOURCES) $(INCLUDES) -o $@
+
+$(BUILD_DIR)/agent_cycle_checkpoint_demo.exe: app/agent_cycle_checkpoint_demo.c app/agent_cycle_checkpoint_demo_config.c app/agent_cycle_checkpoint_demo_config.h app/agent_cycle_demo_config.c app/agent_cycle_demo_config.h $(API_SOURCES) include/minisnn_agent_cycle.h | $(BUILD_DIR)
+	$(CC) $(CFLAGS) app/agent_cycle_checkpoint_demo.c app/agent_cycle_checkpoint_demo_config.c app/agent_cycle_demo_config.c $(API_SOURCES) $(INCLUDES) -o $@
 
 $(BUILD_DIR)/sensor_encoding_demo.exe: app/sensor_encoding_demo.c app/sensor_encoding_demo_config.c app/sensor_encoding_demo_config.h $(API_SOURCES) include/minisnn_sensor_encoder.h | $(BUILD_DIR)
 	$(CC) $(CFLAGS) app/sensor_encoding_demo.c app/sensor_encoding_demo_config.c $(API_SOURCES) $(INCLUDES) -o $@
@@ -257,7 +265,7 @@ check-c5: check-c5-interface test-model-checkpoints test-adex test-hodgkin-huxle
 check-c6: test-working-memory test-associative-memory test-sequence-prediction test-c6-checkpoints test-c6-integration test-c6-long
 	$(PYTHON) scripts/check_c6.py
 
-check-c7: test-agent-io test-sensor-encoder test-action-decoder test-agent-cycle
+check-c7: test-agent-io test-sensor-encoder test-action-decoder test-agent-cycle test-agent-cycle-checkpoint
 	$(PYTHON) scripts/check_c7.py
 
 $(BUILD_DIR)/test_plasticity.exe: tests/test_plasticity.c $(API_SOURCES) | $(BUILD_DIR)
@@ -502,6 +510,10 @@ test-agent-cycle: $(BUILD_DIR)/test_agent_cycle.exe $(BUILD_DIR)/agent_cycle_dem
 	$(BUILD_DIR)/test_agent_cycle.exe
 	$(PYTHON) tests/test_agent_cycle_demo.py $(BUILD_DIR)/agent_cycle_demo.exe
 
+test-agent-cycle-checkpoint: $(BUILD_DIR)/test_agent_cycle_checkpoint.exe $(BUILD_DIR)/agent_cycle_checkpoint_demo.exe
+	$(BUILD_DIR)/test_agent_cycle_checkpoint.exe
+	$(PYTHON) tests/test_agent_cycle_checkpoint_demo.py $(BUILD_DIR)/agent_cycle_checkpoint_demo.exe
+
 scenario-sensor-encoding: $(BUILD_DIR)/sensor_encoding_demo.exe
 	$(BUILD_DIR)/sensor_encoding_demo.exe configs/sensor_encoding_demo.ini
 
@@ -510,6 +522,9 @@ scenario-action-decoding: $(BUILD_DIR)/action_decoding_demo.exe
 
 scenario-agent-cycle: $(BUILD_DIR)/agent_cycle_demo.exe
 	$(BUILD_DIR)/agent_cycle_demo.exe configs/agent_cycle_demo.ini
+
+scenario-agent-cycle-checkpoint: $(BUILD_DIR)/agent_cycle_checkpoint_demo.exe
+	$(BUILD_DIR)/agent_cycle_checkpoint_demo.exe configs/agent_cycle_checkpoint_demo.ini
 
 test-runner-topologies: $(BUILD_DIR)/test_runner_topologies.exe
 	$(BUILD_DIR)/test_runner_topologies.exe
@@ -605,7 +620,7 @@ test-history-report: | $(BUILD_DIR)
 test-docs: | $(BUILD_DIR)
 	$(PYTHON) tests/test_docs.py
 
-test: test-api test-core test-lif test-neuron-model test-adex test-hodgkin-huxley test-model-error-propagation test-plasticity test-homeostasis test-reward test-structure test-structural-plasticity test-scenario test-runner test-runner-topologies test-working-memory test-associative-memory test-sequence-prediction test-c6-checkpoints test-c6-integration test-agent-io test-sensor-encoder test-action-decoder test-agent-cycle test-reproducibility test-memory
+test: test-api test-core test-lif test-neuron-model test-adex test-hodgkin-huxley test-model-error-propagation test-plasticity test-homeostasis test-reward test-structure test-structural-plasticity test-scenario test-runner test-runner-topologies test-working-memory test-associative-memory test-sequence-prediction test-c6-checkpoints test-c6-integration test-agent-io test-sensor-encoder test-action-decoder test-agent-cycle test-agent-cycle-checkpoint test-reproducibility test-memory
 
 $(BUILD_DIR)/example_api_single_neuron.exe: examples/api/example_api_single_neuron.c $(API_SOURCES) include/minisnn.h include/minisnn_types.h | $(BUILD_DIR)
 	$(CC) $(CFLAGS) examples/api/example_api_single_neuron.c $(API_SOURCES) $(INCLUDES) -o $@

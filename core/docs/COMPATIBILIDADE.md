@@ -210,3 +210,13 @@ restore de checkpoint ou blueprint. A extensao de feedback terminal e aditiva:
 `episode_terminal` aceita somente `0` ou `1`; o terminal e aplicado no limite do
 episodio sem passo neural e nao provoca reset automatico. O contador neural
 interno e a historia estrutural permanecem monotonos atraves de resets.
+
+# Compatibilidade C7.5-A
+
+O checkpoint do ciclo cerebro-agente e aditivo e usa um diretorio novo,
+versionado, com manifesto e arquivos internos. Ele nao altera checkpoints C3,
+C4, C5 ou C6, nem muda schemas CSV historicos. O load exige schemas completos,
+contratos de encoder/decoder, modelo, dimensoes e assinatura topologica
+compativeis. Uma incompatibilidade ou integridade invalida e recusada sem
+converter formatos antigos silenciosamente. C7.5-B continua pendente; esta
+etapa nao congela a API nem declara uma release candidate.

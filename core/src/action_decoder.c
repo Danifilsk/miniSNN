@@ -6,6 +6,7 @@
 #include <string.h>
 
 #include "minisnn.h"
+#include "agent_cycle_checkpoint_internal.h"
 
 #define ACTION_DECODER_FNV_OFFSET UINT64_C(14695981039346656037)
 #define ACTION_DECODER_FNV_PRIME UINT64_C(1099511628211)
@@ -1358,4 +1359,72 @@ format_failure:
     free(mappings);
     set_error(out_error, MINISNN_ACTION_DECODER_ERROR_FORMAT);
     return NULL;
+}
+
+static int checkpoint_write_u32(FILE *file, uint32_t value)
+{
+    unsigned char bytes[4];
+    for (unsigned int shift = 0U; shift < 32U; shift += 8U)
+        bytes[shift / 8U] = (unsigned char)((value >> shift) & 0xffU);
+    return fwrite(bytes, 1U, sizeof(bytes), file) == sizeof(bytes);
+}
+
+static int checkpoint_write_u64(FILE *file, uint64_t value)
+{
+    unsigned char bytes[8];
+    for (unsigned int shift = 0U; shift < 64U; shift += 8U)
+        bytes[shift / 8U] = (unsigned char)((value >> shift) & 0xffU);
+    return fwrite(bytes, 1U, sizeof(bytes), file) == sizeof(bytes);
+}
+
+static int checkpoint_read_u32(FILE *file, uint32_t *out_value)
+{
+    unsigned char bytes[4];
+    uint32_t value = 0U;
+    if (out_value == NULL || fread(bytes, 1U, sizeof(bytes), file) != sizeof(bytes))
+        return 0;
+    for (unsigned int shift = 0U; shift < 32U; shift += 8U)
+        value |= (uint32_t)bytes[shift / 8U] << shift;
+    *out_value = value;
+    return 1;
+}
+
+static int checkpoint_read_u64(FILE *file, uint64_t *out_value)
+{
+    unsigned char bytes[8];
+    uint64_t value = 0U;
+    if (out_value == NULL || fread(bytes, 1U, sizeof(bytes), file) != sizeof(bytes))
+        return 0;
+    for (unsigned int shift = 0U; shift < 64U; shift += 8U)
+        value |= (uint64_t)bytes[shift / 8U] << shift;
+    *out_value = value;
+    return 1;
+}
+
+int minisnn_action_decoder_checkpoint_write(const MiniSNNActionDecoder *decoder,
+                                            FILE *file)
+{
+    return decoder != NULL && file != NULL &&
+        checkpoint_write_u32(file, UINT32_C(0x41374333)) &&
+        checkpoint_write_u64(file, decoder->contract_signature) &&
+        checkpoint_write_u64(file, decoder->mapping_signature) &&
+        checkpoint_write_u32(file, decoder->neuron_count) &&
+        checkpoint_write_u32(file, decoder->brain_steps_per_tick);
+}
+
+int minisnn_action_decoder_checkpoint_load(MiniSNNActionDecoder *decoder,
+                                           FILE *file)
+{
+    uint32_t magic, neurons, brain_steps;
+    uint64_t contract, mapping;
+    if (decoder == NULL || file == NULL || !checkpoint_read_u32(file, &magic) ||
+        magic != UINT32_C(0x41374333) || !checkpoint_read_u64(file, &contract) ||
+        contract != decoder->contract_signature || !checkpoint_read_u64(file, &mapping) ||
+        mapping != decoder->mapping_signature || !checkpoint_read_u32(file, &neurons) ||
+        neurons != decoder->neuron_count || !checkpoint_read_u32(file, &brain_steps) ||
+        brain_steps != decoder->brain_steps_per_tick || fgetc(file) != EOF)
+        return 0;
+    /* The decoder deliberately has no temporal state between completed ticks. */
+    decoder->last_error = MINISNN_ACTION_DECODER_ERROR_NONE;
+    return 1;
 }

@@ -1178,3 +1178,26 @@ spikes, correntes externas e sinapticas pendentes, traces STDP, eligibility e
 reward pendente, estado de homeostase e cursor de delay. O contador neural e o
 historico/PRNG de plasticidade estrutural nao retrocedem; somente seus rate
 traces transitorios sao limpos. Retorna zero para uma rede invalida.
+
+## Checkpoint e replay C7.5-A
+
+`minisnn_agent_cycle_save_checkpoint` e
+`minisnn_agent_cycle_load_checkpoint` persistem ou recuperam o estado
+integrado de AgentIO, encoder, decoder, rede e ciclo. A API aceita somente
+fronteiras estaveis: `READY`, sem acao pendente, e `ACTION_PENDING`, depois da
+publicacao atomica e antes do consumo externo. Tick parcial, `RUNNING` e
+`FAULTED` sao rejeitados.
+
+O diretorio contem `manifest.txt` e componentes internos versionados. O
+manifest registra proveniencia, modelo, dimensoes, schemas, contratos,
+assinatura topologica, ticks, fronteira e hashes FNV-1a de cada componente.
+Nenhum ponteiro, padding, caminho absoluto ou relogio real faz parte da
+serializacao. A rede preserva estado fisiologico, delays, correntes pendentes,
+STDP, R-STDP, homeostase e estado estrutural. O encoder preserva fases de
+`deterministic_rate`; o decoder apenas valida seu contrato porque e stateless
+entre ticks.
+
+O load verifica manifesto, integridade, schemas e contratos antes de aplicar o
+estado. Os componentes sao carregados com rollback interno para que falhas
+previsiveis nao deixem AgentIO, encoder ou rede parcialmente atualizados.
+Diretorios absolutos e componentes `.` ou `..` sao rejeitados.

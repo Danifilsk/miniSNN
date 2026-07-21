@@ -202,6 +202,37 @@ rollback da rede depois do primeiro passo: falha inesperada deixa o ciclo em
 feedback, resumo e HTML locais. O demo e uma tarefa numerica fechada; nao
 demonstra um dominio externo nem afirma aprendizado estatistico.
 
+## Checkpoint e replay C7.5-A
+
+O checkpoint integrado e uma extensao do ciclo C7.4. Ele persiste a fronteira
+numerica, nao uma camada de dominio. O chamador continua sendo dono da rede,
+AgentIO, encoder e decoder; o ciclo nao serializa seus ponteiros.
+
+Use somente fronteiras estaveis:
+
+- `READY`: a action anterior ja foi consumida e nao ha tick parcialmente aberto.
+- `ACTION_PENDING`: o tick terminou, a action foi publicada uma vez e aguarda
+  apenas o consumo externo.
+
+O formato grava `manifest.txt`, estado da rede, AgentIO, fases do encoder,
+contrato do decoder e estado do ciclo. O manifesto usa hashes FNV-1a
+versionados para detectar arquivo ausente, truncamento ou alteracao. O load
+recusa schemas, mappings, modelo, dimensoes, topologia e contratos
+incompativeis antes de concluir a substituicao do estado vivo. A action
+pendente restaurada continua consumivel exatamente uma vez, sem republicacao.
+
+`scenario-agent-cycle-checkpoint` compara uma trajetoria continua com duas
+retomadas, uma em `READY` e outra em `ACTION_PENDING`. Os arquivos
+`continuous_trace.csv`, `ready_resume_trace.csv`,
+`action_pending_resume_trace.csv` e `checkpoint_comparison.csv` deixam a
+comparacao auditavel. `config_source.ini` preserva o INI byte a byte e
+`config_used.ini` registra a forma canonica efetivamente executada.
+
+O checkpoint preserva estado temporal e de aprendizado, inclusive correntes
+agendadas, traces STDP, eligibility R-STDP, reward pendente, homeostase,
+plasticidade estrutural, PRNG e feedback futuro. Ele nao cria semantica de
+dominio e nao transforma o ciclo em uma camada de ambiente.
+
 ## Validacao
 
 ```powershell
@@ -210,6 +241,8 @@ mingw32-make test-sensor-encoder
 mingw32-make scenario-sensor-encoding
 mingw32-make test-agent-cycle
 mingw32-make scenario-agent-cycle
+mingw32-make test-agent-cycle-checkpoint
+mingw32-make scenario-agent-cycle-checkpoint
 mingw32-make check-c7
 ```
 

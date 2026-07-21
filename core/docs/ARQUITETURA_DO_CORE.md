@@ -1,5 +1,16 @@
 # Arquitetura do Core
 
+## C7.5-A - Persistencia e replay do ciclo
+
+`src/agent_cycle_checkpoint.c` reutiliza o estado privado ja pertencente ao
+Core para serializar a rede e os componentes C7, enquanto
+`src/agent_cycle.c` conserva a API publica e a maquina de estados. O formato
+e composto por manifesto e arquivos internos com primitivos de largura fixa;
+nao serializa structs brutas nem ponteiros. O carregamento verifica hashes,
+contratos e compatibilidade, e usa rollback de componentes para preservar o
+estado vivo diante de falha previsivel. O demo e o parser INI continuam em
+`app/`, separados do motor neural e de qualquer semantica de dominio.
+
 ## C7.4 - Ciclo generico cerebro-agente
 
 `src/agent_cycle.c` e o unico modulo C7 que aplica frames de entrada, avanca a

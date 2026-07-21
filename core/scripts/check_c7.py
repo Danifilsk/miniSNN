@@ -26,6 +26,13 @@ AGENT_CYCLE_TEST = ROOT / "tests" / "test_agent_cycle.c"
 AGENT_CYCLE_DEMO = ROOT / "app" / "agent_cycle_demo.c"
 AGENT_CYCLE_CONFIG_SOURCE = ROOT / "app" / "agent_cycle_demo_config.c"
 AGENT_CYCLE_DEMO_TEST = ROOT / "tests" / "test_agent_cycle_demo.py"
+CHECKPOINT_SOURCE = ROOT / "src" / "agent_cycle_checkpoint.c"
+CHECKPOINT_INTERNAL_HEADER = ROOT / "src" / "agent_cycle_checkpoint_internal.h"
+CHECKPOINT_TEST = ROOT / "tests" / "test_agent_cycle_checkpoint.c"
+CHECKPOINT_DEMO = ROOT / "app" / "agent_cycle_checkpoint_demo.c"
+CHECKPOINT_CONFIG_SOURCE = ROOT / "app" / "agent_cycle_checkpoint_demo_config.c"
+CHECKPOINT_CONFIG_HEADER = ROOT / "app" / "agent_cycle_checkpoint_demo_config.h"
+CHECKPOINT_DEMO_TEST = ROOT / "tests" / "test_agent_cycle_checkpoint_demo.py"
 MAKEFILE = ROOT / "Makefile"
 
 
@@ -40,7 +47,9 @@ def main() -> None:
                  DECODER_HEADER, DECODER_TEST, DECODER_DEMO, DECODER_CONFIG_SOURCE,
                  DECODER_CONFIG_HEADER, DECODER_DEMO_TEST, AGENT_CYCLE_HEADER,
                  AGENT_CYCLE_SOURCE, AGENT_CYCLE_TEST, AGENT_CYCLE_DEMO,
-                 AGENT_CYCLE_CONFIG_SOURCE, AGENT_CYCLE_DEMO_TEST):
+                 AGENT_CYCLE_CONFIG_SOURCE, AGENT_CYCLE_DEMO_TEST, CHECKPOINT_SOURCE,
+                 CHECKPOINT_INTERNAL_HEADER, CHECKPOINT_TEST, CHECKPOINT_DEMO,
+                 CHECKPOINT_CONFIG_SOURCE, CHECKPOINT_CONFIG_HEADER, CHECKPOINT_DEMO_TEST):
         if not path.is_file():
             fail(f"arquivo obrigatorio ausente: {path.relative_to(ROOT)}")
 
@@ -64,6 +73,12 @@ def main() -> None:
     agent_cycle_demo = AGENT_CYCLE_DEMO.read_text(encoding="utf-8")
     agent_cycle_config_source = AGENT_CYCLE_CONFIG_SOURCE.read_text(encoding="utf-8")
     agent_cycle_demo_test = AGENT_CYCLE_DEMO_TEST.read_text(encoding="utf-8")
+    checkpoint_source = CHECKPOINT_SOURCE.read_text(encoding="utf-8")
+    checkpoint_internal_header = CHECKPOINT_INTERNAL_HEADER.read_text(encoding="utf-8")
+    checkpoint_test = CHECKPOINT_TEST.read_text(encoding="utf-8")
+    checkpoint_demo = CHECKPOINT_DEMO.read_text(encoding="utf-8")
+    checkpoint_config_source = CHECKPOINT_CONFIG_SOURCE.read_text(encoding="utf-8")
+    checkpoint_demo_test = CHECKPOINT_DEMO_TEST.read_text(encoding="utf-8")
     makefile = MAKEFILE.read_text(encoding="utf-8")
 
     for token in (
@@ -330,13 +345,82 @@ def main() -> None:
         if token not in agent_cycle_demo_test:
             fail(f"teste de proveniencia C7.4 ausente: {token}")
 
+    for token in (
+        "minisnn_agent_cycle_save_checkpoint",
+        "minisnn_agent_cycle_load_checkpoint",
+        "MINISNN_AGENT_CYCLE_ERROR_CHECKPOINT_UNSTABLE",
+        "MINISNN_AGENT_CYCLE_ERROR_CHECKPOINT_SIGNATURE",
+        "MINISNN_AGENT_CYCLE_ERROR_CHECKPOINT_INCOMPATIBLE",
+    ):
+        if token not in agent_cycle_header:
+            fail(f"API C7.5-A ausente: {token}")
+    for token in (
+        "CYCLE_NETWORK_VERSION", "CYCLE_FNV_OFFSET", "CYCLE_FNV_PRIME",
+        "UINT64_C(14695981039346656037)", "UINT64_C(1099511628211)",
+        "read_unsigned_long_long", "_Static_assert(sizeof(uint64_t) == 8",
+        "write_model", "write_structural_config", "write_structural_stats",
+        "write_genome", "minisnn_network_checkpoint_write",
+        "minisnn_network_checkpoint_load", "pending_current", "pre_trace",
+        "eligibility", "rate_traces", "initial_topology",
+    ):
+        if token not in checkpoint_source:
+            fail(f"persistencia de rede C7.5-A ausente: {token}")
+    for token in (
+        "minisnn_agent_io_checkpoint_write", "minisnn_sensor_encoder_checkpoint_write",
+        "minisnn_action_decoder_checkpoint_write", "minisnn_network_checkpoint_write",
+    ):
+        if token not in checkpoint_internal_header:
+            fail(f"contrato interno C7.5-A ausente: {token}")
+    for token in (
+        "checkpoint_component_hashes_match", "checkpoint_contract_signature",
+        "checkpoint_create_rollback", "checkpoint_restore_rollback",
+        "ACTION_PENDING", "checkpoint_directory_is_safe",
+        "minisnn_sensor_encoder_checkpoint_load",
+    ):
+        if token not in agent_cycle_source:
+            fail(f"integridade ou atomicidade C7.5-A ausente: {token}")
+    for token in (
+        "test_ready_resume", "test_action_pending_resume_and_corruption",
+        "test_unstable_save_rejected", "test_corrupt_component_is_atomic",
+        "test_terminal_and_reset_after_load", "test_incompatible_destination_is_atomic",
+        "test_unsigned_long_long_round_trip",
+        "MINISNN_LEARNING_MODE_REWARD_MODULATED_STDP",
+        "MINISNN_SENSOR_ENCODING_DETERMINISTIC_RATE",
+        "minisnn_test_sensor_encoder_phase", "minisnn_test_agent_cycle_feedback_at",
+    ):
+        if token not in checkpoint_test:
+            fail(f"cobertura de checkpoint C7.5-A ausente: {token}")
+    for token in (
+        "agent_cycle_checkpoint_demo_config_load_file",
+        "minisnn_agent_cycle_save_checkpoint", "minisnn_agent_cycle_load_checkpoint",
+        "checkpoint_manifest_copy.txt", "ACTION_PENDING", "input_a", "output_a",
+    ):
+        if token not in checkpoint_demo:
+            fail(f"demo C7.5-A ausente: {token}")
+    if "agent_cycle_demo_config_load_file" not in checkpoint_config_source:
+        fail("parser do demo C7.5-A nao reutiliza a configuracao auditada")
+    for token in (
+        "config_source.ini", "config_used.ini", "checkpoint_comparison.csv",
+        "checkpoint_ready", "checkpoint_action_pending", "replay_equivalent=yes",
+    ):
+        if token not in checkpoint_demo_test:
+            fail(f"teste de proveniencia C7.5-A ausente: {token}")
+    checkpoint_code = re.sub(r"/\*.*?\*/|//[^\n]*", "", checkpoint_source + "\n" +
+                             checkpoint_internal_header, flags=re.DOTALL).lower()
+    for term in forbidden:
+        if re.search(rf"\b{re.escape(term)}\b", checkpoint_code):
+            fail(f"termo de dominio proibido no checkpoint C7.5-A: {term}")
+    if "fwrite(&" in checkpoint_source or "fread(&" in checkpoint_source:
+        fail("checkpoint C7.5-A nao pode serializar structs ou ponteiros brutos")
+
     for target in ("test-agent-io", "test-sensor-encoder", "scenario-sensor-encoding",
                    "test-action-decoder", "scenario-action-decoding", "test-agent-cycle",
-                   "scenario-agent-cycle", "check-c7"):
+                   "scenario-agent-cycle", "test-agent-cycle-checkpoint",
+                   "scenario-agent-cycle-checkpoint", "check-c7"):
         if target not in makefile:
             fail(f"target Makefile ausente: {target}")
 
-    print("C7.4 agent cycle validation OK")
+    print("C7.5-A checkpoint and replay validation OK")
 
 
 if __name__ == "__main__":

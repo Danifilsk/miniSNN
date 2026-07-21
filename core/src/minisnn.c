@@ -3,14 +3,10 @@
 
 #include "config.h"
 #include "minisnn.h"
+#include "minisnn_internal.h"
 #include "network.h"
 #include "structure.h"
 #include "structural_plasticity.h"
-
-struct MiniSNN
-{
-    Network net;
-};
 
 static int minisnn_valid_neuron_id(const MiniSNN *snn, int neuron_id)
 {

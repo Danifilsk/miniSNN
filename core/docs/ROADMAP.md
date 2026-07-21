@@ -24,10 +24,11 @@ O roadmap indica ordem de trabalho, não promessa de prazo.
 - [x] C7.2 - codificacao generica de sensores numericos para entrada neural.
 - [x] C7.3 - decodificacao generica de atividade neural para acoes numericas.
 - [x] C7.4 - reward, reset e ciclo cerebro-agente.
+- [~] C7.5-A - persistencia, resume e replay deterministico do ciclo cerebro-agente.
 
 ## Próximo
 
-- [ ] C7.5 - integracao e auditoria da interface cerebro-agente.
+- [ ] C7.5-B - integracao e auditoria final da interface cerebro-agente.
 - [ ] D1 — auditoria e congelamento do Core antes do Worlds.
 - [ ] Revisão humana do checklist do Studio.
 

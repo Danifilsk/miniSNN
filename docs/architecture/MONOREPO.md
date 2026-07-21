@@ -1,5 +1,14 @@
 # Arquitetura do monorepo
 
+## C7.5-A - Persistencia e replay do ciclo cerebro-agente
+
+`core/src/agent_cycle_checkpoint.c` persiste, em arquivos internos
+versionados, a rede, AgentIO, encoder, decoder e estado temporal do ciclo.
+`core/src/agent_cycle.c` retem a maquina de estados e a API publica. O
+checkpoint aceita somente fronteiras `READY` e `ACTION_PENDING`, verifica
+assinaturas e hashes antes de restaurar e nunca serializa ponteiros. O demo
+continua em `core/app/`; essa persistencia nao introduz semantica de Worlds.
+
 ## C7.4 - Ciclo generico cerebro-agente
 
 `core/include/minisnn_agent_cycle.h` e `core/src/agent_cycle.c` pertencem ao
@@ -27,14 +36,16 @@ O Core possui uma fronteira interna comum para redes homogêneas LIF, AdEx e
 Hodgkin-Huxley. O C5 foi concluído sem introduzir redes híbridas ou
 dependências para os módulos futuros do monorepo.
 
-## C7.1-C7.4: contratos, codificacao, decodificacao e ciclo
+## C7.1-C7.5-A: contratos, codificacao, decodificacao, ciclo e replay
 
 O Core expoe schemas e frames numericos por `core/include/minisnn_agent_io.h`
 e codificacao deterministica por `core/include/minisnn_sensor_encoder.h`.
 Essa interface permanece independente de qualquer dominio e nao cria uma
 dependencia de Worlds. C7.2 aplica correntes por API publica sem avancar a
 rede; C7.3 decodifica atividade completa sem avancar a rede; C7.4 e o unico
-orquestrador C7 que avanca a rede e publica a action atomicamente.
+orquestrador C7 que avanca a rede e publica a action atomicamente. C7.5-A
+adiciona somente persistencia e replay verificados; C7.5-B continua como
+auditoria final antes de D1.
 
 ## Limites planejados
 

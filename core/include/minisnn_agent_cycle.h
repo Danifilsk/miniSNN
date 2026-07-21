@@ -36,7 +36,12 @@ typedef enum
     MINISNN_AGENT_CYCLE_ERROR_ACTION_PUBLICATION,
     MINISNN_AGENT_CYCLE_ERROR_RESET_WHILE_BUSY,
     MINISNN_AGENT_CYCLE_ERROR_ALLOCATION,
-    MINISNN_AGENT_CYCLE_ERROR_FAULTED
+    MINISNN_AGENT_CYCLE_ERROR_FAULTED,
+    MINISNN_AGENT_CYCLE_ERROR_CHECKPOINT_UNSTABLE,
+    MINISNN_AGENT_CYCLE_ERROR_CHECKPOINT_IO,
+    MINISNN_AGENT_CYCLE_ERROR_CHECKPOINT_FORMAT,
+    MINISNN_AGENT_CYCLE_ERROR_CHECKPOINT_SIGNATURE,
+    MINISNN_AGENT_CYCLE_ERROR_CHECKPOINT_INCOMPATIBLE
 } MiniSNNAgentCycleError;
 
 typedef struct
@@ -89,6 +94,18 @@ int minisnn_agent_cycle_submit_feedback(
  * configured model parameters. A pending external action must be consumed first. */
 int minisnn_agent_cycle_reset_episode(MiniSNNAgentCycle *cycle);
 
+/* C7.5-A: persists only stable READY and ACTION_PENDING boundaries. The
+ * caller owns the directory; no internal pointers are serialized. */
+int minisnn_agent_cycle_save_checkpoint(
+    const MiniSNNAgentCycle *cycle,
+    const char *directory,
+    MiniSNNAgentCycleError *out_error);
+
+int minisnn_agent_cycle_load_checkpoint(
+    MiniSNNAgentCycle *cycle,
+    const char *directory,
+    MiniSNNAgentCycleError *out_error);
+
 MiniSNNAgentCycleState minisnn_agent_cycle_state(
     const MiniSNNAgentCycle *cycle);
 MiniSNNAgentCycleError minisnn_agent_cycle_last_error(
@@ -102,5 +119,15 @@ uint64_t minisnn_agent_cycle_total_neural_steps(const MiniSNNAgentCycle *cycle);
 uint64_t minisnn_agent_cycle_total_actions(const MiniSNNAgentCycle *cycle);
 double minisnn_agent_cycle_total_reward(const MiniSNNAgentCycle *cycle);
 uint64_t minisnn_agent_cycle_reset_count(const MiniSNNAgentCycle *cycle);
+
+#ifdef MINISNN_TESTING
+/* Test-only visibility for verifying checkpointed feedback order. */
+uint32_t minisnn_test_agent_cycle_feedback_count(
+    const MiniSNNAgentCycle *cycle);
+int minisnn_test_agent_cycle_feedback_at(
+    const MiniSNNAgentCycle *cycle,
+    uint32_t index,
+    MiniSNNAgentFeedback *out_feedback);
+#endif
 
 #endif
