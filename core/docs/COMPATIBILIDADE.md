@@ -218,5 +218,7 @@ versionado, com manifesto e arquivos internos. Ele nao altera checkpoints C3,
 C4, C5 ou C6, nem muda schemas CSV historicos. O load exige schemas completos,
 contratos de encoder/decoder, modelo, dimensoes e assinatura topologica
 compativeis. Uma incompatibilidade ou integridade invalida e recusada sem
-converter formatos antigos silenciosamente. C7.5-B continua pendente; esta
-etapa nao congela a API nem declara uma release candidate.
+converter formatos antigos silenciosamente. C7.5-B foi concluido pela auditoria
+integrada e continua aditivo: nao altera checkpoints C3-C6, CSVs historicos ou
+contratos C7 existentes. Esta etapa nao congela a API nem declara uma release
+candidate; D1 continua sendo a proxima auditoria antes de uma integracao real.

@@ -1201,3 +1201,12 @@ O load verifica manifesto, integridade, schemas e contratos antes de aplicar o
 estado. Os componentes sao carregados com rollback interno para que falhas
 previsiveis nao deixem AgentIO, encoder ou rede parcialmente atualizados.
 Diretorios absolutos e componentes `.` ou `..` sao rejeitados.
+
+## Auditoria integrada C7.5-B
+
+`test-c7-integration`, `test-c7-evolution` e `test-c7-long-run` auditam a
+composicao publica de AgentIO, encoder, decoder, ciclo, feedback e checkpoint
+para LIF, AdEx e Hodgkin-Huxley. O harness nao adiciona API publica: reutiliza
+as operacoes acima e calcula fitness abstrata fora do Core. Consulte
+`docs/AUDITORIA_C7_INTERFACE_CEREBRO_AGENTE.md` para ownership, atomicidade e
+limites candidatos a D1.

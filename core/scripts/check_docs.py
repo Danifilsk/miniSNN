@@ -53,6 +53,7 @@ CENTRAL_DOCUMENTS = (
     "docs/GUIA_DE_MEMORIA_DE_TRABALHO.md",
     "docs/GUIA_DE_MEMORIA_ASSOCIATIVA.md",
     "docs/GUIA_DA_INTERFACE_CEREBRO_AGENTE.md",
+    "docs/AUDITORIA_C7_INTERFACE_CEREBRO_AGENTE.md",
     "docs/GUIA_DE_MODELOS_NEURONAIS.md",
     "docs/CHECKLIST_DE_VALIDACAO_DO_STUDIO.md",
 )
@@ -112,6 +113,7 @@ IMPORTANT_FILES = (
     "configs/evolution_homeostasis_demo.ini",
     "configs/evolution_plasticity_demo.ini",
     "scripts/check_docs.py",
+    "scripts/check_c7_integrated_audit.py",
     "configs/random.ini",
     "configs/small_world.ini",
     "configs/stdp_ltp_demo.ini",
@@ -126,6 +128,7 @@ IMPORTANT_FILES = (
     "configs/reward_mixed_demo.ini",
     "configs/working_memory_demo.ini",
     "configs/associative_memory_demo.ini",
+    "configs/c7_integrated_audit.ini",
     "tests/test_minisnn_api.c",
     "tests/test_topology.c",
     "tests/test_LIF.c",
@@ -168,6 +171,9 @@ IMPORTANT_FILES = (
     "tests/test_sensor_encoding_demo.py",
     "tests/test_action_decoder.c",
     "tests/test_action_decoding_demo.py",
+    "tests/test_c7_integration.c",
+    "tests/test_c7_evolution.c",
+    "tests/test_c7_long_run.c",
 )
 
 REQUIRED_TARGETS = (
@@ -254,6 +260,11 @@ REQUIRED_TARGETS = (
     "test-action-decoder",
     "scenario-action-decoding",
     "check-c7",
+    "test-c7-integration",
+    "test-c7-evolution",
+    "test-c7-long-run",
+    "test-c7",
+    "scenario-c7-integrated-audit",
 )
 
 IMPORTANT_KEYS = (
@@ -547,6 +558,8 @@ def validate_docs(root: Path) -> list[str]:
         errors.append("roadmap ainda apresenta a descricao antiga de C7")
     if "[x] C7.2 - codificacao generica de sensores numericos para entrada neural" not in roadmap:
         errors.append("roadmap nao marca C7.2 como concluido")
+    if "[x] C7 - interface generica cerebro-agente implementada e auditada" not in roadmap:
+        errors.append("roadmap nao marca C7 como concluido")
     if "D1 — integração do Core com o próximo estágio de domínio" in roadmap:
         errors.append("roadmap ainda apresenta a descricao antiga de D1")
     for token in (
@@ -555,7 +568,7 @@ def validate_docs(root: Path) -> list[str]:
         "C7.3 - decodificacao generica de atividade neural para acoes numericas",
         "C7.4 - reward, reset e ciclo cerebro-agente",
         "C7.5-A - persistencia, resume e replay deterministico do ciclo cerebro-agente",
-        "C7.5-B - integracao e auditoria final da interface cerebro-agente",
+        "C7.5-B - auditoria integrada da interface cerebro-agente",
         "D1 — auditoria e congelamento do Core antes do Worlds",
         "Worlds Kernel -> Domain minimo -> Brain Bridge -> organismo headless -> App minimo -> D2 pos-integracao",
     ):

@@ -1,5 +1,13 @@
 # Arquitetura do Core
 
+## C7.5-B - Auditoria integrada
+
+`app/c7_integrated_audit*.c` e `tests/test_c7_*.c` pertencem a camada de
+laboratorio e teste. Eles compoem apenas APIs publicas C7 e o checkpoint
+existente; nao introduzem conceitos de dominio em `src/`. A matriz inclui
+LIF/AdEx/HH, replay, evolucao abstrata e long run. O resultado fecha C7 e deixa
+D1 como proxima auditoria de estabilizacao.
+
 ## C7.5-A - Persistencia e replay do ciclo
 
 `src/agent_cycle_checkpoint.c` reutiliza o estado privado ja pertencente ao

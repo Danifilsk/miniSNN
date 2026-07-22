@@ -249,3 +249,12 @@ mingw32-make check-c7
 Os testes cobrem schemas, ownership, assinaturas, serializacao, atomicidade,
 ticks, isolamento, faixas neuronais, normalizacao, taxa deterministica e os
 modelos LIF, AdEx e Hodgkin-Huxley.
+
+## Auditoria integrada C7.5-B
+
+Execute `mingw32-make test-c7` para a matriz completa e
+`mingw32-make scenario-c7-integrated-audit` para gerar a evidencia local. O
+cenario reutiliza a interface publica para LIF, AdEx e Hodgkin-Huxley; nao
+atribui semantica de dominio aos nomes dos canais. Checkpoint/replay e reset
+seguem os contratos C7.4/C7.5-A. A referencia de ownership e limites esta em
+[Auditoria C7](AUDITORIA_C7_INTERFACE_CEREBRO_AGENTE.md).

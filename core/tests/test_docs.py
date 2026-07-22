@@ -49,6 +49,7 @@ def main() -> int:
         "docs/GUIA_DE_MEMORIA_DE_TRABALHO.md",
         "docs/GUIA_DE_MEMORIA_DE_TRABALHO.md",
         "docs/GUIA_DA_INTERFACE_CEREBRO_AGENTE.md",
+        "docs/AUDITORIA_C7_INTERFACE_CEREBRO_AGENTE.md",
         "include/minisnn_sensor_encoder.h",
         "src/sensor_encoder.c",
         "tests/test_sensor_encoder.c",

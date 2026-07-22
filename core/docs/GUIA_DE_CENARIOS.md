@@ -628,3 +628,9 @@ mesmo modelo e a mesma configuracao.
 
 `sample_stride` tambem controla a amostragem dos arquivos de estado especifico.
 O valor padrao `1` registra todos os passos.
+
+O INI `configs/c7_integrated_audit.ini` e um cenario de auditoria C7 separado
+dos cenarios neuronais comuns. Ele configura modelos, seed, episodios, ticks,
+plasticidades, fronteiras de checkpoint e replay. Use
+`mingw32-make scenario-c7-integrated-audit`; os resultados locais ficam em uma
+pasta propria e o arquivo de origem e preservado em `config_source.ini`.

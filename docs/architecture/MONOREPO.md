@@ -36,7 +36,7 @@ O Core possui uma fronteira interna comum para redes homogêneas LIF, AdEx e
 Hodgkin-Huxley. O C5 foi concluído sem introduzir redes híbridas ou
 dependências para os módulos futuros do monorepo.
 
-## C7.1-C7.5-A: contratos, codificacao, decodificacao, ciclo e replay
+## C7.1-C7.5: contratos, codificacao, decodificacao, ciclo, replay e auditoria
 
 O Core expoe schemas e frames numericos por `core/include/minisnn_agent_io.h`
 e codificacao deterministica por `core/include/minisnn_sensor_encoder.h`.
@@ -44,8 +44,8 @@ Essa interface permanece independente de qualquer dominio e nao cria uma
 dependencia de Worlds. C7.2 aplica correntes por API publica sem avancar a
 rede; C7.3 decodifica atividade completa sem avancar a rede; C7.4 e o unico
 orquestrador C7 que avanca a rede e publica a action atomicamente. C7.5-A
-adiciona somente persistencia e replay verificados; C7.5-B continua como
-auditoria final antes de D1.
+adiciona persistencia e replay verificados; C7.5-B fecha a auditoria por
+matriz, ciclo de vida e long run. C7 esta concluido e D1 e o proximo bloco.
 
 ## Limites planejados
 

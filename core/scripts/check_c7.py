@@ -33,6 +33,16 @@ CHECKPOINT_DEMO = ROOT / "app" / "agent_cycle_checkpoint_demo.c"
 CHECKPOINT_CONFIG_SOURCE = ROOT / "app" / "agent_cycle_checkpoint_demo_config.c"
 CHECKPOINT_CONFIG_HEADER = ROOT / "app" / "agent_cycle_checkpoint_demo_config.h"
 CHECKPOINT_DEMO_TEST = ROOT / "tests" / "test_agent_cycle_checkpoint_demo.py"
+C7_AUDIT_COMMON = ROOT / "app" / "c7_audit_common.c"
+C7_AUDIT_CONFIG_SOURCE = ROOT / "app" / "c7_integrated_audit_config.c"
+C7_AUDIT_CONFIG_HEADER = ROOT / "app" / "c7_integrated_audit_config.h"
+C7_AUDIT_RUNNER = ROOT / "app" / "c7_integrated_audit.c"
+C7_AUDIT_TEST = ROOT / "tests" / "test_c7_integration.c"
+C7_EVOLUTION_TEST = ROOT / "tests" / "test_c7_evolution.c"
+C7_LONG_TEST = ROOT / "tests" / "test_c7_long_run.c"
+C7_AUDIT_PYTHON_TEST = ROOT / "scripts" / "check_c7_integrated_audit.py"
+C7_AUDIT_CONFIG = ROOT / "configs" / "c7_integrated_audit.ini"
+ROADMAP = ROOT / "docs" / "ROADMAP.md"
 MAKEFILE = ROOT / "Makefile"
 
 
@@ -49,7 +59,10 @@ def main() -> None:
                  AGENT_CYCLE_SOURCE, AGENT_CYCLE_TEST, AGENT_CYCLE_DEMO,
                  AGENT_CYCLE_CONFIG_SOURCE, AGENT_CYCLE_DEMO_TEST, CHECKPOINT_SOURCE,
                  CHECKPOINT_INTERNAL_HEADER, CHECKPOINT_TEST, CHECKPOINT_DEMO,
-                 CHECKPOINT_CONFIG_SOURCE, CHECKPOINT_CONFIG_HEADER, CHECKPOINT_DEMO_TEST):
+                 CHECKPOINT_CONFIG_SOURCE, CHECKPOINT_CONFIG_HEADER, CHECKPOINT_DEMO_TEST,
+                 C7_AUDIT_COMMON, C7_AUDIT_CONFIG_SOURCE, C7_AUDIT_CONFIG_HEADER,
+                 C7_AUDIT_RUNNER, C7_AUDIT_TEST, C7_EVOLUTION_TEST, C7_LONG_TEST,
+                 C7_AUDIT_PYTHON_TEST, C7_AUDIT_CONFIG, ROADMAP):
         if not path.is_file():
             fail(f"arquivo obrigatorio ausente: {path.relative_to(ROOT)}")
 
@@ -79,6 +92,14 @@ def main() -> None:
     checkpoint_demo = CHECKPOINT_DEMO.read_text(encoding="utf-8")
     checkpoint_config_source = CHECKPOINT_CONFIG_SOURCE.read_text(encoding="utf-8")
     checkpoint_demo_test = CHECKPOINT_DEMO_TEST.read_text(encoding="utf-8")
+    audit_common = C7_AUDIT_COMMON.read_text(encoding="utf-8")
+    audit_config = C7_AUDIT_CONFIG_SOURCE.read_text(encoding="utf-8")
+    audit_runner = C7_AUDIT_RUNNER.read_text(encoding="utf-8")
+    audit_test = C7_AUDIT_TEST.read_text(encoding="utf-8")
+    audit_evolution_test = C7_EVOLUTION_TEST.read_text(encoding="utf-8")
+    audit_long_test = C7_LONG_TEST.read_text(encoding="utf-8")
+    audit_python_test = C7_AUDIT_PYTHON_TEST.read_text(encoding="utf-8")
+    roadmap = ROADMAP.read_text(encoding="utf-8")
     makefile = MAKEFILE.read_text(encoding="utf-8")
 
     for token in (
@@ -416,11 +437,49 @@ def main() -> None:
     for target in ("test-agent-io", "test-sensor-encoder", "scenario-sensor-encoding",
                    "test-action-decoder", "scenario-action-decoding", "test-agent-cycle",
                    "scenario-agent-cycle", "test-agent-cycle-checkpoint",
-                   "scenario-agent-cycle-checkpoint", "check-c7"):
+                   "scenario-agent-cycle-checkpoint", "test-c7-integration", "test-c7-evolution",
+                   "test-c7-long-run", "test-c7", "scenario-c7-integrated-audit", "check-c7"):
         if target not in makefile:
             fail(f"target Makefile ausente: {target}")
 
-    print("C7.5-A checkpoint and replay validation OK")
+    for token in (
+        "minisnn_agent_cycle_run_tick", "minisnn_agent_cycle_save_checkpoint",
+        "minisnn_agent_cycle_load_checkpoint", "minisnn_agent_cycle_reset_episode",
+        "minisnn_agent_cycle_submit_feedback", "c7_audit_fingerprint_tick",
+        "minisnn_agent_io_contract_signature", "minisnn_sensor_encoder_contract_signature",
+        "minisnn_action_decoder_contract_signature",
+    ):
+        if token not in audit_common + audit_runner:
+            fail(f"contrato integrado C7.5-B ausente: {token}")
+    for token in (
+        "neuron_model_from_name", "neuron_model_name", "checkpoint_ready",
+        "checkpoint_pending", "replay_enabled", "config_source.ini", "config_used.ini",
+        "c7_audit_runs.csv", "c7_audit_report.html",
+    ):
+        if token not in audit_config + audit_runner:
+            fail(f"cenario autoritativo C7.5-B ausente: {token}")
+    for token in (
+        "MINISNN_NEURON_MODEL_LIF", "MINISNN_NEURON_MODEL_ADEX",
+        "MINISNN_NEURON_MODEL_HODGKIN_HUXLEY", "ACTION_PENDING", "FAULTED",
+        "test_fingerprints",
+    ):
+        if token not in audit_test:
+            fail(f"cobertura de integracao C7.5-B ausente: {token}")
+    for token in ("EvolutionEngine", "C7AuditFixture", "fitness",
+                  "MINISNN_NEURON_MODEL_ADEX", "MINISNN_NEURON_MODEL_HODGKIN_HUXLEY",
+                  "test_lif_evolution_checkpoint_resume"):
+        if token not in audit_evolution_test:
+            fail(f"cobertura evolutiva C7.5-B ausente: {token}")
+    for token in ("100000U", "checkpoint", "C7_LONG_NEURAL_STEPS_PER_MODEL"):
+        if token not in audit_long_test:
+            fail(f"cobertura prolongada C7.5-B ausente: {token}")
+    for token in ("fingerprint", "ACTION_PENDING", "configuracao alternativa"):
+        if token not in audit_python_test:
+            fail(f"checker de artefatos C7.5-B ausente: {token}")
+    if "D1" not in roadmap or "C7" not in roadmap:
+        fail("roadmap nao aponta o encerramento de C7 e o proximo bloco D1")
+
+    print("C7 complete validation OK")
 
 
 if __name__ == "__main__":

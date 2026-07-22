@@ -29,6 +29,7 @@ implementados, experimentais e planejados.
 - [Guia de memoria associativa](GUIA_DE_MEMORIA_ASSOCIATIVA.md) — treino STDP cue-alvo, recall parcial, controles e limites C6.2.
 - [Guia de sequencias e previsao](GUIA_DE_SEQUENCIAS_E_PREVISAO.md) — treino temporal por STDP, prefixo, previsao, controles e limites C6.3.
 - [Guia da interface cerebro-agente](GUIA_DA_INTERFACE_CEREBRO_AGENTE.md) - schemas numericos, frames, ticks, ownership e limites C7.1.
+- [Auditoria C7 da interface cerebro-agente](AUDITORIA_C7_INTERFACE_CEREBRO_AGENTE.md) - matriz integrada, replay, long run e limites C7.5-B.
 
 Os guias de diagnóstico e plasticidade também explicam os relatórios locais
 `metrics_report.html` e `weights_report.html`. Eles são a camada de leitura;

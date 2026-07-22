@@ -416,3 +416,8 @@ Depois de uma execucao AdEx ou Hodgkin-Huxley, **ABRIR ESTADO DO MODELO** abre
 `adex_state.csv` ou `hh_state.csv`. **COMPARAR MODELOS** executa a comparacao
 reprodutivel C5 e abre o relatorio HTML. Python, pandas e matplotlib sao
 necessarios para a comparacao.
+
+Os controles C7 existentes continuam sendo paines de configuracao e relatorios
+por protocolo, sem painel duplicado. A auditoria integrada C7.5-B e um alvo
+headless (`scenario-c7-integrated-audit`); a revisao manual do Studio deve
+confirmar round-trip dos controles C7 e abertura dos relatorios existentes.

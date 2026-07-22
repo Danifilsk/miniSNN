@@ -216,6 +216,12 @@ O demo C7.2 le de fato `configs/sensor_encoding_demo.ini`. A execucao preserva
 o arquivo fornecido byte a byte como `config_source.ini` e grava a configuracao
 canonica efetivamente usada em `config_used.ini`.
 
+O fechamento C7.5-B adiciona `test-c7`, a auditoria reproduzivel em
+`configs/c7_integrated_audit.ini` e o alvo `scenario-c7-integrated-audit`.
+Eles reutilizam a interface publica para LIF, AdEx e Hodgkin-Huxley, incluindo
+feedback, reset, checkpoint/replay, evolucao abstrata e long run. Isto nao
+define um mundo, corpo ou agente geral; D1 e o proximo bloco.
+
 ## Estrutura
 
 ```text

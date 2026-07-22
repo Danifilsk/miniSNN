@@ -7,6 +7,7 @@ STRUCTURE_SOURCES = src/structure.c src/structural_plasticity.c
 API_SOURCES = src/minisnn.c src/neuron.c src/neuron_model.c src/network.c src/plasticity.c src/reward.c src/homeostasis.c src/agent_io.c src/sensor_encoder.c src/action_decoder.c src/agent_cycle.c src/agent_cycle_checkpoint.c $(STRUCTURE_SOURCES)
 APP_SOURCES = app/scenario_config.c
 SCENARIO_RUNNER_SOURCES = app/scenario_config.c app/scenario_runtime.c app/scenario_runner.c app/working_memory.c app/associative_memory.c app/sequence_prediction.c
+C7_AUDIT_SOURCES = app/c7_audit_common.c
 C6_SUITE_SOURCES = app/c6_suite.c $(SCENARIO_RUNNER_SOURCES)
 EVOLUTION_SOURCES = src/evolution.c
 EVOLUTION_RUNNER_SOURCES = app/evolution_config.c app/evolution_runner.c $(SCENARIO_RUNNER_SOURCES) $(EVOLUTION_SOURCES)
@@ -30,9 +31,11 @@ ANALYZER_CFLAGS = -std=c11 -Wall -Wextra -pedantic -fanalyzer -Wformat=2 -Wshado
 .PHONY: all help clean test test-api test-core test-lif test-neuron-model test-adex test-hodgkin-huxley test-model-checkpoints test-model-error-propagation test-model-provenance test-adex-long test-hh-long test-models-long test-plasticity test-plasticity-long test-homeostasis test-homeostasis-long test-reward test-reward-long test-evolution test-structure test-structural-plasticity test-structure-resume test-structure-long test-evolution-runner test-evolution-resume test-evolution-long test-plot-evolution test-plot-topology test-evolution-report test-structural-html evolution-build evolution-weight-demo evolution-homeostasis-demo evolution-plasticity-demo evolution-structure-demo structural-pruning-demo structural-growth-demo evolution-structure-learning-demo plot-evolution plot-topology report-evolution report-evolution-history report-structural-events report-best-topology test-scenario test-runner test-runner-topologies test-working-memory test-associative-memory test-sequence-prediction test-c6-checkpoints test-c6-integration test-c6-long test-agent-io test-sensor-encoder test-action-decoder test-agent-cycle test-reproducibility test-regression test-memory test-long test-analyzer test-sanitize benchmark-v02 benchmark-c1 benchmark-c15 benchmark-c2 benchmark-c3 benchmark-c4 benchmark-c5 check-v02 check-c1 check-c15 check-c2 check-c3 check-c4 check-c5-interface check-c5 check-c6 check-c7 compare-neuron-models test-compare-neuron-models \
 	test-plot-neuron test-plot-plasticity test-compare-runs test-diagnostics test-run-reports test-history-report test-docs test-agent-cycle-checkpoint \
 	test-plot-homeostasis plot-homeostasis test-plot-reward plot-reward \
+	test-c7-integration test-c7-evolution test-c7-long-run test-c7 \
 	api-examples api-single api-chain api-exc-inh \
 	demo ei-balance inhibition-fine inh-to-inh sparse-ei scenario \
-    scenario-random scenario-small-world scenario-working-memory scenario-associative-memory scenario-sequence-prediction scenario-sequence-prediction-context scenario-c6-suite scenario-sensor-encoding scenario-action-decoding scenario-agent-cycle-checkpoint scenario-feedforward \
+	scenario-random scenario-small-world scenario-working-memory scenario-associative-memory scenario-sequence-prediction scenario-sequence-prediction-context scenario-c6-suite scenario-sensor-encoding scenario-action-decoding scenario-agent-cycle-checkpoint scenario-feedforward \
+	scenario-c7-integrated-audit \
 	scenario-stdp-ltp scenario-stdp-ltd scenario-stdp-mixed plot-stdp-ltp \
 	scenario-homeostasis-silence scenario-homeostasis-explosion scenario-homeostasis-stdp \
 	scenario-reward-positive scenario-punishment-negative scenario-reward-delayed scenario-reward-mixed \
@@ -100,6 +103,11 @@ help:
 	@echo   make scenario-action-decoding - executa o demo reproduzivel C7.3
 	@echo   make test-agent-cycle    - valida orquestracao generica C7.4
 	@echo   make test-agent-cycle-checkpoint - valida persistencia e replay C7.5-A
+	@echo   make test-c7-integration - valida a cadeia integrada C7.5-B
+	@echo   make test-c7-evolution  - valida a ponte C7 com a evolucao abstrata
+	@echo   make test-c7-long-run   - executa 100000 passos por modelo C7
+	@echo   make test-c7            - executa a matriz completa C7 sem duplicacao no teste geral
+	@echo   make scenario-c7-integrated-audit - gera a auditoria reproduzivel C7.5-B
 	@echo   make scenario-agent-cycle - executa o demo reproduzivel C7.4
 	@echo   make scenario-agent-cycle-checkpoint - executa o demo C7.5-A
 	@echo   make test-runner-topologies - validacao estrutural das topologias do runner
@@ -195,11 +203,23 @@ $(BUILD_DIR)/test_agent_cycle.exe: tests/test_agent_cycle.c $(API_SOURCES) inclu
 $(BUILD_DIR)/test_agent_cycle_checkpoint.exe: tests/test_agent_cycle_checkpoint.c $(API_SOURCES) include/minisnn_agent_cycle.h | $(BUILD_DIR)
 	$(CC) $(CFLAGS) -DMINISNN_TESTING tests/test_agent_cycle_checkpoint.c $(API_SOURCES) $(INCLUDES) -o $@
 
+$(BUILD_DIR)/test_c7_integration.exe: tests/test_c7_integration.c $(C7_AUDIT_SOURCES) $(API_SOURCES) | $(BUILD_DIR)
+	$(CC) $(CFLAGS) -DMINISNN_TESTING tests/test_c7_integration.c $(C7_AUDIT_SOURCES) $(API_SOURCES) $(INCLUDES) -o $@
+
+$(BUILD_DIR)/test_c7_evolution.exe: tests/test_c7_evolution.c $(C7_AUDIT_SOURCES) $(API_SOURCES) src/evolution.c | $(BUILD_DIR)
+	$(CC) $(CFLAGS) tests/test_c7_evolution.c $(C7_AUDIT_SOURCES) $(API_SOURCES) src/evolution.c $(INCLUDES) -o $@
+
+$(BUILD_DIR)/test_c7_long_run.exe: tests/test_c7_long_run.c $(C7_AUDIT_SOURCES) $(API_SOURCES) | $(BUILD_DIR)
+	$(CC) $(CFLAGS) tests/test_c7_long_run.c $(C7_AUDIT_SOURCES) $(API_SOURCES) $(INCLUDES) -o $@
+
 $(BUILD_DIR)/agent_cycle_demo.exe: app/agent_cycle_demo.c app/agent_cycle_demo_config.c app/agent_cycle_demo_config.h $(API_SOURCES) include/minisnn_agent_cycle.h | $(BUILD_DIR)
 	$(CC) $(CFLAGS) app/agent_cycle_demo.c app/agent_cycle_demo_config.c $(API_SOURCES) $(INCLUDES) -o $@
 
 $(BUILD_DIR)/agent_cycle_checkpoint_demo.exe: app/agent_cycle_checkpoint_demo.c app/agent_cycle_checkpoint_demo_config.c app/agent_cycle_checkpoint_demo_config.h app/agent_cycle_demo_config.c app/agent_cycle_demo_config.h $(API_SOURCES) include/minisnn_agent_cycle.h | $(BUILD_DIR)
 	$(CC) $(CFLAGS) app/agent_cycle_checkpoint_demo.c app/agent_cycle_checkpoint_demo_config.c app/agent_cycle_demo_config.c $(API_SOURCES) $(INCLUDES) -o $@
+
+$(BUILD_DIR)/c7_integrated_audit.exe: app/c7_integrated_audit.c app/c7_integrated_audit_config.c app/c7_integrated_audit_config.h $(C7_AUDIT_SOURCES) $(API_SOURCES) | $(BUILD_DIR)
+	$(CC) $(CFLAGS) app/c7_integrated_audit.c app/c7_integrated_audit_config.c $(C7_AUDIT_SOURCES) $(API_SOURCES) $(INCLUDES) -o $@
 
 $(BUILD_DIR)/sensor_encoding_demo.exe: app/sensor_encoding_demo.c app/sensor_encoding_demo_config.c app/sensor_encoding_demo_config.h $(API_SOURCES) include/minisnn_sensor_encoder.h | $(BUILD_DIR)
 	$(CC) $(CFLAGS) app/sensor_encoding_demo.c app/sensor_encoding_demo_config.c $(API_SOURCES) $(INCLUDES) -o $@
@@ -265,7 +285,7 @@ check-c5: check-c5-interface test-model-checkpoints test-adex test-hodgkin-huxle
 check-c6: test-working-memory test-associative-memory test-sequence-prediction test-c6-checkpoints test-c6-integration test-c6-long
 	$(PYTHON) scripts/check_c6.py
 
-check-c7: test-agent-io test-sensor-encoder test-action-decoder test-agent-cycle test-agent-cycle-checkpoint
+check-c7: test-agent-io test-sensor-encoder test-action-decoder test-agent-cycle test-agent-cycle-checkpoint test-c7-integration test-c7-evolution
 	$(PYTHON) scripts/check_c7.py
 
 $(BUILD_DIR)/test_plasticity.exe: tests/test_plasticity.c $(API_SOURCES) | $(BUILD_DIR)
@@ -514,6 +534,18 @@ test-agent-cycle-checkpoint: $(BUILD_DIR)/test_agent_cycle_checkpoint.exe $(BUIL
 	$(BUILD_DIR)/test_agent_cycle_checkpoint.exe
 	$(PYTHON) tests/test_agent_cycle_checkpoint_demo.py $(BUILD_DIR)/agent_cycle_checkpoint_demo.exe
 
+test-c7-integration: $(BUILD_DIR)/test_c7_integration.exe
+	$(BUILD_DIR)/test_c7_integration.exe
+
+test-c7-evolution: $(BUILD_DIR)/test_c7_evolution.exe
+	$(BUILD_DIR)/test_c7_evolution.exe
+
+test-c7-long-run: $(BUILD_DIR)/test_c7_long_run.exe
+	$(BUILD_DIR)/test_c7_long_run.exe
+
+test-c7: test-agent-io test-sensor-encoder test-action-decoder test-agent-cycle test-agent-cycle-checkpoint test-c7-integration test-c7-evolution test-c7-long-run check-c7
+	@echo C7 complete test matrix OK
+
 scenario-sensor-encoding: $(BUILD_DIR)/sensor_encoding_demo.exe
 	$(BUILD_DIR)/sensor_encoding_demo.exe configs/sensor_encoding_demo.ini
 
@@ -525,6 +557,10 @@ scenario-agent-cycle: $(BUILD_DIR)/agent_cycle_demo.exe
 
 scenario-agent-cycle-checkpoint: $(BUILD_DIR)/agent_cycle_checkpoint_demo.exe
 	$(BUILD_DIR)/agent_cycle_checkpoint_demo.exe configs/agent_cycle_checkpoint_demo.ini
+
+scenario-c7-integrated-audit: $(BUILD_DIR)/c7_integrated_audit.exe
+	$(BUILD_DIR)/c7_integrated_audit.exe configs/c7_integrated_audit.ini
+	$(PYTHON) scripts/check_c7_integrated_audit.py $(BUILD_DIR)/c7_integrated_audit.exe
 
 test-runner-topologies: $(BUILD_DIR)/test_runner_topologies.exe
 	$(BUILD_DIR)/test_runner_topologies.exe
