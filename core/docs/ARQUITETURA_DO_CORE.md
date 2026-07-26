@@ -6,7 +6,10 @@
 laboratorio e teste. Eles compoem apenas APIs publicas C7 e o checkpoint
 existente; nao introduzem conceitos de dominio em `src/`. A matriz inclui
 LIF/AdEx/HH, replay, evolucao abstrata e long run. O resultado fecha C7 e deixa
-D1 como proxima auditoria de estabilizacao.
+D1 como a proxima auditoria e estabilizacao pre-Worlds. D1 resulta em
+`miniSNN Core v1.0-rc` e em uma API candidata Core-Brain Bridge estavel apenas
+provisoriamente; o congelamento definitivo cabe a D2, depois da primeira
+integracao real.
 
 ## C7.5-A - Persistencia e replay do ciclo
 

@@ -12,7 +12,7 @@ endif
 endif
 CORE_DIR = core
 
-.PHONY: all help clean core core-tests core-studio core-evolution test test-architecture test-working-memory test-associative-memory test-sequence-prediction test-c6-checkpoints test-c6-integration test-c6-long test-agent-io test-sensor-encoder test-action-decoder test-agent-cycle test-agent-cycle-checkpoint scenario-working-memory scenario-associative-memory scenario-sequence-prediction scenario-sequence-prediction-context scenario-c6-suite scenario-sensor-encoding scenario-action-decoding scenario-agent-cycle scenario-agent-cycle-checkpoint check-c6 check-c7
+.PHONY: all help clean core core-tests core-studio core-evolution test test-architecture test-working-memory test-associative-memory test-sequence-prediction test-c6-checkpoints test-c6-integration test-c6-long test-agent-io test-sensor-encoder test-action-decoder test-agent-cycle test-agent-cycle-checkpoint test-c7-integration test-c7-evolution test-c7-long-run test-c7 scenario-working-memory scenario-associative-memory scenario-sequence-prediction scenario-sequence-prediction-context scenario-c6-suite scenario-sensor-encoding scenario-action-decoding scenario-agent-cycle scenario-agent-cycle-checkpoint scenario-c7-integrated-audit check-c6 check-c7
 
 all: test
 
@@ -40,10 +40,15 @@ help:
 	@echo   mingw32-make test-agent-cycle-checkpoint - valida resume/replay C7.5-A
 	@echo   mingw32-make scenario-agent-cycle - executa o demo C7.4
 	@echo   mingw32-make scenario-agent-cycle-checkpoint - executa o demo C7.5-A
-	@echo   mingw32-make check-c7          - verifica C7.1-C7.5-A
+	@echo   mingw32-make test-c7-integration - valida a cadeia integrada C7.5-B
+	@echo   mingw32-make test-c7-evolution - valida a ponte C7 com evolucao abstrata
+	@echo   mingw32-make test-c7-long-run - executa 100000 passos por modelo C7
+	@echo   mingw32-make test-c7          - executa a matriz completa C7
+	@echo   mingw32-make scenario-c7-integrated-audit - gera a auditoria C7.5-B
+	@echo   mingw32-make check-c7          - verifica C7.1-C7.5-B e fecha C7
 	@echo   mingw32-make test             - testes do Core e arquitetura do monorepo
 	@echo   mingw32-make test-architecture - valida isolamento e estrutura M1
-	@echo   mingw32-make <target-do-core> - encaminha targets legados ao Core
+	@echo   mingw32-make target-do-core - encaminha targets legados ao Core
 
 core:
 	$(MAKE) -C $(CORE_DIR) all
@@ -90,6 +95,18 @@ test-agent-cycle:
 test-agent-cycle-checkpoint:
 	$(MAKE) -C $(CORE_DIR) test-agent-cycle-checkpoint
 
+test-c7-integration:
+	$(MAKE) -C $(CORE_DIR) test-c7-integration
+
+test-c7-evolution:
+	$(MAKE) -C $(CORE_DIR) test-c7-evolution
+
+test-c7-long-run:
+	$(MAKE) -C $(CORE_DIR) test-c7-long-run
+
+test-c7:
+	$(MAKE) -C $(CORE_DIR) test-c7
+
 scenario-working-memory:
 	$(MAKE) -C $(CORE_DIR) scenario-working-memory
 
@@ -116,6 +133,9 @@ scenario-agent-cycle:
 
 scenario-agent-cycle-checkpoint:
 	$(MAKE) -C $(CORE_DIR) scenario-agent-cycle-checkpoint
+
+scenario-c7-integrated-audit:
+	$(MAKE) -C $(CORE_DIR) scenario-c7-integrated-audit
 
 check-c6:
 	$(MAKE) -C $(CORE_DIR) check-c6

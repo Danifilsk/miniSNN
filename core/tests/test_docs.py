@@ -73,6 +73,18 @@ def main() -> int:
             print(f"Documentation validation FAILED\n- arquivo HTML ausente: {relative}")
             return 1
     errors = validate_docs(PROJECT_ROOT)
+    roadmap = (PROJECT_ROOT / "docs" / "ROADMAP.md").read_text(encoding="utf-8")
+    for token in (
+        "D1 — auditoria e estabilizacao pre-Worlds",
+        "miniSNN Core v1.0-rc",
+        "API candidata Core-Brain Bridge",
+        "D2 — auditoria pos-integracao",
+        "congelada definitivamente",
+    ):
+        if token not in roadmap:
+            errors.append(f"roadmap sem contrato D1/D2: {token}")
+    if "D1 — congelamento definitivo do Core" in roadmap:
+        errors.append("roadmap atribui congelamento definitivo a D1")
     if errors:
         print("Documentation validation FAILED")
         for error in errors:

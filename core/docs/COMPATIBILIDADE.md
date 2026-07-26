@@ -222,3 +222,8 @@ converter formatos antigos silenciosamente. C7.5-B foi concluido pela auditoria
 integrada e continua aditivo: nao altera checkpoints C3-C6, CSVs historicos ou
 contratos C7 existentes. Esta etapa nao congela a API nem declara uma release
 candidate; D1 continua sendo a proxima auditoria antes de uma integracao real.
+
+D1 e uma auditoria e estabilizacao pre-Worlds: produz `miniSNN Core v1.0-rc`
+e uma API candidata Core-Brain Bridge estavel provisoriamente. D2, apos a
+integracao, produz `miniSNN Core v1.0` e congela definitivamente a API
+Core-Brain Bridge v1.

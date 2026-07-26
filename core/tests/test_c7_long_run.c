@@ -2,14 +2,10 @@
 #include <stdio.h>
 #include <string.h>
 
-#ifdef _WIN32
-#include <windows.h>
-#endif
-
 #include "c7_audit_common.h"
 
 #define C7_LONG_NEURAL_STEPS_PER_MODEL 100000U
-#define C7_LONG_BRAIN_STEPS 4U
+#define C7_LONG_BRAIN_STEPS 100U
 #define C7_LONG_TICKS (C7_LONG_NEURAL_STEPS_PER_MODEL / C7_LONG_BRAIN_STEPS)
 
 static int fail(const char *message)
@@ -20,30 +16,12 @@ static int fail(const char *message)
 
 static int ensure_directory(const char *directory)
 {
-#ifdef _WIN32
-    return CreateDirectoryA(directory, NULL) != 0 || GetLastError() == ERROR_ALREADY_EXISTS;
-#else
-    (void)directory;
-    return 1;
-#endif
+    return c7_audit_ensure_directory(directory);
 }
 
 static void cleanup_checkpoint(const char *directory)
 {
-    static const char *const names[] =
-    {
-        "network_state.bin", "agent_io_state.bin", "sensor_encoder_state.bin",
-        "action_decoder_state.bin", "agent_cycle_state.bin", "manifest.txt"
-    };
-    char path[384];
-    for (size_t index = 0U; index < sizeof(names) / sizeof(names[0]); index++)
-    {
-        snprintf(path, sizeof(path), "%s/%s", directory, names[index]);
-        remove(path);
-    }
-#ifdef _WIN32
-    RemoveDirectoryA(directory);
-#endif
+    c7_audit_remove_checkpoint_directory(directory);
 }
 
 static void values_for_tick(uint64_t tick, double values[C7_AUDIT_SENSOR_COUNT])
@@ -111,6 +89,8 @@ static int run_model(MiniSNNNeuronModel model, const char *name)
     char ready_directory[256];
     char pending_directory[256];
     uint64_t expected_actions = 0U;
+    uint64_t total_spikes = 0U;
+    uint64_t nondefault_actions = 0U;
     uint64_t failed_tick = UINT64_MAX;
     int ok = c7_audit_fixture_create(&fixture, model, C7_AUDIT_MIN_NEURONS,
                                      C7_LONG_BRAIN_STEPS, 1, 1, use_homeostasis, 1);
@@ -142,6 +122,13 @@ static int run_model(MiniSNNNeuronModel model, const char *name)
             break;
         }
         expected_actions++;
+        total_spikes += diagnostics.total_spikes;
+        for (uint32_t index = 0U; index < C7_AUDIT_ACTION_COUNT; index++)
+            if (actions[index] != 0.0)
+            {
+                nondefault_actions++;
+                break;
+            }
         c7_audit_fingerprint_tick(&fingerprint, tick, values, actions, &diagnostics, &fixture);
         if (tick == 32U)
             ok = replace_from_checkpoint(&fixture, model, ready_directory, 0, tick, actions);
@@ -159,6 +146,7 @@ static int run_model(MiniSNNNeuronModel model, const char *name)
     }
     ok = ok && minisnn_agent_cycle_total_actions(fixture.cycle) == expected_actions &&
         minisnn_agent_cycle_total_neural_steps(fixture.cycle) == C7_LONG_NEURAL_STEPS_PER_MODEL &&
+        total_spikes > 0U && nondefault_actions > 0U &&
         c7_audit_fingerprint_value(&fingerprint) != 0U &&
         c7_audit_fixture_all_finite(&fixture);
     if (!ok)

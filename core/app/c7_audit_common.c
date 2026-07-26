@@ -1,8 +1,18 @@
 #include "c7_audit_common.h"
 
+#include <errno.h>
 #include <math.h>
 #include <stddef.h>
+#include <stdio.h>
 #include <string.h>
+
+#ifdef _WIN32
+#include <direct.h>
+#include <windows.h>
+#else
+#include <sys/stat.h>
+#include <unistd.h>
+#endif
 
 static uint64_t fnv1a_mix(uint64_t hash, uint64_t value)
 {
@@ -21,7 +31,7 @@ static uint64_t double_bits(double value)
     return bits;
 }
 
-static double input_drive(MiniSNNNeuronModel model)
+static double default_input_drive(MiniSNNNeuronModel model)
 {
     switch (model)
     {
@@ -30,10 +40,54 @@ static double input_drive(MiniSNNNeuronModel model)
         case MINISNN_NEURON_MODEL_ADEX:
             return 500.0;
         case MINISNN_NEURON_MODEL_HODGKIN_HUXLEY:
-            return 1.0;
+            return 12.0;
         default:
             return 0.0;
     }
+}
+
+int c7_audit_ensure_directory(const char *directory)
+{
+#ifdef _WIN32
+    DWORD attributes;
+    if (directory == NULL || directory[0] == '\0')
+        return 0;
+    if (CreateDirectoryA(directory, NULL) == 0 && GetLastError() != ERROR_ALREADY_EXISTS)
+        return 0;
+    attributes = GetFileAttributesA(directory);
+    return attributes != INVALID_FILE_ATTRIBUTES &&
+        (attributes & FILE_ATTRIBUTE_DIRECTORY) != 0U;
+#else
+    struct stat state;
+    if (directory == NULL || directory[0] == '\0')
+        return 0;
+    if (mkdir(directory, 0777) != 0 && errno != EEXIST)
+        return 0;
+    return stat(directory, &state) == 0 && S_ISDIR(state.st_mode);
+#endif
+}
+
+void c7_audit_remove_checkpoint_directory(const char *directory)
+{
+    static const char *const names[] =
+    {
+        "network_state.bin", "agent_io_state.bin", "sensor_encoder_state.bin",
+        "action_decoder_state.bin", "agent_cycle_state.bin", "manifest.txt",
+        "audit_metadata.txt"
+    };
+    char path[512];
+    if (directory == NULL || directory[0] == '\0')
+        return;
+    for (size_t index = 0U; index < sizeof(names) / sizeof(names[0]); index++)
+    {
+        if (snprintf(path, sizeof(path), "%s/%s", directory, names[index]) >= 0)
+            remove(path);
+    }
+#ifdef _WIN32
+    _rmdir(directory);
+#else
+    rmdir(directory);
+#endif
 }
 
 static int configure_optional_modules(
@@ -88,11 +142,12 @@ void c7_audit_fixture_destroy(C7AuditFixture *fixture)
     memset(fixture, 0, sizeof(*fixture));
 }
 
-int c7_audit_fixture_create(
+int c7_audit_fixture_create_calibrated(
     C7AuditFixture *fixture,
     MiniSNNNeuronModel model,
     uint32_t neuron_count,
     uint32_t brain_steps_per_tick,
+    double drive,
     int enable_plasticity,
     int enable_reward,
     int enable_homeostasis,
@@ -115,23 +170,21 @@ int c7_audit_fixture_create(
     const MiniSNNActionDecodingSpec decoding[C7_AUDIT_ACTION_COUNT] =
     {
         {100U, MINISNN_ACTION_DECODING_POPULATION_RATE, 0U, 3U, 0U, 0U,
-         0.0, 1.0, 0.0, 0.0, 0.0, 0U, 0.0, 0.0, 0.0, 0.0},
+         0.01, 1.0, 0.0, 0.0, 0.0, 0U, 0.0, 0.0, 0.0, 0.0},
         {110U, MINISNN_ACTION_DECODING_THRESHOLD, 3U, 3U, 0U, 0U,
-         0.0, 1.0, 0.0, 1.0, 0.0, 0U, 0.0, 0.0, 0.0, 0.0},
+         0.0, 1.0, 0.01, 1.0, 0.0, 0U, 0.0, 0.0, 0.0, 0.0},
         {120U, MINISNN_ACTION_DECODING_WTA_MEMBER, 6U, 3U, 0U, 0U,
-         0.0, 1.0, 0.0, 0.0, 0.0, 1U, 0.0, 0.0, 1.0, 0.0},
+         0.0, 1.0, 0.0, 0.0, 0.0, 1U, 0.01, 0.01, 1.0, 0.0},
         {130U, MINISNN_ACTION_DECODING_WTA_MEMBER, 9U, 3U, 0U, 0U,
-         0.0, 1.0, 0.0, 0.0, 0.0, 1U, 0.0, 0.0, 1.0, 0.0}
+         0.0, 1.0, 0.0, 0.0, 0.0, 1U, 0.01, 0.01, 1.0, 0.0}
     };
     MiniSNNConfig config = minisnn_default_config();
     MiniSNNAgentIOError io_error = MINISNN_AGENT_IO_ERROR_NONE;
     MiniSNNSensorEncoderError encoder_error = MINISNN_SENSOR_ENCODER_ERROR_NONE;
     MiniSNNActionDecoderError decoder_error = MINISNN_ACTION_DECODER_ERROR_NONE;
     MiniSNNAgentCycleError cycle_error = MINISNN_AGENT_CYCLE_ERROR_NONE;
-    const double drive = input_drive(model);
-
     if (fixture == NULL || neuron_count < C7_AUDIT_MIN_NEURONS ||
-        brain_steps_per_tick == 0U || drive == 0.0)
+        brain_steps_per_tick == 0U || !isfinite(drive) || drive <= 0.0)
         return 0;
     memset(fixture, 0, sizeof(*fixture));
     encoding[0] = (MiniSNNSensorEncodingSpec){10U, 0U, 3U,
@@ -145,6 +198,8 @@ int c7_audit_fixture_create(
     config.neuron_model = model;
     config.adex = minisnn_adex_config_default();
     config.hodgkin_huxley = minisnn_hodgkin_huxley_config_default();
+    /* The public MiniSNNConfig timestep is authoritative for every model. */
+    config.dt = model == MINISNN_NEURON_MODEL_HODGKIN_HUXLEY ? 0.01 : 0.1;
     fixture->network = minisnn_create_with_config(&config);
     fixture->sensor_schema = minisnn_sensor_schema_create(sensors, C7_AUDIT_SENSOR_COUNT,
                                                           &io_error);
@@ -184,7 +239,24 @@ int c7_audit_fixture_create(
     }
     fixture->model = model;
     fixture->brain_steps_per_tick = brain_steps_per_tick;
+    fixture->input_drive = drive;
     return 1;
+}
+
+int c7_audit_fixture_create(
+    C7AuditFixture *fixture,
+    MiniSNNNeuronModel model,
+    uint32_t neuron_count,
+    uint32_t brain_steps_per_tick,
+    int enable_plasticity,
+    int enable_reward,
+    int enable_homeostasis,
+    int enable_structural)
+{
+    return c7_audit_fixture_create_calibrated(
+        fixture, model, neuron_count, brain_steps_per_tick,
+        default_input_drive(model), enable_plasticity, enable_reward,
+        enable_homeostasis, enable_structural);
 }
 
 int c7_audit_submit_sensor(
@@ -296,6 +368,30 @@ int c7_audit_fixture_all_finite(const C7AuditFixture *fixture)
         }
     }
     return 1;
+}
+
+uint64_t c7_audit_fixture_state_signature(const C7AuditFixture *fixture)
+{
+    uint64_t hash = UINT64_C(14695981039346656037);
+    uint64_t topology = 0U;
+    if (fixture == NULL || fixture->network == NULL || fixture->agent_io == NULL ||
+        fixture->encoder == NULL || fixture->decoder == NULL || fixture->cycle == NULL ||
+        !minisnn_get_topology_signature(fixture->network, &topology))
+        return 0U;
+    hash = fnv1a_mix(hash, (uint64_t)fixture->model);
+    hash = fnv1a_mix(hash, minisnn_neuron_model_config_signature(fixture->network));
+    hash = fnv1a_mix(hash, topology);
+    hash = fnv1a_mix(hash, minisnn_agent_io_contract_signature(fixture->agent_io));
+    hash = fnv1a_mix(hash, minisnn_sensor_encoder_contract_signature(fixture->encoder));
+    hash = fnv1a_mix(hash, minisnn_action_decoder_contract_signature(fixture->decoder));
+    hash = fnv1a_mix(hash, (uint64_t)minisnn_current_step(fixture->network));
+    hash = fnv1a_mix(hash, minisnn_agent_cycle_episode_id(fixture->cycle));
+    hash = fnv1a_mix(hash, minisnn_agent_cycle_episode_tick(fixture->cycle));
+    hash = fnv1a_mix(hash, minisnn_agent_cycle_next_global_tick(fixture->cycle));
+    hash = fnv1a_mix(hash, minisnn_agent_cycle_total_ticks(fixture->cycle));
+    hash = fnv1a_mix(hash, minisnn_agent_cycle_total_neural_steps(fixture->cycle));
+    hash = fnv1a_mix(hash, minisnn_agent_cycle_total_actions(fixture->cycle));
+    return hash;
 }
 
 void c7_audit_fingerprint_init(

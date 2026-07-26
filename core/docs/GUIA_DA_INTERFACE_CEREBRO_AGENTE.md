@@ -258,3 +258,8 @@ cenario reutiliza a interface publica para LIF, AdEx e Hodgkin-Huxley; nao
 atribui semantica de dominio aos nomes dos canais. Checkpoint/replay e reset
 seguem os contratos C7.4/C7.5-A. A referencia de ownership e limites esta em
 [Auditoria C7](AUDITORIA_C7_INTERFACE_CEREBRO_AGENTE.md).
+
+O fechamento de C7 deixa D1 como auditoria e estabilizacao pre-Worlds. Seu
+resultado planejado e `miniSNN Core v1.0-rc` com uma API candidata Core-Brain
+Bridge estavel provisoriamente. A congelacao definitiva da API e reservada a
+D2, apos a primeira integracao real.

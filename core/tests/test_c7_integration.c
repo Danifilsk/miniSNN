@@ -2,10 +2,6 @@
 #include <stdio.h>
 #include <string.h>
 
-#ifdef _WIN32
-#include <windows.h>
-#endif
-
 #include "c7_audit_common.h"
 #include "minisnn_internal.h"
 
@@ -17,30 +13,12 @@ static int fail(const char *message)
 
 static void cleanup_checkpoint(const char *directory)
 {
-    static const char *const names[] =
-    {
-        "network_state.bin", "agent_io_state.bin", "sensor_encoder_state.bin",
-        "action_decoder_state.bin", "agent_cycle_state.bin", "manifest.txt"
-    };
-    char path[384];
-    for (size_t index = 0U; index < sizeof(names) / sizeof(names[0]); index++)
-    {
-        snprintf(path, sizeof(path), "%s/%s", directory, names[index]);
-        remove(path);
-    }
-#ifdef _WIN32
-    RemoveDirectoryA(directory);
-#endif
+    c7_audit_remove_checkpoint_directory(directory);
 }
 
 static int ensure_directory(const char *directory)
 {
-#ifdef _WIN32
-    return CreateDirectoryA(directory, NULL) != 0 || GetLastError() == ERROR_ALREADY_EXISTS;
-#else
-    (void)directory;
-    return 1;
-#endif
+    return c7_audit_ensure_directory(directory);
 }
 
 static int actions_equal(const double *left, const double *right)
@@ -53,7 +31,7 @@ static int actions_equal(const double *left, const double *right)
 
 static int test_lif_tick_contract(void)
 {
-    C7AuditFixture fixture;
+    C7AuditFixture fixture = {0};
     MiniSNNAgentCycleDiagnostics diagnostics = {0};
     const double values[C7_AUDIT_SENSOR_COUNT] = {1.0, -0.5, 1.0};
     double action[C7_AUDIT_ACTION_COUNT] = {0};
@@ -119,15 +97,15 @@ static int test_checkpoint_matrix_for_model(MiniSNNNeuronModel model, const char
     cleanup_checkpoint(pending_directory);
     const int use_homeostasis = model == MINISNN_NEURON_MODEL_LIF;
     ok = ensure_directory(ready_directory) && ensure_directory(pending_directory) &&
-        c7_audit_fixture_create(&continuous, model, C7_AUDIT_MIN_NEURONS, 4U,
+        c7_audit_fixture_create(&continuous, model, C7_AUDIT_MIN_NEURONS, 64U,
                                 1, 1, use_homeostasis, 1) &&
-        c7_audit_fixture_create(&ready_source, model, C7_AUDIT_MIN_NEURONS, 4U,
+        c7_audit_fixture_create(&ready_source, model, C7_AUDIT_MIN_NEURONS, 64U,
                                 1, 1, use_homeostasis, 1) &&
-        c7_audit_fixture_create(&ready_resumed, model, C7_AUDIT_MIN_NEURONS, 4U,
+        c7_audit_fixture_create(&ready_resumed, model, C7_AUDIT_MIN_NEURONS, 64U,
                                 1, 1, use_homeostasis, 1) &&
-        c7_audit_fixture_create(&pending_source, model, C7_AUDIT_MIN_NEURONS, 4U,
+        c7_audit_fixture_create(&pending_source, model, C7_AUDIT_MIN_NEURONS, 64U,
                                 1, 1, use_homeostasis, 1) &&
-        c7_audit_fixture_create(&pending_resumed, model, C7_AUDIT_MIN_NEURONS, 4U,
+        c7_audit_fixture_create(&pending_resumed, model, C7_AUDIT_MIN_NEURONS, 64U,
                                 1, 1, use_homeostasis, 1) &&
         c7_audit_run_tick(&continuous, 0U, first, continuous_action, NULL) &&
         c7_audit_run_tick(&continuous, 1U, second, continuous_action, NULL) &&
@@ -165,6 +143,76 @@ static int test_checkpoint_matrix_for_model(MiniSNNNeuronModel model, const char
     c7_audit_fixture_destroy(&pending_resumed);
     cleanup_checkpoint(ready_directory);
     cleanup_checkpoint(pending_directory);
+    return ok;
+}
+
+static int test_silence_and_model_activity(void)
+{
+    C7AuditFixture fixture = {0};
+    MiniSNNNeuralActivityFrame silent = {0};
+    MiniSNNActionFrame action = {0};
+    MiniSNNActionDecodingDiagnostics diagnostics = {0};
+    MiniSNNActionDecoderError error = MINISNN_ACTION_DECODER_ERROR_NONE;
+    uint8_t zeros[C7_AUDIT_MIN_NEURONS] = {0};
+    int ok = c7_audit_fixture_create(&fixture, MINISNN_NEURON_MODEL_LIF,
+                                     C7_AUDIT_MIN_NEURONS, 64U, 0, 0, 0, 0) &&
+        minisnn_neural_activity_frame_init(&silent, C7_AUDIT_MIN_NEURONS, 64U, &error) &&
+        minisnn_neural_activity_frame_reset(&silent, 0U, &error) &&
+        minisnn_action_frame_init(&action, C7_AUDIT_ACTION_COUNT) &&
+        minisnn_action_decoding_diagnostics_init(&diagnostics, C7_AUDIT_ACTION_COUNT);
+    for (uint32_t step = 0U; ok && step < 64U; step++)
+        ok = minisnn_neural_activity_frame_set_step(&silent, step, zeros,
+                                                    C7_AUDIT_MIN_NEURONS, &error);
+    ok = ok && minisnn_action_decoder_decode(fixture.decoder, &silent, &action, &diagnostics) &&
+        action.values[0] == 0.0 && action.values[1] == 0.0 &&
+        action.values[2] == 0.0 && action.values[3] == 0.0 &&
+        diagnostics.selected[2] == 0U && diagnostics.selected[3] == 0U;
+    minisnn_action_decoding_diagnostics_destroy(&diagnostics);
+    minisnn_action_frame_destroy(&action);
+    minisnn_neural_activity_frame_destroy(&silent);
+    c7_audit_fixture_destroy(&fixture);
+    for (int model = MINISNN_NEURON_MODEL_LIF; ok &&
+         model <= MINISNN_NEURON_MODEL_HODGKIN_HUXLEY; model++)
+    {
+        uint64_t spikes = 0U;
+        int nondefault = 0;
+        double previous[C7_AUDIT_ACTION_COUNT] = {0};
+        int variation = 0;
+        const double first[C7_AUDIT_SENSOR_COUNT] = {1.0, -0.5, 1.0};
+        const double second[C7_AUDIT_SENSOR_COUNT] = {0.5, 0.25, 0.0};
+        c7_audit_fixture_destroy(&fixture);
+        ok = c7_audit_fixture_create(&fixture, (MiniSNNNeuronModel)model,
+                                     C7_AUDIT_MIN_NEURONS, 64U, 0, 0,
+                                     model == MINISNN_NEURON_MODEL_LIF, 0);
+        for (uint64_t tick = 0U; ok && tick < 8U; tick++)
+        {
+            double values[C7_AUDIT_SENSOR_COUNT];
+            double output[C7_AUDIT_ACTION_COUNT] = {0};
+            MiniSNNAgentCycleDiagnostics cycle = {0};
+            memcpy(values, tick % 2U == 0U ? first : second, sizeof(values));
+            ok = c7_audit_run_tick(&fixture, tick, values, output, &cycle) &&
+                c7_audit_fixture_all_finite(&fixture);
+            spikes += cycle.total_spikes;
+            for (uint32_t index = 0U; index < C7_AUDIT_ACTION_COUNT; index++)
+            {
+                if (output[index] != 0.0)
+                    nondefault = 1;
+                if (tick > 0U && output[index] != previous[index])
+                    variation = 1;
+                previous[index] = output[index];
+            }
+            if (ok)
+                ok = c7_audit_submit_feedback(&fixture, tick, tick + 1U, 0.0, 0);
+        }
+        if (!ok || spikes == 0U || !nondefault || !variation)
+        {
+            char message[96];
+            snprintf(message, sizeof(message), "atividade/decoder real para modelo %d", model);
+            fail(message);
+            ok = 0;
+        }
+    }
+    c7_audit_fixture_destroy(&fixture);
     return ok;
 }
 
@@ -224,6 +272,7 @@ static int test_fingerprints_and_fault_recovery(void)
 int main(void)
 {
     if (!test_lif_tick_contract() || !test_checkpoint_models() ||
+        !test_silence_and_model_activity() ||
         !test_fingerprints_and_fault_recovery())
         return 1;
     printf("C7 integrated interface validation OK\n");

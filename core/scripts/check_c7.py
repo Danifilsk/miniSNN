@@ -446,6 +446,8 @@ def main() -> None:
         "minisnn_agent_cycle_run_tick", "minisnn_agent_cycle_save_checkpoint",
         "minisnn_agent_cycle_load_checkpoint", "minisnn_agent_cycle_reset_episode",
         "minisnn_agent_cycle_submit_feedback", "c7_audit_fingerprint_tick",
+        "c7_audit_fixture_create_calibrated", "c7_audit_fixture_state_signature",
+        "c7_audit_ensure_directory", "MINISNN_ACTION_DECODING_WTA_MEMBER", "input_drive",
         "minisnn_agent_io_contract_signature", "minisnn_sensor_encoder_contract_signature",
         "minisnn_action_decoder_contract_signature",
     ):
@@ -454,14 +456,15 @@ def main() -> None:
     for token in (
         "neuron_model_from_name", "neuron_model_name", "checkpoint_ready",
         "checkpoint_pending", "replay_enabled", "config_source.ini", "config_used.ini",
-        "c7_audit_runs.csv", "c7_audit_report.html",
+        "c7_audit_runs.csv", "c7_audit_report.html", "lif_input_drive",
+        "hodgkin_huxley_input_drive",
     ):
         if token not in audit_config + audit_runner:
             fail(f"cenario autoritativo C7.5-B ausente: {token}")
     for token in (
         "MINISNN_NEURON_MODEL_LIF", "MINISNN_NEURON_MODEL_ADEX",
         "MINISNN_NEURON_MODEL_HODGKIN_HUXLEY", "ACTION_PENDING", "FAULTED",
-        "test_fingerprints",
+        "test_fingerprints", "test_silence_and_model_activity",
     ):
         if token not in audit_test:
             fail(f"cobertura de integracao C7.5-B ausente: {token}")
@@ -470,14 +473,19 @@ def main() -> None:
                   "test_lif_evolution_checkpoint_resume"):
         if token not in audit_evolution_test:
             fail(f"cobertura evolutiva C7.5-B ausente: {token}")
-    for token in ("100000U", "checkpoint", "C7_LONG_NEURAL_STEPS_PER_MODEL"):
+    for token in ("100000U", "checkpoint", "C7_LONG_NEURAL_STEPS_PER_MODEL",
+                  "total_spikes > 0U", "nondefault_actions > 0U"):
         if token not in audit_long_test:
             fail(f"cobertura prolongada C7.5-B ausente: {token}")
-    for token in ("fingerprint", "ACTION_PENDING", "configuracao alternativa"):
+    for token in ("fingerprint", "checkpoint_pending", "configuracao alternativa",
+                  "artefato de checkpoint antigo", "write_short_config"):
         if token not in audit_python_test:
             fail(f"checker de artefatos C7.5-B ausente: {token}")
     if "D1" not in roadmap or "C7" not in roadmap:
         fail("roadmap nao aponta o encerramento de C7 e o proximo bloco D1")
+    if "#ifdef _WIN32" not in audit_common or "c7_audit_ensure_directory" not in audit_test or \
+       "c7_audit_ensure_directory" not in audit_long_test:
+        fail("harnesses C7.5-B nao mantem a portabilidade headless")
 
     print("C7 complete validation OK")
 

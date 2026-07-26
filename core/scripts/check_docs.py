@@ -562,6 +562,8 @@ def validate_docs(root: Path) -> list[str]:
         errors.append("roadmap nao marca C7 como concluido")
     if "D1 — integração do Core com o próximo estágio de domínio" in roadmap:
         errors.append("roadmap ainda apresenta a descricao antiga de D1")
+    if "D1 — congelamento definitivo do Core" in roadmap:
+        errors.append("roadmap atribui congelamento definitivo a D1")
     for token in (
         "C7.1 - contratos genericos de sensores, acoes e frames numericos",
         "C7.2 - codificacao generica de sensores numericos para entrada neural",
@@ -569,7 +571,13 @@ def validate_docs(root: Path) -> list[str]:
         "C7.4 - reward, reset e ciclo cerebro-agente",
         "C7.5-A - persistencia, resume e replay deterministico do ciclo cerebro-agente",
         "C7.5-B - auditoria integrada da interface cerebro-agente",
-        "D1 — auditoria e congelamento do Core antes do Worlds",
+        "D1 — auditoria e estabilizacao pre-Worlds",
+        "miniSNN Core v1.0-rc",
+        "API candidata Core-Brain Bridge",
+        "provisoriamente",
+        "D2 — auditoria pos-integracao",
+        "miniSNN Core v1.0",
+        "congelada definitivamente",
         "Worlds Kernel -> Domain minimo -> Brain Bridge -> organismo headless -> App minimo -> D2 pos-integracao",
     ):
         if token not in roadmap:

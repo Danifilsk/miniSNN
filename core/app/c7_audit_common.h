@@ -22,6 +22,7 @@ typedef struct
     MiniSNNAgentCycle *cycle;
     MiniSNNNeuronModel model;
     uint32_t brain_steps_per_tick;
+    double input_drive;
 } C7AuditFixture;
 
 typedef struct
@@ -32,6 +33,19 @@ typedef struct
     uint64_t rewards;
     uint64_t resets;
 } C7AuditFingerprint;
+
+/* The public integrated-audit configuration can calibrate current amplitude
+ * per model without changing the C7 encoder or any neuron implementation. */
+int c7_audit_fixture_create_calibrated(
+    C7AuditFixture *fixture,
+    MiniSNNNeuronModel model,
+    uint32_t neuron_count,
+    uint32_t brain_steps_per_tick,
+    double input_drive,
+    int enable_plasticity,
+    int enable_reward,
+    int enable_homeostasis,
+    int enable_structural);
 
 int c7_audit_fixture_create(
     C7AuditFixture *fixture,
@@ -74,6 +88,12 @@ int c7_audit_submit_feedback(
     int episode_terminal);
 
 int c7_audit_fixture_all_finite(const C7AuditFixture *fixture);
+
+uint64_t c7_audit_fixture_state_signature(const C7AuditFixture *fixture);
+
+/* Headless C7 fixtures must work on Windows and POSIX toolchains. */
+int c7_audit_ensure_directory(const char *directory);
+void c7_audit_remove_checkpoint_directory(const char *directory);
 
 void c7_audit_fingerprint_init(
     C7AuditFingerprint *fingerprint,

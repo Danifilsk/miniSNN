@@ -417,7 +417,11 @@ Depois de uma execucao AdEx ou Hodgkin-Huxley, **ABRIR ESTADO DO MODELO** abre
 reprodutivel C5 e abre o relatorio HTML. Python, pandas e matplotlib sao
 necessarios para a comparacao.
 
-Os controles C7 existentes continuam sendo paines de configuracao e relatorios
-por protocolo, sem painel duplicado. A auditoria integrada C7.5-B e um alvo
-headless (`scenario-c7-integrated-audit`); a revisao manual do Studio deve
-confirmar round-trip dos controles C7 e abertura dos relatorios existentes.
+O fechamento de C7 permanece essencialmente headless: o Studio nao ganhou
+paineis dedicados para AgentIO, Sensor Encoder, Action Decoder, Agent Cycle ou
+o checkpoint integrado C7.5-B. A auditoria integrada e o alvo
+`scenario-c7-integrated-audit` sao executados pelo terminal. A revisao manual
+do Studio e uma regressao da GUI historica: abrir o Studio, testar apenas os
+paineis realmente existentes, fazer load/save dos cenarios suportados, abrir
+relatorios historicos, confirmar ausencia de paineis duplicados e verificar que
+o fechamento headless de C7 nao alterou a GUI.

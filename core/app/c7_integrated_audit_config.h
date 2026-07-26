@@ -16,6 +16,7 @@ typedef struct
     uint32_t episodes;
     uint32_t ticks_per_episode;
     uint32_t brain_steps_per_tick;
+    double input_drive[3];
     int stdp_enabled;
     int reward_enabled;
     int homeostasis_enabled;

@@ -2,6 +2,7 @@
 
 #include <ctype.h>
 #include <errno.h>
+#include <math.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -46,6 +47,20 @@ static int parse_u64(const char *text, uint64_t *out_value)
         return 0;
     value = strtoull(text, &end, 10);
     return errno == 0 && *trim(end) == '\0' && (*out_value = (uint64_t)value, 1);
+}
+
+static int parse_double(const char *text, double *out_value)
+{
+    char *end;
+    double value;
+    errno = 0;
+    if (text == NULL || out_value == NULL || text[0] == '\0')
+        return 0;
+    value = strtod(text, &end);
+    if (errno != 0 || *trim(end) != '\0' || !isfinite(value))
+        return 0;
+    *out_value = value;
+    return 1;
 }
 
 static int parse_bool(const char *text, int *out_value)
@@ -115,7 +130,10 @@ void c7_integrated_audit_config_default(C7IntegratedAuditConfig *config)
     config->seed = 701U;
     config->episodes = 3U;
     config->ticks_per_episode = 12U;
-    config->brain_steps_per_tick = 4U;
+    config->brain_steps_per_tick = 64U;
+    config->input_drive[MINISNN_NEURON_MODEL_LIF] = 1000.0;
+    config->input_drive[MINISNN_NEURON_MODEL_ADEX] = 500.0;
+    config->input_drive[MINISNN_NEURON_MODEL_HODGKIN_HUXLEY] = 12.0;
     config->stdp_enabled = 1;
     config->reward_enabled = 1;
     config->homeostasis_enabled = 1;
@@ -127,18 +145,32 @@ void c7_integrated_audit_config_default(C7IntegratedAuditConfig *config)
 
 static int config_valid(const C7IntegratedAuditConfig *config)
 {
+    uint32_t required_ticks;
+    if (config == NULL)
+        return 0;
+    required_ticks = config->checkpoint_pending_enabled ? 3U :
+        (config->checkpoint_ready_enabled ? 2U : 1U);
     return config != NULL && valid_run_name(config->run_name) &&
         (config->model_enabled[0] || config->model_enabled[1] || config->model_enabled[2]) &&
         config->episodes > 0U && config->episodes <= 1000U &&
         config->ticks_per_episode > 0U && config->ticks_per_episode <= 100000U &&
         config->brain_steps_per_tick > 0U && config->brain_steps_per_tick <= 1024U &&
+        isfinite(config->input_drive[MINISNN_NEURON_MODEL_LIF]) &&
+        config->input_drive[MINISNN_NEURON_MODEL_LIF] > 0.0 &&
+        isfinite(config->input_drive[MINISNN_NEURON_MODEL_ADEX]) &&
+        config->input_drive[MINISNN_NEURON_MODEL_ADEX] > 0.0 &&
+        isfinite(config->input_drive[MINISNN_NEURON_MODEL_HODGKIN_HUXLEY]) &&
+        config->input_drive[MINISNN_NEURON_MODEL_HODGKIN_HUXLEY] > 0.0 &&
         (config->stdp_enabled == 0 || config->stdp_enabled == 1) &&
         (config->reward_enabled == 0 || config->reward_enabled == 1) &&
         (config->homeostasis_enabled == 0 || config->homeostasis_enabled == 1) &&
         (config->structural_enabled == 0 || config->structural_enabled == 1) &&
         (config->checkpoint_ready_enabled == 0 || config->checkpoint_ready_enabled == 1) &&
         (config->checkpoint_pending_enabled == 0 || config->checkpoint_pending_enabled == 1) &&
-        (config->replay_enabled == 0 || config->replay_enabled == 1);
+        (config->replay_enabled == 0 || config->replay_enabled == 1) &&
+        config->ticks_per_episode >= required_ticks &&
+        (!config->replay_enabled || config->checkpoint_ready_enabled ||
+         config->checkpoint_pending_enabled);
 }
 
 int c7_integrated_audit_config_load_file(
@@ -170,6 +202,7 @@ int c7_integrated_audit_config_load_file(
         char *value;
         uint32_t parsed_u32;
         uint64_t parsed_u64;
+        double parsed_double;
         int parsed_bool;
         unsigned int bit = 0U;
         line_number++;
@@ -216,6 +249,24 @@ int c7_integrated_audit_config_load_file(
             bit = 1U << 5U;
             if (!parse_u32(value, &parsed_u32)) goto format_error;
             parsed.brain_steps_per_tick = parsed_u32;
+        }
+        else if (strcmp(key, "lif_input_drive") == 0)
+        {
+            bit = 1U << 13U;
+            if (!parse_double(value, &parsed_double)) goto format_error;
+            parsed.input_drive[MINISNN_NEURON_MODEL_LIF] = parsed_double;
+        }
+        else if (strcmp(key, "adex_input_drive") == 0)
+        {
+            bit = 1U << 14U;
+            if (!parse_double(value, &parsed_double)) goto format_error;
+            parsed.input_drive[MINISNN_NEURON_MODEL_ADEX] = parsed_double;
+        }
+        else if (strcmp(key, "hodgkin_huxley_input_drive") == 0)
+        {
+            bit = 1U << 15U;
+            if (!parse_double(value, &parsed_double)) goto format_error;
+            parsed.input_drive[MINISNN_NEURON_MODEL_HODGKIN_HUXLEY] = parsed_double;
         }
         else if (strcmp(key, "stdp_enabled") == 0)
         {
@@ -276,7 +327,24 @@ format_error:
         write_error(error_message, error_message_size, "configuracao invalida");
         return 0;
     }
-    if (fclose(file) != 0 || !config_valid(&parsed))
+    if (fclose(file) != 0)
+    {
+        write_error(error_message, error_message_size, "configuracao invalida");
+        return 0;
+    }
+    if (parsed.checkpoint_pending_enabled && parsed.ticks_per_episode < 3U)
+    {
+        write_error(error_message, error_message_size,
+                    "ticks_per_episode insuficiente para checkpoint ACTION_PENDING");
+        return 0;
+    }
+    if (parsed.checkpoint_ready_enabled && parsed.ticks_per_episode < 2U)
+    {
+        write_error(error_message, error_message_size,
+                    "ticks_per_episode insuficiente para checkpoint READY");
+        return 0;
+    }
+    if (!config_valid(&parsed))
     {
         write_error(error_message, error_message_size, "configuracao invalida");
         return 0;
@@ -321,11 +389,16 @@ int c7_integrated_audit_config_write_file(
     }
     if (fprintf(file,
                 "[run]\nrun_name = %s\n\n[audit]\nmodels = %s\nseed = %llu\nepisodes = %u\n"
-                "ticks_per_episode = %u\nbrain_steps_per_tick = %u\nstdp_enabled = %s\n"
+                "ticks_per_episode = %u\nbrain_steps_per_tick = %u\n"
+                "lif_input_drive = %.17g\nadex_input_drive = %.17g\n"
+                "hodgkin_huxley_input_drive = %.17g\nstdp_enabled = %s\n"
                 "reward_enabled = %s\nhomeostasis_enabled = %s\nstructural_enabled = %s\n"
                 "checkpoint_ready = %s\ncheckpoint_pending = %s\nreplay_enabled = %s\n",
                 config->run_name, models, (unsigned long long)config->seed,
                 config->episodes, config->ticks_per_episode, config->brain_steps_per_tick,
+                config->input_drive[MINISNN_NEURON_MODEL_LIF],
+                config->input_drive[MINISNN_NEURON_MODEL_ADEX],
+                config->input_drive[MINISNN_NEURON_MODEL_HODGKIN_HUXLEY],
                 config->stdp_enabled ? "true" : "false",
                 config->reward_enabled ? "true" : "false",
                 config->homeostasis_enabled ? "true" : "false",

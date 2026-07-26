@@ -33,7 +33,10 @@ publicacao de dados.
 - **LIF:** integracao completa com STDP, R-STDP, homeostase, plasticidade
   estrutural, feedback, reset, checkpoint e evolucao abstrata externa.
 - **AdEx e Hodgkin-Huxley:** caminho end-to-end representativo, reset,
-  checkpoint READY/ACTION_PENDING, replay e estados finitos.
+  checkpoint READY/ACTION_PENDING, replay, atividade neural real e estados
+  finitos. A fixture usa 64 passos por tick; `lif_input_drive=1000`,
+  `adex_input_drive=500` e `hodgkin_huxley_input_drive=12`, valores expostos
+  no INI e baseados nos demonstradores C5 validados.
 - **Long run:** multiplos episodios, feedback positivo/negativo/zero,
   checkpoints e 100000 passos neurais por modelo.
 - **Evolucao:** o harness calcula fitness apenas a partir de action frames
@@ -43,6 +46,13 @@ O fingerprint mistura configuracao efetiva, modelo, seed, assinaturas, sinais,
 acoes, diagnosticos e fronteiras de checkpoint. Ele exclui caminho absoluto,
 tempo de parede, endereco de memoria e ordem de diretorio. Ele complementa,
 mas nao substitui, comparacoes contratuais diretas.
+
+Silencio nao e convertido em uma decisao artificial: a configuracao da
+auditoria usa limiar positivo e grupos WTA com ativacao e confianca minimas
+positivas. Uma populacao silenciosa conserva os defaults; somente atividade
+capturada pelo frame C7.3 pode produzir uma acao nao padrao. Cada checkpoint
+usa um diretorio relativo exclusivo por modelo, repeticao e fronteira, e a
+linha CSV registra save/load/resume/replay efetivamente concluidos.
 
 ## Resultados e limites
 

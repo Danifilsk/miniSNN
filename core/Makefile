@@ -130,7 +130,7 @@ help:
 	@echo   make check-c3          - verifica o fechamento automatico do Bloco C3
 	@echo   make check-c4          - verifica o fechamento automatico do Bloco C4
 	@echo   make check-c6          - verifica os protocolos C6.1-C6.4
-	@echo   make check-c7          - verifica C7.1-C7.5-A da interface cerebro-agente
+	@echo   make check-c7          - verifica C7.1-C7.5-B e fecha a interface cerebro-agente
 	@echo   make test-plot-neuron  - teste Python do grafico de neuronio
 	@echo   make test-plot-plasticity - teste Python do grafico STDP
 	@echo   make test-plot-homeostasis - teste Python do panorama homeostatico
@@ -285,7 +285,7 @@ check-c5: check-c5-interface test-model-checkpoints test-adex test-hodgkin-huxle
 check-c6: test-working-memory test-associative-memory test-sequence-prediction test-c6-checkpoints test-c6-integration test-c6-long
 	$(PYTHON) scripts/check_c6.py
 
-check-c7: test-agent-io test-sensor-encoder test-action-decoder test-agent-cycle test-agent-cycle-checkpoint test-c7-integration test-c7-evolution
+check-c7: test-agent-io test-sensor-encoder test-action-decoder test-agent-cycle test-agent-cycle-checkpoint test-c7-integration test-c7-evolution test-c7-long-run scenario-c7-integrated-audit
 	$(PYTHON) scripts/check_c7.py
 
 $(BUILD_DIR)/test_plasticity.exe: tests/test_plasticity.c $(API_SOURCES) | $(BUILD_DIR)

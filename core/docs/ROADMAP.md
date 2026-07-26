@@ -30,7 +30,11 @@ O roadmap indica ordem de trabalho, não promessa de prazo.
 
 ## Próximo
 
-- [ ] D1 — auditoria e congelamento do Core antes do Worlds.
+- [ ] D1 — auditoria e estabilizacao pre-Worlds.
+  Resultado: `miniSNN Core v1.0-rc` e API candidata Core-Brain Bridge
+  estavel provisoriamente. D1 nao congela a interface definitivamente.
+- [ ] D2 — auditoria pos-integracao.
+  Resultado: `miniSNN Core v1.0` e API Core-Brain Bridge v1 congelada definitivamente.
 - [ ] Revisão humana do checklist do Studio.
 
 A parte automática do Bloco B foi concluída. ASan/UBSan permanece pendente em
