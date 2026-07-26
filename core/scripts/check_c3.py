@@ -9,11 +9,11 @@ import sys
 
 
 ROOT = Path(__file__).resolve().parents[1]
-BUILD = ROOT / "build"
+BUILD = ROOT.parent / "build"
 EVOLUTION_ROOT = ROOT / "results" / "evolution"
 
 ESSENTIAL = (
-    "src/evolution.c", "src/evolution.h",
+    "src/evolution.c", "include/minisnn_evolution_legacy.h",
     "app/evolution_config.c", "app/evolution_config.h",
     "app/evolution_runner.c", "app/evolution_runner.h",
     "app/scenario_runtime.c", "app/scenario_runtime.h",
@@ -124,7 +124,7 @@ def main() -> int:
 
     runner = (ROOT / "app" / "evolution_runner.c").read_text(encoding="utf-8")
     engine = (ROOT / "src" / "evolution.c").read_text(encoding="utf-8")
-    studio = (ROOT / "app" / "minisnn_studio.c").read_text(encoding="utf-8")
+    studio = (ROOT / "studio" / "minisnn_studio.c").read_text(encoding="utf-8")
     for token in (
         "scenario_runner_capture_blueprint", "scenario_runtime_step",
         "evaluation_seed_base", "best_network_initial.csv", "checkpoint.txt",
@@ -161,11 +161,11 @@ def main() -> int:
             ("C1 regression", [sys.executable, "scripts/check_c1.py"]),
             ("C1.5 regression", [sys.executable, "scripts/check_c15.py"]),
             ("C2 regression", [sys.executable, "scripts/check_c2.py"]),
-            ("weight demo", [str(BUILD / "evolution_runner.exe"),
+            ("weight demo", [str(BUILD / "tools" / "bin" / "evolution_runner.exe"),
                              "configs/evolution_weight_target_demo.ini"]),
-            ("homeostasis demo", [str(BUILD / "evolution_runner.exe"),
+            ("homeostasis demo", [str(BUILD / "tools" / "bin" / "evolution_runner.exe"),
                                   "configs/evolution_homeostasis_demo.ini"]),
-            ("plasticity demo", [str(BUILD / "evolution_runner.exe"),
+            ("plasticity demo", [str(BUILD / "tools" / "bin" / "evolution_runner.exe"),
                                  "configs/evolution_plasticity_demo.ini"]),
         )
         for label, command in commands:
@@ -229,7 +229,7 @@ def main() -> int:
         "C3 — neuroevolução (concluído)" not in roadmap or
         "C4 — topologia adaptativa e evolução estrutural (concluído)" not in roadmap or
         "[x] C5" not in roadmap or
-        "C6 -> C7 -> D1 -> Worlds" not in roadmap or
+        "C6 -> C7 -> D1-A -> D1-B -> D1-C -> Worlds" not in roadmap or
         "E0:" in roadmap
     ):
         errors.append("roadmap C3/C4/C5 and sequencing status is incorrect")

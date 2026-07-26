@@ -75,9 +75,10 @@ def main() -> int:
     errors = validate_docs(PROJECT_ROOT)
     roadmap = (PROJECT_ROOT / "docs" / "ROADMAP.md").read_text(encoding="utf-8")
     for token in (
-        "D1 — auditoria e estabilizacao pre-Worlds",
+        "D1-A - arquitetura, produtos de build e API candidata provisoria",
+        "D1-B - robustez, determinismo, stress e desempenho",
+        "D1-C - fechamento do Core e avaliacao para `miniSNN Core v1.0-rc`",
         "miniSNN Core v1.0-rc",
-        "API candidata Core-Brain Bridge",
         "D2 — auditoria pos-integracao",
         "congelada definitivamente",
     ):

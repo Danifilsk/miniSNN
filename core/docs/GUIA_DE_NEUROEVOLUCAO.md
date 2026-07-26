@@ -38,17 +38,18 @@ mingw32-make evolution-weight-demo
 Execucao direta:
 
 ```powershell
-.\build\evolution_runner.exe configs\evolution_weight_target_demo.ini
+.\build\tools\bin\evolution_runner.exe configs\evolution_weight_target_demo.ini
 ```
 
 Retomada:
 
 ```powershell
-.\build\evolution_runner.exe --resume results\evolution\nome_do_experimento
+.\build\tools\bin\evolution_runner.exe --resume results\evolution\nome_do_experimento
 ```
 
 O runner e o formato INI sao a interface publica experimental do C3. O header
-publico `minisnn.h` permanece compativel; `src/evolution.h` e o motor interno.
+publico `minisnn.h` permanece compativel; `minisnn_evolution_legacy.h` preserva
+a superficie historica usada pelo motor de evolucao.
 
 ## Configuracao `[evolution]`
 

@@ -13,7 +13,7 @@
 #include "scenario_config.h"
 #include "scenario_runner.h"
 #include "evolution_config.h"
-#include "neuron_model.h"
+#include "minisnn.h"
 
 #define APP_TITLE "miniSNN Studio"
 #define TEXT_BUFFER_SIZE 128
@@ -1646,7 +1646,7 @@ static void config_to_controls(const ScenarioConfig *config)
 
     SendMessageA(g_app.topology_combo, CB_SELECTSTRING, (WPARAM)-1, (LPARAM)config->topology);
     SendMessageA(g_app.neuron_model_combo, CB_SELECTSTRING, (WPARAM)-1,
-                 (LPARAM)neuron_model_name(config->neuron_model));
+                 (LPARAM)minisnn_neuron_model_name(config->neuron_model));
 
     set_edit_int(IDC_NEURONS, config->neurons);
     set_edit_double(IDC_INHIBITORY_PERCENT, config->inhibitory_fraction * 100.0);
@@ -1695,7 +1695,7 @@ static int controls_to_config(
     {
         char model_name[SCENARIO_NEURON_MODEL_MAX];
         GetWindowTextA(g_app.neuron_model_combo, model_name, sizeof(model_name));
-        if (!neuron_model_from_name(model_name, &config->neuron_model))
+        if (!minisnn_neuron_model_from_name(model_name, &config->neuron_model))
         {
             snprintf(error_message, error_message_size,
                      "Modelo neuronal desconhecido.");
@@ -4160,7 +4160,7 @@ static LRESULT CALLBACK neuron_model_options_proc(
     case WM_CREATE:
         g_neuron_model.window = hwnd;
         create_static(hwnd, "PARAMETROS DO MODELO NEURONAL", 24, 16, 520, 30, 0);
-        create_static(hwnd, neuron_model_name(g_neuron_model.model), 24, 48, 300, 24, 0);
+        create_static(hwnd, minisnn_neuron_model_name(g_neuron_model.model), 24, 48, 300, 24, 0);
         model_dialog_create_fields(hwnd);
         create_button(hwnd, "APLICAR", IDC_MODEL_APPLY, 210, 394, 130, 36);
         create_button(hwnd, "CANCELAR", IDC_MODEL_CANCEL, 370, 394, 130, 36);
@@ -4234,7 +4234,7 @@ static void open_neuron_model_options(void)
         return;
     }
     GetWindowTextA(g_app.neuron_model_combo, model_name, sizeof(model_name));
-    if (!neuron_model_from_name(model_name, &model) ||
+    if (!minisnn_neuron_model_from_name(model_name, &model) ||
         !ensure_neuron_model_class_registered())
     {
         show_error("Erro interno", "Nao foi possivel abrir os parametros do modelo.");

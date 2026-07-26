@@ -19,7 +19,7 @@ EXPECTED_FILES = (
     "app/scenario_config.c",
     "app/scenario_runner.c",
     "app/minisnn_runner.c",
-    "app/minisnn_studio.c",
+    "studio/minisnn_studio.c",
     "configs/random.ini",
     "configs/small_world.ini",
     "tests/test_LIF.c",

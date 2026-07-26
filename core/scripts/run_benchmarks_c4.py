@@ -12,12 +12,12 @@ import time
 
 
 ROOT = Path(__file__).resolve().parents[1]
-BUILD = ROOT / "build"
+BUILD = ROOT.parent / "build"
 RESULTS = ROOT / "results" / "benchmarks"
 SCENARIO_ROOT = ROOT / "results" / "scenarios"
 EVOLUTION_ROOT = ROOT / "results" / "evolution"
-SCENARIO_RUNNER = BUILD / "minisnn_runner.exe"
-EVOLUTION_RUNNER = BUILD / "evolution_runner.exe"
+SCENARIO_RUNNER = BUILD / "tools" / "bin" / "minisnn_runner.exe"
+EVOLUTION_RUNNER = BUILD / "tools" / "bin" / "evolution_runner.exe"
 
 
 def execute(command: list[str], timeout: float = 300.0) -> float:

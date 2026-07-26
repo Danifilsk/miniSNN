@@ -8,7 +8,6 @@
 #include <stdlib.h>
 #include <string.h>
 
-#include "neuron_model.h"
 
 #define SENSOR_ENCODING_DEMO_LINE_MAX 512U
 
@@ -372,7 +371,7 @@ int sensor_encoding_demo_config_load_file(
                 out_config->neuron_count <= (uint32_t)INT_MAX)
                 has_neuron_count = 1;
             else if (strcmp(key, "model") == 0 && !has_model &&
-                     neuron_model_from_name(value, &out_config->neuron_model))
+                     minisnn_neuron_model_from_name(value, &out_config->neuron_model))
                 has_model = 1;
             else
             {

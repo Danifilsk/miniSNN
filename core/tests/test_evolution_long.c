@@ -2,7 +2,7 @@
 #include <math.h>
 #include <stdio.h>
 #include <string.h>
-#include <windows.h>
+#include "app_filesystem.h"
 
 #include "evolution_config.h"
 #include "evolution_runner.h"
@@ -15,50 +15,12 @@
 
 static int remove_tree(const char *path)
 {
-    char pattern[512];
-    WIN32_FIND_DATAA data;
-    HANDLE find;
-
-    if (snprintf(pattern, sizeof(pattern), "%s\\*", path) >= (int)sizeof(pattern))
-        return 0;
-    find = FindFirstFileA(pattern, &data);
-    if (find == INVALID_HANDLE_VALUE)
-        return GetLastError() == ERROR_FILE_NOT_FOUND ||
-               GetLastError() == ERROR_PATH_NOT_FOUND;
-
-    do
-    {
-        char child[512];
-        if (strcmp(data.cFileName, ".") == 0 || strcmp(data.cFileName, "..") == 0)
-            continue;
-        if (snprintf(child, sizeof(child), "%s\\%s", path, data.cFileName) >=
-            (int)sizeof(child))
-        {
-            FindClose(find);
-            return 0;
-        }
-        if (data.dwFileAttributes & FILE_ATTRIBUTE_DIRECTORY)
-        {
-            if (!remove_tree(child))
-            {
-                FindClose(find);
-                return 0;
-            }
-        }
-        else if (!DeleteFileA(child))
-        {
-            FindClose(find);
-            return 0;
-        }
-    } while (FindNextFileA(find, &data));
-
-    FindClose(find);
-    return RemoveDirectoryA(path) || GetLastError() == ERROR_PATH_NOT_FOUND;
+    return app_filesystem_remove_tree(path);
 }
 
 static int ensure_directory(const char *path)
 {
-    return CreateDirectoryA(path, NULL) || GetLastError() == ERROR_ALREADY_EXISTS;
+    return app_filesystem_ensure_directory(path);
 }
 
 static int count_data_lines(const char *path)

@@ -8,11 +8,11 @@
 #include "agent_cycle_checkpoint_internal.h"
 #include "neuron_model.h"
 
+#include <errno.h>
 #ifdef _WIN32
-#include <windows.h>
+#include <direct.h>
 #else
 #include <sys/stat.h>
-#include <errno.h>
 #endif
 
 #define AGENT_CYCLE_CHECKPOINT_VERSION "minisnn_agent_cycle_checkpoint_v1"
@@ -945,24 +945,18 @@ static int checkpoint_directory_is_safe(const char *directory)
 static int checkpoint_ensure_directory(const char *directory)
 {
 #ifdef _WIN32
-    if (CreateDirectoryA(directory, NULL) != 0)
+    if (_mkdir(directory) == 0)
         return 1;
-    return GetLastError() == ERROR_ALREADY_EXISTS;
 #else
     if (mkdir(directory, 0777) == 0)
         return 1;
-    return errno == EEXIST;
 #endif
+    return errno == EEXIST;
 }
 
 static int checkpoint_replace_file(const char *temporary, const char *final_path)
 {
-#ifdef _WIN32
-    return MoveFileExA(temporary, final_path,
-                       MOVEFILE_REPLACE_EXISTING | MOVEFILE_WRITE_THROUGH) != 0;
-#else
     return rename(temporary, final_path) == 0;
-#endif
 }
 
 static uint64_t checkpoint_contract_signature(const MiniSNNAgentCycle *cycle)

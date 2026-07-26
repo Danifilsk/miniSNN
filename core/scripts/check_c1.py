@@ -11,8 +11,8 @@ import sys
 
 
 PROJECT_ROOT = Path(__file__).resolve().parents[1]
-BUILD_DIR = PROJECT_ROOT / "build"
-RUNNER = BUILD_DIR / "minisnn_runner.exe"
+BUILD_DIR = PROJECT_ROOT.parent / "build"
+RUNNER = BUILD_DIR / "tools" / "bin" / "minisnn_runner.exe"
 RESULT_ROOT = PROJECT_ROOT / "results" / "scenarios"
 
 ESSENTIAL_FILES = (
@@ -187,7 +187,7 @@ def main() -> int:
             fail(errors, "roadmap does not keep C1.5 homeostasis as future work")
 
     if not RUNNER.is_file():
-        fail(errors, "build/minisnn_runner.exe is missing")
+        fail(errors, "build/tools/bin/minisnn_runner.exe is missing")
     else:
         baseline = run([sys.executable, "tests/test_regression_baseline.py"])
         if baseline.returncode != 0:

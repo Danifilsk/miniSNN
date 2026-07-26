@@ -1,5 +1,25 @@
 # miniSNN
 
+## Abrir o Studio
+
+Para abrir o aplicativo no Windows, de dois cliques em
+`Abrir miniSNN Studio.cmd` na raiz do repositorio. O launcher muda para a raiz,
+cria o executavel quando necessario com `mingw32-make core-studio` e abre o
+aplicativo. Ele nao recompila quando o produto ja existe.
+
+O aplicativo e `build/studio/bin/minisnn_studio.exe`. O arquivo
+`core/studio/minisnn_studio.c` e somente o codigo-fonte do frontend, nao um
+arquivo executavel. A biblioteca neural usada pelo Studio e
+`build/core/lib/libminisnn_core.a`.
+
+## Produtos
+
+`miniSNN Core` e a biblioteca neural headless em `include/` e `src/`.
+`miniSNN Studio` e o frontend Win32 em `studio/`. Runners e demos headless
+ficam em `app/`; todos os produtos de build ficam fora dos fontes em `../build/`.
+Veja [BUILD_PRODUCTS](docs/BUILD_PRODUCTS.md) e o
+[manifesto da API candidata](docs/PUBLIC_API_MANIFEST.md).
+
 A miniSNN suporta LIF, AdEx e Hodgkin-Huxley em redes homogeneas. Veja
 [Guia de modelos neuronais](docs/GUIA_DE_MODELOS_NEURONAIS.md).
 
@@ -44,8 +64,8 @@ gráficos.
 ```powershell
 mingw32-make clean
 mingw32-make test
-mingw32-make studio-build
-.\build\minisnn_studio.exe
+mingw32-make core-studio
+.\..\build\studio\bin\minisnn_studio.exe
 ```
 
 Para executar um cenário pelo terminal:
@@ -226,8 +246,10 @@ define um mundo, corpo ou agente geral; D1 e o proximo bloco.
 
 ```text
 include/       API pública
-src/           núcleo neural interno
-app/           parser, runner e Studio
+include/       headers publicos do miniSNN Core
+src/           implementacao neural interna
+app/           parsers, runners e demos headless
+studio/        frontend Win32 consumidor do Core
 configs/       cenários reproduzíveis
 examples/      exemplos da API e demo interno
 experiments/   experimentos científicos exploratórios

@@ -13,12 +13,12 @@ import time
 
 
 ROOT = Path(__file__).resolve().parents[1]
-BUILD = ROOT / "build"
+BUILD = ROOT.parent / "build"
 RESULTS = ROOT / "results" / "benchmarks"
 EVOLUTION_ROOT = ROOT / "results" / "evolution"
 SCENARIO_ROOT = ROOT / "results" / "scenarios"
-EVOLUTION_RUNNER = BUILD / "evolution_runner.exe"
-SCENARIO_RUNNER = BUILD / "minisnn_runner.exe"
+EVOLUTION_RUNNER = BUILD / "tools" / "bin" / "evolution_runner.exe"
+SCENARIO_RUNNER = BUILD / "tools" / "bin" / "minisnn_runner.exe"
 
 MODES = (
     ("population_no_plasticity", "weight", 1, True),

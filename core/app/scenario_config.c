@@ -1,5 +1,5 @@
 #include "scenario_config.h"
-#include "neuron_model.h"
+#include "minisnn.h"
 
 #include <ctype.h>
 #include <errno.h>
@@ -875,7 +875,7 @@ static int assign_value(
         return 1;
 
     case FIELD_NEURON_MODEL:
-        if (!neuron_model_from_name(value, &config->neuron_model))
+        if (!minisnn_neuron_model_from_name(value, &config->neuron_model))
         {
             set_line_error(error_message, error_message_size, line_number,
                            "model desconhecido");
@@ -1627,8 +1627,8 @@ void scenario_config_default(ScenarioConfig *config)
     snprintf(config->run_name, sizeof(config->run_name), "random_balanced_demo");
     snprintf(config->topology, sizeof(config->topology), "random_balanced");
     config->neuron_model = MINISNN_NEURON_MODEL_LIF;
-    adex_parameters_default(&config->adex);
-    hodgkin_huxley_parameters_default(&config->hodgkin_huxley);
+    config->adex = minisnn_adex_config_default();
+    config->hodgkin_huxley = minisnn_hodgkin_huxley_config_default();
 
     config->neurons = 20;
     config->inhibitory_fraction = 0.20;
@@ -2446,31 +2446,21 @@ int scenario_config_validate(
     }
 
     {
-        NeuronModelConfig model_config;
-        if (config->neuron_model == MINISNN_NEURON_MODEL_LIF)
-        {
-            LIFParameters lif = {config->dt, config->tau, config->v_rest,
-                config->v_reset, config->v_threshold, config->resistance};
-            neuron_model_config_lif(&model_config, &lif);
-        }
-        else if (config->neuron_model == MINISNN_NEURON_MODEL_ADEX)
-        {
-            AdExParameters adex = config->adex;
-            adex.dt = config->dt;
-            neuron_model_config_adex(&model_config, &adex);
-        }
-        else if (config->neuron_model == MINISNN_NEURON_MODEL_HODGKIN_HUXLEY)
-        {
-            HodgkinHuxleyParameters hh = config->hodgkin_huxley;
-            hh.dt = config->dt;
-            neuron_model_config_hodgkin_huxley(&model_config, &hh);
-        }
-        else
-        {
-            set_error(error_message, error_message_size, "model desconhecido");
-            return 0;
-        }
-        if (!neuron_model_validate_config(&model_config))
+        MiniSNNConfig minisnn_config = minisnn_default_config();
+
+        minisnn_config.neuron_count = config->neurons;
+        minisnn_config.neuron_model = config->neuron_model;
+        minisnn_config.dt = config->dt;
+        minisnn_config.tau = config->tau;
+        minisnn_config.v_rest = config->v_rest;
+        minisnn_config.v_reset = config->v_reset;
+        minisnn_config.v_threshold = config->v_threshold;
+        minisnn_config.resistance = config->resistance;
+        minisnn_config.synaptic_decay = config->synaptic_decay;
+        minisnn_config.max_synaptic_delay = config->max_synaptic_delay;
+        minisnn_config.adex = config->adex;
+        minisnn_config.hodgkin_huxley = config->hodgkin_huxley;
+        if (!minisnn_config_is_valid(&minisnn_config))
         {
             set_error(error_message, error_message_size,
                       "parametros do modelo neuronal invalidos");
@@ -2829,7 +2819,7 @@ int scenario_config_save_file(
             config->seed,
             config->delay,
             config->max_synaptic_delay,
-            neuron_model_name(config->neuron_model),
+            minisnn_neuron_model_name(config->neuron_model),
             config->allow_self_connections ? "true" : "false",
             config->allow_inh_to_inh ? "true" : "false",
             config->excitatory_weight,

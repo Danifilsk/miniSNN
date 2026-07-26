@@ -483,7 +483,8 @@ def main() -> None:
             fail(f"checker de artefatos C7.5-B ausente: {token}")
     if "D1" not in roadmap or "C7" not in roadmap:
         fail("roadmap nao aponta o encerramento de C7 e o proximo bloco D1")
-    if "#ifdef _WIN32" not in audit_common or "c7_audit_ensure_directory" not in audit_test or \
+    if "app_filesystem_ensure_directory" not in audit_common or \
+       "c7_audit_ensure_directory" not in audit_test or \
        "c7_audit_ensure_directory" not in audit_long_test:
         fail("harnesses C7.5-B nao mantem a portabilidade headless")
 

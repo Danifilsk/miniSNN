@@ -7,7 +7,6 @@
 #include <stdlib.h>
 #include <string.h>
 
-#include "neuron_model.h"
 
 static void set_error(char *message, size_t size, const char *format, ...)
 {
@@ -75,7 +74,7 @@ static int validate(const AgentCycleDemoConfig *config, char *error_message,
                     size_t error_message_size)
 {
     if (config == NULL || !valid_run_name(config->run_name) ||
-        !neuron_model_is_valid(config->neuron_model) || config->neuron_count < 2U ||
+        !minisnn_neuron_model_is_valid(config->neuron_model) || config->neuron_count < 2U ||
         config->neuron_count > 256U || config->brain_steps_per_tick == 0U ||
         config->brain_steps_per_tick > 1000U || config->ticks < 2U ||
         config->ticks > 100000U || config->reset_interval == 0U ||
@@ -157,7 +156,7 @@ int agent_cycle_demo_config_load_file(
         else if (strcmp(section, "network") == 0 && strcmp(key, "model") == 0)
         {
             flag = 4U;
-            if (!neuron_model_from_name(value, &out_config->neuron_model))
+            if (!minisnn_neuron_model_from_name(value, &out_config->neuron_model))
                 goto invalid;
         }
         else if (strcmp(section, "network") == 0 &&
@@ -234,7 +233,7 @@ int agent_cycle_demo_config_write_file(
                      "brain_steps_per_tick = %u\n\n[demo]\nticks = %u\n"
                      "reset_interval = %u\ninput_current = %.17g\n",
                      config->run_name, config->neuron_count,
-                     neuron_model_name(config->neuron_model),
+                     minisnn_neuron_model_name(config->neuron_model),
                      config->brain_steps_per_tick, config->ticks,
                      config->reset_interval, config->input_current) < 0;
     if (fclose(file) != 0)

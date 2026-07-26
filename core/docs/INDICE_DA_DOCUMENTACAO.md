@@ -63,3 +63,13 @@ os CSVs permanecem como fonte bruta e podem ser acessados pelos links do HTML.
 Os documentos deste índice descrevem o repositório atual. Funcionalidades futuras
 aparecem somente quando marcadas como **PLANEJADO**. Resultados e métricas
 exploratórias não equivalem a validação biológica.
+
+## Auditoria D1-A
+
+- [Produtos de build](BUILD_PRODUCTS.md) - biblioteca, Studio, runners, testes e limpeza.
+- [Manifesto da API publica](PUBLIC_API_MANIFEST.md) - superficie candidata, legacy e consumidores.
+- [Ownership e lifetime](OWNERSHIP_AND_LIFETIME.md) - criacao, copia, reset e destruicao.
+- [Modelo de erros](ERROR_MODEL.md) - retornos, atomicidade e propagacao.
+- [Limites](LIMITS.md) - limites de rede, schemas, caminhos e alocacao.
+- [Persistencia e compatibilidade](PERSISTENCE_COMPATIBILITY.md) - formatos, assinaturas e load.
+- [Auditoria D1-A](D1_A_API_ARCHITECTURE_AUDIT.md) - achados, correcoes e pendencias.

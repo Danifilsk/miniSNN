@@ -1,5 +1,12 @@
 # Guia rápido
 
+## Abrir o Studio
+
+No Windows, de dois cliques em `Abrir miniSNN Studio.cmd` na raiz do
+repositorio. O launcher compila `build/studio/bin/minisnn_studio.exe` apenas se
+necessario e abre o aplicativo. `core/studio/minisnn_studio.c` e codigo-fonte,
+nao um executavel; a biblioteca neural e `build/core/lib/libminisnn_core.a`.
+
 ## R-STDP em um comando
 
 ```powershell
@@ -17,8 +24,8 @@ Em cinco minutos:
 
 1. Abra um terminal MSYS2 UCRT64 na raiz do projeto.
 2. Execute `mingw32-make test`.
-3. Compile o Studio com `mingw32-make studio-build`.
-4. Abra `.\build\minisnn_studio.exe` e rode `configs/random.ini`.
+3. De dois cliques em `Abrir miniSNN Studio.cmd`.
+4. Rode `configs/random.ini` no aplicativo aberto.
 5. Use `GERAR DIAGNOSTICO` ou rode o analisador pelo terminal.
 
 ## Requisitos
@@ -39,19 +46,19 @@ funcionar, mas não estão garantidas por essa observação.
 ```powershell
 mingw32-make clean
 mingw32-make test
-mingw32-make studio-build
+mingw32-make core-studio
 ```
 
 O executável do Studio é:
 
 ```text
-build/minisnn_studio.exe
+build/studio/bin/minisnn_studio.exe
 ```
 
 Abra com:
 
 ```powershell
-.\build\minisnn_studio.exe
+.\build\studio\bin\minisnn_studio.exe
 ```
 
 ## Executar cenário pelo terminal

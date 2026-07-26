@@ -51,12 +51,17 @@ int minisnn_neuron_count(const MiniSNN *snn);
 int minisnn_current_step(const MiniSNN *snn);
 MiniSNNNeuronModel minisnn_neuron_model(const MiniSNN *snn);
 const char *minisnn_neuron_model_name(MiniSNNNeuronModel model);
+int minisnn_neuron_model_from_name(
+    const char *name,
+    MiniSNNNeuronModel *out_model);
+int minisnn_neuron_model_is_valid(MiniSNNNeuronModel model);
 MiniSNNNeuronModelCapabilities minisnn_neuron_model_capabilities(
     MiniSNNNeuronModel model);
 unsigned long long minisnn_neuron_model_config_signature(
     const MiniSNN *snn);
 unsigned long long minisnn_config_neuron_model_signature(
     const MiniSNNConfig *config);
+int minisnn_config_is_valid(const MiniSNNConfig *config);
 const char *minisnn_neuron_integration_method(const MiniSNN *snn);
 const char *minisnn_neuron_model_integration_method(
     MiniSNNNeuronModel model);

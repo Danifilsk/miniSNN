@@ -28,7 +28,7 @@ Este documento responde: “qual arquivo cuida de quê?”.
 | `app/scenario_config.c` e `app/scenario_config.h` | Defaults, parser, validação e gravação dos INIs. | Runner, Studio e testes. |
 | `app/scenario_runner.c` e `app/scenario_runner.h` | Tipos, topologias, simulação, CSVs, métricas básicas e histórico. | Runner e Studio. |
 | `app/minisnn_runner.c` | Programa de terminal para um cenário. | Usuário de linha de comando. |
-| `app/minisnn_studio.c` | Interface Win32 para cenários, gráficos, comparação e diagnóstico. | Usuário do Studio. |
+| `studio/minisnn_studio.c` | Interface Win32 para cenários, gráficos, comparação e diagnóstico. | Usuário do Studio. |
 | `configs/` | Cenários de exemplo reproduzíveis. | Runner, Studio e testes manuais. |
 | `scripts/analyze_run.py` | Diagnóstico `basic/full`, relatório e gráficos. | Terminal e Studio. |
 | `scripts/metrics_common.py` | Fórmulas compartilhadas de métricas. | Analisador e comparador. |

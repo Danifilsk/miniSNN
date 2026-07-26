@@ -1,47 +1,13 @@
 #include <stdio.h>
 #include <string.h>
 
-#include <windows.h>
-
+#include "app_filesystem.h"
 #include "agent_cycle_demo_config.h"
 
 #define DEMO_OUTPUT_ROOT "results/scenarios"
 
-static int ensure_directory(const char *path)
-{
-    return CreateDirectoryA(path, NULL) || GetLastError() == ERROR_ALREADY_EXISTS;
-}
-
-static int copy_file(const char *source_path, const char *destination_path)
-{
-    FILE *source = fopen(source_path, "rb");
-    FILE *destination;
-    int character;
-    int failed = 0;
-    if (source == NULL)
-        return 0;
-    destination = fopen(destination_path, "wb");
-    if (destination == NULL)
-    {
-        fclose(source);
-        return 0;
-    }
-    while ((character = fgetc(source)) != EOF)
-    {
-        if (fputc(character, destination) == EOF)
-        {
-            failed = 1;
-            break;
-        }
-    }
-    if (ferror(source))
-        failed = 1;
-    if (fclose(source) != 0)
-        failed = 1;
-    if (fclose(destination) != 0)
-        failed = 1;
-    return !failed;
-}
+#define ensure_directory app_filesystem_ensure_directory
+#define copy_file app_filesystem_copy_file
 
 static int write_report(const char *path, const AgentCycleDemoConfig *config,
                         const MiniSNNAgentIOContext *agent_io,

@@ -1,4 +1,4 @@
-#include "evolution.h"
+#include "minisnn_evolution_legacy.h"
 
 #include <float.h>
 #include <math.h>

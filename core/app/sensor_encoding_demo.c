@@ -1,50 +1,16 @@
 #include <math.h>
 #include <stdio.h>
 #include <string.h>
-#include <windows.h>
 
+#include "app_filesystem.h"
 #include "minisnn.h"
 #include "sensor_encoding_demo_config.h"
 
 #define DEMO_TICKS 3U
 #define DEMO_OUTPUT_ROOT "results/scenarios"
 
-static int ensure_directory(const char *path)
-{
-    return CreateDirectoryA(path, NULL) || GetLastError() == ERROR_ALREADY_EXISTS;
-}
-
-static int copy_file(const char *source_path, const char *destination_path)
-{
-    FILE *source = fopen(source_path, "rb");
-    FILE *destination;
-    int character;
-    int copy_failed = 0;
-
-    if (source == NULL)
-        return 0;
-    destination = fopen(destination_path, "wb");
-    if (destination == NULL)
-    {
-        fclose(source);
-        return 0;
-    }
-    while ((character = fgetc(source)) != EOF)
-    {
-        if (fputc(character, destination) == EOF)
-        {
-            copy_failed = 1;
-            break;
-        }
-    }
-    if (ferror(source))
-        copy_failed = 1;
-    if (fclose(source) != 0)
-        copy_failed = 1;
-    if (fclose(destination) != 0)
-        copy_failed = 1;
-    return !copy_failed;
-}
+#define ensure_directory app_filesystem_ensure_directory
+#define copy_file app_filesystem_copy_file
 
 static const char *mode_name(MiniSNNSensorEncodingMode mode)
 {

@@ -3,13 +3,11 @@
 #include <stdio.h>
 #include <string.h>
 
-#ifdef _WIN32
-#include <windows.h>
-#endif
 
 #include "minisnn.h"
 #include "minisnn_internal.h"
 #include "structural_plasticity.h"
+#include "app_filesystem.h"
 
 _Static_assert(sizeof(uint64_t) == 8,
                "checkpoint round-trip requires an eight-byte uint64_t");
@@ -44,9 +42,7 @@ static void cleanup_directory(const char *directory)
         snprintf(path, sizeof(path), "%s/%s", directory, files[index]);
         remove(path);
     }
-#ifdef _WIN32
-    RemoveDirectoryA(directory);
-#endif
+    app_filesystem_remove_tree(directory);
 }
 
 static void fixture_destroy(Fixture *fixture)

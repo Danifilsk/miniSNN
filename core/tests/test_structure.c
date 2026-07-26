@@ -3,7 +3,7 @@
 #include <stdio.h>
 #include <string.h>
 
-#include "evolution.h"
+#include "minisnn_evolution_legacy.h"
 #include "minisnn.h"
 #include "neuron.h"
 #include "structure.h"

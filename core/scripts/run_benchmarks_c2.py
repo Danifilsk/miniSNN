@@ -13,9 +13,9 @@ import time
 
 
 ROOT = Path(__file__).resolve().parents[1]
-BUILD = ROOT / "build"
+BUILD = ROOT.parent / "build"
 RESULTS = ROOT / "results" / "benchmarks"
-RUNNER = BUILD / "minisnn_runner.exe"
+RUNNER = BUILD / "tools" / "bin" / "minisnn_runner.exe"
 STEPS = 200
 NEURONS = 100
 MODES = (
@@ -165,7 +165,7 @@ def command_line(command: list[str]) -> str:
 
 def main() -> int:
     if not RUNNER.is_file():
-        print("FAIL: build/minisnn_runner.exe is missing")
+        print("FAIL: build/tools/bin/minisnn_runner.exe is missing")
         return 1
     BUILD.mkdir(exist_ok=True)
     RESULTS.mkdir(parents=True, exist_ok=True)

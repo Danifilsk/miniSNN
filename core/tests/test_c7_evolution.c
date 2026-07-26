@@ -3,7 +3,7 @@
 #include <string.h>
 
 #include "c7_audit_common.h"
-#include "evolution.h"
+#include "minisnn_evolution_legacy.h"
 
 static int fail(const char *message)
 {

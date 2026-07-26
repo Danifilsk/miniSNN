@@ -1,16 +1,33 @@
 CC = gcc
+AR ?= ar
 CFLAGS = -std=c11 -Wall -Wextra -pedantic -fanalyzer
 INCLUDES = -Iinclude -Isrc -Iapp
-BUILD_DIR = build
+PUBLIC_INCLUDES = -Iinclude
+APP_INCLUDES = -Iinclude -Iapp
+BUILD_ROOT = ../build
+CORE_LIB_DIR = $(BUILD_ROOT)/core/lib
+CORE_OBJ_DIR = $(BUILD_ROOT)/core/obj
+CORE_BIN_DIR = $(BUILD_ROOT)/core/bin
+TOOLS_BIN_DIR = $(BUILD_ROOT)/tools/bin
+TEST_BIN_DIR = $(BUILD_ROOT)/tests/bin
+STUDIO_BIN_DIR = $(BUILD_ROOT)/studio/bin
+STUDIO_OBJ_DIR = $(BUILD_ROOT)/studio/obj
+# Historical app rules below use BUILD_DIR for headless executable products.
+BUILD_DIR = $(TOOLS_BIN_DIR)
+CORE_LIB = $(CORE_LIB_DIR)/libminisnn_core.a
+CORE_LIBRARY_SOURCES = $(sort $(wildcard src/*.c))
+CORE_OBJECTS = $(patsubst src/%.c,$(CORE_OBJ_DIR)/%.o,$(CORE_LIBRARY_SOURCES))
 
 STRUCTURE_SOURCES = src/structure.c src/structural_plasticity.c
 API_SOURCES = src/minisnn.c src/neuron.c src/neuron_model.c src/network.c src/plasticity.c src/reward.c src/homeostasis.c src/agent_io.c src/sensor_encoder.c src/action_decoder.c src/agent_cycle.c src/agent_cycle_checkpoint.c $(STRUCTURE_SOURCES)
+TESTING_API_SOURCES = $(API_SOURCES)
 APP_SOURCES = app/scenario_config.c
-SCENARIO_RUNNER_SOURCES = app/scenario_config.c app/scenario_runtime.c app/scenario_runner.c app/working_memory.c app/associative_memory.c app/sequence_prediction.c
-C7_AUDIT_SOURCES = app/c7_audit_common.c
+APP_FILESYSTEM_SOURCES = app/app_filesystem.c
+SCENARIO_RUNNER_SOURCES = $(APP_FILESYSTEM_SOURCES) app/scenario_config.c app/scenario_runtime.c app/scenario_runner.c app/working_memory.c app/associative_memory.c app/sequence_prediction.c
+C7_AUDIT_SOURCES = $(APP_FILESYSTEM_SOURCES) app/c7_audit_common.c
 C6_SUITE_SOURCES = app/c6_suite.c $(SCENARIO_RUNNER_SOURCES)
 EVOLUTION_SOURCES = src/evolution.c
-EVOLUTION_RUNNER_SOURCES = app/evolution_config.c app/evolution_runner.c $(SCENARIO_RUNNER_SOURCES) $(EVOLUTION_SOURCES)
+EVOLUTION_RUNNER_SOURCES = app/evolution_config.c app/evolution_runner.c $(SCENARIO_RUNNER_SOURCES)
 CORE_SOURCES = src/neuron.c src/neuron_model.c src/network.c src/plasticity.c src/reward.c src/homeostasis.c src/agent_io.c $(STRUCTURE_SOURCES) src/topology.c src/stimulus.c src/recorder.c
 EXPERIMENT_SOURCES = src/neuron.c src/neuron_model.c src/network.c src/plasticity.c src/reward.c src/homeostasis.c $(STRUCTURE_SOURCES) src/stimulus.c src/recorder.c
 SCENARIO ?= configs/random_balanced.ini
@@ -28,7 +45,9 @@ endif
 endif
 ANALYZER_CFLAGS = -std=c11 -Wall -Wextra -pedantic -fanalyzer -Wformat=2 -Wshadow -Wnull-dereference
 
-.PHONY: all help clean test test-api test-core test-lif test-neuron-model test-adex test-hodgkin-huxley test-model-checkpoints test-model-error-propagation test-model-provenance test-adex-long test-hh-long test-models-long test-plasticity test-plasticity-long test-homeostasis test-homeostasis-long test-reward test-reward-long test-evolution test-structure test-structural-plasticity test-structure-resume test-structure-long test-evolution-runner test-evolution-resume test-evolution-long test-plot-evolution test-plot-topology test-evolution-report test-structural-html evolution-build evolution-weight-demo evolution-homeostasis-demo evolution-plasticity-demo evolution-structure-demo structural-pruning-demo structural-growth-demo evolution-structure-learning-demo plot-evolution plot-topology report-evolution report-evolution-history report-structural-events report-best-topology test-scenario test-runner test-runner-topologies test-working-memory test-associative-memory test-sequence-prediction test-c6-checkpoints test-c6-integration test-c6-long test-agent-io test-sensor-encoder test-action-decoder test-agent-cycle test-reproducibility test-regression test-memory test-long test-analyzer test-sanitize benchmark-v02 benchmark-c1 benchmark-c15 benchmark-c2 benchmark-c3 benchmark-c4 benchmark-c5 check-v02 check-c1 check-c15 check-c2 check-c3 check-c4 check-c5-interface check-c5 check-c6 check-c7 compare-neuron-models test-compare-neuron-models \
+TEST_BINARIES = $(patsubst tests/%.c,$(TEST_BIN_DIR)/%.exe,$(wildcard tests/*.c))
+
+.PHONY: all core core-lib headless core-test clean-core clean-studio clean-tests help clean test test-api test-core test-lif test-neuron-model test-adex test-hodgkin-huxley test-model-checkpoints test-model-error-propagation test-model-provenance test-adex-long test-hh-long test-models-long test-plasticity test-plasticity-long test-homeostasis test-homeostasis-long test-reward test-reward-long test-evolution test-structure test-structural-plasticity test-structure-resume test-structure-long test-evolution-runner test-evolution-resume test-evolution-long test-plot-evolution test-plot-topology test-evolution-report test-structural-html evolution-build evolution-weight-demo evolution-homeostasis-demo evolution-plasticity-demo evolution-structure-demo structural-pruning-demo structural-growth-demo evolution-structure-learning-demo plot-evolution plot-topology report-evolution report-evolution-history report-structural-events report-best-topology test-scenario test-runner test-runner-topologies test-working-memory test-associative-memory test-sequence-prediction test-c6-checkpoints test-c6-integration test-c6-long test-agent-io test-sensor-encoder test-action-decoder test-agent-cycle test-reproducibility test-regression test-memory test-long test-analyzer test-sanitize benchmark-v02 benchmark-c1 benchmark-c15 benchmark-c2 benchmark-c3 benchmark-c4 benchmark-c5 check-v02 check-c1 check-c15 check-c2 check-c3 check-c4 check-c5-interface check-c5 check-c6 check-c7 compare-neuron-models test-compare-neuron-models \
 	test-plot-neuron test-plot-plasticity test-compare-runs test-diagnostics test-run-reports test-history-report test-docs test-agent-cycle-checkpoint \
 	test-plot-homeostasis plot-homeostasis test-plot-reward plot-reward \
 	test-c7-integration test-c7-evolution test-c7-long-run test-c7 \
@@ -40,12 +59,38 @@ ANALYZER_CFLAGS = -std=c11 -Wall -Wextra -pedantic -fanalyzer -Wformat=2 -Wshado
 	scenario-homeostasis-silence scenario-homeostasis-explosion scenario-homeostasis-stdp \
 	scenario-reward-positive scenario-punishment-negative scenario-reward-delayed scenario-reward-mixed \
 	report-metrics report-weights report-all report-history \
-	studio-build studio
+	studio-build studio audit-d1-build-products audit-d1-api
 
-all: test
+all: core
+
+core: core-lib headless
+
+core-lib: $(CORE_LIB)
+
+headless: $(BUILD_DIR)/minisnn_runner.exe $(BUILD_DIR)/evolution_runner.exe \
+	$(BUILD_DIR)/c6_suite_runner.exe $(BUILD_DIR)/c7_integrated_audit.exe
+
+core-test: test
+
+core-headless: headless
+
+core-studio: studio-build
+
+core-evolution: evolution-build
 
 help:
 	@echo Comandos disponiveis:
+	@echo   make core-lib          - compila somente a biblioteca estatica do Core
+	@echo   make core              - compila biblioteca e produtos headless, sem Studio
+	@echo   make core-headless     - compila somente runners headless
+	@echo   make core-test         - executa testes sem compilar Studio
+	@echo   make core-studio       - compila explicitamente o miniSNN Studio
+	@echo   make core-evolution    - compila o runner de neuroevolucao
+	@echo   make clean-core        - limpa biblioteca e objetos do Core
+	@echo   make clean-studio      - limpa somente o produto Studio
+	@echo   make clean-tests       - limpa somente executaveis de teste
+	@echo   make audit-d1-build-products - valida a separacao dos produtos D1-A
+	@echo   make audit-d1-api      - valida API publica e arquitetura D1-A
 	@echo   make ou make test      - compila e executa todos os testes
 	@echo   make test-api          - teste da API publica
 	@echo   make test-core         - teste do nucleo/topologias/estimulos/recorders
@@ -182,98 +227,106 @@ help:
 	@echo   make sparse-ei         - executa a analise EXC/INH esparsa
 	@echo   make clean             - remove arquivos recriaveis de build e resultados locais
 
-$(BUILD_DIR):
-	@if not exist $(BUILD_DIR) mkdir $(BUILD_DIR)
+$(CORE_LIB_DIR) $(CORE_OBJ_DIR) $(CORE_BIN_DIR) $(TOOLS_BIN_DIR) $(TEST_BIN_DIR) $(STUDIO_BIN_DIR) $(STUDIO_OBJ_DIR):
+	@if not exist "$@" mkdir "$@"
 
-$(BUILD_DIR)/test_minisnn_api.exe: tests/test_minisnn_api.c $(API_SOURCES) include/minisnn.h include/minisnn_types.h | $(BUILD_DIR)
-	$(CC) $(CFLAGS) tests/test_minisnn_api.c $(API_SOURCES) $(INCLUDES) -o $@
+$(TEST_BINARIES): | $(TEST_BIN_DIR)
 
-$(BUILD_DIR)/test_agent_io.exe: tests/test_agent_io.c src/agent_io.c include/minisnn_agent_io.h | $(BUILD_DIR)
-	$(CC) $(CFLAGS) tests/test_agent_io.c src/agent_io.c $(INCLUDES) -o $@
+$(CORE_OBJ_DIR)/%.o: src/%.c | $(CORE_OBJ_DIR)
+	$(CC) $(CFLAGS) $(INCLUDES) -c $< -o $@
 
-$(BUILD_DIR)/test_sensor_encoder.exe: tests/test_sensor_encoder.c $(API_SOURCES) include/minisnn_sensor_encoder.h | $(BUILD_DIR)
-	$(CC) $(CFLAGS) tests/test_sensor_encoder.c $(API_SOURCES) $(INCLUDES) -o $@
+$(CORE_LIB): $(CORE_OBJECTS) | $(CORE_LIB_DIR)
+	$(AR) rcs $@ $(CORE_OBJECTS)
 
-$(BUILD_DIR)/test_action_decoder.exe: tests/test_action_decoder.c $(API_SOURCES) include/minisnn_action_decoder.h | $(BUILD_DIR)
-	$(CC) $(CFLAGS) tests/test_action_decoder.c $(API_SOURCES) $(INCLUDES) -o $@
+$(TEST_BIN_DIR)/test_minisnn_api.exe: tests/test_minisnn_api.c $(CORE_LIB) include/minisnn.h include/minisnn_types.h | $(BUILD_DIR)
+	$(CC) $(CFLAGS) tests/test_minisnn_api.c $(CORE_LIB) $(INCLUDES) -o $@
 
-$(BUILD_DIR)/test_agent_cycle.exe: tests/test_agent_cycle.c $(API_SOURCES) include/minisnn_agent_cycle.h | $(BUILD_DIR)
-	$(CC) $(CFLAGS) -DMINISNN_TESTING tests/test_agent_cycle.c $(API_SOURCES) $(INCLUDES) -o $@
+$(TEST_BIN_DIR)/test_agent_io.exe: tests/test_agent_io.c $(CORE_LIB) include/minisnn_agent_io.h | $(BUILD_DIR)
+	$(CC) $(CFLAGS) tests/test_agent_io.c $(CORE_LIB) $(INCLUDES) -o $@
 
-$(BUILD_DIR)/test_agent_cycle_checkpoint.exe: tests/test_agent_cycle_checkpoint.c $(API_SOURCES) include/minisnn_agent_cycle.h | $(BUILD_DIR)
-	$(CC) $(CFLAGS) -DMINISNN_TESTING tests/test_agent_cycle_checkpoint.c $(API_SOURCES) $(INCLUDES) -o $@
+$(TEST_BIN_DIR)/test_sensor_encoder.exe: tests/test_sensor_encoder.c $(CORE_LIB) include/minisnn_sensor_encoder.h | $(BUILD_DIR)
+	$(CC) $(CFLAGS) tests/test_sensor_encoder.c $(CORE_LIB) $(INCLUDES) -o $@
 
-$(BUILD_DIR)/test_c7_integration.exe: tests/test_c7_integration.c $(C7_AUDIT_SOURCES) $(API_SOURCES) | $(BUILD_DIR)
-	$(CC) $(CFLAGS) -DMINISNN_TESTING tests/test_c7_integration.c $(C7_AUDIT_SOURCES) $(API_SOURCES) $(INCLUDES) -o $@
+$(TEST_BIN_DIR)/test_action_decoder.exe: tests/test_action_decoder.c $(CORE_LIB) include/minisnn_action_decoder.h | $(BUILD_DIR)
+	$(CC) $(CFLAGS) tests/test_action_decoder.c $(CORE_LIB) $(INCLUDES) -o $@
 
-$(BUILD_DIR)/test_c7_evolution.exe: tests/test_c7_evolution.c $(C7_AUDIT_SOURCES) $(API_SOURCES) src/evolution.c | $(BUILD_DIR)
-	$(CC) $(CFLAGS) tests/test_c7_evolution.c $(C7_AUDIT_SOURCES) $(API_SOURCES) src/evolution.c $(INCLUDES) -o $@
+$(TEST_BIN_DIR)/test_agent_cycle.exe: tests/test_agent_cycle.c $(CORE_LIB) include/minisnn_agent_cycle.h | $(BUILD_DIR)
+	$(CC) $(CFLAGS) -DMINISNN_TESTING tests/test_agent_cycle.c $(TESTING_API_SOURCES) $(INCLUDES) -o $@
 
-$(BUILD_DIR)/test_c7_long_run.exe: tests/test_c7_long_run.c $(C7_AUDIT_SOURCES) $(API_SOURCES) | $(BUILD_DIR)
-	$(CC) $(CFLAGS) tests/test_c7_long_run.c $(C7_AUDIT_SOURCES) $(API_SOURCES) $(INCLUDES) -o $@
+$(TEST_BIN_DIR)/test_agent_cycle_checkpoint.exe: tests/test_agent_cycle_checkpoint.c $(APP_FILESYSTEM_SOURCES) $(CORE_LIB) include/minisnn_agent_cycle.h | $(BUILD_DIR)
+	$(CC) $(CFLAGS) -DMINISNN_TESTING tests/test_agent_cycle_checkpoint.c $(APP_FILESYSTEM_SOURCES) $(TESTING_API_SOURCES) $(INCLUDES) -o $@
 
-$(BUILD_DIR)/agent_cycle_demo.exe: app/agent_cycle_demo.c app/agent_cycle_demo_config.c app/agent_cycle_demo_config.h $(API_SOURCES) include/minisnn_agent_cycle.h | $(BUILD_DIR)
-	$(CC) $(CFLAGS) app/agent_cycle_demo.c app/agent_cycle_demo_config.c $(API_SOURCES) $(INCLUDES) -o $@
+$(TEST_BIN_DIR)/test_c7_integration.exe: tests/test_c7_integration.c $(C7_AUDIT_SOURCES) $(CORE_LIB) | $(BUILD_DIR)
+	$(CC) $(CFLAGS) -DMINISNN_TESTING tests/test_c7_integration.c $(C7_AUDIT_SOURCES) $(TESTING_API_SOURCES) $(INCLUDES) -o $@
 
-$(BUILD_DIR)/agent_cycle_checkpoint_demo.exe: app/agent_cycle_checkpoint_demo.c app/agent_cycle_checkpoint_demo_config.c app/agent_cycle_checkpoint_demo_config.h app/agent_cycle_demo_config.c app/agent_cycle_demo_config.h $(API_SOURCES) include/minisnn_agent_cycle.h | $(BUILD_DIR)
-	$(CC) $(CFLAGS) app/agent_cycle_checkpoint_demo.c app/agent_cycle_checkpoint_demo_config.c app/agent_cycle_demo_config.c $(API_SOURCES) $(INCLUDES) -o $@
+$(TEST_BIN_DIR)/test_c7_evolution.exe: tests/test_c7_evolution.c $(C7_AUDIT_SOURCES) $(CORE_LIB) | $(BUILD_DIR)
+	$(CC) $(CFLAGS) tests/test_c7_evolution.c $(C7_AUDIT_SOURCES) $(CORE_LIB) $(INCLUDES) -o $@
 
-$(BUILD_DIR)/c7_integrated_audit.exe: app/c7_integrated_audit.c app/c7_integrated_audit_config.c app/c7_integrated_audit_config.h $(C7_AUDIT_SOURCES) $(API_SOURCES) | $(BUILD_DIR)
-	$(CC) $(CFLAGS) app/c7_integrated_audit.c app/c7_integrated_audit_config.c $(C7_AUDIT_SOURCES) $(API_SOURCES) $(INCLUDES) -o $@
+$(TEST_BIN_DIR)/test_c7_long_run.exe: tests/test_c7_long_run.c $(C7_AUDIT_SOURCES) $(CORE_LIB) | $(BUILD_DIR)
+	$(CC) $(CFLAGS) tests/test_c7_long_run.c $(C7_AUDIT_SOURCES) $(CORE_LIB) $(INCLUDES) -o $@
 
-$(BUILD_DIR)/sensor_encoding_demo.exe: app/sensor_encoding_demo.c app/sensor_encoding_demo_config.c app/sensor_encoding_demo_config.h $(API_SOURCES) include/minisnn_sensor_encoder.h | $(BUILD_DIR)
-	$(CC) $(CFLAGS) app/sensor_encoding_demo.c app/sensor_encoding_demo_config.c $(API_SOURCES) $(INCLUDES) -o $@
+$(BUILD_DIR)/agent_cycle_demo.exe: app/agent_cycle_demo.c app/agent_cycle_demo_config.c app/agent_cycle_demo_config.h $(APP_FILESYSTEM_SOURCES) $(CORE_LIB) include/minisnn_agent_cycle.h | $(BUILD_DIR)
+	$(CC) $(CFLAGS) app/agent_cycle_demo.c app/agent_cycle_demo_config.c $(APP_FILESYSTEM_SOURCES) $(CORE_LIB) $(INCLUDES) -o $@
 
-$(BUILD_DIR)/action_decoding_demo.exe: app/action_decoding_demo.c app/action_decoding_demo_config.c app/action_decoding_demo_config.h $(API_SOURCES) include/minisnn_action_decoder.h | $(BUILD_DIR)
-	$(CC) $(CFLAGS) app/action_decoding_demo.c app/action_decoding_demo_config.c $(API_SOURCES) $(INCLUDES) -o $@
+$(BUILD_DIR)/agent_cycle_checkpoint_demo.exe: app/agent_cycle_checkpoint_demo.c app/agent_cycle_checkpoint_demo_config.c app/agent_cycle_checkpoint_demo_config.h app/agent_cycle_demo_config.c app/agent_cycle_demo_config.h $(APP_FILESYSTEM_SOURCES) $(CORE_LIB) include/minisnn_agent_cycle.h | $(BUILD_DIR)
+	$(CC) $(CFLAGS) app/agent_cycle_checkpoint_demo.c app/agent_cycle_checkpoint_demo_config.c app/agent_cycle_demo_config.c $(APP_FILESYSTEM_SOURCES) $(CORE_LIB) $(INCLUDES) -o $@
 
-$(BUILD_DIR)/test_topology.exe: tests/test_topology.c $(CORE_SOURCES) | $(BUILD_DIR)
-	$(CC) $(CFLAGS) tests/test_topology.c $(CORE_SOURCES) $(INCLUDES) -o $@
+$(BUILD_DIR)/c7_integrated_audit.exe: app/c7_integrated_audit.c app/c7_integrated_audit_config.c app/c7_integrated_audit_config.h $(C7_AUDIT_SOURCES) $(CORE_LIB) | $(BUILD_DIR)
+	$(CC) $(CFLAGS) app/c7_integrated_audit.c app/c7_integrated_audit_config.c $(C7_AUDIT_SOURCES) $(CORE_LIB) $(INCLUDES) -o $@
 
-$(BUILD_DIR)/test_LIF.exe: tests/test_LIF.c src/neuron.c src/neuron.h src/config.h | $(BUILD_DIR)
+$(BUILD_DIR)/sensor_encoding_demo.exe: app/sensor_encoding_demo.c app/sensor_encoding_demo_config.c app/sensor_encoding_demo_config.h $(APP_FILESYSTEM_SOURCES) $(CORE_LIB) include/minisnn_sensor_encoder.h | $(BUILD_DIR)
+	$(CC) $(CFLAGS) app/sensor_encoding_demo.c app/sensor_encoding_demo_config.c $(APP_FILESYSTEM_SOURCES) $(CORE_LIB) $(INCLUDES) -o $@
+
+$(BUILD_DIR)/action_decoding_demo.exe: app/action_decoding_demo.c app/action_decoding_demo_config.c app/action_decoding_demo_config.h $(APP_FILESYSTEM_SOURCES) $(CORE_LIB) include/minisnn_action_decoder.h | $(BUILD_DIR)
+	$(CC) $(CFLAGS) app/action_decoding_demo.c app/action_decoding_demo_config.c $(APP_FILESYSTEM_SOURCES) $(CORE_LIB) $(INCLUDES) -o $@
+
+$(TEST_BIN_DIR)/test_topology.exe: tests/test_topology.c $(CORE_LIB) | $(BUILD_DIR)
+	$(CC) $(CFLAGS) tests/test_topology.c $(CORE_LIB) $(INCLUDES) -o $@
+
+$(TEST_BIN_DIR)/test_LIF.exe: tests/test_LIF.c src/neuron.c src/neuron.h src/config.h | $(BUILD_DIR)
 	$(CC) $(CFLAGS) tests/test_LIF.c src/neuron.c $(INCLUDES) -o $@
 
-$(BUILD_DIR)/test_neuron_model.exe: tests/test_neuron_model.c $(API_SOURCES) include/minisnn_types.h | $(BUILD_DIR)
-	$(CC) $(CFLAGS) tests/test_neuron_model.c $(API_SOURCES) $(INCLUDES) -o $@
+$(TEST_BIN_DIR)/test_neuron_model.exe: tests/test_neuron_model.c $(CORE_LIB) include/minisnn_types.h | $(BUILD_DIR)
+	$(CC) $(CFLAGS) tests/test_neuron_model.c $(CORE_LIB) $(INCLUDES) -o $@
 
-test-neuron-model: $(BUILD_DIR)/test_neuron_model.exe
-	$(BUILD_DIR)/test_neuron_model.exe
+test-neuron-model: $(TEST_BIN_DIR)/test_neuron_model.exe
+	$(TEST_BIN_DIR)/test_neuron_model.exe
 
-$(BUILD_DIR)/test_adex.exe: tests/test_adex.c src/neuron.c src/neuron_model.c | $(BUILD_DIR)
+$(TEST_BIN_DIR)/test_adex.exe: tests/test_adex.c src/neuron.c src/neuron_model.c | $(BUILD_DIR)
 	$(CC) $(CFLAGS) tests/test_adex.c src/neuron.c src/neuron_model.c $(INCLUDES) -o $@
 
-test-adex: $(BUILD_DIR)/test_adex.exe
-	$(BUILD_DIR)/test_adex.exe
+test-adex: $(TEST_BIN_DIR)/test_adex.exe
+	$(TEST_BIN_DIR)/test_adex.exe
 
-$(BUILD_DIR)/test_hodgkin_huxley.exe: tests/test_hodgkin_huxley.c src/neuron.c src/neuron_model.c | $(BUILD_DIR)
+$(TEST_BIN_DIR)/test_hodgkin_huxley.exe: tests/test_hodgkin_huxley.c src/neuron.c src/neuron_model.c | $(BUILD_DIR)
 	$(CC) $(CFLAGS) tests/test_hodgkin_huxley.c src/neuron.c src/neuron_model.c $(INCLUDES) -o $@
 
-test-hodgkin-huxley: $(BUILD_DIR)/test_hodgkin_huxley.exe
-	$(BUILD_DIR)/test_hodgkin_huxley.exe
+test-hodgkin-huxley: $(TEST_BIN_DIR)/test_hodgkin_huxley.exe
+	$(TEST_BIN_DIR)/test_hodgkin_huxley.exe
 
-$(BUILD_DIR)/test_model_error_propagation.exe: tests/test_model_error_propagation.c $(SCENARIO_RUNNER_SOURCES) $(API_SOURCES) | $(BUILD_DIR)
-	$(CC) $(CFLAGS) -DMINISNN_TESTING tests/test_model_error_propagation.c $(SCENARIO_RUNNER_SOURCES) $(API_SOURCES) $(INCLUDES) -o $@
+$(TEST_BIN_DIR)/test_model_error_propagation.exe: tests/test_model_error_propagation.c $(SCENARIO_RUNNER_SOURCES) $(CORE_LIB) | $(BUILD_DIR)
+	$(CC) $(CFLAGS) -DMINISNN_TESTING tests/test_model_error_propagation.c $(SCENARIO_RUNNER_SOURCES) $(TESTING_API_SOURCES) $(INCLUDES) -o $@
 
-test-model-error-propagation: $(BUILD_DIR)/test_model_error_propagation.exe
-	$(BUILD_DIR)/test_model_error_propagation.exe
+test-model-error-propagation: $(TEST_BIN_DIR)/test_model_error_propagation.exe
+	$(TEST_BIN_DIR)/test_model_error_propagation.exe
 
-$(BUILD_DIR)/test_model_provenance.exe: tests/test_model_provenance.c $(SCENARIO_RUNNER_SOURCES) $(API_SOURCES) | $(BUILD_DIR)
-	$(CC) $(CFLAGS) tests/test_model_provenance.c $(SCENARIO_RUNNER_SOURCES) $(API_SOURCES) $(INCLUDES) -o $@
+$(TEST_BIN_DIR)/test_model_provenance.exe: tests/test_model_provenance.c $(SCENARIO_RUNNER_SOURCES) $(CORE_LIB) | $(BUILD_DIR)
+	$(CC) $(CFLAGS) tests/test_model_provenance.c $(SCENARIO_RUNNER_SOURCES) $(CORE_LIB) $(INCLUDES) -o $@
 
-test-model-provenance: $(BUILD_DIR)/test_model_provenance.exe
-	$(BUILD_DIR)/test_model_provenance.exe
+test-model-provenance: $(TEST_BIN_DIR)/test_model_provenance.exe
+	$(TEST_BIN_DIR)/test_model_provenance.exe
 
-$(BUILD_DIR)/test_models_long.exe: tests/test_models_long.c $(API_SOURCES) | $(BUILD_DIR)
-	$(CC) $(CFLAGS) tests/test_models_long.c $(API_SOURCES) $(INCLUDES) -o $@
+$(TEST_BIN_DIR)/test_models_long.exe: tests/test_models_long.c $(CORE_LIB) | $(BUILD_DIR)
+	$(CC) $(CFLAGS) tests/test_models_long.c $(CORE_LIB) $(INCLUDES) -o $@
 
-test-adex-long: $(BUILD_DIR)/test_models_long.exe
-	$(BUILD_DIR)/test_models_long.exe
+test-adex-long: $(TEST_BIN_DIR)/test_models_long.exe
+	$(TEST_BIN_DIR)/test_models_long.exe
 
-test-hh-long: $(BUILD_DIR)/test_models_long.exe
-	$(BUILD_DIR)/test_models_long.exe
+test-hh-long: $(TEST_BIN_DIR)/test_models_long.exe
+	$(TEST_BIN_DIR)/test_models_long.exe
 
-test-models-long: $(BUILD_DIR)/test_models_long.exe
-	$(BUILD_DIR)/test_models_long.exe
+test-models-long: $(TEST_BIN_DIR)/test_models_long.exe
+	$(TEST_BIN_DIR)/test_models_long.exe
 
 check-c5-interface: test-neuron-model
 	$(PYTHON) scripts/check_c5_interface.py
@@ -288,144 +341,150 @@ check-c6: test-working-memory test-associative-memory test-sequence-prediction t
 check-c7: test-agent-io test-sensor-encoder test-action-decoder test-agent-cycle test-agent-cycle-checkpoint test-c7-integration test-c7-evolution test-c7-long-run scenario-c7-integrated-audit
 	$(PYTHON) scripts/check_c7.py
 
-$(BUILD_DIR)/test_plasticity.exe: tests/test_plasticity.c $(API_SOURCES) | $(BUILD_DIR)
-	$(CC) $(CFLAGS) tests/test_plasticity.c $(API_SOURCES) $(INCLUDES) -o $@
+audit-d1-build-products:
+	$(PYTHON) scripts/check_build_products.py
 
-$(BUILD_DIR)/test_plasticity_long.exe: tests/test_plasticity_long.c $(API_SOURCES) | $(BUILD_DIR)
-	$(CC) $(CFLAGS) tests/test_plasticity_long.c $(API_SOURCES) $(INCLUDES) -o $@
+audit-d1-api: audit-d1-build-products core-lib headless
+	$(PYTHON) scripts/check_public_api.py
 
-$(BUILD_DIR)/test_homeostasis.exe: tests/test_homeostasis.c $(API_SOURCES) | $(BUILD_DIR)
-	$(CC) $(CFLAGS) tests/test_homeostasis.c $(API_SOURCES) $(INCLUDES) -o $@
+$(TEST_BIN_DIR)/test_plasticity.exe: tests/test_plasticity.c $(CORE_LIB) | $(BUILD_DIR)
+	$(CC) $(CFLAGS) tests/test_plasticity.c $(CORE_LIB) $(INCLUDES) -o $@
 
-$(BUILD_DIR)/test_homeostasis_runner.exe: tests/test_homeostasis_runner.c $(SCENARIO_RUNNER_SOURCES) $(API_SOURCES) | $(BUILD_DIR)
-	$(CC) $(CFLAGS) tests/test_homeostasis_runner.c $(SCENARIO_RUNNER_SOURCES) $(API_SOURCES) $(INCLUDES) -o $@
+$(TEST_BIN_DIR)/test_plasticity_long.exe: tests/test_plasticity_long.c $(CORE_LIB) | $(BUILD_DIR)
+	$(CC) $(CFLAGS) tests/test_plasticity_long.c $(CORE_LIB) $(INCLUDES) -o $@
 
-$(BUILD_DIR)/test_homeostasis_long.exe: tests/test_homeostasis_long.c $(API_SOURCES) | $(BUILD_DIR)
-	$(CC) $(CFLAGS) tests/test_homeostasis_long.c $(API_SOURCES) $(INCLUDES) -o $@
+$(TEST_BIN_DIR)/test_homeostasis.exe: tests/test_homeostasis.c $(CORE_LIB) | $(BUILD_DIR)
+	$(CC) $(CFLAGS) tests/test_homeostasis.c $(CORE_LIB) $(INCLUDES) -o $@
 
-$(BUILD_DIR)/test_reward.exe: tests/test_reward.c $(API_SOURCES) | $(BUILD_DIR)
-	$(CC) $(CFLAGS) tests/test_reward.c $(API_SOURCES) $(INCLUDES) -o $@
+$(TEST_BIN_DIR)/test_homeostasis_runner.exe: tests/test_homeostasis_runner.c $(SCENARIO_RUNNER_SOURCES) $(CORE_LIB) | $(BUILD_DIR)
+	$(CC) $(CFLAGS) tests/test_homeostasis_runner.c $(SCENARIO_RUNNER_SOURCES) $(CORE_LIB) $(INCLUDES) -o $@
 
-$(BUILD_DIR)/test_reward_long.exe: tests/test_reward_long.c $(API_SOURCES) | $(BUILD_DIR)
-	$(CC) $(CFLAGS) tests/test_reward_long.c $(API_SOURCES) $(INCLUDES) -o $@
+$(TEST_BIN_DIR)/test_homeostasis_long.exe: tests/test_homeostasis_long.c $(CORE_LIB) | $(BUILD_DIR)
+	$(CC) $(CFLAGS) tests/test_homeostasis_long.c $(CORE_LIB) $(INCLUDES) -o $@
 
-$(BUILD_DIR)/test_evolution.exe: tests/test_evolution.c $(EVOLUTION_SOURCES) src/evolution.h | $(BUILD_DIR)
-	$(CC) $(CFLAGS) tests/test_evolution.c $(EVOLUTION_SOURCES) $(INCLUDES) -o $@
+$(TEST_BIN_DIR)/test_reward.exe: tests/test_reward.c $(CORE_LIB) | $(BUILD_DIR)
+	$(CC) $(CFLAGS) tests/test_reward.c $(CORE_LIB) $(INCLUDES) -o $@
 
-$(BUILD_DIR)/test_structure.exe: tests/test_structure.c $(API_SOURCES) $(EVOLUTION_SOURCES) src/structure.h | $(BUILD_DIR)
-	$(CC) $(CFLAGS) tests/test_structure.c $(API_SOURCES) $(EVOLUTION_SOURCES) $(INCLUDES) -o $@
+$(TEST_BIN_DIR)/test_reward_long.exe: tests/test_reward_long.c $(CORE_LIB) | $(BUILD_DIR)
+	$(CC) $(CFLAGS) tests/test_reward_long.c $(CORE_LIB) $(INCLUDES) -o $@
 
-$(BUILD_DIR)/test_structural_plasticity.exe: tests/test_structural_plasticity.c $(API_SOURCES) $(EVOLUTION_SOURCES) | $(BUILD_DIR)
-	$(CC) $(CFLAGS) tests/test_structural_plasticity.c $(API_SOURCES) $(EVOLUTION_SOURCES) $(INCLUDES) -o $@
+$(TEST_BIN_DIR)/test_evolution.exe: tests/test_evolution.c $(CORE_LIB) include/minisnn_evolution_legacy.h | $(BUILD_DIR)
+	$(CC) $(CFLAGS) tests/test_evolution.c $(CORE_LIB) $(INCLUDES) -o $@
 
-$(BUILD_DIR)/test_structure_resume.exe: tests/test_structure_resume.c $(EVOLUTION_RUNNER_SOURCES) $(API_SOURCES) | $(BUILD_DIR)
-	$(CC) $(CFLAGS) -DEVOLUTION_RUNNER_NO_MAIN tests/test_structure_resume.c $(EVOLUTION_RUNNER_SOURCES) $(API_SOURCES) $(INCLUDES) -o $@
+$(TEST_BIN_DIR)/test_structure.exe: tests/test_structure.c $(CORE_LIB) $(CORE_LIB) src/structure.h | $(BUILD_DIR)
+	$(CC) $(CFLAGS) tests/test_structure.c $(CORE_LIB) $(CORE_LIB) $(INCLUDES) -o $@
 
-$(BUILD_DIR)/test_structure_long.exe: tests/test_structure_long.c $(EVOLUTION_RUNNER_SOURCES) $(API_SOURCES) | $(BUILD_DIR)
-	$(CC) $(CFLAGS) -DEVOLUTION_RUNNER_NO_MAIN tests/test_structure_long.c $(EVOLUTION_RUNNER_SOURCES) $(API_SOURCES) $(INCLUDES) -o $@
+$(TEST_BIN_DIR)/test_structural_plasticity.exe: tests/test_structural_plasticity.c $(CORE_LIB) $(CORE_LIB) | $(BUILD_DIR)
+	$(CC) $(CFLAGS) tests/test_structural_plasticity.c $(CORE_LIB) $(CORE_LIB) $(INCLUDES) -o $@
 
-$(BUILD_DIR)/test_evolution_runner.exe: tests/test_evolution_runner.c $(EVOLUTION_RUNNER_SOURCES) $(API_SOURCES) | $(BUILD_DIR)
-	$(CC) $(CFLAGS) -DEVOLUTION_RUNNER_NO_MAIN tests/test_evolution_runner.c $(EVOLUTION_RUNNER_SOURCES) $(API_SOURCES) $(INCLUDES) -o $@
+$(TEST_BIN_DIR)/test_structure_resume.exe: tests/test_structure_resume.c $(EVOLUTION_RUNNER_SOURCES) $(CORE_LIB) | $(BUILD_DIR)
+	$(CC) $(CFLAGS) -DEVOLUTION_RUNNER_NO_MAIN tests/test_structure_resume.c $(EVOLUTION_RUNNER_SOURCES) $(CORE_LIB) $(INCLUDES) -o $@
 
-$(BUILD_DIR)/test_evolution_long.exe: tests/test_evolution_long.c $(EVOLUTION_RUNNER_SOURCES) $(API_SOURCES) | $(BUILD_DIR)
-	$(CC) $(CFLAGS) -DEVOLUTION_RUNNER_NO_MAIN tests/test_evolution_long.c $(EVOLUTION_RUNNER_SOURCES) $(API_SOURCES) $(INCLUDES) -o $@
+$(TEST_BIN_DIR)/test_structure_long.exe: tests/test_structure_long.c $(EVOLUTION_RUNNER_SOURCES) $(CORE_LIB) | $(BUILD_DIR)
+	$(CC) $(CFLAGS) -DEVOLUTION_RUNNER_NO_MAIN tests/test_structure_long.c $(EVOLUTION_RUNNER_SOURCES) $(CORE_LIB) $(INCLUDES) -o $@
 
-$(BUILD_DIR)/evolution_runner.exe: $(EVOLUTION_RUNNER_SOURCES) $(API_SOURCES) | $(BUILD_DIR)
-	$(CC) $(CFLAGS) $(EVOLUTION_RUNNER_SOURCES) $(API_SOURCES) $(INCLUDES) -o $@
+$(TEST_BIN_DIR)/test_evolution_runner.exe: tests/test_evolution_runner.c $(EVOLUTION_RUNNER_SOURCES) $(CORE_LIB) | $(BUILD_DIR)
+	$(CC) $(CFLAGS) -DEVOLUTION_RUNNER_NO_MAIN tests/test_evolution_runner.c $(EVOLUTION_RUNNER_SOURCES) $(CORE_LIB) $(INCLUDES) -o $@
 
-$(BUILD_DIR)/test_scenario_config.exe: tests/test_scenario_config.c $(APP_SOURCES) src/neuron_model.c src/neuron.c app/scenario_config.h | $(BUILD_DIR)
-	$(CC) $(CFLAGS) tests/test_scenario_config.c $(APP_SOURCES) src/neuron_model.c src/neuron.c $(INCLUDES) -o $@
+$(TEST_BIN_DIR)/test_evolution_long.exe: tests/test_evolution_long.c $(EVOLUTION_RUNNER_SOURCES) $(CORE_LIB) | $(BUILD_DIR)
+	$(CC) $(CFLAGS) -DEVOLUTION_RUNNER_NO_MAIN tests/test_evolution_long.c $(EVOLUTION_RUNNER_SOURCES) $(CORE_LIB) $(INCLUDES) -o $@
 
-$(BUILD_DIR)/test_scenario_runner.exe: tests/test_scenario_runner.c $(SCENARIO_RUNNER_SOURCES) $(API_SOURCES) app/scenario_runner.h app/scenario_config.h | $(BUILD_DIR)
-	$(CC) $(CFLAGS) tests/test_scenario_runner.c $(SCENARIO_RUNNER_SOURCES) $(API_SOURCES) $(INCLUDES) -o $@
+$(BUILD_DIR)/evolution_runner.exe: $(EVOLUTION_RUNNER_SOURCES) $(CORE_LIB) | $(BUILD_DIR)
+	$(CC) $(CFLAGS) $(EVOLUTION_RUNNER_SOURCES) $(CORE_LIB) $(INCLUDES) -o $@
 
-$(BUILD_DIR)/test_working_memory.exe: tests/test_working_memory.c $(SCENARIO_RUNNER_SOURCES) $(API_SOURCES) app/working_memory.h | $(BUILD_DIR)
-	$(CC) $(CFLAGS) -DMINISNN_TESTING tests/test_working_memory.c $(SCENARIO_RUNNER_SOURCES) $(API_SOURCES) $(INCLUDES) -o $@
+$(TEST_BIN_DIR)/test_scenario_config.exe: tests/test_scenario_config.c $(APP_SOURCES) $(CORE_LIB) app/scenario_config.h | $(BUILD_DIR)
+	$(CC) $(CFLAGS) tests/test_scenario_config.c $(APP_SOURCES) $(CORE_LIB) $(INCLUDES) -o $@
 
-$(BUILD_DIR)/test_associative_memory.exe: tests/test_associative_memory.c $(SCENARIO_RUNNER_SOURCES) $(API_SOURCES) app/associative_memory.h | $(BUILD_DIR)
-	$(CC) $(CFLAGS) -DMINISNN_TESTING tests/test_associative_memory.c $(SCENARIO_RUNNER_SOURCES) $(API_SOURCES) $(INCLUDES) -o $@
+$(TEST_BIN_DIR)/test_scenario_runner.exe: tests/test_scenario_runner.c $(SCENARIO_RUNNER_SOURCES) $(CORE_LIB) app/scenario_runner.h app/scenario_config.h | $(BUILD_DIR)
+	$(CC) $(CFLAGS) tests/test_scenario_runner.c $(SCENARIO_RUNNER_SOURCES) $(CORE_LIB) $(INCLUDES) -o $@
 
-$(BUILD_DIR)/test_sequence_prediction.exe: tests/test_sequence_prediction.c $(SCENARIO_RUNNER_SOURCES) $(API_SOURCES) app/sequence_prediction.h | $(BUILD_DIR)
-	$(CC) $(CFLAGS) -DMINISNN_TESTING tests/test_sequence_prediction.c $(SCENARIO_RUNNER_SOURCES) $(API_SOURCES) $(INCLUDES) -o $@
+$(TEST_BIN_DIR)/test_working_memory.exe: tests/test_working_memory.c $(SCENARIO_RUNNER_SOURCES) $(CORE_LIB) app/working_memory.h | $(BUILD_DIR)
+	$(CC) $(CFLAGS) -DMINISNN_TESTING tests/test_working_memory.c $(SCENARIO_RUNNER_SOURCES) $(TESTING_API_SOURCES) $(INCLUDES) -o $@
 
-$(BUILD_DIR)/test_c6_checkpoints.exe: tests/test_c6_checkpoints.c $(SCENARIO_RUNNER_SOURCES) $(API_SOURCES) app/associative_memory.h app/sequence_prediction.h | $(BUILD_DIR)
-	$(CC) $(CFLAGS) -DMINISNN_TESTING tests/test_c6_checkpoints.c $(SCENARIO_RUNNER_SOURCES) $(API_SOURCES) $(INCLUDES) -o $@
+$(TEST_BIN_DIR)/test_associative_memory.exe: tests/test_associative_memory.c $(SCENARIO_RUNNER_SOURCES) $(CORE_LIB) app/associative_memory.h | $(BUILD_DIR)
+	$(CC) $(CFLAGS) -DMINISNN_TESTING tests/test_associative_memory.c $(SCENARIO_RUNNER_SOURCES) $(TESTING_API_SOURCES) $(INCLUDES) -o $@
 
-$(BUILD_DIR)/test_c6_integration.exe: tests/test_c6_integration.c $(C6_SUITE_SOURCES) $(API_SOURCES) app/c6_suite.h | $(BUILD_DIR)
-	$(CC) $(CFLAGS) -DMINISNN_TESTING tests/test_c6_integration.c $(C6_SUITE_SOURCES) $(API_SOURCES) $(INCLUDES) -o $@
+$(TEST_BIN_DIR)/test_sequence_prediction.exe: tests/test_sequence_prediction.c $(SCENARIO_RUNNER_SOURCES) $(CORE_LIB) app/sequence_prediction.h | $(BUILD_DIR)
+	$(CC) $(CFLAGS) -DMINISNN_TESTING tests/test_sequence_prediction.c $(SCENARIO_RUNNER_SOURCES) $(TESTING_API_SOURCES) $(INCLUDES) -o $@
 
-$(BUILD_DIR)/test_c6_long.exe: tests/test_c6_long.c $(SCENARIO_RUNNER_SOURCES) $(API_SOURCES) | $(BUILD_DIR)
-	$(CC) $(CFLAGS) tests/test_c6_long.c $(SCENARIO_RUNNER_SOURCES) $(API_SOURCES) $(INCLUDES) -o $@
+$(TEST_BIN_DIR)/test_c6_checkpoints.exe: tests/test_c6_checkpoints.c $(SCENARIO_RUNNER_SOURCES) $(CORE_LIB) app/associative_memory.h app/sequence_prediction.h | $(BUILD_DIR)
+	$(CC) $(CFLAGS) -DMINISNN_TESTING tests/test_c6_checkpoints.c $(SCENARIO_RUNNER_SOURCES) $(TESTING_API_SOURCES) $(INCLUDES) -o $@
 
-$(BUILD_DIR)/c6_suite_runner.exe: app/c6_suite_runner.c $(C6_SUITE_SOURCES) $(API_SOURCES) app/c6_suite.h | $(BUILD_DIR)
-	$(CC) $(CFLAGS) app/c6_suite_runner.c $(C6_SUITE_SOURCES) $(API_SOURCES) $(INCLUDES) -o $@
+$(TEST_BIN_DIR)/test_c6_integration.exe: tests/test_c6_integration.c $(C6_SUITE_SOURCES) $(CORE_LIB) app/c6_suite.h | $(BUILD_DIR)
+	$(CC) $(CFLAGS) -DMINISNN_TESTING tests/test_c6_integration.c $(C6_SUITE_SOURCES) $(TESTING_API_SOURCES) $(INCLUDES) -o $@
 
-$(BUILD_DIR)/test_runner_topologies.exe: tests/test_runner_topologies.c $(SCENARIO_RUNNER_SOURCES) $(API_SOURCES) app/scenario_runner.h app/scenario_config.h | $(BUILD_DIR)
-	$(CC) $(CFLAGS) tests/test_runner_topologies.c $(SCENARIO_RUNNER_SOURCES) $(API_SOURCES) $(INCLUDES) -o $@
+$(TEST_BIN_DIR)/test_c6_long.exe: tests/test_c6_long.c $(SCENARIO_RUNNER_SOURCES) $(CORE_LIB) | $(BUILD_DIR)
+	$(CC) $(CFLAGS) tests/test_c6_long.c $(SCENARIO_RUNNER_SOURCES) $(CORE_LIB) $(INCLUDES) -o $@
 
-$(BUILD_DIR)/test_reproducibility.exe: tests/test_reproducibility.c $(SCENARIO_RUNNER_SOURCES) $(API_SOURCES) app/scenario_runner.h app/scenario_config.h | $(BUILD_DIR)
-	$(CC) $(CFLAGS) tests/test_reproducibility.c $(SCENARIO_RUNNER_SOURCES) $(API_SOURCES) $(INCLUDES) -o $@
+$(BUILD_DIR)/c6_suite_runner.exe: app/c6_suite_runner.c $(C6_SUITE_SOURCES) $(CORE_LIB) app/c6_suite.h | $(BUILD_DIR)
+	$(CC) $(CFLAGS) app/c6_suite_runner.c $(C6_SUITE_SOURCES) $(CORE_LIB) $(INCLUDES) -o $@
 
-$(BUILD_DIR)/test_memory_stress.exe: tests/test_memory_stress.c $(API_SOURCES) | $(BUILD_DIR)
-	$(CC) $(CFLAGS) tests/test_memory_stress.c $(API_SOURCES) $(INCLUDES) -o $@
+$(TEST_BIN_DIR)/test_runner_topologies.exe: tests/test_runner_topologies.c $(SCENARIO_RUNNER_SOURCES) $(CORE_LIB) app/scenario_runner.h app/scenario_config.h | $(BUILD_DIR)
+	$(CC) $(CFLAGS) tests/test_runner_topologies.c $(SCENARIO_RUNNER_SOURCES) $(CORE_LIB) $(INCLUDES) -o $@
 
-$(BUILD_DIR)/test_long_run.exe: tests/test_long_run.c $(API_SOURCES) | $(BUILD_DIR)
-	$(CC) $(CFLAGS) tests/test_long_run.c $(API_SOURCES) $(INCLUDES) -o $@
+$(TEST_BIN_DIR)/test_reproducibility.exe: tests/test_reproducibility.c $(SCENARIO_RUNNER_SOURCES) $(CORE_LIB) app/scenario_runner.h app/scenario_config.h | $(BUILD_DIR)
+	$(CC) $(CFLAGS) tests/test_reproducibility.c $(SCENARIO_RUNNER_SOURCES) $(CORE_LIB) $(INCLUDES) -o $@
 
-$(BUILD_DIR)/benchmark_core.exe: tests/benchmark_core.c $(API_SOURCES) | $(BUILD_DIR)
-	$(CC) $(CFLAGS) tests/benchmark_core.c $(API_SOURCES) $(INCLUDES) -o $@
+$(TEST_BIN_DIR)/test_memory_stress.exe: tests/test_memory_stress.c $(CORE_LIB) | $(BUILD_DIR)
+	$(CC) $(CFLAGS) tests/test_memory_stress.c $(CORE_LIB) $(INCLUDES) -o $@
 
-test-api: $(BUILD_DIR)/test_minisnn_api.exe
-	$(BUILD_DIR)/test_minisnn_api.exe
+$(TEST_BIN_DIR)/test_long_run.exe: tests/test_long_run.c $(CORE_LIB) | $(BUILD_DIR)
+	$(CC) $(CFLAGS) tests/test_long_run.c $(CORE_LIB) $(INCLUDES) -o $@
 
-test-core: $(BUILD_DIR)/test_topology.exe
-	$(BUILD_DIR)/test_topology.exe
+$(BUILD_DIR)/benchmark_core.exe: tests/benchmark_core.c $(CORE_LIB) | $(BUILD_DIR)
+	$(CC) $(CFLAGS) tests/benchmark_core.c $(CORE_LIB) $(INCLUDES) -o $@
 
-test-lif: $(BUILD_DIR)/test_LIF.exe
-	$(BUILD_DIR)/test_LIF.exe
+test-api: $(TEST_BIN_DIR)/test_minisnn_api.exe
+	$(TEST_BIN_DIR)/test_minisnn_api.exe
+
+test-core: $(TEST_BIN_DIR)/test_topology.exe
+	$(TEST_BIN_DIR)/test_topology.exe
+
+test-lif: $(TEST_BIN_DIR)/test_LIF.exe
+	$(TEST_BIN_DIR)/test_LIF.exe
 	@if exist lif.csv del /Q lif.csv
 
-test-plasticity: $(BUILD_DIR)/test_plasticity.exe
-	$(BUILD_DIR)/test_plasticity.exe
+test-plasticity: $(TEST_BIN_DIR)/test_plasticity.exe
+	$(TEST_BIN_DIR)/test_plasticity.exe
 
-test-plasticity-long: $(BUILD_DIR)/test_plasticity_long.exe
-	$(BUILD_DIR)/test_plasticity_long.exe
+test-plasticity-long: $(TEST_BIN_DIR)/test_plasticity_long.exe
+	$(TEST_BIN_DIR)/test_plasticity_long.exe
 
-test-homeostasis: $(BUILD_DIR)/test_homeostasis.exe $(BUILD_DIR)/test_homeostasis_runner.exe
-	$(BUILD_DIR)/test_homeostasis.exe
-	$(BUILD_DIR)/test_homeostasis_runner.exe
+test-homeostasis: $(TEST_BIN_DIR)/test_homeostasis.exe $(TEST_BIN_DIR)/test_homeostasis_runner.exe
+	$(TEST_BIN_DIR)/test_homeostasis.exe
+	$(TEST_BIN_DIR)/test_homeostasis_runner.exe
 
-test-homeostasis-long: $(BUILD_DIR)/test_homeostasis_long.exe
-	$(BUILD_DIR)/test_homeostasis_long.exe
+test-homeostasis-long: $(TEST_BIN_DIR)/test_homeostasis_long.exe
+	$(TEST_BIN_DIR)/test_homeostasis_long.exe
 
-test-reward: $(BUILD_DIR)/test_reward.exe
-	$(BUILD_DIR)/test_reward.exe
+test-reward: $(TEST_BIN_DIR)/test_reward.exe
+	$(TEST_BIN_DIR)/test_reward.exe
 
-test-reward-long: $(BUILD_DIR)/test_reward_long.exe
-	$(BUILD_DIR)/test_reward_long.exe
+test-reward-long: $(TEST_BIN_DIR)/test_reward_long.exe
+	$(TEST_BIN_DIR)/test_reward_long.exe
 
-test-evolution: $(BUILD_DIR)/test_evolution.exe
-	$(BUILD_DIR)/test_evolution.exe
+test-evolution: $(TEST_BIN_DIR)/test_evolution.exe
+	$(TEST_BIN_DIR)/test_evolution.exe
 
-test-structure: $(BUILD_DIR)/test_structure.exe
-	$(BUILD_DIR)/test_structure.exe
+test-structure: $(TEST_BIN_DIR)/test_structure.exe
+	$(TEST_BIN_DIR)/test_structure.exe
 
-test-structural-plasticity: $(BUILD_DIR)/test_structural_plasticity.exe
-	$(BUILD_DIR)/test_structural_plasticity.exe
+test-structural-plasticity: $(TEST_BIN_DIR)/test_structural_plasticity.exe
+	$(TEST_BIN_DIR)/test_structural_plasticity.exe
 
-test-structure-resume: $(BUILD_DIR)/test_structure_resume.exe
-	$(BUILD_DIR)/test_structure_resume.exe
+test-structure-resume: $(TEST_BIN_DIR)/test_structure_resume.exe
+	$(TEST_BIN_DIR)/test_structure_resume.exe
 
-test-structure-long: $(BUILD_DIR)/test_structure_long.exe
-	$(BUILD_DIR)/test_structure_long.exe
+test-structure-long: $(TEST_BIN_DIR)/test_structure_long.exe
+	$(TEST_BIN_DIR)/test_structure_long.exe
 
-test-evolution-runner: $(BUILD_DIR)/test_evolution_runner.exe
-	$(BUILD_DIR)/test_evolution_runner.exe
+test-evolution-runner: $(TEST_BIN_DIR)/test_evolution_runner.exe
+	$(TEST_BIN_DIR)/test_evolution_runner.exe
 
 test-evolution-resume: test-evolution-runner
 
-test-evolution-long: $(BUILD_DIR)/test_evolution_long.exe
-	$(BUILD_DIR)/test_evolution_long.exe
+test-evolution-long: $(TEST_BIN_DIR)/test_evolution_long.exe
+	$(TEST_BIN_DIR)/test_evolution_long.exe
 
 evolution-build: $(BUILD_DIR)/evolution_runner.exe
 
@@ -491,57 +550,57 @@ report-best-topology:
 	@if "$(EXPERIMENT)"=="" (echo Erro: informe EXPERIMENT=results/evolution/nome_do_experimento & exit /B 1)
 	$(PYTHON) scripts/generate_evolution_report.py "$(EXPERIMENT)" --best-topology
 
-test-scenario: $(BUILD_DIR)/test_scenario_config.exe
-	$(BUILD_DIR)/test_scenario_config.exe
+test-scenario: $(TEST_BIN_DIR)/test_scenario_config.exe
+	$(TEST_BIN_DIR)/test_scenario_config.exe
 
-test-runner: $(BUILD_DIR)/test_scenario_runner.exe
-	$(BUILD_DIR)/test_scenario_runner.exe
+test-runner: $(TEST_BIN_DIR)/test_scenario_runner.exe
+	$(TEST_BIN_DIR)/test_scenario_runner.exe
 
-test-working-memory: $(BUILD_DIR)/test_working_memory.exe
-	$(BUILD_DIR)/test_working_memory.exe
+test-working-memory: $(TEST_BIN_DIR)/test_working_memory.exe
+	$(TEST_BIN_DIR)/test_working_memory.exe
 
-test-associative-memory: $(BUILD_DIR)/test_associative_memory.exe
-	$(BUILD_DIR)/test_associative_memory.exe
+test-associative-memory: $(TEST_BIN_DIR)/test_associative_memory.exe
+	$(TEST_BIN_DIR)/test_associative_memory.exe
 
-test-sequence-prediction: $(BUILD_DIR)/test_sequence_prediction.exe
-	$(BUILD_DIR)/test_sequence_prediction.exe
+test-sequence-prediction: $(TEST_BIN_DIR)/test_sequence_prediction.exe
+	$(TEST_BIN_DIR)/test_sequence_prediction.exe
 
-test-c6-checkpoints: $(BUILD_DIR)/test_c6_checkpoints.exe
-	$(BUILD_DIR)/test_c6_checkpoints.exe
+test-c6-checkpoints: $(TEST_BIN_DIR)/test_c6_checkpoints.exe
+	$(TEST_BIN_DIR)/test_c6_checkpoints.exe
 
-test-c6-integration: $(BUILD_DIR)/test_c6_integration.exe
-	$(BUILD_DIR)/test_c6_integration.exe
+test-c6-integration: $(TEST_BIN_DIR)/test_c6_integration.exe
+	$(TEST_BIN_DIR)/test_c6_integration.exe
 
-test-c6-long: $(BUILD_DIR)/test_c6_long.exe
-	$(BUILD_DIR)/test_c6_long.exe
+test-c6-long: $(TEST_BIN_DIR)/test_c6_long.exe
+	$(TEST_BIN_DIR)/test_c6_long.exe
 
-test-agent-io: $(BUILD_DIR)/test_agent_io.exe
-	$(BUILD_DIR)/test_agent_io.exe
+test-agent-io: $(TEST_BIN_DIR)/test_agent_io.exe
+	$(TEST_BIN_DIR)/test_agent_io.exe
 
-test-sensor-encoder: $(BUILD_DIR)/test_sensor_encoder.exe $(BUILD_DIR)/sensor_encoding_demo.exe
-	$(BUILD_DIR)/test_sensor_encoder.exe
+test-sensor-encoder: $(TEST_BIN_DIR)/test_sensor_encoder.exe $(BUILD_DIR)/sensor_encoding_demo.exe
+	$(TEST_BIN_DIR)/test_sensor_encoder.exe
 	$(PYTHON) tests/test_sensor_encoding_demo.py $(BUILD_DIR)/sensor_encoding_demo.exe
 
-test-action-decoder: $(BUILD_DIR)/test_action_decoder.exe $(BUILD_DIR)/action_decoding_demo.exe
-	$(BUILD_DIR)/test_action_decoder.exe
+test-action-decoder: $(TEST_BIN_DIR)/test_action_decoder.exe $(BUILD_DIR)/action_decoding_demo.exe
+	$(TEST_BIN_DIR)/test_action_decoder.exe
 	$(PYTHON) tests/test_action_decoding_demo.py $(BUILD_DIR)/action_decoding_demo.exe
 
-test-agent-cycle: $(BUILD_DIR)/test_agent_cycle.exe $(BUILD_DIR)/agent_cycle_demo.exe
-	$(BUILD_DIR)/test_agent_cycle.exe
+test-agent-cycle: $(TEST_BIN_DIR)/test_agent_cycle.exe $(BUILD_DIR)/agent_cycle_demo.exe
+	$(TEST_BIN_DIR)/test_agent_cycle.exe
 	$(PYTHON) tests/test_agent_cycle_demo.py $(BUILD_DIR)/agent_cycle_demo.exe
 
-test-agent-cycle-checkpoint: $(BUILD_DIR)/test_agent_cycle_checkpoint.exe $(BUILD_DIR)/agent_cycle_checkpoint_demo.exe
-	$(BUILD_DIR)/test_agent_cycle_checkpoint.exe
+test-agent-cycle-checkpoint: $(TEST_BIN_DIR)/test_agent_cycle_checkpoint.exe $(BUILD_DIR)/agent_cycle_checkpoint_demo.exe
+	$(TEST_BIN_DIR)/test_agent_cycle_checkpoint.exe
 	$(PYTHON) tests/test_agent_cycle_checkpoint_demo.py $(BUILD_DIR)/agent_cycle_checkpoint_demo.exe
 
-test-c7-integration: $(BUILD_DIR)/test_c7_integration.exe
-	$(BUILD_DIR)/test_c7_integration.exe
+test-c7-integration: $(TEST_BIN_DIR)/test_c7_integration.exe
+	$(TEST_BIN_DIR)/test_c7_integration.exe
 
-test-c7-evolution: $(BUILD_DIR)/test_c7_evolution.exe
-	$(BUILD_DIR)/test_c7_evolution.exe
+test-c7-evolution: $(TEST_BIN_DIR)/test_c7_evolution.exe
+	$(TEST_BIN_DIR)/test_c7_evolution.exe
 
-test-c7-long-run: $(BUILD_DIR)/test_c7_long_run.exe
-	$(BUILD_DIR)/test_c7_long_run.exe
+test-c7-long-run: $(TEST_BIN_DIR)/test_c7_long_run.exe
+	$(TEST_BIN_DIR)/test_c7_long_run.exe
 
 test-c7: test-agent-io test-sensor-encoder test-action-decoder test-agent-cycle test-agent-cycle-checkpoint test-c7-integration test-c7-evolution test-c7-long-run check-c7
 	@echo C7 complete test matrix OK
@@ -562,20 +621,20 @@ scenario-c7-integrated-audit: $(BUILD_DIR)/c7_integrated_audit.exe
 	$(BUILD_DIR)/c7_integrated_audit.exe configs/c7_integrated_audit.ini
 	$(PYTHON) scripts/check_c7_integrated_audit.py $(BUILD_DIR)/c7_integrated_audit.exe
 
-test-runner-topologies: $(BUILD_DIR)/test_runner_topologies.exe
-	$(BUILD_DIR)/test_runner_topologies.exe
+test-runner-topologies: $(TEST_BIN_DIR)/test_runner_topologies.exe
+	$(TEST_BIN_DIR)/test_runner_topologies.exe
 
-test-reproducibility: $(BUILD_DIR)/test_reproducibility.exe
-	$(BUILD_DIR)/test_reproducibility.exe
+test-reproducibility: $(TEST_BIN_DIR)/test_reproducibility.exe
+	$(TEST_BIN_DIR)/test_reproducibility.exe
 
 test-regression: $(BUILD_DIR)/minisnn_runner.exe | $(BUILD_DIR)
 	$(PYTHON) tests/test_regression_baseline.py
 
-test-memory: $(BUILD_DIR)/test_memory_stress.exe
-	$(BUILD_DIR)/test_memory_stress.exe
+test-memory: $(TEST_BIN_DIR)/test_memory_stress.exe
+	$(TEST_BIN_DIR)/test_memory_stress.exe
 
-test-long: $(BUILD_DIR)/test_long_run.exe
-	$(BUILD_DIR)/test_long_run.exe
+test-long: $(TEST_BIN_DIR)/test_long_run.exe
+	$(TEST_BIN_DIR)/test_long_run.exe
 
 test-analyzer:
 	$(MAKE) -B test CFLAGS="$(ANALYZER_CFLAGS)"
@@ -658,14 +717,14 @@ test-docs: | $(BUILD_DIR)
 
 test: test-api test-core test-lif test-neuron-model test-adex test-hodgkin-huxley test-model-error-propagation test-plasticity test-homeostasis test-reward test-structure test-structural-plasticity test-scenario test-runner test-runner-topologies test-working-memory test-associative-memory test-sequence-prediction test-c6-checkpoints test-c6-integration test-agent-io test-sensor-encoder test-action-decoder test-agent-cycle test-agent-cycle-checkpoint test-reproducibility test-memory
 
-$(BUILD_DIR)/example_api_single_neuron.exe: examples/api/example_api_single_neuron.c $(API_SOURCES) include/minisnn.h include/minisnn_types.h | $(BUILD_DIR)
-	$(CC) $(CFLAGS) examples/api/example_api_single_neuron.c $(API_SOURCES) $(INCLUDES) -o $@
+$(BUILD_DIR)/example_api_single_neuron.exe: examples/api/example_api_single_neuron.c $(CORE_LIB) include/minisnn.h include/minisnn_types.h | $(BUILD_DIR)
+	$(CC) $(CFLAGS) examples/api/example_api_single_neuron.c $(CORE_LIB) $(INCLUDES) -o $@
 
-$(BUILD_DIR)/example_api_chain.exe: examples/api/example_api_chain.c $(API_SOURCES) include/minisnn.h include/minisnn_types.h | $(BUILD_DIR)
-	$(CC) $(CFLAGS) examples/api/example_api_chain.c $(API_SOURCES) $(INCLUDES) -o $@
+$(BUILD_DIR)/example_api_chain.exe: examples/api/example_api_chain.c $(CORE_LIB) include/minisnn.h include/minisnn_types.h | $(BUILD_DIR)
+	$(CC) $(CFLAGS) examples/api/example_api_chain.c $(CORE_LIB) $(INCLUDES) -o $@
 
-$(BUILD_DIR)/example_api_exc_inh.exe: examples/api/example_api_exc_inh.c $(API_SOURCES) include/minisnn.h include/minisnn_types.h | $(BUILD_DIR)
-	$(CC) $(CFLAGS) examples/api/example_api_exc_inh.c $(API_SOURCES) $(INCLUDES) -o $@
+$(BUILD_DIR)/example_api_exc_inh.exe: examples/api/example_api_exc_inh.c $(CORE_LIB) include/minisnn.h include/minisnn_types.h | $(BUILD_DIR)
+	$(CC) $(CFLAGS) examples/api/example_api_exc_inh.c $(CORE_LIB) $(INCLUDES) -o $@
 
 api-single: $(BUILD_DIR)/example_api_single_neuron.exe
 	$(BUILD_DIR)/example_api_single_neuron.exe
@@ -678,14 +737,14 @@ api-exc-inh: $(BUILD_DIR)/example_api_exc_inh.exe
 
 api-examples: api-single api-chain api-exc-inh
 
-$(BUILD_DIR)/demo_main.exe: examples/internal/demo_main.c $(CORE_SOURCES) | $(BUILD_DIR)
-	$(CC) $(CFLAGS) examples/internal/demo_main.c $(CORE_SOURCES) $(INCLUDES) -o $@
+$(BUILD_DIR)/demo_main.exe: examples/internal/demo_main.c $(CORE_LIB) | $(BUILD_DIR)
+	$(CC) $(CFLAGS) examples/internal/demo_main.c $(CORE_LIB) $(INCLUDES) -o $@
 
 demo: $(BUILD_DIR)/demo_main.exe
 	$(BUILD_DIR)/demo_main.exe
 
-$(BUILD_DIR)/minisnn_runner.exe: app/minisnn_runner.c $(SCENARIO_RUNNER_SOURCES) $(API_SOURCES) include/minisnn.h include/minisnn_types.h app/scenario_config.h app/scenario_runner.h | $(BUILD_DIR)
-	$(CC) $(CFLAGS) app/minisnn_runner.c $(SCENARIO_RUNNER_SOURCES) $(API_SOURCES) $(INCLUDES) -o $@
+$(BUILD_DIR)/minisnn_runner.exe: app/minisnn_runner.c $(SCENARIO_RUNNER_SOURCES) $(CORE_LIB) include/minisnn.h include/minisnn_types.h app/scenario_config.h app/scenario_runner.h | $(BUILD_DIR)
+	$(CC) $(CFLAGS) app/minisnn_runner.c $(SCENARIO_RUNNER_SOURCES) $(CORE_LIB) $(INCLUDES) -o $@
 
 scenario: $(BUILD_DIR)/minisnn_runner.exe
 	$(BUILD_DIR)/minisnn_runner.exe $(SCENARIO)
@@ -797,25 +856,28 @@ report-all:
 report-history:
 	$(PYTHON) scripts/generate_history_report.py results/scenarios
 
-$(BUILD_DIR)/minisnn_studio.exe: app/minisnn_studio.c app/evolution_config.c $(SCENARIO_RUNNER_SOURCES) $(API_SOURCES) include/minisnn.h include/minisnn_types.h app/scenario_config.h app/scenario_runner.h app/evolution_config.h | $(BUILD_DIR)
-	$(CC) $(CFLAGS) app/minisnn_studio.c app/evolution_config.c $(SCENARIO_RUNNER_SOURCES) $(API_SOURCES) $(INCLUDES) -o $@ -mwindows -lcomdlg32 -lshell32 -lgdi32 -luser32 -lole32
+$(STUDIO_OBJ_DIR)/minisnn_studio.o: studio/minisnn_studio.c include/minisnn.h include/minisnn_types.h app/scenario_config.h app/scenario_runner.h app/evolution_config.h | $(STUDIO_OBJ_DIR)
+	$(CC) $(CFLAGS) $(APP_INCLUDES) -Istudio -c $< -o $@
 
-studio-build: $(BUILD_DIR)/minisnn_studio.exe
+$(STUDIO_BIN_DIR)/minisnn_studio.exe: $(STUDIO_OBJ_DIR)/minisnn_studio.o app/evolution_config.c $(SCENARIO_RUNNER_SOURCES) $(CORE_LIB) | $(STUDIO_BIN_DIR)
+	$(CC) $(CFLAGS) $(STUDIO_OBJ_DIR)/minisnn_studio.o app/evolution_config.c $(SCENARIO_RUNNER_SOURCES) $(CORE_LIB) $(APP_INCLUDES) -o $@ -mwindows -lcomdlg32 -lshell32 -lgdi32 -luser32 -lole32
 
-studio: $(BUILD_DIR)/minisnn_studio.exe
-	$(BUILD_DIR)/minisnn_studio.exe
+studio-build: $(STUDIO_BIN_DIR)/minisnn_studio.exe
 
-$(BUILD_DIR)/example_ei_balance.exe: experiments/example_ei_balance.c $(EXPERIMENT_SOURCES) | $(BUILD_DIR)
-	$(CC) $(CFLAGS) experiments/example_ei_balance.c $(EXPERIMENT_SOURCES) $(INCLUDES) -o $@
+studio: $(STUDIO_BIN_DIR)/minisnn_studio.exe
+	$(STUDIO_BIN_DIR)/minisnn_studio.exe
 
-$(BUILD_DIR)/example_inhibition_fine_sweep.exe: experiments/example_inhibition_fine_sweep.c $(EXPERIMENT_SOURCES) | $(BUILD_DIR)
-	$(CC) $(CFLAGS) experiments/example_inhibition_fine_sweep.c $(EXPERIMENT_SOURCES) $(INCLUDES) -o $@
+$(BUILD_DIR)/example_ei_balance.exe: experiments/example_ei_balance.c $(CORE_LIB) | $(BUILD_DIR)
+	$(CC) $(CFLAGS) experiments/example_ei_balance.c $(CORE_LIB) $(INCLUDES) -o $@
 
-$(BUILD_DIR)/example_inh_to_inh_visual.exe: experiments/example_inh_to_inh_visual.c $(EXPERIMENT_SOURCES) | $(BUILD_DIR)
-	$(CC) $(CFLAGS) experiments/example_inh_to_inh_visual.c $(EXPERIMENT_SOURCES) $(INCLUDES) -o $@
+$(BUILD_DIR)/example_inhibition_fine_sweep.exe: experiments/example_inhibition_fine_sweep.c $(CORE_LIB) | $(BUILD_DIR)
+	$(CC) $(CFLAGS) experiments/example_inhibition_fine_sweep.c $(CORE_LIB) $(INCLUDES) -o $@
 
-$(BUILD_DIR)/example_sparse_ei_balance_analysis.exe: experiments/example_sparse_ei_balance_analysis.c $(EXPERIMENT_SOURCES) | $(BUILD_DIR)
-	$(CC) $(CFLAGS) experiments/example_sparse_ei_balance_analysis.c $(EXPERIMENT_SOURCES) $(INCLUDES) -o $@
+$(BUILD_DIR)/example_inh_to_inh_visual.exe: experiments/example_inh_to_inh_visual.c $(CORE_LIB) | $(BUILD_DIR)
+	$(CC) $(CFLAGS) experiments/example_inh_to_inh_visual.c $(CORE_LIB) $(INCLUDES) -o $@
+
+$(BUILD_DIR)/example_sparse_ei_balance_analysis.exe: experiments/example_sparse_ei_balance_analysis.c $(CORE_LIB) | $(BUILD_DIR)
+	$(CC) $(CFLAGS) experiments/example_sparse_ei_balance_analysis.c $(CORE_LIB) $(INCLUDES) -o $@
 
 ei-balance: $(BUILD_DIR)/example_ei_balance.exe
 	$(BUILD_DIR)/example_ei_balance.exe
@@ -829,14 +891,17 @@ inh-to-inh: $(BUILD_DIR)/example_inh_to_inh_visual.exe
 sparse-ei: $(BUILD_DIR)/example_sparse_ei_balance_analysis.exe
 	$(BUILD_DIR)/example_sparse_ei_balance_analysis.exe
 
-clean:
-	@if exist $(BUILD_DIR)\*.exe del /Q $(BUILD_DIR)\*.exe
-	@if exist $(BUILD_DIR)\*.o del /Q $(BUILD_DIR)\*.o
-	@if exist $(BUILD_DIR)\*.obj del /Q $(BUILD_DIR)\*.obj
-	@if exist $(BUILD_DIR)\*.out del /Q $(BUILD_DIR)\*.out
-	@if exist $(BUILD_DIR)\*.dll del /Q $(BUILD_DIR)\*.dll
-	@if exist $(BUILD_DIR)\*.pdb del /Q $(BUILD_DIR)\*.pdb
-	@if exist $(BUILD_DIR)\*.ilk del /Q $(BUILD_DIR)\*.ilk
+clean-core:
+	@if exist "$(BUILD_ROOT)/core" rmdir /S /Q "$(BUILD_ROOT)/core"
+
+clean-studio:
+	@if exist "$(BUILD_ROOT)/studio" rmdir /S /Q "$(BUILD_ROOT)/studio"
+
+clean-tests:
+	@if exist "$(BUILD_ROOT)/tests" rmdir /S /Q "$(BUILD_ROOT)/tests"
+
+clean: clean-core clean-studio clean-tests
+	@if exist "$(BUILD_ROOT)/tools" rmdir /S /Q "$(BUILD_ROOT)/tools"
 	@if exist results\api\*.csv del /Q results\api\*.csv
 	@if exist results\api\*.png del /Q results\api\*.png
 	@if exist results\internal_demo\*.csv del /Q results\internal_demo\*.csv

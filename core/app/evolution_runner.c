@@ -6,9 +6,9 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
-#include <windows.h>
 
-#include "evolution.h"
+#include "app_filesystem.h"
+#include "minisnn_evolution_legacy.h"
 #include "evolution_config.h"
 #include "minisnn.h"
 #include "scenario_runner.h"
@@ -191,49 +191,17 @@ static int path_join(
 
 static int file_exists(const char *path)
 {
-    DWORD attributes = GetFileAttributesA(path);
-    return attributes != INVALID_FILE_ATTRIBUTES &&
-           (attributes & FILE_ATTRIBUTE_DIRECTORY) == 0;
+    return app_filesystem_file_exists(path);
 }
 
 static int directory_exists(const char *path)
 {
-    DWORD attributes = GetFileAttributesA(path);
-    return attributes != INVALID_FILE_ATTRIBUTES &&
-           (attributes & FILE_ATTRIBUTE_DIRECTORY) != 0;
+    return app_filesystem_directory_exists(path);
 }
 
 static int ensure_directory_tree(const char *path)
 {
-    char buffer[EVOLUTION_OUTPUT_PATH_MAX];
-    size_t length;
-
-    if (path == NULL || path[0] == '\0' ||
-        snprintf(buffer, sizeof(buffer), "%s", path) >= (int)sizeof(buffer))
-    {
-        return 0;
-    }
-
-    length = strlen(buffer);
-    for (size_t i = 0; i < length; i++)
-    {
-        if ((buffer[i] == '/' || buffer[i] == '\\') && i > 0 &&
-            !(i == 2 && buffer[1] == ':'))
-        {
-            char separator = buffer[i];
-            buffer[i] = '\0';
-            if (!directory_exists(buffer) &&
-                !CreateDirectoryA(buffer, NULL) &&
-                GetLastError() != ERROR_ALREADY_EXISTS)
-            {
-                return 0;
-            }
-            buffer[i] = separator;
-        }
-    }
-
-    return directory_exists(buffer) || CreateDirectoryA(buffer, NULL) ||
-           GetLastError() == ERROR_ALREADY_EXISTS;
+    return app_filesystem_ensure_directory_tree(path);
 }
 
 static void current_timestamp(
@@ -241,20 +209,7 @@ static void current_timestamp(
     size_t out_size,
     int filename_style)
 {
-    SYSTEMTIME now;
-    GetLocalTime(&now);
-    if (filename_style)
-    {
-        snprintf(out_timestamp, out_size, "%04d%02d%02d_%02d%02d%02d",
-                 now.wYear, now.wMonth, now.wDay,
-                 now.wHour, now.wMinute, now.wSecond);
-    }
-    else
-    {
-        snprintf(out_timestamp, out_size, "%04d-%02d-%02dT%02d:%02d:%02d",
-                 now.wYear, now.wMonth, now.wDay,
-                 now.wHour, now.wMinute, now.wSecond);
-    }
+    app_filesystem_timestamp(out_timestamp, out_size, filename_style);
 }
 
 static int copy_file_exact(const char *source, const char *destination)
@@ -1951,7 +1906,7 @@ static int evaluate_population(
     IndividualRunInfo *run_info,
     double *out_evaluation_seconds)
 {
-    ULONGLONG population_start = GetTickCount64();
+    double population_start = app_filesystem_monotonic_seconds();
 
     for (size_t population_index = 0;
          population_index < engine->config.population_size;
@@ -1967,7 +1922,7 @@ static int evaluate_population(
         double fitness_min = 1.0;
         double fitness_max = 0.0;
         int valid_replicates = 0;
-        ULONGLONG individual_start = GetTickCount64();
+        double individual_start = app_filesystem_monotonic_seconds();
         EvolutionStructureIndividual *structure_data =
             context->config.structure_enabled ?
                 &context->structure_population[population_index] : NULL;
@@ -1983,7 +1938,7 @@ static int evaluate_population(
             EvolutionEvaluation evaluation;
             uint64_t evaluation_seed =
                 context->config.evaluation_seed_base + (uint64_t)replicate_index;
-            ULONGLONG replicate_start = GetTickCount64();
+            double replicate_start = app_filesystem_monotonic_seconds();
             double replicate_seconds;
 
             if (!evaluate_genome(
@@ -1998,7 +1953,7 @@ static int evaluate_population(
                 return 0;
             }
             replicate_seconds =
-                (double)(GetTickCount64() - replicate_start) / 1000.0;
+                app_filesystem_monotonic_seconds() - replicate_start;
             replicate_fitness[replicate_index] =
                 evaluation.valid ? evaluation.fitness : 0.0;
             if (evaluation.valid)
@@ -2087,12 +2042,12 @@ static int evaluate_population(
             individual->fitness_std = 0.0;
         }
         run_info[population_index].evaluation_seconds =
-            (double)(GetTickCount64() - individual_start) / 1000.0;
+            app_filesystem_monotonic_seconds() - individual_start;
         free(replicate_fitness);
     }
 
     *out_evaluation_seconds =
-        (double)(GetTickCount64() - population_start) / 1000.0;
+        app_filesystem_monotonic_seconds() - population_start;
     return fflush(files->replicates) == 0 &&
            fflush(files->fitness_terms) == 0;
 }
@@ -2618,7 +2573,7 @@ static int write_best_genome_atomic(
             "individual_id,generation,fitness_selection,gene_index,gene_name,gene_kind,value,minimum,maximum,baseline_value,connection_id,parameter_path\n") < 0)
     {
         fclose(file);
-        DeleteFileA(temp_path);
+        remove(temp_path);
         return 0;
     }
     for (size_t gene_index = 0; gene_index < context->gene_count; gene_index++)
@@ -2641,15 +2596,14 @@ static int write_best_genome_atomic(
                     connection_id, path) < 0)
         {
             fclose(file);
-            DeleteFileA(temp_path);
+            remove(temp_path);
             return 0;
         }
     }
     if (fclose(file) != 0 ||
-        !MoveFileExA(temp_path, final_path,
-                     MOVEFILE_REPLACE_EXISTING | MOVEFILE_WRITE_THROUGH))
+        !app_filesystem_replace_file(temp_path, final_path))
     {
-        DeleteFileA(temp_path);
+        remove(temp_path);
         return 0;
     }
     return 1;
@@ -3009,7 +2963,7 @@ static int write_checkpoint_atomic(
             engine, file, context->signature, next_generation, completed) ||
         fclose(file) != 0)
     {
-        DeleteFileA(temp_path);
+        remove(temp_path);
         return 0;
     }
     if (context->config.structure_enabled)
@@ -3018,8 +2972,8 @@ static int write_checkpoint_atomic(
         structure_file = fopen(structure_temp_path, "w");
         if (structure_file == NULL)
         {
-            DeleteFileA(temp_path);
-            DeleteFileA(structure_temp_path);
+            remove(temp_path);
+            remove(structure_temp_path);
             return 0;
         }
         structure_ok = write_structure_checkpoint(
@@ -3030,23 +2984,21 @@ static int write_checkpoint_atomic(
         structure_file = NULL;
         if (!structure_ok)
         {
-            DeleteFileA(temp_path);
-            DeleteFileA(structure_temp_path);
+            remove(temp_path);
+            remove(structure_temp_path);
             return 0;
         }
-        if (!MoveFileExA(
-                structure_temp_path, structure_final_path,
-                MOVEFILE_REPLACE_EXISTING | MOVEFILE_WRITE_THROUGH))
+        if (!app_filesystem_replace_file(
+                structure_temp_path, structure_final_path))
         {
-            DeleteFileA(temp_path);
-            DeleteFileA(structure_temp_path);
+            remove(temp_path);
+            remove(structure_temp_path);
             return 0;
         }
     }
-    if (!MoveFileExA(temp_path, final_path,
-                     MOVEFILE_REPLACE_EXISTING | MOVEFILE_WRITE_THROUGH))
+    if (!app_filesystem_replace_file(temp_path, final_path))
     {
-        DeleteFileA(temp_path);
+        remove(temp_path);
         return 0;
     }
     return 1;
@@ -3742,11 +3694,9 @@ static int ensure_evolution_index_schema(const char *path)
         ok = 0;
     if (fclose(output) != 0)
         ok = 0;
-    if (!ok || !MoveFileExA(
-            temp_path, path,
-            MOVEFILE_REPLACE_EXISTING | MOVEFILE_WRITE_THROUGH))
+    if (!ok || !app_filesystem_replace_file(temp_path, path))
     {
-        DeleteFileA(temp_path);
+        remove(temp_path);
         return 0;
     }
     return 1;
@@ -3852,18 +3802,17 @@ static int update_last_experiment(const EvolutionRunContext *context)
     if (fprintf(file, "%s\n", context->output_directory) < 0)
     {
         fclose(file);
-        DeleteFileA(temp_path);
+        remove(temp_path);
         return 0;
     }
     if (fclose(file) != 0)
     {
-        DeleteFileA(temp_path);
+        remove(temp_path);
         return 0;
     }
-    if (!MoveFileExA(temp_path, final_path,
-                     MOVEFILE_REPLACE_EXISTING | MOVEFILE_WRITE_THROUGH))
+    if (!app_filesystem_replace_file(temp_path, final_path))
     {
-        DeleteFileA(temp_path);
+        remove(temp_path);
         return 0;
     }
     return 1;
@@ -3881,7 +3830,7 @@ static int run_engine(
 {
     EvolutionOutputFiles files;
     IndividualRunInfo *run_info;
-    ULONGLONG run_start = GetTickCount64();
+    double run_start = app_filesystem_monotonic_seconds();
     int completed = 0;
 
     if (!output_files_open(context, resumed, &files,
@@ -3913,7 +3862,7 @@ static int run_engine(
         size_t *ranking = malloc(
             engine->config.population_size * sizeof(*ranking));
         double evaluation_seconds;
-        ULONGLONG generation_start = GetTickCount64();
+        double generation_start = app_filesystem_monotonic_seconds();
         double generation_seconds;
 
         if (ranking == NULL || engine->current_generation != generation ||
@@ -3930,7 +3879,7 @@ static int run_engine(
         }
 
         generation_seconds =
-            (double)(GetTickCount64() - generation_start) / 1000.0;
+            app_filesystem_monotonic_seconds() - generation_start;
         if (!write_generation_summary(
                 context, engine, ranking, run_info,
                 evaluation_seconds, generation_seconds, &files) ||
@@ -4005,7 +3954,7 @@ static int run_engine(
         (context->config.save_best_run && !write_best_run(context, engine)) ||
         !write_manifest_and_report(
             context, engine, resumed,
-            (double)(GetTickCount64() - run_start) / 1000.0) ||
+            app_filesystem_monotonic_seconds() - run_start) ||
         (context->config.history_enabled &&
          !append_index(context, engine, "OK")) ||
         !update_last_experiment(context))

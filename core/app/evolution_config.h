@@ -4,7 +4,7 @@
 #include <stddef.h>
 #include <stdint.h>
 
-#include "evolution.h"
+#include "minisnn_evolution_legacy.h"
 #include "scenario_config.h"
 
 #define EVOLUTION_EXPERIMENT_NAME_MAX 64

@@ -11,8 +11,8 @@ import sys
 
 
 ROOT = Path(__file__).resolve().parents[1]
-BUILD = ROOT / "build"
-RUNNER = BUILD / "minisnn_runner.exe"
+BUILD = ROOT.parent / "build"
+RUNNER = BUILD / "tools" / "bin" / "minisnn_runner.exe"
 RUN_ROOT = ROOT / "results" / "scenarios"
 ESSENTIAL = (
     "src/homeostasis.c",
@@ -174,7 +174,7 @@ def main() -> int:
         errors.append("roadmap does not identify the current next milestone")
 
     if not RUNNER.is_file():
-        errors.append("build/minisnn_runner.exe is missing")
+        errors.append("build/tools/bin/minisnn_runner.exe is missing")
     else:
         baseline = run([sys.executable, "tests/test_regression_baseline.py"])
         if baseline.returncode != 0:

@@ -13,8 +13,8 @@ sys.path.insert(0, str(PROJECT_ROOT / "scripts"))
 from capture_baseline import GOLDEN_PATH, capture, collect_run  # noqa: E402
 
 
-RUNNER = PROJECT_ROOT / "build" / "minisnn_runner.exe"
-TEMP_DIR = PROJECT_ROOT / "build" / "known_results_regression"
+RUNNER = PROJECT_ROOT.parent / "build" / "tools" / "bin" / "minisnn_runner.exe"
+TEMP_DIR = PROJECT_ROOT.parent / "build" / "tests" / "known_results_regression"
 
 
 def summary_value(path: Path, key: str) -> str:

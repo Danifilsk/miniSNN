@@ -1,7 +1,7 @@
 #include <math.h>
 #include <stdio.h>
 #include <string.h>
-#include <windows.h>
+#include "app_filesystem.h"
 
 #include "evolution_runner.h"
 #include "structure.h"
@@ -10,43 +10,7 @@
 
 static int remove_tree(const char *path)
 {
-    char pattern[512];
-    WIN32_FIND_DATAA data;
-    HANDLE find;
-    if (snprintf(pattern, sizeof(pattern), "%s\\*", path) >= (int)sizeof(pattern))
-        return 0;
-    find = FindFirstFileA(pattern, &data);
-    if (find == INVALID_HANDLE_VALUE)
-        return GetLastError() == ERROR_FILE_NOT_FOUND ||
-               GetLastError() == ERROR_PATH_NOT_FOUND;
-    do
-    {
-        char child[512];
-        if (strcmp(data.cFileName, ".") == 0 ||
-            strcmp(data.cFileName, "..") == 0)
-            continue;
-        if (snprintf(child, sizeof(child), "%s\\%s", path, data.cFileName) >=
-            (int)sizeof(child))
-        {
-            FindClose(find);
-            return 0;
-        }
-        if (data.dwFileAttributes & FILE_ATTRIBUTE_DIRECTORY)
-        {
-            if (!remove_tree(child))
-            {
-                FindClose(find);
-                return 0;
-            }
-        }
-        else if (!DeleteFileA(child))
-        {
-            FindClose(find);
-            return 0;
-        }
-    } while (FindNextFileA(find, &data));
-    FindClose(find);
-    return RemoveDirectoryA(path) || GetLastError() == ERROR_PATH_NOT_FOUND;
+    return app_filesystem_remove_tree(path);
 }
 
 static int files_equal(const char *left_path, const char *right_path)
@@ -160,10 +124,9 @@ static int rewrite_structure_checkpoint_as_c4(
         if (input_error || input_close_error || output_close_error)
             ok = 0;
     }
-    if (!ok || !MoveFileExA(temporary_path, path,
-                   MOVEFILE_REPLACE_EXISTING | MOVEFILE_WRITE_THROUGH))
+    if (!ok || !app_filesystem_replace_file(temporary_path, path))
     {
-        DeleteFileA(temporary_path);
+        remove(temporary_path);
         return 0;
     }
     return 1;

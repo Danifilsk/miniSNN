@@ -4,8 +4,7 @@
 #include <stdio.h>
 #include <string.h>
 
-#include <windows.h>
-
+#include "app_filesystem.h"
 #include "minisnn.h"
 #include "scenario_config.h"
 #include "scenario_runner.h"
@@ -39,15 +38,7 @@ static void set_error(char *error_message, size_t error_message_size,
 
 static int ensure_directory(const char *path)
 {
-    DWORD attributes;
-
-    if (path == NULL)
-        return 0;
-    attributes = GetFileAttributesA(path);
-    if (attributes != INVALID_FILE_ATTRIBUTES)
-        return (attributes & FILE_ATTRIBUTE_DIRECTORY) != 0;
-    return CreateDirectoryA(path, NULL) != 0 ||
-           GetLastError() == ERROR_ALREADY_EXISTS;
+    return app_filesystem_ensure_directory(path);
 }
 
 static int load_and_run(C6SuiteRow *row, char *error_message,

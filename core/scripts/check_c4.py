@@ -9,7 +9,7 @@ import sys
 
 
 ROOT = Path(__file__).resolve().parents[1]
-BUILD = ROOT / "build"
+BUILD = ROOT.parent / "build"
 EVOLUTION_ROOT = ROOT / "results" / "evolution"
 SCENARIO_ROOT = ROOT / "results" / "scenarios"
 
@@ -137,7 +137,7 @@ def main() -> int:
     structure = (ROOT / "src" / "structure.c").read_text(encoding="utf-8")
     structural = (ROOT / "src" / "structural_plasticity.c").read_text(encoding="utf-8")
     runner = (ROOT / "app" / "evolution_runner.c").read_text(encoding="utf-8")
-    studio = (ROOT / "app" / "minisnn_studio.c").read_text(encoding="utf-8")
+    studio = (ROOT / "studio" / "minisnn_studio.c").read_text(encoding="utf-8")
     api = (ROOT / "include" / "minisnn.h").read_text(encoding="utf-8")
     for token in (
         "structure_connection_key", "structure_is_legal_pair",
@@ -188,13 +188,13 @@ def main() -> int:
             ("C1.5 regression", [sys.executable, "scripts/check_c15.py"]),
             ("C2 regression", [sys.executable, "scripts/check_c2.py"]),
             ("C3 regression", [sys.executable, "scripts/check_c3.py"]),
-            ("structure target demo", [str(BUILD / "evolution_runner.exe"),
+            ("structure target demo", [str(BUILD / "tools" / "bin" / "evolution_runner.exe"),
                                        "configs/evolution_structure_target_demo.ini"]),
-            ("pruning demo", [str(BUILD / "minisnn_runner.exe"),
+            ("pruning demo", [str(BUILD / "tools" / "bin" / "minisnn_runner.exe"),
                               "configs/structural_pruning_demo.ini"]),
-            ("growth demo", [str(BUILD / "minisnn_runner.exe"),
+            ("growth demo", [str(BUILD / "tools" / "bin" / "minisnn_runner.exe"),
                              "configs/structural_growth_demo.ini"]),
-            ("structure learning demo", [str(BUILD / "evolution_runner.exe"),
+            ("structure learning demo", [str(BUILD / "tools" / "bin" / "evolution_runner.exe"),
                                          "configs/evolution_structure_learning_demo.ini"]),
         )
         for label, command in commands:

@@ -144,6 +144,14 @@ MiniSNN *minisnn_create_with_config(
     return snn;
 }
 
+int minisnn_config_is_valid(const MiniSNNConfig *config)
+{
+    NetworkConfig network_config;
+
+    return config != NULL && config->neuron_count > 0 &&
+           minisnn_make_network_config(config, &network_config);
+}
+
 void minisnn_destroy(MiniSNN **snn_ptr)
 {
     if (snn_ptr == NULL || *snn_ptr == NULL)
@@ -178,6 +186,18 @@ MiniSNNNeuronModel minisnn_neuron_model(const MiniSNN *snn)
 const char *minisnn_neuron_model_name(MiniSNNNeuronModel model)
 {
     return neuron_model_name(model);
+}
+
+int minisnn_neuron_model_from_name(
+    const char *name,
+    MiniSNNNeuronModel *out_model)
+{
+    return neuron_model_from_name(name, out_model);
+}
+
+int minisnn_neuron_model_is_valid(MiniSNNNeuronModel model)
+{
+    return neuron_model_is_valid(model);
 }
 
 MiniSNNNeuronModelCapabilities minisnn_neuron_model_capabilities(

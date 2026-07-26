@@ -9,7 +9,7 @@ from pathlib import Path
 
 
 ROOT = Path(__file__).resolve().parents[1]
-RUNNER = ROOT / "build" / "minisnn_runner.exe"
+RUNNER = ROOT.parent / "build" / "tools" / "bin" / "minisnn_runner.exe"
 CASES = (
     ("lif", 10, 2000, 0.1, 20.0),
     ("lif", 100, 1000, 0.1, 20.0),
@@ -44,9 +44,9 @@ record_neuron = 0
 
 def main() -> int:
     if not RUNNER.exists():
-        print("Compile build/minisnn_runner.exe antes do benchmark.")
+        print("Compile build/tools/bin/minisnn_runner.exe antes do benchmark.")
         return 1
-    build = ROOT / "build"
+    build = ROOT.parent / "build"
     output = ROOT / "results" / "benchmarks"
     output.mkdir(parents=True, exist_ok=True)
     rows = []

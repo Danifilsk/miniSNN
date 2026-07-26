@@ -4,7 +4,7 @@
 #include <stddef.h>
 #include <stdint.h>
 
-#include "evolution.h"
+#include "minisnn_evolution_legacy.h"
 #include "minisnn_types.h"
 #include "neuron.h"
 

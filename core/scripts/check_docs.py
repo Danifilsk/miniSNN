@@ -56,6 +56,13 @@ CENTRAL_DOCUMENTS = (
     "docs/AUDITORIA_C7_INTERFACE_CEREBRO_AGENTE.md",
     "docs/GUIA_DE_MODELOS_NEURONAIS.md",
     "docs/CHECKLIST_DE_VALIDACAO_DO_STUDIO.md",
+    "docs/BUILD_PRODUCTS.md",
+    "docs/PUBLIC_API_MANIFEST.md",
+    "docs/OWNERSHIP_AND_LIFETIME.md",
+    "docs/ERROR_MODEL.md",
+    "docs/LIMITS.md",
+    "docs/PERSISTENCE_COMPATIBILITY.md",
+    "docs/D1_A_API_ARCHITECTURE_AUDIT.md",
 )
 
 IMPORTANT_FILES = (
@@ -72,7 +79,7 @@ IMPORTANT_FILES = (
     "app/sensor_encoding_demo_config.h",
     "app/action_decoding_demo_config.c",
     "app/action_decoding_demo_config.h",
-    "app/minisnn_studio.c",
+    "studio/minisnn_studio.c",
     "app/minisnn_runner.c",
     "app/scenario_config.c",
     "app/scenario_runner.c",
@@ -100,7 +107,7 @@ IMPORTANT_FILES = (
     "scripts/run_benchmarks_c4.py",
     "scripts/check_c4.py",
     "src/evolution.c",
-    "src/evolution.h",
+    "include/minisnn_evolution_legacy.h",
     "src/structure.c",
     "src/structure.h",
     "src/structural_plasticity.c",
@@ -427,7 +434,8 @@ def validate_docs(root: Path) -> list[str]:
                 errors.append(f"referência inexistente em {relative_document}: {reference}")
 
     makefile = (root / "Makefile").read_text(encoding="utf-8")
-    targets = set(MAKE_TARGET.findall(makefile))
+    root_makefile = (root.parent / "Makefile").read_text(encoding="utf-8")
+    targets = set(MAKE_TARGET.findall(makefile)) | set(MAKE_TARGET.findall(root_makefile))
     for target in REQUIRED_TARGETS:
         if target not in targets:
             errors.append(f"alvo obrigatório ausente no Makefile: {target}")
@@ -448,7 +456,7 @@ def validate_docs(root: Path) -> list[str]:
         if f"`{key}`" not in scenario_guide:
             errors.append(f"chave do parser ausente no guia de cenários: {key}")
 
-    studio_source = (root / "app" / "minisnn_studio.c").read_text(encoding="utf-8")
+    studio_source = (root / "studio" / "minisnn_studio.c").read_text(encoding="utf-8")
     studio_guide = texts.get(root / "docs" / "GUIA_DO_STUDIO.md", "")
     for button in STUDIO_BUTTONS:
         if f'"{button}"' not in studio_source:
@@ -552,8 +560,8 @@ def validate_docs(root: Path) -> list[str]:
             "C7.3" not in roadmap or "C7.4" not in roadmap or "C7.5" not in roadmap or
             "D1" not in roadmap):
         errors.append("roadmap não documenta a sequência C6/C7/D1")
-    if "C6 -> C7 -> D1 -> Worlds" not in roadmap:
-        errors.append("roadmap não documenta o caminho oficial para Worlds")
+    if "C6 -> C7 -> D1-A -> D1-B -> D1-C -> Worlds" not in roadmap:
+        errors.append("roadmap não documenta o caminho oficial D1-A/D1-B/D1-C para Worlds")
     if "C7 — estados internos" in roadmap:
         errors.append("roadmap ainda apresenta a descricao antiga de C7")
     if "[x] C7.2 - codificacao generica de sensores numericos para entrada neural" not in roadmap:
@@ -571,10 +579,11 @@ def validate_docs(root: Path) -> list[str]:
         "C7.4 - reward, reset e ciclo cerebro-agente",
         "C7.5-A - persistencia, resume e replay deterministico do ciclo cerebro-agente",
         "C7.5-B - auditoria integrada da interface cerebro-agente",
-        "D1 — auditoria e estabilizacao pre-Worlds",
+        "D1-A - arquitetura, produtos de build e API candidata provisoria",
+        "D1-B - robustez, determinismo, stress e desempenho",
+        "D1-C - fechamento do Core e avaliacao para `miniSNN Core v1.0-rc`",
         "miniSNN Core v1.0-rc",
-        "API candidata Core-Brain Bridge",
-        "provisoriamente",
+        "API candidata provisoria",
         "D2 — auditoria pos-integracao",
         "miniSNN Core v1.0",
         "congelada definitivamente",

@@ -3,8 +3,7 @@
 #include <stdlib.h>
 #include <string.h>
 
-#include <windows.h>
-
+#include "app_filesystem.h"
 #include "agent_cycle_checkpoint_demo_config.h"
 
 #define CHECKPOINT_DEMO_OUTPUT_ROOT "results/scenarios"
@@ -23,8 +22,7 @@ typedef struct
 
 static int ensure_directory(const char *path)
 {
-    return path != NULL &&
-        (CreateDirectoryA(path, NULL) != 0 || GetLastError() == ERROR_ALREADY_EXISTS);
+    return app_filesystem_ensure_directory(path);
 }
 
 static int join_path(char *out_path, size_t out_size, const char *directory,
@@ -39,34 +37,7 @@ static int join_path(char *out_path, size_t out_size, const char *directory,
 
 static int copy_file_bytes(const char *source_path, const char *destination_path)
 {
-    FILE *source;
-    FILE *destination;
-    int value;
-    int ok = 1;
-    int source_error;
-    int source_close_error;
-    int destination_close_error;
-    if (source_path == NULL || destination_path == NULL ||
-        (source = fopen(source_path, "rb")) == NULL)
-        return 0;
-    destination = fopen(destination_path, "wb");
-    if (destination == NULL)
-    {
-        fclose(source);
-        return 0;
-    }
-    while ((value = fgetc(source)) != EOF)
-        if (fputc(value, destination) == EOF)
-        {
-            ok = 0;
-            break;
-        }
-    source_error = ferror(source);
-    source_close_error = fclose(source);
-    destination_close_error = fclose(destination);
-    if (source_error || source_close_error != 0 || destination_close_error != 0)
-        ok = 0;
-    return ok;
+    return app_filesystem_copy_file(source_path, destination_path);
 }
 
 static void checkpoint_demo_destroy(CheckpointDemo *demo)

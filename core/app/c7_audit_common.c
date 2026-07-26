@@ -1,18 +1,11 @@
 #include "c7_audit_common.h"
 
-#include <errno.h>
 #include <math.h>
 #include <stddef.h>
 #include <stdio.h>
 #include <string.h>
 
-#ifdef _WIN32
-#include <direct.h>
-#include <windows.h>
-#else
-#include <sys/stat.h>
-#include <unistd.h>
-#endif
+#include "app_filesystem.h"
 
 static uint64_t fnv1a_mix(uint64_t hash, uint64_t value)
 {
@@ -48,23 +41,7 @@ static double default_input_drive(MiniSNNNeuronModel model)
 
 int c7_audit_ensure_directory(const char *directory)
 {
-#ifdef _WIN32
-    DWORD attributes;
-    if (directory == NULL || directory[0] == '\0')
-        return 0;
-    if (CreateDirectoryA(directory, NULL) == 0 && GetLastError() != ERROR_ALREADY_EXISTS)
-        return 0;
-    attributes = GetFileAttributesA(directory);
-    return attributes != INVALID_FILE_ATTRIBUTES &&
-        (attributes & FILE_ATTRIBUTE_DIRECTORY) != 0U;
-#else
-    struct stat state;
-    if (directory == NULL || directory[0] == '\0')
-        return 0;
-    if (mkdir(directory, 0777) != 0 && errno != EEXIST)
-        return 0;
-    return stat(directory, &state) == 0 && S_ISDIR(state.st_mode);
-#endif
+    return app_filesystem_ensure_directory(directory);
 }
 
 void c7_audit_remove_checkpoint_directory(const char *directory)
@@ -83,11 +60,7 @@ void c7_audit_remove_checkpoint_directory(const char *directory)
         if (snprintf(path, sizeof(path), "%s/%s", directory, names[index]) >= 0)
             remove(path);
     }
-#ifdef _WIN32
-    _rmdir(directory);
-#else
-    rmdir(directory);
-#endif
+    (void)app_filesystem_remove_tree(directory);
 }
 
 static int configure_optional_modules(

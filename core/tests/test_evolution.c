@@ -2,7 +2,7 @@
 #include <stdio.h>
 #include <string.h>
 
-#include "evolution.h"
+#include "minisnn_evolution_legacy.h"
 
 #define TOLERANCE 1e-12
 

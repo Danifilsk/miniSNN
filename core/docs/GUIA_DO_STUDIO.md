@@ -1,5 +1,13 @@
 # Guia do miniSNN Studio
 
+## Abrir o aplicativo
+
+Para o uso normal no Windows, de dois cliques em `Abrir miniSNN Studio.cmd` na
+raiz do repositorio. O launcher cria `build/studio/bin/minisnn_studio.exe` com
+`mingw32-make core-studio` somente se ele ainda nao existir e entao o abre.
+`core/studio/minisnn_studio.c` e o codigo-fonte do frontend, nao o aplicativo.
+O Studio usa `build/core/lib/libminisnn_core.a` como biblioteca neural.
+
 ## Modelos neuronais C5
 
 O seletor `Modelo neuronal` aceita LIF, AdEx e Hodgkin-Huxley. Configuracoes
@@ -88,10 +96,10 @@ Esse comando compila e abre a interface.
 
 ## 3. Como abrir o executavel diretamente
 
-Depois de compilar:
+Depois de compilar, o aplicativo real e:
 
 ```powershell
-build\minisnn_studio.exe
+..\build\studio\bin\minisnn_studio.exe
 ```
 
 O Studio ajusta o diretorio de trabalho para a raiz do projeto quando aberto a
@@ -379,7 +387,7 @@ cenários. Ela expõe config, cenário-base, nome, população, gerações, elit
 torneio, taxas de crossover/mutação, réplicas, seeds, genes de peso e campos
 multilinha para genes escalares e termos de fitness.
 
-`RODAR EVOLUCAO` salva e inicia `build/evolution_runner.exe` com
+`RODAR EVOLUCAO` salva e inicia `build/tools/bin/evolution_runner.exe` com
 `CreateProcessA`. `RETOMAR EVOLUCAO` seleciona uma pasta com checkpoint. O
 processo roda fora da thread principal; um timer atualiza o status e impede duas
 evoluções simultâneas.

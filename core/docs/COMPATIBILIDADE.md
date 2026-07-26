@@ -227,3 +227,7 @@ D1 e uma auditoria e estabilizacao pre-Worlds: produz `miniSNN Core v1.0-rc`
 e uma API candidata Core-Brain Bridge estavel provisoriamente. D2, apos a
 integracao, produz `miniSNN Core v1.0` e congela definitivamente a API
 Core-Brain Bridge v1.
+
+# D1-A: compatibilidade de produtos
+
+A separacao para uild/core, uild/tools, uild/tests e uild/studio nao altera formatos cientificos, checkpoints ou arquivos de configuracao. O caminho do Studio mudou para uild/studio/bin/minisnn_studio.exe. minisnn_evolution_legacy.h permanece suportado como interface historica durante D1, sem congelamento de API.

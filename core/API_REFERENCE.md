@@ -2,16 +2,20 @@
 
 [Voltar ao índice da documentação](docs/INDICE_DA_DOCUMENTACAO.md)
 
-**Status:** implementado. A fonte de verdade das assinaturas é
-`include/minisnn.h`; este documento foi conferido com o header atual no C1.5.
+**Status:** API candidata em D1-A, nao congelada. A fonte de verdade das
+assinaturas é `include/minisnn.h`; consulte tambem o
+[manifesto publico](docs/PUBLIC_API_MANIFEST.md), ownership, erros, limites e
+persistencia documentados em `core/docs/`.
 
 Esta referência descreve a API pública atual de `minisnn.h`.
 
 O C3 não altera as assinaturas deste header. Sua superfície pública experimental
-é o executável `build/evolution_runner.exe`, os arquivos INI com `[evolution]`,
+é o executável `build/tools/bin/evolution_runner.exe`, os arquivos INI com `[evolution]`,
 `[genome]` e `[fitness]`, e os artefatos documentados no
 [Guia de neuroevolução](docs/GUIA_DE_NEUROEVOLUCAO.md). O motor em
-`src/evolution.h` permanece interno para preservar o encapsulamento da API C.
+`include/minisnn_evolution_legacy.h` preserva a superficie historica usada pelo
+runner de evolucao e pelo Studio. Ela e `LEGACY_SUPPORTED`, nao uma nova
+superficie namespaced congelada.
 
 `MiniSNN` e um tipo opaco. O usuario cria, usa e destroi redes por funcoes
 publicas, sem acessar campos internos.
@@ -1210,3 +1214,28 @@ para LIF, AdEx e Hodgkin-Huxley. O harness nao adiciona API publica: reutiliza
 as operacoes acima e calcula fitness abstrata fora do Core. Consulte
 `docs/AUDITORIA_C7_INTERFACE_CEREBRO_AGENTE.md` para ownership, atomicidade e
 limites candidatos a D1.
+
+## minisnn_neuron_model_from_name
+
+```c
+int minisnn_neuron_model_from_name(const char *name, MiniSNNNeuronModel *out_model);
+```
+
+Converte `lif`, `adex` ou `hodgkin_huxley` sem diferenca ASCII de maiusculas e
+minusculas. Falha para nome ou output nulo e para modelo desconhecido.
+
+## minisnn_neuron_model_is_valid
+
+```c
+int minisnn_neuron_model_is_valid(MiniSNNNeuronModel model);
+```
+
+Valida o enum de modelo antes de configuracao ou reconstrucao.
+
+## minisnn_config_is_valid
+
+```c
+int minisnn_config_is_valid(const MiniSNNConfig *config);
+```
+
+Valida a configuracao publica efetiva, inclusive o dt autoritativo e o modelo selecionado, sem criar uma rede.

@@ -11,8 +11,8 @@ import sys
 
 
 ROOT = Path(__file__).resolve().parents[1]
-BUILD = ROOT / "build"
-RUNNER = BUILD / "minisnn_runner.exe"
+BUILD = ROOT.parent / "build"
+RUNNER = BUILD / "tools" / "bin" / "minisnn_runner.exe"
 RUN_ROOT = ROOT / "results" / "scenarios"
 
 ESSENTIAL = (
@@ -172,7 +172,7 @@ def main() -> int:
         if token not in parser_source:
             errors.append(f"scenario parser token missing: {token}")
 
-    studio = (ROOT / "app" / "minisnn_studio.c").read_text(encoding="utf-8")
+    studio = (ROOT / "studio" / "minisnn_studio.c").read_text(encoding="utf-8")
     for button in ("RECOMPENSA", "GRAFICO RECOMPENSA", "ABRIR RECOMPENSA"):
         if f'"{button}"' not in studio:
             errors.append(f"Studio button missing: {button}")
@@ -184,7 +184,7 @@ def main() -> int:
         errors.append("roadmap does not keep C3 as next")
 
     if not RUNNER.is_file():
-        errors.append("build/minisnn_runner.exe is missing")
+        errors.append("build/tools/bin/minisnn_runner.exe is missing")
     else:
         add_error(errors, "reward mathematical tests", run(["mingw32-make", "test-reward"]))
         add_error(errors, "runner and distributed reward sample", run(["mingw32-make", "test-runner"]))

@@ -1,5 +1,7 @@
 #include "c7_integrated_audit_config.h"
 
+#include "minisnn.h"
+
 #include <ctype.h>
 #include <errno.h>
 #include <math.h>
@@ -7,7 +9,6 @@
 #include <stdlib.h>
 #include <string.h>
 
-#include "neuron_model.h"
 
 static void write_error(char *buffer, size_t size, const char *message)
 {
@@ -108,7 +109,7 @@ static int parse_models(const char *text, int enabled[3])
         if (next != NULL)
             *next++ = '\0';
         cursor = trim(cursor);
-        if (!neuron_model_from_name(cursor, &model) || model > MINISNN_NEURON_MODEL_HODGKIN_HUXLEY ||
+        if (!minisnn_neuron_model_from_name(cursor, &model) || model > MINISNN_NEURON_MODEL_HODGKIN_HUXLEY ||
             enabled[model])
             return 0;
         enabled[model] = 1;
@@ -375,7 +376,7 @@ int c7_integrated_audit_config_write_file(
         {
             int written = snprintf(models + used, sizeof(models) - used, "%s%s",
                                    used == 0U ? "" : ",",
-                                   neuron_model_name((MiniSNNNeuronModel)model));
+                                   minisnn_neuron_model_name((MiniSNNNeuronModel)model));
             if (written < 0 || (size_t)written >= sizeof(models) - used)
                 return 0;
             used += (size_t)written;

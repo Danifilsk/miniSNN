@@ -1,5 +1,13 @@
 # Arquitetura do monorepo
 
+## D1-A: produtos de build e API candidata
+
+`core/include/` e `core/src/` formam a biblioteca headless. `core/app/` contem
+runners e demos headless; `core/studio/` contem somente a GUI Win32. A
+biblioteca estatica fica em `build/core/lib`, ferramentas em `build/tools/bin`,
+testes em `build/tests/bin` e o Studio em `build/studio/bin`. D1-A nao declara
+Core v1.0-rc, API congelada ou Worlds autorizado.
+
 ## C7.5-A - Persistencia e replay do ciclo cerebro-agente
 
 `core/src/agent_cycle_checkpoint.c` persiste, em arquivos internos

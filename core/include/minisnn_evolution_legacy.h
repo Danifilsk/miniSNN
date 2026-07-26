@@ -1,5 +1,5 @@
-#ifndef EVOLUTION_H
-#define EVOLUTION_H
+#ifndef MINISNN_EVOLUTION_LEGACY_H
+#define MINISNN_EVOLUTION_LEGACY_H
 
 #include <stddef.h>
 #include <stdint.h>

@@ -12,16 +12,23 @@ endif
 endif
 CORE_DIR = core
 
-.PHONY: all help clean core core-tests core-studio core-evolution test test-architecture test-working-memory test-associative-memory test-sequence-prediction test-c6-checkpoints test-c6-integration test-c6-long test-agent-io test-sensor-encoder test-action-decoder test-agent-cycle test-agent-cycle-checkpoint test-c7-integration test-c7-evolution test-c7-long-run test-c7 scenario-working-memory scenario-associative-memory scenario-sequence-prediction scenario-sequence-prediction-context scenario-c6-suite scenario-sensor-encoding scenario-action-decoding scenario-agent-cycle scenario-agent-cycle-checkpoint scenario-c7-integrated-audit check-c6 check-c7
+.PHONY: all help clean clean-core clean-studio clean-tests core core-lib core-headless core-test core-tests core-studio studio studio-path core-evolution test test-architecture audit-d1-build-products audit-d1-api test-working-memory test-associative-memory test-sequence-prediction test-c6-checkpoints test-c6-integration test-c6-long test-agent-io test-sensor-encoder test-action-decoder test-agent-cycle test-agent-cycle-checkpoint test-c7-integration test-c7-evolution test-c7-long-run test-c7 scenario-working-memory scenario-associative-memory scenario-sequence-prediction scenario-sequence-prediction-context scenario-c6-suite scenario-sensor-encoding scenario-action-decoding scenario-agent-cycle scenario-agent-cycle-checkpoint scenario-c7-integrated-audit check-c6 check-c7
 
 all: test
 
 help:
 	@echo Comandos do monorepo miniSNN:
-	@echo   mingw32-make core             - executa o build padrao do miniSNN Core
-	@echo   mingw32-make core-tests       - executa os testes do Core
-	@echo   mingw32-make core-studio      - compila o miniSNN Studio
+	@echo   mingw32-make core-lib         - compila somente libminisnn_core.a
+	@echo   mingw32-make core             - compila biblioteca e apps headless
+	@echo   mingw32-make core-headless    - compila runners headless
+	@echo   mingw32-make core-test         - executa testes sem compilar Studio
+	@echo   mingw32-make core-studio      - compila o miniSNN Studio, sem abrir
+	@echo   mingw32-make studio           - compila quando necessario e abre o Studio
+	@echo   mingw32-make studio-path      - mostra o caminho do executavel do Studio
+	@echo   Abrir miniSNN Studio.cmd      - launcher clicavel para o uso normal
 	@echo   mingw32-make core-evolution   - compila o runner de neuroevolucao
+	@echo   mingw32-make audit-d1-build-products - audita separacao dos produtos
+	@echo   mingw32-make audit-d1-api     - audita API publica candidata
 	@echo   mingw32-make test-working-memory - valida o protocolo temporal C6.1
 	@echo   mingw32-make test-associative-memory - valida o protocolo associativo C6.2
 	@echo   mingw32-make test-sequence-prediction - valida o protocolo temporal C6.3
@@ -51,16 +58,37 @@ help:
 	@echo   mingw32-make target-do-core - encaminha targets legados ao Core
 
 core:
-	$(MAKE) -C $(CORE_DIR) all
+	$(MAKE) -C $(CORE_DIR) core
+
+core-lib:
+	$(MAKE) -C $(CORE_DIR) core-lib
+
+core-headless:
+	$(MAKE) -C $(CORE_DIR) headless
+
+core-test:
+	$(MAKE) -C $(CORE_DIR) core-test
 
 core-tests:
-	$(MAKE) -C $(CORE_DIR) test
+	$(MAKE) -C $(CORE_DIR) core-test
 
 core-studio:
 	$(MAKE) -C $(CORE_DIR) studio-build
 
+studio:
+	call "Abrir miniSNN Studio.cmd"
+
+studio-path:
+	@echo build/studio/bin/minisnn_studio.exe
+
 core-evolution:
 	$(MAKE) -C $(CORE_DIR) evolution-build
+
+audit-d1-build-products:
+	$(MAKE) -C $(CORE_DIR) audit-d1-build-products
+
+audit-d1-api:
+	$(MAKE) -C $(CORE_DIR) audit-d1-api
 
 test-working-memory:
 	$(MAKE) -C $(CORE_DIR) test-working-memory
@@ -151,6 +179,15 @@ test-architecture:
 clean:
 	$(MAKE) -C $(CORE_DIR) clean
 	@if exist build rmdir /S /Q build
+
+clean-core:
+	$(MAKE) -C $(CORE_DIR) clean-core
+
+clean-studio:
+	$(MAKE) -C $(CORE_DIR) clean-studio
+
+clean-tests:
+	$(MAKE) -C $(CORE_DIR) clean-tests
 
 # Targets historicos, como check-c4 e scenario-random, continuam delegados ao Core.
 %:

@@ -13,9 +13,9 @@ import time
 
 
 ROOT = Path(__file__).resolve().parents[1]
-BUILD = ROOT / "build"
+BUILD = ROOT.parent / "build"
 RESULTS = ROOT / "results" / "benchmarks"
-RUNNER = BUILD / "minisnn_runner.exe"
+RUNNER = BUILD / "tools" / "bin" / "minisnn_runner.exe"
 MODES = (
     ("homeostasis_off", False, False, False, False),
     ("threshold_only", True, True, False, False),
@@ -158,7 +158,7 @@ def git_commit() -> str:
 
 def main() -> int:
     if not RUNNER.is_file():
-        print("FAIL: build/minisnn_runner.exe is missing")
+        print("FAIL: build/tools/bin/minisnn_runner.exe is missing")
         return 1
     BUILD.mkdir(exist_ok=True)
     RESULTS.mkdir(parents=True, exist_ok=True)

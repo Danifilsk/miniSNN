@@ -9,7 +9,6 @@
 #include <stdlib.h>
 #include <string.h>
 
-#include "neuron_model.h"
 
 static void set_error(char *message, size_t size, const char *format, ...)
 {
@@ -279,7 +278,7 @@ int action_decoding_demo_config_load_file(
             else if (strcmp(key, "model") == 0)
             {
                 MiniSNNNeuronModel model;
-                if (!neuron_model_from_name(value, &model))
+                if (!minisnn_neuron_model_from_name(value, &model))
                     goto invalid_line;
                 out_config->neuron_model = model;
             }

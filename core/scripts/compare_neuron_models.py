@@ -124,9 +124,9 @@ th,td{{border:1px solid #555;padding:.5rem}}th{{background:#222}}</style></head>
 
 
 def main() -> int:
-    runner = ROOT / "build" / "minisnn_runner.exe"
+    runner = ROOT.parent / "build" / "tools" / "bin" / "minisnn_runner.exe"
     if not runner.exists():
-        print("Erro: compile build/minisnn_runner.exe antes da comparacao.", file=sys.stderr)
+        print("Erro: compile build/tools/bin/minisnn_runner.exe antes da comparacao.", file=sys.stderr)
         return 1
     run_times: dict[str, float] = {}
     for model, config, _ in CASES:

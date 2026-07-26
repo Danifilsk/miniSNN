@@ -21,7 +21,7 @@
 | Self-connections | `allow_self_connections` | funções `_ex` e runner | `test_minisnn_api`, `test_scenario_runner` | contagem de conexões | [Compatibilidade](COMPATIBILIDADE.md) | Implementado |
 | INH -> INH | `allow_inh_to_inh` | `app/scenario_runner.c` | parser/runner e experimentos | métricas EXC/INH | [Cenários](GUIA_DE_CENARIOS.md) | Implementado; efeito científico experimental |
 | Cenários | arquivos INI | `scenario_config`, `scenario_runner` | `test_scenario_config`, `test_scenario_runner` | pasta da run | [Cenários](GUIA_DE_CENARIOS.md) | Implementado |
-| Studio | controles Win32 | `app/minisnn_studio.c` | compilação e smoke test manual | interface e status | [Studio](GUIA_DO_STUDIO.md) | Implementado no Windows |
+| Studio | controles Win32 | `studio/minisnn_studio.c` | compilação e smoke test manual | interface e status | [Studio](GUIA_DO_STUDIO.md) | Implementado no Windows |
 | Neurônio detalhado | `record_neuron` | runner e `plot_neuron.py` | `test_plot_neuron`, runner | `neuron_<id>.csv/png` | [Studio](GUIA_DO_STUDIO.md) | Implementado |
 | Comparação | pastas de runs | `compare_runs.py` | `test_compare_runs` | CSV, relatório e PNGs | [Métricas](GUIA_DE_METRICAS.md) | Implementado |
 | Histórico | `[output]` | runner, `generate_history_report.py` e Studio | testes de runner, HTML e comparação | `index.csv` append-only e `history.html` | [Resultados](ORGANIZACAO_DE_RESULTADOS.md) | Implementado; HTML é apresentação local |
@@ -57,3 +57,5 @@ manual do Studio permanece separada.
 | Auditoria integrada C7.5-B | schemas, encoder, decoder e ciclo publicos | `app/c7_integrated_audit*.c`, `app/c7_audit_common.c` | `test-c7-integration`, `test-c7-evolution`, `test-c7-long-run`, `test-c7` | matriz por modelo, atividade neural, checkpoints exclusivos e relatorio local | [Auditoria C7](AUDITORIA_C7_INTERFACE_CEREBRO_AGENTE.md) | Implementado; D1 pre-Worlds pendente |
 | D1 pre-Worlds | auditoria e estabilizacao | Core e Bridge candidata | checklist e regressao | `miniSNN Core v1.0-rc` | [Roadmap](ROADMAP.md) | API provisoria; sem congelamento definitivo |
 | D2 pos-integracao | auditoria da primeira Bridge real | integracao Core-Brain Bridge | checklist e regressao | `miniSNN Core v1.0` | [Roadmap](ROADMAP.md) | congelamento definitivo da API v1 |
+
+| D1-A produtos/API | include/, src/, studio/, BUILD_PRODUCTS.md | core-lib, core-headless, core-test, udit-d1-* | biblioteca estatica e Studio separado | [Auditoria D1-A](D1_A_API_ARCHITECTURE_AUDIT.md) | Em auditoria; API candidata nao congelada |

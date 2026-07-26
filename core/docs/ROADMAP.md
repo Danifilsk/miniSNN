@@ -28,11 +28,14 @@ O roadmap indica ordem de trabalho, não promessa de prazo.
 - [x] C7.5-B - auditoria integrada da interface cerebro-agente.
 - [x] C7 - interface generica cerebro-agente implementada e auditada.
 
-## Próximo
+## Atual
 
-- [ ] D1 — auditoria e estabilizacao pre-Worlds.
-  Resultado: `miniSNN Core v1.0-rc` e API candidata Core-Brain Bridge
-  estavel provisoriamente. D1 nao congela a interface definitivamente.
+- [ ] D1-A - arquitetura, produtos de build e API candidata provisoria.
+
+## Proximos
+
+- [ ] D1-B - robustez, determinismo, stress e desempenho.
+- [ ] D1-C - fechamento do Core e avaliacao para `miniSNN Core v1.0-rc`.
 - [ ] D2 — auditoria pos-integracao.
   Resultado: `miniSNN Core v1.0` e API Core-Brain Bridge v1 congelada definitivamente.
 - [ ] Revisão humana do checklist do Studio.
@@ -43,7 +46,7 @@ toolchain compatível.
 ## Ordem oficial posterior
 
 ```text
-C6 -> C7 -> D1 -> Worlds Kernel -> Domain minimo -> Brain Bridge -> organismo headless -> App minimo -> D2 pos-integracao
+C6 -> C7 -> D1-A -> D1-B -> D1-C -> Worlds Kernel -> Domain minimo -> Brain Bridge -> organismo headless -> App minimo -> D2 pos-integracao
 ```
 
 O C8 — otimização iterativa automatizada — pode evoluir em paralelo e não

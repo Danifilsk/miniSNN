@@ -5,15 +5,14 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
-#include <windows.h>
 
+#include "app_filesystem.h"
 #include "minisnn.h"
 #include "scenario_runtime.h"
 #include "working_memory.h"
 #include "associative_memory.h"
 #include "sequence_prediction.h"
 
-#define COMMAND_BUFFER_SIZE 640
 #define SCENARIO_MAX_NEURONS 1000
 #define SCENARIO_HISTORY_PATH "results/scenarios/index.csv"
 #define SCENARIO_HISTORY_HEADER \
@@ -152,52 +151,22 @@ static void set_error(
 
 static int make_directory_if_needed(const char *path)
 {
-    char command[COMMAND_BUFFER_SIZE];
-
-    if (snprintf(
-            command,
-            sizeof(command),
-            "if not exist \"%s\" mkdir \"%s\"",
-            path,
-            path) >= (int)sizeof(command))
-    {
-        return 0;
-    }
-
-    return system(command) == 0;
+    return app_filesystem_ensure_directory(path);
 }
 
 static int directory_exists(const char *path)
 {
-    DWORD attributes = GetFileAttributesA(path);
-
-    return attributes != INVALID_FILE_ATTRIBUTES &&
-           (attributes & FILE_ATTRIBUTE_DIRECTORY) != 0;
+    return app_filesystem_directory_exists(path);
 }
 
 static int file_exists(const char *path)
 {
-    DWORD attributes = GetFileAttributesA(path);
-
-    return attributes != INVALID_FILE_ATTRIBUTES &&
-           (attributes & FILE_ATTRIBUTE_DIRECTORY) == 0;
+    return app_filesystem_file_exists(path);
 }
 
 static void current_timestamp(char *out_timestamp, size_t out_timestamp_size)
 {
-    SYSTEMTIME now;
-
-    GetLocalTime(&now);
-    snprintf(
-        out_timestamp,
-        out_timestamp_size,
-        "%04d%02d%02d_%02d%02d%02d",
-        now.wYear,
-        now.wMonth,
-        now.wDay,
-        now.wHour,
-        now.wMinute,
-        now.wSecond);
+    app_filesystem_timestamp(out_timestamp, out_timestamp_size, 1);
 }
 
 static int make_output_name(
@@ -3238,15 +3207,7 @@ static void degree_statistics(
 
 static unsigned long long file_size_bytes(const char *path)
 {
-    WIN32_FILE_ATTRIBUTE_DATA data;
-    ULARGE_INTEGER size;
-
-    if (!GetFileAttributesExA(path, GetFileExInfoStandard, &data))
-        return 0ULL;
-
-    size.HighPart = data.nFileSizeHigh;
-    size.LowPart = data.nFileSizeLow;
-    return size.QuadPart;
+    return app_filesystem_file_size(path);
 }
 
 static int write_basic_metrics(
@@ -4616,8 +4577,8 @@ int scenario_runner_execute(
     AssociativeMemoryResult associative_memory_result;
     ScenarioBlueprint sequence_prediction_blueprint;
     SequencePredictionResult sequence_prediction_result;
-    ULONGLONG wall_start;
-    ULONGLONG simulation_start;
+    double wall_start;
+    double simulation_start;
     double simulation_seconds;
     double wall_seconds;
     int metrics_generated = 0;
@@ -4647,7 +4608,7 @@ int scenario_runner_execute(
     if (!scenario_config_validate(config, error_message, error_message_size))
         return 0;
 
-    wall_start = GetTickCount64();
+    wall_start = app_filesystem_monotonic_seconds();
 
     if (!ensure_output_directory(
             config,
@@ -4822,7 +4783,7 @@ int scenario_runner_execute(
         return 0;
     }
 
-    simulation_start = GetTickCount64();
+    simulation_start = app_filesystem_monotonic_seconds();
 
     if (!run_simulation(
             snn,
@@ -5028,7 +4989,7 @@ int scenario_runner_execute(
     }
 
     simulation_seconds =
-        (double)(GetTickCount64() - simulation_start) / 1000.0;
+        app_filesystem_monotonic_seconds() - simulation_start;
 
     if (!plasticity_run_data_finalize(
             snn,
@@ -5146,7 +5107,7 @@ int scenario_runner_execute(
     close_file_if_open(summary_file);
     minisnn_destroy(&snn);
 
-    wall_seconds = (double)(GetTickCount64() - wall_start) / 1000.0;
+    wall_seconds = app_filesystem_monotonic_seconds() - wall_start;
 
     if (strcmp(config->diagnostics_level, "off") != 0)
     {

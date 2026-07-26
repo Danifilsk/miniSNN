@@ -1,5 +1,13 @@
 # Arquitetura do Core
 
+## D1-A - produtos e fronteiras
+
+`include/` e `src/` formam a biblioteca headless e compilam para
+`build/core/lib/libminisnn_core.a`. Apps e demos headless ficam em `app/`;
+o frontend Win32 fica em `studio/` e e compilado somente por `core-studio` para
+`build/studio/bin/minisnn_studio.exe`. O Studio nao inclui headers privados de
+`src/`. A fronteira e o ciclo de limpeza estao em [BUILD_PRODUCTS](BUILD_PRODUCTS.md).
+
 ## C7.5-B - Auditoria integrada
 
 `app/c7_integrated_audit*.c` e `tests/test_c7_*.c` pertencem a camada de
@@ -75,7 +83,8 @@ interface não possui uma segunda implementação da dinâmica neural.
 |---|---|
 | `src/` | Implementação interna do LIF, rede, conexões, delays, estímulos, recorders e fachada pública. |
 | `include/` | API pública opaca usada por aplicações externas. |
-| `app/` | Parser INI, construção de topologias, execução de cenários e Studio Win32. |
+| `app/` | Parser INI, construção de topologias e execução headless de cenários. |
+| `studio/` | Frontend Win32 consumidor da API pública; não integra a biblioteca neural. |
 | `configs/` | Cenários reproduzíveis sem edição de C. |
 | `scripts/` | Gráficos, diagnóstico e comparação posterior à execução. |
 | `tests/` | Testes C e Python com escopos diferentes. |

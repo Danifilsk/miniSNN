@@ -5,7 +5,6 @@
 #include <stdlib.h>
 #include <string.h>
 
-#include "neuron_model.h"
 
 #define SCENARIO_BLUEPRINT_CHECKPOINT_HEADER "MINISNN_SCENARIO_BLUEPRINT_V1"
 #define SCENARIO_BLUEPRINT_PATH_MAX 512
@@ -122,7 +121,7 @@ int scenario_blueprint_write_checkpoint(
                 SCENARIO_BLUEPRINT_CHECKPOINT_HEADER,
                 blueprint->neuron_count, blueprint->inhibitory_count,
                 blueprint->topology_signature,
-                neuron_model_name(blueprint->neuron_model),
+                minisnn_neuron_model_name(blueprint->neuron_model),
                 blueprint->neuron_model_config_signature,
                 blueprint->connection_count) < 0)
     {
@@ -252,7 +251,7 @@ int scenario_blueprint_load_checkpoint(
         !read_checkpoint_line(file, "topology_signature", value, sizeof(value)) ||
         sscanf(value, "%llx", &blueprint.topology_signature) != 1 ||
         !read_checkpoint_line(file, "neuron_model", value, sizeof(value)) ||
-        !neuron_model_from_name(value, &blueprint.neuron_model) ||
+        !minisnn_neuron_model_from_name(value, &blueprint.neuron_model) ||
         !read_checkpoint_line(file, "neuron_model_config_signature", value,
                               sizeof(value)) ||
         sscanf(value, "%llx", &signature) != 1 ||

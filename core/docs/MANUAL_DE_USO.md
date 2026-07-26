@@ -1,5 +1,14 @@
 # Manual de uso da miniSNN
 
+## Abrir o Studio
+
+Para abrir o aplicativo no Windows, de dois cliques em
+`Abrir miniSNN Studio.cmd` na raiz do repositorio. O launcher garante que
+`build/studio/bin/minisnn_studio.exe` exista, compilando-o com
+`mingw32-make core-studio` quando necessario, e entao abre o executavel.
+`core/studio/minisnn_studio.c` e apenas o codigo-fonte do frontend. A biblioteca
+neural compilada fica em `build/core/lib/libminisnn_core.a`.
+
 ## Escolher o modelo neuronal
 
 Use `[neuron] model = lif`, `adex` ou `hodgkin_huxley`. Configuracoes antigas
@@ -201,7 +210,7 @@ antes de limpar manualmente.
 | `mingw32-make scenario-random` | Executa `configs/random.ini` | Cenario aleatorio simples |
 | `mingw32-make scenario-small-world` | Executa `configs/small_world.ini` | Cenario small-world |
 | `mingw32-make scenario-feedforward` | Executa `configs/feedforward.ini` | Cenario em camadas |
-| `mingw32-make studio-build` | Compila o miniSNN Studio | `build/minisnn_studio.exe` |
+| `mingw32-make core-studio` | Compila o miniSNN Studio, sem abrir | `build/studio/bin/minisnn_studio.exe` |
 | `mingw32-make studio` | Compila e abre o miniSNN Studio | Interface grafica para cenarios |
 | `mingw32-make ei-balance` | Experimento EXC vs EXC/INH | Resultados em `results/experiments/ei_balance/` |
 | `mingw32-make inhibition-fine` | Varredura fina de inibicao | CSV em `results/experiments/inhibition/` |
@@ -493,7 +502,7 @@ mingw32-make report-evolution-history
 Edite a config evolutiva e o cenário-base em arquivos separados. Para retomar:
 
 ```powershell
-.\build\evolution_runner.exe --resume results\evolution\nome
+.\build\tools\bin\evolution_runner.exe --resume results\evolution\nome
 ```
 
 No Studio, abra `NEUROEVOLUCAO`. Apenas uma execução evolutiva é aceita por

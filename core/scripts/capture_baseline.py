@@ -13,7 +13,7 @@ import sys
 PROJECT_ROOT = Path(__file__).resolve().parents[1]
 FIXTURE_DIR = PROJECT_ROOT / "tests" / "fixtures" / "regression"
 GOLDEN_PATH = PROJECT_ROOT / "tests" / "golden" / "core_v02_baseline.json"
-RUNNER = PROJECT_ROOT / "build" / "minisnn_runner.exe"
+RUNNER = PROJECT_ROOT.parent / "build" / "tools" / "bin" / "minisnn_runner.exe"
 
 
 def key_values(path: Path) -> dict[str, str]:
