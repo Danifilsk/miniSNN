@@ -10,3 +10,10 @@
 Nenhum formato persiste ponteiros, padding ou caminhos absolutos. Igualdade de
 contagem nao substitui igualdade de assinatura. Truncamento e incompatibilidade
 de schema/modelo falham claramente sem troca parcial de estado.
+
+## Auditoria D1-B
+
+O corpus deterministico D1-B cobre INI autoritativo e schema AgentIO truncados,
+com versao, contagem, nome ou linha invalidos. O objeto vivo anterior deve
+permanecer intacto. A auditoria de long run salva/carrega um checkpoint C7 no
+meio da execucao e registra o resultado em `results/d1_b_robustness/`.

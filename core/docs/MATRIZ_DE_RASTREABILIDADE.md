@@ -58,4 +58,5 @@ manual do Studio permanece separada.
 | D1 pre-Worlds | auditoria e estabilizacao | Core e Bridge candidata | checklist e regressao | `miniSNN Core v1.0-rc` | [Roadmap](ROADMAP.md) | API provisoria; sem congelamento definitivo |
 | D2 pos-integracao | auditoria da primeira Bridge real | integracao Core-Brain Bridge | checklist e regressao | `miniSNN Core v1.0` | [Roadmap](ROADMAP.md) | congelamento definitivo da API v1 |
 
-| D1-A produtos/API | include/, src/, studio/, BUILD_PRODUCTS.md | core-lib, core-headless, core-test, udit-d1-* | biblioteca estatica e Studio separado | [Auditoria D1-A](D1_A_API_ARCHITECTURE_AUDIT.md) | Em auditoria; API candidata nao congelada |
+| D1-A produtos/API | include/, src/, studio/, BUILD_PRODUCTS.md | core-lib, core-headless, core-test, audit-d1-* | biblioteca estatica e Studio separado | [Auditoria D1-A](D1_A_API_ARCHITECTURE_AUDIT.md) | Concluido; API candidata nao congelada |
+| D1-B robustez | config D1-B e API publica | checked arithmetic, audit app e scripts | `test-d1-*`, `benchmark-d1`, `audit-d1-b` | CSV/TXT/HTML locais | [Auditoria D1-B](D1_B_ROBUSTNESS_AUDIT.md) | Automatizado; sanitizer pode ficar indisponivel |

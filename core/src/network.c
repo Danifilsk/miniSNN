@@ -1,9 +1,11 @@
+#include <limits.h>
 #include <math.h>
 #include <stdlib.h>
 #include <string.h>
 
 #include "network.h"
 #include "config.h"
+#include "safe_arithmetic.h"
 
 static void network_reset_fields(Network *net)
 {
@@ -127,6 +129,14 @@ int network_init_with_config(
     int size,
     const NetworkConfig *config)
 {
+    size_t neuron_count;
+    size_t pending_count;
+    size_t neuron_bytes;
+    size_t connection_list_bytes;
+    size_t spike_bytes;
+    size_t current_bytes;
+    size_t pending_bytes;
+
     if (net == NULL)
         return 0;
 
@@ -134,6 +144,21 @@ int network_init_with_config(
 
     if (size <= 0 || !network_config_is_valid(config))
         return 0;
+
+    neuron_count = (size_t)size;
+    if (!minisnn_checked_mul_size(neuron_count, sizeof(*net->neurons), &neuron_bytes) ||
+        !minisnn_checked_mul_size(neuron_count, sizeof(*net->connections),
+                                  &connection_list_bytes) ||
+        !minisnn_checked_mul_size(neuron_count, sizeof(*net->spikes), &spike_bytes) ||
+        !minisnn_checked_mul_size(neuron_count, sizeof(*net->syn_current),
+                                  &current_bytes) ||
+        !minisnn_checked_mul_size(neuron_count, (size_t)config->max_synaptic_delay,
+                                  &pending_count) ||
+        !minisnn_checked_mul_size(pending_count, sizeof(*net->pending_current),
+                                  &pending_bytes))
+    {
+        return 0;
+    }
 
     net->size = size;
     net->step = 0;
@@ -148,9 +173,9 @@ int network_init_with_config(
     net->max_synaptic_delay = config->max_synaptic_delay;
     net->delay_cursor = 0;
 
-    net->neurons = malloc(size * sizeof(Neuron));
-    net->step_snapshot = malloc(size * sizeof(Neuron));
-    net->connections = malloc(size * sizeof(ConnectionList));
+    net->neurons = malloc(neuron_bytes);
+    net->step_snapshot = malloc(neuron_bytes);
+    net->connections = malloc(connection_list_bytes);
 
     if (net->connections != NULL)
     {
@@ -161,19 +186,16 @@ int network_init_with_config(
         }
     }
 
-    net->spikes = malloc(size * sizeof(int));
+    net->spikes = malloc(spike_bytes);
 
     // Corrente sináptica do passo atual
-    net->syn_current = malloc(size * sizeof(double));
-    net->used_syn_current = malloc(size * sizeof(double));
+    net->syn_current = malloc(current_bytes);
+    net->used_syn_current = malloc(current_bytes);
 
-    net->pending_current =
-        malloc((size_t)size *
-               (size_t)net->max_synaptic_delay *
-               sizeof(double));
+    net->pending_current = malloc(pending_bytes);
 
     // Corrente externa
-    net->ext_current = malloc(size * sizeof(double));
+    net->ext_current = malloc(current_bytes);
     net->plasticity = calloc(1, sizeof(*net->plasticity));
     net->homeostasis = calloc(1, sizeof(*net->homeostasis));
     net->reward = calloc(1, sizeof(*net->reward));
@@ -230,7 +252,7 @@ int network_init_with_config(
         net->connections[i].count = 0;
     }
 
-    for (int i = 0; i < size * net->max_synaptic_delay; i++)
+    for (size_t i = 0U; i < pending_count; i++)
         net->pending_current[i] = 0.0;
 
     return 1;
@@ -244,7 +266,7 @@ int network_update(Network *net)
     int reward_enabled;
     MiniSNNNeuronModelCapabilities capabilities;
 
-    if (!network_is_valid_for_update(net))
+    if (!network_is_valid_for_update(net) || net->step == INT_MAX)
         return -1;
 
     homeostasis_enabled = net->homeostasis->config.enabled;

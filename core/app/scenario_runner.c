@@ -1,3 +1,9 @@
+#ifndef _WIN32
+#ifndef _POSIX_C_SOURCE
+#define _POSIX_C_SOURCE 200809L
+#endif
+#endif
+
 #include "scenario_runner.h"
 
 #include <stdint.h>
@@ -20,6 +26,18 @@
 #define MINISNN_VERSION "0.2"
 #define TOPOLOGY_HASH_OFFSET 1469598103934665603ULL
 #define TOPOLOGY_HASH_PRIME 1099511628211ULL
+
+#ifdef _WIN32
+#define MINISNN_APP_POPEN _popen
+#define MINISNN_APP_PCLOSE _pclose
+#define MINISNN_APP_NULL_REDIRECT "2>NUL"
+#define MINISNN_APP_OS_NAME "Windows"
+#else
+#define MINISNN_APP_POPEN popen
+#define MINISNN_APP_PCLOSE pclose
+#define MINISNN_APP_NULL_REDIRECT "2>/dev/null"
+#define MINISNN_APP_OS_NAME "POSIX"
+#endif
 
 typedef struct
 {
@@ -3616,28 +3634,30 @@ static int write_run_manifest(
             "sequence_prediction_checkpoint.txt");
     }
 
-    pipe = _popen("git rev-parse --short HEAD 2>NUL", "r");
+    pipe = MINISNN_APP_POPEN(
+        "git rev-parse --short HEAD " MINISNN_APP_NULL_REDIRECT, "r");
     if (pipe != NULL)
     {
         if (fgets(git_commit, sizeof(git_commit), pipe) != NULL)
         {
             git_commit[strcspn(git_commit, "\r\n")] = '\0';
-            if (_pclose(pipe) != 0)
+            if (MINISNN_APP_PCLOSE(pipe) != 0)
                 snprintf(git_commit, sizeof(git_commit), "NA");
         }
         else
         {
-            _pclose(pipe);
+            MINISNN_APP_PCLOSE(pipe);
             snprintf(git_commit, sizeof(git_commit), "NA");
         }
     }
 
-    pipe = _popen("git status --porcelain 2>NUL", "r");
+    pipe = MINISNN_APP_POPEN(
+        "git status --porcelain " MINISNN_APP_NULL_REDIRECT, "r");
     if (pipe != NULL)
     {
         char status_line[8];
         int has_changes = fgets(status_line, sizeof(status_line), pipe) != NULL;
-        if (_pclose(pipe) == 0)
+        if (MINISNN_APP_PCLOSE(pipe) == 0)
             snprintf(git_status, sizeof(git_status), "%s", has_changes ? "dirty" : "clean");
     }
 
@@ -3647,7 +3667,7 @@ static int write_run_manifest(
             "git_commit=%s\n"
             "git_status=%s\n"
             "timestamp=%s\n"
-            "operating_system=Windows\n"
+            "operating_system=%s\n"
             "compiler=gcc\n"
             "compiler_version=%s\n"
             "architecture=%s\n"
@@ -3723,6 +3743,7 @@ static int write_run_manifest(
             git_commit,
             git_status,
             timestamp,
+            MINISNN_APP_OS_NAME,
             __VERSION__,
 #if defined(_WIN64)
             "x86_64",

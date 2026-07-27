@@ -73,3 +73,7 @@ exploratórias não equivalem a validação biológica.
 - [Limites](LIMITS.md) - limites de rede, schemas, caminhos e alocacao.
 - [Persistencia e compatibilidade](PERSISTENCE_COMPATIBILITY.md) - formatos, assinaturas e load.
 - [Auditoria D1-A](D1_A_API_ARCHITECTURE_AUDIT.md) - achados, correcoes e pendencias.
+- [Auditoria D1-B](D1_B_ROBUSTNESS_AUDIT.md) - determinismo, falhas, stress e desempenho.
+- [Contrato de determinismo](DETERMINISM_CONTRACT.md) - garantias por nivel e limites entre toolchains.
+- [Modelo de robustez](ROBUSTNESS_AND_FAULT_MODEL.md) - falhas tratadas, atomicidade e limites do escopo.
+- [Baseline de desempenho](PERFORMANCE_BASELINE.md) - repeticoes locais e interpretacao dos tempos.

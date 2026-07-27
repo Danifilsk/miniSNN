@@ -7,6 +7,7 @@
 #include "minisnn.h"
 #include "agent_cycle_checkpoint_internal.h"
 #include "neuron_model.h"
+#include "safe_arithmetic.h"
 
 #include <errno.h>
 #ifdef _WIN32
@@ -403,6 +404,25 @@ static void write_diagnostics(const MiniSNNAgentCycle *cycle,
     diagnostics->failed_brain_step = failed_step;
 }
 
+static int counters_can_advance(const MiniSNNAgentCycle *cycle)
+{
+    uint64_t unused;
+    uint64_t maximum_spikes;
+
+    if (cycle == NULL ||
+        !minisnn_checked_increment_u64(cycle->global_tick, &unused) ||
+        !minisnn_checked_increment_u64(cycle->episode_tick, &unused) ||
+        !minisnn_checked_increment_u64(cycle->total_ticks, &unused) ||
+        !minisnn_checked_increment_u64(cycle->total_actions, &unused) ||
+        cycle->input_frame.brain_step_count > UINT64_MAX - cycle->total_neural_steps)
+    {
+        return 0;
+    }
+    maximum_spikes = (uint64_t)minisnn_neuron_count(cycle->network) *
+        (uint64_t)cycle->input_frame.brain_step_count;
+    return maximum_spikes <= UINT64_MAX - cycle->total_spikes;
+}
+
 MiniSNNAgentCycle *minisnn_agent_cycle_create(
     MiniSNN *network, MiniSNNAgentIOContext *agent_io,
     MiniSNNSensorEncoder *sensor_encoder, MiniSNNActionDecoder *action_decoder,
@@ -568,6 +588,11 @@ int minisnn_agent_cycle_run_tick(MiniSNNAgentCycle *cycle,
         cycle_error(cycle, MINISNN_AGENT_CYCLE_ERROR_TICK_MISMATCH);
         return 0;
     }
+    if (!counters_can_advance(cycle))
+    {
+        cycle_error(cycle, MINISNN_AGENT_CYCLE_ERROR_COUNTER_OVERFLOW);
+        return 0;
+    }
     if (!feedback_events_are_deliverable(cycle, NULL, &feedback_reward))
     {
         cycle_error(cycle, MINISNN_AGENT_CYCLE_ERROR_REWARD_UNAVAILABLE);
@@ -678,6 +703,12 @@ int minisnn_agent_cycle_reset_episode(MiniSNNAgentCycle *cycle)
         cycle_error(cycle, MINISNN_AGENT_CYCLE_ERROR_RESET_WHILE_BUSY);
         return 0;
     }
+    if (!minisnn_checked_increment_u64(cycle->episode_id, &pending_tick) ||
+        !minisnn_checked_increment_u64(cycle->reset_count, &pending_tick))
+    {
+        cycle_error(cycle, MINISNN_AGENT_CYCLE_ERROR_COUNTER_OVERFLOW);
+        return 0;
+    }
     minisnn_agent_io_reset(cycle->agent_io);
     if (!minisnn_reset_transient_state(cycle->network) ||
         !minisnn_neural_input_frame_reset(&cycle->input_frame, NULL) ||
@@ -728,7 +759,7 @@ const char *minisnn_agent_cycle_error_string(MiniSNNAgentCycleError error)
         "falha ao publicar acao", "reset durante ciclo ocupado", "falha de alocacao",
         "ciclo em falha", "fronteira de checkpoint instavel", "erro de E/S do checkpoint",
         "formato de checkpoint invalido", "assinatura de checkpoint incompativel",
-        "checkpoint incompativel"
+        "checkpoint incompativel", "contador do ciclo excedeu o limite"
     };
     return (unsigned int)error < sizeof(messages) / sizeof(messages[0]) ?
         messages[error] : "erro de ciclo desconhecido";
@@ -790,6 +821,30 @@ int minisnn_test_agent_cycle_feedback_at(
     if (cycle == NULL || out_feedback == NULL || index >= cycle->feedback_count)
         return 0;
     *out_feedback = cycle->feedback_queue[index];
+    return 1;
+}
+
+int minisnn_test_agent_cycle_set_counters(
+    MiniSNNAgentCycle *cycle,
+    uint64_t episode_id,
+    uint64_t episode_tick,
+    uint64_t global_tick,
+    uint64_t total_ticks,
+    uint64_t total_neural_steps,
+    uint64_t total_actions,
+    uint64_t total_spikes,
+    uint64_t reset_count)
+{
+    if (cycle == NULL || cycle->state != MINISNN_AGENT_CYCLE_STATE_READY)
+        return 0;
+    cycle->episode_id = episode_id;
+    cycle->episode_tick = episode_tick;
+    cycle->global_tick = global_tick;
+    cycle->total_ticks = total_ticks;
+    cycle->total_neural_steps = total_neural_steps;
+    cycle->total_actions = total_actions;
+    cycle->total_spikes = total_spikes;
+    cycle->reset_count = reset_count;
     return 1;
 }
 #endif

@@ -20,6 +20,16 @@ ficam em `app/`; todos os produtos de build ficam fora dos fontes em `../build/`
 Veja [BUILD_PRODUCTS](docs/BUILD_PRODUCTS.md) e o
 [manifesto da API candidata](docs/PUBLIC_API_MANIFEST.md).
 
+## Auditoria D1-B
+
+O D1-B mede robustez, determinismo, lifecycle e desempenho sem construir o
+Studio. Execute `mingw32-make audit-d1-b`; os artefatos locais ficam em
+`results/d1_b_robustness/`. Veja [Auditoria D1-B](docs/D1_B_ROBUSTNESS_AUDIT.md)
+e o [contrato de determinismo](docs/DETERMINISM_CONTRACT.md). O alvo
+`test-d1-posix-headless` compila apenas produtos headless em POSIX quando uma
+toolchain POSIX estiver disponível; em Windows sem ela o estado é
+explicitamente `UNAVAILABLE`.
+
 A miniSNN suporta LIF, AdEx e Hodgkin-Huxley em redes homogeneas. Veja
 [Guia de modelos neuronais](docs/GUIA_DE_MODELOS_NEURONAIS.md).
 

@@ -2,7 +2,21 @@
 
 [Voltar ao índice da documentação](docs/INDICE_DA_DOCUMENTACAO.md)
 
-**Status:** API candidata em D1-A, nao congelada. A fonte de verdade das
+## D1-B: fronteira da auditoria
+
+A API fonte publica permanece candidata a v1. D1-B nao adiciona API de teste
+ou de alocacao ao produto normal: aritmetica checada e injecao de falha existem
+somente na camada interna de testes. Compatibilidade de fonte e a garantia
+atual; ABI binaria entre compiladores, arquiteturas ou runtimes C nao e
+garantida.
+
+`mingw32-make audit-d1-b` gera evidencias locais em
+`results/d1_b_robustness/`; esses arquivos nao fazem parte da API.
+O manifesto local versionado registra a assinatura da configuracao e os
+estados da matriz O0/O2, smoke POSIX e sanitizers; `UNAVAILABLE` descreve
+somente uma capacidade ambiental ausente.
+
+**Status:** API candidata apos D1-A e D1-B, nao congelada. A fonte de verdade das
 assinaturas é `include/minisnn.h`; consulte tambem o
 [manifesto publico](docs/PUBLIC_API_MANIFEST.md), ownership, erros, limites e
 persistencia documentados em `core/docs/`.

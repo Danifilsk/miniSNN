@@ -12,7 +12,7 @@ endif
 endif
 CORE_DIR = core
 
-.PHONY: all help clean clean-core clean-studio clean-tests core core-lib core-headless core-test core-tests core-studio studio studio-path core-evolution test test-architecture audit-d1-build-products audit-d1-api test-working-memory test-associative-memory test-sequence-prediction test-c6-checkpoints test-c6-integration test-c6-long test-agent-io test-sensor-encoder test-action-decoder test-agent-cycle test-agent-cycle-checkpoint test-c7-integration test-c7-evolution test-c7-long-run test-c7 scenario-working-memory scenario-associative-memory scenario-sequence-prediction scenario-sequence-prediction-context scenario-c6-suite scenario-sensor-encoding scenario-action-decoding scenario-agent-cycle scenario-agent-cycle-checkpoint scenario-c7-integrated-audit check-c6 check-c7
+.PHONY: all help clean clean-core clean-studio clean-tests core core-lib core-headless core-test core-tests core-studio studio studio-path core-evolution test test-architecture audit-d1-build-products audit-d1-api test-d1-determinism test-d1-corruption test-d1-lifecycle-stress test-d1-optimization-determinism test-d1-posix-headless test-d1-portability test-d1-long-run test-d1-symbols benchmark-d1 scenario-d1-b audit-d1-b test-working-memory test-associative-memory test-sequence-prediction test-c6-checkpoints test-c6-integration test-c6-long test-agent-io test-sensor-encoder test-action-decoder test-agent-cycle test-agent-cycle-checkpoint test-c7-integration test-c7-evolution test-c7-long-run test-c7 scenario-working-memory scenario-associative-memory scenario-sequence-prediction scenario-sequence-prediction-context scenario-c6-suite scenario-sensor-encoding scenario-action-decoding scenario-agent-cycle scenario-agent-cycle-checkpoint scenario-c7-integrated-audit check-c6 check-c7
 
 all: test
 
@@ -29,6 +29,17 @@ help:
 	@echo   mingw32-make core-evolution   - compila o runner de neuroevolucao
 	@echo   mingw32-make audit-d1-build-products - audita separacao dos produtos
 	@echo   mingw32-make audit-d1-api     - audita API publica candidata
+	@echo   mingw32-make test-d1-determinism - valida matriz deterministica D1-B
+	@echo   mingw32-make test-d1-corruption - valida corrupcao e parsing D1-B
+	@echo   mingw32-make test-d1-lifecycle-stress - valida lifecycle e alocacao D1-B
+	@echo   mingw32-make test-d1-optimization-determinism - compara O0/O2 D1-B
+	@echo   mingw32-make test-d1-posix-headless - smoke estrito POSIX do Core headless, quando disponivel
+	@echo   mingw32-make test-d1-portability - valida os contratos dos harnesses D1-B
+	@echo   mingw32-make test-d1-long-run - executa o perfil long run D1-B
+	@echo   mingw32-make test-d1-symbols - audita simbolos e ABI candidato
+	@echo   mingw32-make benchmark-d1 - mede desempenho local D1-B
+	@echo   mingw32-make scenario-d1-b - gera resultados e HTML D1-B
+	@echo   mingw32-make audit-d1-b - executa a auditoria agregada D1-B
 	@echo   mingw32-make test-working-memory - valida o protocolo temporal C6.1
 	@echo   mingw32-make test-associative-memory - valida o protocolo associativo C6.2
 	@echo   mingw32-make test-sequence-prediction - valida o protocolo temporal C6.3
@@ -89,6 +100,9 @@ audit-d1-build-products:
 
 audit-d1-api:
 	$(MAKE) -C $(CORE_DIR) audit-d1-api
+
+test-d1-determinism test-d1-corruption test-d1-lifecycle-stress test-d1-optimization-determinism test-d1-posix-headless test-d1-portability test-d1-long-run test-d1-symbols benchmark-d1 scenario-d1-b audit-d1-b:
+	$(MAKE) -C $(CORE_DIR) $@
 
 test-working-memory:
 	$(MAKE) -C $(CORE_DIR) test-working-memory

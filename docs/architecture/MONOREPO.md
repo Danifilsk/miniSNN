@@ -8,6 +8,13 @@ biblioteca estatica fica em `build/core/lib`, ferramentas em `build/tools/bin`,
 testes em `build/tests/bin` e o Studio em `build/studio/bin`. D1-A nao declara
 Core v1.0-rc, API congelada ou Worlds autorizado.
 
+## D1-B: robustez headless
+
+Os targets D1-B compilam somente biblioteca, testes e ferramentas em
+`build/core/lib/`, `build/tests/bin/` e `build/tools/bin/`. Eles nao compilam
+nem abrem o Studio. Os artefatos regeneraveis ficam em
+`core/results/d1_b_robustness/` e sao ignorados por Git.
+
 ## C7.5-A - Persistencia e replay do ciclo cerebro-agente
 
 `core/src/agent_cycle_checkpoint.c` persiste, em arquivos internos

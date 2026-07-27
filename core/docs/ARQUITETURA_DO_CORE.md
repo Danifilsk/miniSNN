@@ -1,5 +1,17 @@
 # Arquitetura do Core
 
+## D1-B: fronteira de auditoria
+
+Os runners D1-B ficam em `app/`, os harnesses em `tests/` e os validadores em
+`scripts/`. A biblioteca de `src/` nao conhece long runs, benchmark ou HTML de
+auditoria. Apenas checagens internas de tamanho e contador foram adicionadas
+onde o ciclo de vida poderia sofrer overflow.
+
+`app_filesystem.c` e `scenario_runner.c` isolam apenas as pequenas diferencas
+de plataforma necessárias a arquivos, tempo local e consulta opcional ao Git:
+Windows usa `localtime_s`/`_popen`; POSIX usa `localtime_r`/`popen`. Nenhum
+codigo Win32 entra na biblioteca estatica do Core.
+
 ## D1-A - produtos e fronteiras
 
 `include/` e `src/` formam a biblioteca headless e compilam para

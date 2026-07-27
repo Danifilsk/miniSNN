@@ -26,6 +26,7 @@ APP_FILESYSTEM_SOURCES = app/app_filesystem.c
 SCENARIO_RUNNER_SOURCES = $(APP_FILESYSTEM_SOURCES) app/scenario_config.c app/scenario_runtime.c app/scenario_runner.c app/working_memory.c app/associative_memory.c app/sequence_prediction.c
 C7_AUDIT_SOURCES = $(APP_FILESYSTEM_SOURCES) app/c7_audit_common.c
 C6_SUITE_SOURCES = app/c6_suite.c $(SCENARIO_RUNNER_SOURCES)
+D1_B_AUDIT_SOURCES = app/d1_b_robustness_config.c $(C7_AUDIT_SOURCES)
 EVOLUTION_SOURCES = src/evolution.c
 EVOLUTION_RUNNER_SOURCES = app/evolution_config.c app/evolution_runner.c $(SCENARIO_RUNNER_SOURCES)
 CORE_SOURCES = src/neuron.c src/neuron_model.c src/network.c src/plasticity.c src/reward.c src/homeostasis.c src/agent_io.c $(STRUCTURE_SOURCES) src/topology.c src/stimulus.c src/recorder.c
@@ -43,11 +44,11 @@ else
 PYTHON := python
 endif
 endif
-ANALYZER_CFLAGS = -std=c11 -Wall -Wextra -pedantic -fanalyzer -Wformat=2 -Wshadow -Wnull-dereference
+ANALYZER_CFLAGS = -std=c11 -Wall -Wextra -pedantic -fanalyzer -Wformat=2 -Wstrict-prototypes -Wshadow -Wconversion -Wnull-dereference
 
 TEST_BINARIES = $(patsubst tests/%.c,$(TEST_BIN_DIR)/%.exe,$(wildcard tests/*.c))
 
-.PHONY: all core core-lib headless core-test clean-core clean-studio clean-tests help clean test test-api test-core test-lif test-neuron-model test-adex test-hodgkin-huxley test-model-checkpoints test-model-error-propagation test-model-provenance test-adex-long test-hh-long test-models-long test-plasticity test-plasticity-long test-homeostasis test-homeostasis-long test-reward test-reward-long test-evolution test-structure test-structural-plasticity test-structure-resume test-structure-long test-evolution-runner test-evolution-resume test-evolution-long test-plot-evolution test-plot-topology test-evolution-report test-structural-html evolution-build evolution-weight-demo evolution-homeostasis-demo evolution-plasticity-demo evolution-structure-demo structural-pruning-demo structural-growth-demo evolution-structure-learning-demo plot-evolution plot-topology report-evolution report-evolution-history report-structural-events report-best-topology test-scenario test-runner test-runner-topologies test-working-memory test-associative-memory test-sequence-prediction test-c6-checkpoints test-c6-integration test-c6-long test-agent-io test-sensor-encoder test-action-decoder test-agent-cycle test-reproducibility test-regression test-memory test-long test-analyzer test-sanitize benchmark-v02 benchmark-c1 benchmark-c15 benchmark-c2 benchmark-c3 benchmark-c4 benchmark-c5 check-v02 check-c1 check-c15 check-c2 check-c3 check-c4 check-c5-interface check-c5 check-c6 check-c7 compare-neuron-models test-compare-neuron-models \
+.PHONY: all core core-lib headless core-test clean-core clean-studio clean-tests help clean test test-api test-core test-lif test-neuron-model test-adex test-hodgkin-huxley test-model-checkpoints test-model-error-propagation test-model-provenance test-adex-long test-hh-long test-models-long test-plasticity test-plasticity-long test-homeostasis test-homeostasis-long test-reward test-reward-long test-evolution test-structure test-structural-plasticity test-structure-resume test-structure-long test-evolution-runner test-evolution-resume test-evolution-long test-plot-evolution test-plot-topology test-evolution-report test-structural-html evolution-build evolution-weight-demo evolution-homeostasis-demo evolution-plasticity-demo evolution-structure-demo structural-pruning-demo structural-growth-demo evolution-structure-learning-demo plot-evolution plot-topology report-evolution report-evolution-history report-structural-events report-best-topology test-scenario test-runner test-runner-topologies test-working-memory test-associative-memory test-sequence-prediction test-c6-checkpoints test-c6-integration test-c6-long test-agent-io test-sensor-encoder test-action-decoder test-agent-cycle test-reproducibility test-regression test-memory test-long test-analyzer test-sanitize test-d1-determinism test-d1-corruption test-d1-lifecycle-stress test-d1-optimization-determinism test-d1-posix-headless test-d1-portability test-d1-long-run test-d1-symbols benchmark-d1 scenario-d1-b audit-d1-b benchmark-v02 benchmark-c1 benchmark-c15 benchmark-c2 benchmark-c3 benchmark-c4 benchmark-c5 check-v02 check-c1 check-c15 check-c2 check-c3 check-c4 check-c5-interface check-c5 check-c6 check-c7 compare-neuron-models test-compare-neuron-models \
 	test-plot-neuron test-plot-plasticity test-compare-runs test-diagnostics test-run-reports test-history-report test-docs test-agent-cycle-checkpoint \
 	test-plot-homeostasis plot-homeostasis test-plot-reward plot-reward \
 	test-c7-integration test-c7-evolution test-c7-long-run test-c7 \
@@ -160,6 +161,17 @@ help:
 	@echo   make test-regression    - golden pequeno e resultados historicos conhecidos
 	@echo   make test-memory       - estresse finito de ciclo de vida, conexoes e delays
 	@echo   make test-long         - 50000 passos com verificacao de estado finito
+	@echo   make test-d1-determinism - matriz deterministica D1-B por modelo e modo
+	@echo   make test-d1-corruption - parser e arquivos corrompidos D1-B
+	@echo   make test-d1-lifecycle-stress - lifecycle, falha de alocacao e contadores D1-B
+	@echo   make test-d1-optimization-determinism - compara os mesmos traces em O0 e O2
+	@echo   make test-d1-posix-headless - smoke estrito do Core headless em POSIX, quando disponivel
+	@echo   make test-d1-portability - contratos dos harnesses portaveis D1-B
+	@echo   make test-d1-long-run - executa os orcamentos completos da auditoria D1-B
+	@echo   make test-d1-symbols - audita simbolos publicos e a garantia ABI real
+	@echo   make benchmark-d1    - mede passos, C7 e checkpoints em tres repeticoes
+	@echo   make scenario-d1-b   - gera todos os artefatos e relatorio local D1-B
+	@echo   make audit-d1-b      - executa a auditoria agregada D1-B
 	@echo   make test-analyzer     - recompila a suite com fanalyzer e warnings adicionais
 	@echo   make test-sanitize     - executa ASan/UBSan ou informa suporte ausente
 	@echo   make benchmark-v02     - benchmark local controlado do Core v0.2
@@ -265,6 +277,15 @@ $(TEST_BIN_DIR)/test_c7_evolution.exe: tests/test_c7_evolution.c $(C7_AUDIT_SOUR
 $(TEST_BIN_DIR)/test_c7_long_run.exe: tests/test_c7_long_run.c $(C7_AUDIT_SOURCES) $(CORE_LIB) | $(BUILD_DIR)
 	$(CC) $(CFLAGS) tests/test_c7_long_run.c $(C7_AUDIT_SOURCES) $(CORE_LIB) $(INCLUDES) -o $@
 
+$(TEST_BIN_DIR)/test_d1_determinism.exe: tests/test_d1_determinism.c $(SCENARIO_RUNNER_SOURCES) $(C7_AUDIT_SOURCES) $(CORE_LIB) | $(TEST_BIN_DIR)
+	$(CC) $(CFLAGS) tests/test_d1_determinism.c $(sort $(SCENARIO_RUNNER_SOURCES) $(C7_AUDIT_SOURCES)) $(CORE_LIB) $(INCLUDES) -o $@
+
+$(TEST_BIN_DIR)/test_d1_corruption.exe: tests/test_d1_corruption.c app/scenario_config.c $(APP_FILESYSTEM_SOURCES) $(CORE_LIB) | $(TEST_BIN_DIR)
+	$(CC) $(CFLAGS) tests/test_d1_corruption.c app/scenario_config.c $(APP_FILESYSTEM_SOURCES) $(CORE_LIB) $(INCLUDES) -o $@
+
+$(TEST_BIN_DIR)/test_d1_lifecycle_stress.exe: tests/test_d1_lifecycle_stress.c tests/test_allocation.c $(C7_AUDIT_SOURCES) $(TESTING_API_SOURCES) | $(TEST_BIN_DIR)
+	$(CC) $(CFLAGS) -DMINISNN_TESTING -include tests/test_allocation.h tests/test_d1_lifecycle_stress.c tests/test_allocation.c $(C7_AUDIT_SOURCES) $(TESTING_API_SOURCES) $(INCLUDES) -o $@
+
 $(BUILD_DIR)/agent_cycle_demo.exe: app/agent_cycle_demo.c app/agent_cycle_demo_config.c app/agent_cycle_demo_config.h $(APP_FILESYSTEM_SOURCES) $(CORE_LIB) include/minisnn_agent_cycle.h | $(BUILD_DIR)
 	$(CC) $(CFLAGS) app/agent_cycle_demo.c app/agent_cycle_demo_config.c $(APP_FILESYSTEM_SOURCES) $(CORE_LIB) $(INCLUDES) -o $@
 
@@ -273,6 +294,12 @@ $(BUILD_DIR)/agent_cycle_checkpoint_demo.exe: app/agent_cycle_checkpoint_demo.c 
 
 $(BUILD_DIR)/c7_integrated_audit.exe: app/c7_integrated_audit.c app/c7_integrated_audit_config.c app/c7_integrated_audit_config.h $(C7_AUDIT_SOURCES) $(CORE_LIB) | $(BUILD_DIR)
 	$(CC) $(CFLAGS) app/c7_integrated_audit.c app/c7_integrated_audit_config.c $(C7_AUDIT_SOURCES) $(CORE_LIB) $(INCLUDES) -o $@
+
+$(BUILD_DIR)/d1_b_robustness_audit.exe: app/d1_b_robustness_audit.c app/d1_b_robustness_config.h $(D1_B_AUDIT_SOURCES) $(CORE_LIB) | $(BUILD_DIR)
+	$(CC) $(CFLAGS) app/d1_b_robustness_audit.c $(D1_B_AUDIT_SOURCES) $(CORE_LIB) $(INCLUDES) -o $@
+
+$(BUILD_DIR)/d1_b_benchmark.exe: app/d1_b_benchmark.c $(C7_AUDIT_SOURCES) $(CORE_LIB) | $(BUILD_DIR)
+	$(CC) $(CFLAGS) app/d1_b_benchmark.c $(C7_AUDIT_SOURCES) $(CORE_LIB) $(INCLUDES) -o $@
 
 $(BUILD_DIR)/sensor_encoding_demo.exe: app/sensor_encoding_demo.c app/sensor_encoding_demo_config.c app/sensor_encoding_demo_config.h $(APP_FILESYSTEM_SOURCES) $(CORE_LIB) include/minisnn_sensor_encoder.h | $(BUILD_DIR)
 	$(CC) $(CFLAGS) app/sensor_encoding_demo.c app/sensor_encoding_demo_config.c $(APP_FILESYSTEM_SOURCES) $(CORE_LIB) $(INCLUDES) -o $@
@@ -635,6 +662,44 @@ test-memory: $(TEST_BIN_DIR)/test_memory_stress.exe
 
 test-long: $(TEST_BIN_DIR)/test_long_run.exe
 	$(TEST_BIN_DIR)/test_long_run.exe
+
+test-d1-lifecycle-stress: $(TEST_BIN_DIR)/test_d1_lifecycle_stress.exe
+	$(PYTHON) scripts/check_d1_lifecycle_stress.py $(TEST_BIN_DIR)/test_d1_lifecycle_stress.exe
+
+test-d1-determinism: test-reproducibility test-structure-resume test-evolution-resume test-c6-integration test-agent-cycle-checkpoint $(TEST_BIN_DIR)/test_d1_determinism.exe
+	$(PYTHON) scripts/check_d1_determinism.py $(TEST_BIN_DIR)/test_d1_determinism.exe
+
+test-d1-corruption: $(TEST_BIN_DIR)/test_d1_corruption.exe
+	$(PYTHON) scripts/check_d1_corruption.py $(TEST_BIN_DIR)/test_d1_corruption.exe
+
+test-d1-optimization-determinism: | $(BUILD_DIR)
+	$(PYTHON) scripts/check_d1_optimization_determinism.py
+
+test-d1-posix-headless: | $(BUILD_DIR)
+	$(PYTHON) scripts/check_d1_posix_headless.py
+
+test-d1-portability: test-d1-determinism | $(BUILD_DIR)
+	$(PYTHON) tests/test_d1_portability.py
+
+test-d1-long-run: test-reward-long test-evolution-long test-structure-long test-c6-long test-c7-long-run $(BUILD_DIR)/d1_b_robustness_audit.exe
+	$(BUILD_DIR)/d1_b_robustness_audit.exe configs/d1_b_robustness_audit.ini
+
+test-d1-symbols: core-lib | $(BUILD_DIR)
+	$(PYTHON) scripts/check_core_symbols.py
+
+benchmark-d1: $(BUILD_DIR)/d1_b_benchmark.exe
+	$(BUILD_DIR)/d1_b_benchmark.exe
+	$(PYTHON) scripts/check_d1_benchmark.py
+
+scenario-d1-b: test-d1-determinism test-d1-corruption test-d1-lifecycle-stress test-d1-optimization-determinism test-d1-posix-headless test-d1-portability test-d1-symbols benchmark-d1 test-d1-long-run
+	$(PYTHON) scripts/run_portable_sanitizers.py
+	$(PYTHON) scripts/generate_d1_b_report.py
+	$(PYTHON) scripts/check_d1_b.py
+	$(PYTHON) scripts/generate_d1_b_report.py
+
+audit-d1-b: scenario-d1-b
+	$(PYTHON) scripts/check_d1_b.py
+	$(PYTHON) scripts/generate_d1_b_report.py
 
 test-analyzer:
 	$(MAKE) -B test CFLAGS="$(ANALYZER_CFLAGS)"

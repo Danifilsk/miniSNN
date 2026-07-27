@@ -43,3 +43,7 @@ tmp_*.csv
 # Resultados locais gerados por neuroevolucao
 /core/results/evolution/*
 !/core/results/evolution/.gitkeep
+
+# Artefatos locais e regeneraveis da auditoria D1-B
+/core/results/d1_b_robustness/*
+!/core/results/d1_b_robustness/.gitkeep

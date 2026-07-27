@@ -1,5 +1,13 @@
 # Compatibilidade
 
+## D1-B: determinismo e ABI
+
+A API fonte publica e candidata a v1. O formato persistido possui versao e
+assinaturas; ABI binaria entre compiladores, arquiteturas ou runtimes C nao e
+garantida. No GCC auditado, o runner D1-B compara `-O0` e `-O2` sem
+arredondamento. Entre plataformas, a garantia atual e compilar headless e
+rejeitar incompatibilidades com seguranca.
+
 ## C7.3 - Decodificacao de activity frames
 
 `action_decoder.txt` e um contrato textual novo e versionado. Ele exige o mesmo

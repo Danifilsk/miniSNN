@@ -12,5 +12,8 @@ fixar uma ABI final.
 | Persistencia | Arquivos e paths usam buffers limitados e rejeitam truncamento, assinatura invalida e contagem inconsistente. |
 | Alocacao | Contagem multiplicada por `sizeof` e validada pelos construtores antes de alocar; entradas zero e nao finitas sao rejeitadas conforme o contrato. |
 
-Os testes de fronteira evitam alocacoes absurdas. Limites quantitativos de
-desempenho, stress e sanitizers completos ficam para D1-B.
+Os testes de fronteira evitam alocacoes absurdas. D1-B acrescenta aritmetica
+checadas para tamanhos de rede, guarda para `INT_MAX` no passo neural e
+guardas para contadores C7 antes de uma alteracao observavel. A disponibilidade
+de sanitizers depende do toolchain e e registrada como `PASS`, `FAIL` ou
+`UNAVAILABLE`, nunca como um PASS implicito.

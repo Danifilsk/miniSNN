@@ -41,7 +41,8 @@ typedef enum
     MINISNN_AGENT_CYCLE_ERROR_CHECKPOINT_IO,
     MINISNN_AGENT_CYCLE_ERROR_CHECKPOINT_FORMAT,
     MINISNN_AGENT_CYCLE_ERROR_CHECKPOINT_SIGNATURE,
-    MINISNN_AGENT_CYCLE_ERROR_CHECKPOINT_INCOMPATIBLE
+    MINISNN_AGENT_CYCLE_ERROR_CHECKPOINT_INCOMPATIBLE,
+    MINISNN_AGENT_CYCLE_ERROR_COUNTER_OVERFLOW
 } MiniSNNAgentCycleError;
 
 typedef struct
@@ -128,6 +129,16 @@ int minisnn_test_agent_cycle_feedback_at(
     const MiniSNNAgentCycle *cycle,
     uint32_t index,
     MiniSNNAgentFeedback *out_feedback);
+int minisnn_test_agent_cycle_set_counters(
+    MiniSNNAgentCycle *cycle,
+    uint64_t episode_id,
+    uint64_t episode_tick,
+    uint64_t global_tick,
+    uint64_t total_ticks,
+    uint64_t total_neural_steps,
+    uint64_t total_actions,
+    uint64_t total_spikes,
+    uint64_t reset_count);
 #endif
 
 #endif
