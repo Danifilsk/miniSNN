@@ -12,7 +12,7 @@ endif
 endif
 CORE_DIR = core
 
-.PHONY: all help clean clean-core clean-studio clean-tests core core-lib core-headless core-test core-tests core-studio studio studio-path core-evolution test test-architecture audit-d1-build-products audit-d1-api test-d1-determinism test-d1-corruption test-d1-lifecycle-stress test-d1-optimization-determinism test-d1-posix-headless test-d1-portability test-d1-long-run test-d1-symbols benchmark-d1 scenario-d1-b audit-d1-b test-working-memory test-associative-memory test-sequence-prediction test-c6-checkpoints test-c6-integration test-c6-long test-agent-io test-sensor-encoder test-action-decoder test-agent-cycle test-agent-cycle-checkpoint test-c7-integration test-c7-evolution test-c7-long-run test-c7 scenario-working-memory scenario-associative-memory scenario-sequence-prediction scenario-sequence-prediction-context scenario-c6-suite scenario-sensor-encoding scenario-action-decoding scenario-agent-cycle scenario-agent-cycle-checkpoint scenario-c7-integrated-audit check-c6 check-c7
+.PHONY: all help clean clean-core clean-studio clean-tests core core-lib core-headless core-test core-tests core-studio studio studio-path core-evolution test test-architecture audit-d1-build-products audit-d1-api test-d1-determinism test-d1-corruption test-d1-lifecycle-stress test-d1-optimization-determinism test-d1-posix-headless test-d1-portability test-d1-long-run test-d1-symbols benchmark-d1 scenario-d1-b audit-d1-b audit-d1 test-version test-api-baseline test-api-baseline-regressions release-core release-headless release-studio release-all test-release-build test-external-consumer package-release test-release-integrity test-release-packages test-studio-source-contracts test-studio-runtime-layout audit-d1-c-automated audit-d1-c test-working-memory test-associative-memory test-sequence-prediction test-c6-checkpoints test-c6-integration test-c6-long test-agent-io test-sensor-encoder test-action-decoder test-agent-cycle test-agent-cycle-checkpoint test-c7-integration test-c7-evolution test-c7-long-run test-c7 scenario-working-memory scenario-associative-memory scenario-sequence-prediction scenario-sequence-prediction-context scenario-c6-suite scenario-sensor-encoding scenario-action-decoding scenario-agent-cycle scenario-agent-cycle-checkpoint scenario-c7-integrated-audit check-c6 check-c7
 
 all: test
 
@@ -40,6 +40,18 @@ help:
 	@echo   mingw32-make benchmark-d1 - mede desempenho local D1-B
 	@echo   mingw32-make scenario-d1-b - gera resultados e HTML D1-B
 	@echo   mingw32-make audit-d1-b - executa a auditoria agregada D1-B
+	@echo   mingw32-make test-version - valida a versao publica candidata
+	@echo   mingw32-make test-api-baseline - valida o baseline semantico de API v1.0-rc
+	@echo   mingw32-make test-api-baseline-regressions - valida invariancia semantica do baseline
+	@echo   mingw32-make release-all - compila Core, Studio e ferramentas de release
+	@echo   mingw32-make test-external-consumer - compila o consumidor externo limpo
+	@echo   mingw32-make package-release - gera ZIPs locais de avaliacao
+	@echo   mingw32-make test-release-integrity - adultera copias temporarias dos pacotes D1-C
+	@echo   mingw32-make test-release-packages - valida integridade e smoke dos ZIPs
+	@echo   mingw32-make test-studio-source-contracts - valida contratos Win32 do Studio
+	@echo   mingw32-make test-studio-runtime-layout - valida os layouts repository/package do Studio
+	@echo   mingw32-make audit-d1-c - valida gates automaticos e o checklist manual D1-C
+	@echo   mingw32-make audit-d1   - executa a auditoria final pre-Worlds D1-A/B/C
 	@echo   mingw32-make test-working-memory - valida o protocolo temporal C6.1
 	@echo   mingw32-make test-associative-memory - valida o protocolo associativo C6.2
 	@echo   mingw32-make test-sequence-prediction - valida o protocolo temporal C6.3
@@ -100,6 +112,9 @@ audit-d1-build-products:
 
 audit-d1-api:
 	$(MAKE) -C $(CORE_DIR) audit-d1-api
+
+test-version test-api-baseline test-api-baseline-regressions release-core release-headless release-studio release-all test-release-build test-external-consumer package-release test-release-integrity test-release-packages test-studio-source-contracts test-studio-runtime-layout audit-d1-c-automated audit-d1-c audit-d1:
+	$(MAKE) -C $(CORE_DIR) $@
 
 test-d1-determinism test-d1-corruption test-d1-lifecycle-stress test-d1-optimization-determinism test-d1-posix-headless test-d1-portability test-d1-long-run test-d1-symbols benchmark-d1 scenario-d1-b audit-d1-b:
 	$(MAKE) -C $(CORE_DIR) $@

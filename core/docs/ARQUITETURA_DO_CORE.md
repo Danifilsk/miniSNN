@@ -1,5 +1,14 @@
 # Arquitetura do Core
 
+## D1 concluido: release candidate
+
+`minisnn_version.h` fornece a identidade publica `1.0.0-rc.1`. A biblioteca
+release e gerada em `build/release/core/`; Studio e ferramentas usam objetos
+separados e linkam contra a mesma biblioteca. O Core continua sem semantica de
+Worlds; a ponte Core-Brain e candidata provisoriamente estavel e so sera
+congelada definitivamente apos D2. K0, a fundacao deterministica do Worlds
+Kernel, e o proximo bloco planejado.
+
 ## D1-B: fronteira de auditoria
 
 Os runners D1-B ficam em `app/`, os harnesses em `tests/` e os validadores em
@@ -25,10 +34,10 @@ o frontend Win32 fica em `studio/` e e compilado somente por `core-studio` para
 `app/c7_integrated_audit*.c` e `tests/test_c7_*.c` pertencem a camada de
 laboratorio e teste. Eles compoem apenas APIs publicas C7 e o checkpoint
 existente; nao introduzem conceitos de dominio em `src/`. A matriz inclui
-LIF/AdEx/HH, replay, evolucao abstrata e long run. O resultado fecha C7 e deixa
-D1 como a proxima auditoria e estabilizacao pre-Worlds. D1 resulta em
-`miniSNN Core v1.0-rc` e em uma API candidata Core-Brain Bridge estavel apenas
-provisoriamente; o congelamento definitivo cabe a D2, depois da primeira
+LIF/AdEx/HH, replay, evolucao abstrata e long run. O resultado fecha C7; D1
+foi concluido como auditoria e estabilizacao pre-Worlds. D1 resulta em
+`miniSNN Core 1.0.0-rc.1` e em uma API candidata Core-Brain Bridge estavel
+apenas provisoriamente; o congelamento definitivo cabe a D2, depois da primeira
 integracao real.
 
 ## C7.5-A - Persistencia e replay do ciclo
@@ -174,9 +183,11 @@ gráficos sem alterar a simulação concluída.
 - O diagnóstico completo depende de Python, pandas e matplotlib.
 - Séries temporais completas de tensão e corrente existem apenas para o neurônio detalhado.
 - Algumas métricas são derivadas após a execução, não durante o timestep neural.
-- O único modelo neural implementado é o LIF simplificado.
-- Há STDP aditivo experimental apenas para origens EXC; não há homeostase,
-  recompensa, memória ou Worlds.
+- Os modelos neuronais implementados são LIF, AdEx e Hodgkin-Huxley; eles
+  requerem calibração distinta para comparações científicas.
+- Há STDP aditivo experimental apenas para origens EXC. Homeostase, recompensa
+  e protocolos cognitivos existem como recursos experimentais; Worlds não está
+  implementado.
 
 Veja também o [Mapa do projeto](MAPA_DO_PROJETO.md) e a
 [Referência da API](../API_REFERENCE.md).

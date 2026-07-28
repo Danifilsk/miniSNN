@@ -229,7 +229,7 @@ def main() -> int:
         "C3 — neuroevolução (concluído)" not in roadmap or
         "C4 — topologia adaptativa e evolução estrutural (concluído)" not in roadmap or
         "[x] C5" not in roadmap or
-        "C6 -> C7 -> D1-A -> D1-B -> D1-C -> Worlds" not in roadmap or
+        "C6 -> C7 -> D1-A -> D1-B -> D1-C -> K0 Worlds Kernel -> Domain minimo -> Brain Bridge" not in roadmap or
         "E0:" in roadmap
     ):
         errors.append("roadmap C3/C4/C5 and sequencing status is incorrect")

@@ -2,9 +2,20 @@
 
 ## Abrir o aplicativo
 
+O Studio e o frontend Win32, nao o Core. A barra de titulo identifica
+`miniSNN Studio - Powered by miniSNN Core 1.0.0-rc.1`. A versao e candidata;
+ela nao anuncia API definitivamente congelada, Worlds integrado ou uma release
+final. O checklist de aceite visual permanece em
+[D1_C_STUDIO_MANUAL_CHECKLIST.md](D1_C_STUDIO_MANUAL_CHECKLIST.md).
+
 Para o uso normal no Windows, de dois cliques em `Abrir miniSNN Studio.cmd` na
 raiz do repositorio. O launcher cria `build/studio/bin/minisnn_studio.exe` com
 `mingw32-make core-studio` somente se ele ainda nao existir e entao o abre.
+Ele passa a raiz do repositorio explicitamente ao Studio. O executavel tambem
+reconhece o layout por sentinelas quando aberto diretamente de
+`build/studio/bin/` ou `build/release/studio/bin/`. No pacote extraido, o
+launcher passa a raiz do pacote e os recursos ficam ao lado de `bin/` em
+`configs/`, `scripts/` e `results/`.
 `core/studio/minisnn_studio.c` e o codigo-fonte do frontend, nao o aplicativo.
 O Studio usa `build/core/lib/libminisnn_core.a` como biblioteca neural.
 
@@ -102,8 +113,9 @@ Depois de compilar, o aplicativo real e:
 ..\build\studio\bin\minisnn_studio.exe
 ```
 
-O Studio ajusta o diretorio de trabalho para a raiz do projeto quando aberto a
-partir de `build/`.
+O Studio ajusta o diretorio de trabalho para a raiz de recursos: `core/` no
+modo repositorio e a raiz do pacote no modo distribuivel. Assim cenarios,
+scripts, resultados e runners nao dependem do diretorio atual do Windows.
 
 ## 4. Como criar um cenario novo
 
@@ -367,9 +379,13 @@ cenários comuns carregam STDP OFF.
 
 ## 14. O que ainda nao existe no Studio
 
-O Studio não implementa peixe, mundo, recompensa, punição, neuroevolução,
-plasticidade inibitória ou topologia adaptativa. Ele expõe o STDP excitatório e
-a homeostase simplificada já existentes no motor de cenários.
+O Studio nao implementa Worlds, simulacao visual em tempo real, pausa, controle
+de velocidade ou one-step neural. Ele expoe os recursos historicos do motor de
+cenarios, incluindo plasticidade, homeostase, recompensa e neuroevolucao.
+
+O Studio executa simulacoes em lote. `RODAR SIMULACAO` retorna somente ao fim
+da execucao; nao ha pause durante a run, controle de velocidade ou one-step
+neural ao vivo. A velocidade depende do custo do cenario e da maquina.
 
 ## HOMEOSTASE
 
@@ -387,8 +403,14 @@ cenários. Ela expõe config, cenário-base, nome, população, gerações, elit
 torneio, taxas de crossover/mutação, réplicas, seeds, genes de peso e campos
 multilinha para genes escalares e termos de fitness.
 
-`RODAR EVOLUCAO` salva e inicia `build/tools/bin/evolution_runner.exe` com
-`CreateProcessA`. `RETOMAR EVOLUCAO` seleciona uma pasta com checkpoint. O
+`RODAR EVOLUCAO` salva e inicia o `evolution_runner.exe` resolvido pelo layout:
+`build/tools/bin/` no debug, `build/release/tools/bin/` no release do
+repositorio e `bin/` no pacote. A configuracao inicial e
+`configs/evolution_weight_target_demo.ini`, que referencia
+`configs/evolution_weight_target_base.ini`. Se um recurso obrigatorio estiver
+ausente, o Studio informa o caminho completo tentado e o modo detectado, sem
+abrir um dialogo com controles zerados. `RETOMAR EVOLUCAO` seleciona uma pasta
+com checkpoint. O
 processo roda fora da thread principal; um timer atualiza o status e impede duas
 evoluções simultâneas.
 

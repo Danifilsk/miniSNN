@@ -1,5 +1,19 @@
 # Compatibilidade
 
+## D1 concluido: release candidate
+
+A versao tecnica candidata e `1.0.0-rc.1`. A compatibilidade e de fonte dentro
+da mesma toolchain de C; ABI binaria entre compiladores, arquiteturas e runtimes
+nao e prometida. O baseline `PUBLIC_API_BASELINE_1_0_RC.txt` torna mudancas da
+API publica explicitas. A superficie Core-Brain Bridge continua provisoria ate
+D2, quando houver auditoria com uma Bridge real.
+
+O baseline D1-C usa formato semantico v2 e nao muda por comentarios, formatacao,
+quebras CRLF/LF, includes ou include guards. Os ZIPs D1-C sao validados com
+hash externo recalculado, checksums internos e manifesto cruzados, e extracao
+segura. O smoke automatico do Studio e nao visual; a validacao humana D1-C foi
+registrada separadamente no checklist manual.
+
 ## D1-B: determinismo e ABI
 
 A API fonte publica e candidata a v1. O formato persistido possui versao e
@@ -228,11 +242,12 @@ contratos de encoder/decoder, modelo, dimensoes e assinatura topologica
 compativeis. Uma incompatibilidade ou integridade invalida e recusada sem
 converter formatos antigos silenciosamente. C7.5-B foi concluido pela auditoria
 integrada e continua aditivo: nao altera checkpoints C3-C6, CSVs historicos ou
-contratos C7 existentes. Esta etapa nao congela a API nem declara uma release
-candidate; D1 continua sendo a proxima auditoria antes de uma integracao real.
+contratos C7 existentes. Esta etapa nao congela a API; D1 foi a auditoria
+concluida antes da primeira integracao real.
 
-D1 e uma auditoria e estabilizacao pre-Worlds: produz `miniSNN Core v1.0-rc`
-e uma API candidata Core-Brain Bridge estavel provisoriamente. D2, apos a
+D1 foi uma auditoria e estabilizacao pre-Worlds: produziu
+`miniSNN Core 1.0.0-rc.1` e uma API candidata Core-Brain Bridge estavel
+provisoriamente. D2, apos a
 integracao, produz `miniSNN Core v1.0` e congela definitivamente a API
 Core-Brain Bridge v1.
 

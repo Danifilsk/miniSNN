@@ -3,6 +3,16 @@
 Status: **CANDIDATE_V1** em D1-A. Esta lista e deterministica, documenta a
 superficie publica atual e nao declara congelamento definitivo.
 
+Em D1-C, a versao tecnica candidata e `1.0.0-rc.1`. A superficie continua
+provisoria ate D2, quando a integracao com um consumidor Worlds real podera
+congelar a Core-Brain Bridge v1 definitivamente.
+
+O baseline candidato usa `baseline_format=minisnn_public_api_v2`: ele registra
+declaracoes completas (funcoes, tipos, enums, campos e macros contratuais),
+mas ignora comentarios, whitespace, CRLF/LF, includes, include guards e blocos
+`MINISNN_TESTING`. A migracao para v2 e uma melhoria do formato de auditoria,
+nao uma mudanca da API publica.
+
 ## Convencoes
 
 - Funcoes novas de producao usam `minisnn_`; tipos novos usam `MiniSNN`; macros
@@ -22,6 +32,7 @@ superficie publica atual e nao declara congelamento definitivo.
 |---|---|---|---|---|
 | `minisnn.h` | `MiniSNN`, `MiniSNNConfig`; `minisnn_create*`, `minisnn_destroy`, `minisnn_step`, configuracao de corrente, conexao, tipos, topologia, getters, reset, signatures e checkpoint de rede | Rede e opaca; destroy por ponteiro duplo; getters copiam ou devolvem escalar | CANDIDATE_V1 / PRODUCTION | headless, Studio, evolution, Bridge futuro |
 | `minisnn_types.h` | `MiniSNNNeuronModel`, LIF/AdEx/HH configs e states; conexao, plasticidade, reward, homeostase e estruturas de diagnostico | Structs por valor; parametros validados no create/set | CANDIDATE_V1 / PRODUCTION | todos |
+| `minisnn_version.h` | macros e `minisnn_version_*` para `1.0.0-rc.1` | strings estaticas, sem alocacao ou estado | CANDIDATE_V1 / PRODUCTION | todos |
 | `minisnn.h` | `minisnn_neuron_model_name`, `minisnn_neuron_model_from_name`, `minisnn_neuron_model_is_valid`, `minisnn_config_is_valid` | Nome e constante nao proprietaria; parser nao retencao input | CANDIDATE_V1 / PRODUCTION | runners, Studio |
 
 ## Plasticidade, estrutura e evolucao

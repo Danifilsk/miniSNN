@@ -37,6 +37,27 @@ publicas, sem acessar campos internos.
 Funcoes booleanas retornam `1` em sucesso e `0` em falha. `minisnn_step`
 retorna o numero de spikes no timestep, ou `-1` em erro.
 
+## minisnn_version_major
+
+Retorna o componente major da versao candidata da biblioteca.
+
+## minisnn_version_minor
+
+Retorna o componente minor da versao candidata da biblioteca.
+
+## minisnn_version_patch
+
+Retorna o componente patch da versao candidata da biblioteca.
+
+## minisnn_version_prerelease
+
+Retorna `rc.1` como string estatica nao proprietaria.
+
+## minisnn_version_string
+
+Retorna `1.0.0-rc.1` como string estatica nao proprietaria. Metadados locais
+de compilacao nao alteram este valor, assinaturas cientificas ou checkpoints.
+
 ## MiniSNNConfig
 
 **Objetivo:** configurar uma instancia de rede no momento da criacao.

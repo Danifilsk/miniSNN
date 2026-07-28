@@ -1,0 +1,298 @@
+miniSNN Core public API baseline
+baseline_format=minisnn_public_api_v2
+version=1.0.0-rc.1
+stability=CANDIDATE_V1_PROVISIONAL_UNTIL_D2
+semantic_surface_sha256=a3421013f0346b8ed1a8cd2700244fe4da785445a6460cd2ec763f43eb715139
+manifest_sha256=61719beb39adfb36168902f0c9207b69f45e101e06a43dc2591d918ba3ac82ea
+classification=CANDIDATE_V1: minisnn.h minisnn_types.h minisnn_version.h minisnn_agent_io.h minisnn_sensor_encoder.h minisnn_action_decoder.h minisnn_agent_cycle.h
+classification=LEGACY_SUPPORTED: minisnn_evolution_legacy.h
+classification=TEST_ONLY: excluded MINISNN_TESTING declarations
+classification=INTERNAL: excluded src app studio tests include guards includes comments formatting
+header=minisnn.h;semantic_sha256=f95c2dd66f550068da07d492c7cc43f8d62efd6aa13d7178712ce9cd33770913
+surface=minisnn.h;function=MiniSNN * minisnn_create ( int neuron_count ) ;
+surface=minisnn.h;function=MiniSNN * minisnn_create_with_config ( const MiniSNNConfig * config ) ;
+surface=minisnn.h;function=MiniSNNAdExConfig minisnn_adex_config_default ( void ) ;
+surface=minisnn.h;function=MiniSNNConfig minisnn_default_config ( void ) ;
+surface=minisnn.h;function=MiniSNNHodgkinHuxleyConfig minisnn_hodgkin_huxley_config_default ( void ) ;
+surface=minisnn.h;function=MiniSNNHomeostasisConfig minisnn_default_homeostasis_config ( void ) ;
+surface=minisnn.h;function=MiniSNNNeuronModel minisnn_neuron_model ( const MiniSNN * snn ) ;
+surface=minisnn.h;function=MiniSNNNeuronModelCapabilities minisnn_neuron_model_capabilities ( MiniSNNNeuronModel model ) ;
+surface=minisnn.h;function=MiniSNNPlasticityConfig minisnn_default_plasticity_config ( void ) ;
+surface=minisnn.h;function=MiniSNNRewardConfig minisnn_default_reward_config ( void ) ;
+surface=minisnn.h;function=MiniSNNStructuralPlasticityConfig minisnn_default_structural_plasticity_config ( void ) ;
+surface=minisnn.h;function=const char * minisnn_neuron_integration_method ( const MiniSNN * snn ) ;
+surface=minisnn.h;function=const char * minisnn_neuron_model_integration_method ( MiniSNNNeuronModel model ) ;
+surface=minisnn.h;function=const char * minisnn_neuron_model_name ( MiniSNNNeuronModel model ) ;
+surface=minisnn.h;function=int minisnn_add_input ( MiniSNN * snn , int neuron_id , double current ) ;
+surface=minisnn.h;function=int minisnn_apply_pending_reward_now ( MiniSNN * snn ) ;
+surface=minisnn.h;function=int minisnn_apply_topology_patch ( MiniSNN * snn , const MiniSNNTopologyOperation * operations , size_t operation_count , MiniSNNTopologyPatchResult * result ) ;
+surface=minisnn.h;function=int minisnn_clear_pending_reward ( MiniSNN * snn ) ;
+surface=minisnn.h;function=int minisnn_config_is_valid ( const MiniSNNConfig * config ) ;
+surface=minisnn.h;function=int minisnn_connect ( MiniSNN * snn , int source , int target , double weight ) ;
+surface=minisnn.h;function=int minisnn_connect_delayed ( MiniSNN * snn , int source , int target , double weight , int delay ) ;
+surface=minisnn.h;function=int minisnn_connect_delayed_ex ( MiniSNN * snn , int source , int target , double weight , int delay , int allow_self_connection ) ;
+surface=minisnn.h;function=int minisnn_connect_ex ( MiniSNN * snn , int source , int target , double weight , int allow_self_connection ) ;
+surface=minisnn.h;function=int minisnn_connection_key ( size_t neuron_count , size_t source , size_t target , uint64_t * out_key ) ;
+surface=minisnn.h;function=int minisnn_current_step ( const MiniSNN * snn ) ;
+surface=minisnn.h;function=int minisnn_get_adex_state ( const MiniSNN * snn , int neuron_id , MiniSNNAdExState * out_state ) ;
+surface=minisnn.h;function=int minisnn_get_base_threshold ( const MiniSNN * snn , double * out_threshold ) ;
+surface=minisnn.h;function=int minisnn_get_connection ( const MiniSNN * snn , size_t connection_id , MiniSNNConnectionInfo * out_connection ) ;
+surface=minisnn.h;function=int minisnn_get_connection_eligibility ( const MiniSNN * snn , size_t connection_id , double * out_eligibility ) ;
+surface=minisnn.h;function=int minisnn_get_connection_weight ( const MiniSNN * snn , size_t connection_id , double * out_weight ) ;
+surface=minisnn.h;function=int minisnn_get_current_incoming_exc_sum ( const MiniSNN * snn , int neuron_id , double * out_sum ) ;
+surface=minisnn.h;function=int minisnn_get_hodgkin_huxley_state ( const MiniSNN * snn , int neuron_id , MiniSNNHodgkinHuxleyState * out_state ) ;
+surface=minisnn.h;function=int minisnn_get_homeostasis_config ( const MiniSNN * snn , MiniSNNHomeostasisConfig * out_config ) ;
+surface=minisnn.h;function=int minisnn_get_homeostasis_stats ( const MiniSNN * snn , MiniSNNHomeostasisStats * out_stats ) ;
+surface=minisnn.h;function=int minisnn_get_inhibitory_gain ( const MiniSNN * snn , double * out_gain ) ;
+surface=minisnn.h;function=int minisnn_get_initial_incoming_exc_sum ( const MiniSNN * snn , int neuron_id , double * out_sum ) ;
+surface=minisnn.h;function=int minisnn_get_last_applied_reward ( const MiniSNN * snn , double * out_value ) ;
+surface=minisnn.h;function=int minisnn_get_neuron_effective_threshold ( const MiniSNN * snn , int neuron_id , double * out_threshold ) ;
+surface=minisnn.h;function=int minisnn_get_neuron_rate_trace ( const MiniSNN * snn , int neuron_id , double * out_rate_trace ) ;
+surface=minisnn.h;function=int minisnn_get_pending_reward ( const MiniSNN * snn , double * out_value ) ;
+surface=minisnn.h;function=int minisnn_get_plasticity_config ( const MiniSNN * snn , MiniSNNPlasticityConfig * out_config ) ;
+surface=minisnn.h;function=int minisnn_get_plasticity_stats ( const MiniSNN * snn , MiniSNNPlasticityStats * out_stats ) ;
+surface=minisnn.h;function=int minisnn_get_plasticity_traces ( const MiniSNN * snn , int neuron_id , double * out_pre_trace , double * out_post_trace ) ;
+surface=minisnn.h;function=int minisnn_get_reward_config ( const MiniSNN * snn , MiniSNNRewardConfig * out_config ) ;
+surface=minisnn.h;function=int minisnn_get_reward_connection_stats ( const MiniSNN * snn , size_t connection_id , MiniSNNRewardConnectionStats * out_stats ) ;
+surface=minisnn.h;function=int minisnn_get_reward_stats ( const MiniSNN * snn , MiniSNNRewardStats * out_stats ) ;
+surface=minisnn.h;function=int minisnn_get_spike ( const MiniSNN * snn , int neuron_id , int * out_spike ) ;
+surface=minisnn.h;function=int minisnn_get_structural_connection_state ( const MiniSNN * snn , size_t connection_id , MiniSNNStructuralConnectionState * out_state ) ;
+surface=minisnn.h;function=int minisnn_get_structural_event ( const MiniSNN * snn , size_t event_index , MiniSNNStructuralEvent * out_event ) ;
+surface=minisnn.h;function=int minisnn_get_structural_plasticity_config ( const MiniSNN * snn , MiniSNNStructuralPlasticityConfig * out_config ) ;
+surface=minisnn.h;function=int minisnn_get_structural_stats ( const MiniSNN * snn , MiniSNNStructuralStats * out_stats ) ;
+surface=minisnn.h;function=int minisnn_get_synaptic_current ( const MiniSNN * snn , int neuron_id , double * out_current ) ;
+surface=minisnn.h;function=int minisnn_get_topology_signature ( const MiniSNN * snn , uint64_t * out_signature ) ;
+surface=minisnn.h;function=int minisnn_get_voltage ( const MiniSNN * snn , int neuron_id , double * out_voltage ) ;
+surface=minisnn.h;function=int minisnn_neuron_count ( const MiniSNN * snn ) ;
+surface=minisnn.h;function=int minisnn_neuron_model_from_name ( const char * name , MiniSNNNeuronModel * out_model ) ;
+surface=minisnn.h;function=int minisnn_neuron_model_is_valid ( MiniSNNNeuronModel model ) ;
+surface=minisnn.h;function=int minisnn_queue_reward ( MiniSNN * snn , double value ) ;
+surface=minisnn.h;function=int minisnn_reset_homeostasis ( MiniSNN * snn ) ;
+surface=minisnn.h;function=int minisnn_reset_reward_learning ( MiniSNN * snn ) ;
+surface=minisnn.h;function=int minisnn_reset_structural_plasticity ( MiniSNN * snn , MiniSNNStructuralResetMode mode ) ;
+surface=minisnn.h;function=int minisnn_reset_transient_state ( MiniSNN * snn ) ;
+surface=minisnn.h;function=int minisnn_reward_eligible_connection_count ( const MiniSNN * snn , size_t * out_count ) ;
+surface=minisnn.h;function=int minisnn_set_connection_weight ( MiniSNN * snn , size_t connection_id , double weight ) ;
+surface=minisnn.h;function=int minisnn_set_homeostasis_config ( MiniSNN * snn , const MiniSNNHomeostasisConfig * config ) ;
+surface=minisnn.h;function=int minisnn_set_input ( MiniSNN * snn , int neuron_id , double current ) ;
+surface=minisnn.h;function=int minisnn_set_neuron_type ( MiniSNN * snn , int neuron_id , MiniSNNNeuronType type ) ;
+surface=minisnn.h;function=int minisnn_set_plasticity_config ( MiniSNN * snn , const MiniSNNPlasticityConfig * config ) ;
+surface=minisnn.h;function=int minisnn_set_reward_config ( MiniSNN * snn , const MiniSNNRewardConfig * config ) ;
+surface=minisnn.h;function=int minisnn_set_structural_plasticity_config ( MiniSNN * snn , const MiniSNNStructuralPlasticityConfig * config ) ;
+surface=minisnn.h;function=int minisnn_step ( MiniSNN * snn ) ;
+surface=minisnn.h;function=int minisnn_validate_topology_patch ( const MiniSNN * snn , const MiniSNNTopologyOperation * operations , size_t operation_count , MiniSNNTopologyPatchResult * result ) ;
+surface=minisnn.h;function=size_t minisnn_connection_count ( const MiniSNN * snn ) ;
+surface=minisnn.h;function=size_t minisnn_structural_event_count ( const MiniSNN * snn ) ;
+surface=minisnn.h;function=unsigned long long minisnn_config_neuron_model_signature ( const MiniSNNConfig * config ) ;
+surface=minisnn.h;function=unsigned long long minisnn_neuron_model_config_signature ( const MiniSNN * snn ) ;
+surface=minisnn.h;function=void minisnn_clear_inputs ( MiniSNN * snn ) ;
+surface=minisnn.h;function=void minisnn_destroy ( MiniSNN * * snn_ptr ) ;
+surface=minisnn.h;type=typedef struct MiniSNN MiniSNN ;
+surface=minisnn.h;type=typedef struct { int neuron_count ; double dt ; double tau ; double v_rest ; double v_reset ; double v_threshold ; double resistance ; double synaptic_decay ; int max_synaptic_delay ; MiniSNNNeuronModel neuron_model ; MiniSNNAdExConfig adex ; MiniSNNHodgkinHuxleyConfig hodgkin_huxley ; } MiniSNNConfig ;
+header=minisnn_action_decoder.h;semantic_sha256=8ad873e46eb755990611c76147d505d9b79c7c6027aac3159f339143214aec65
+surface=minisnn_action_decoder.h;function=MiniSNNActionDecoder * minisnn_action_decoder_create ( const MiniSNNActionSchema * action_schema , const MiniSNNActionDecodingSpec * mappings , uint32_t mapping_count , uint32_t neuron_count , uint32_t brain_steps_per_tick , MiniSNNActionDecoderError * out_error ) ;
+surface=minisnn_action_decoder.h;function=MiniSNNActionDecoder * minisnn_action_decoder_read_file ( const char * filename , const MiniSNNActionSchema * action_schema , MiniSNNActionDecoderError * out_error ) ;
+surface=minisnn_action_decoder.h;function=MiniSNNActionDecoderError minisnn_action_decoder_last_error ( const MiniSNNActionDecoder * decoder ) ;
+surface=minisnn_action_decoder.h;function=const char * minisnn_action_decoder_error_string ( MiniSNNActionDecoderError error ) ;
+surface=minisnn_action_decoder.h;function=int minisnn_action_decoder_decode ( MiniSNNActionDecoder * decoder , const MiniSNNNeuralActivityFrame * activity , MiniSNNActionFrame * out_action , MiniSNNActionDecodingDiagnostics * out_diagnostics ) ;
+surface=minisnn_action_decoder.h;function=int minisnn_action_decoder_decode_to_agent_io ( MiniSNNActionDecoder * decoder , const MiniSNNNeuralActivityFrame * activity , MiniSNNAgentIOContext * agent_io , MiniSNNActionDecodingDiagnostics * out_diagnostics ) ;
+surface=minisnn_action_decoder.h;function=int minisnn_action_decoder_write_file ( const MiniSNNActionDecoder * decoder , const char * filename , MiniSNNActionDecoderError * out_error ) ;
+surface=minisnn_action_decoder.h;function=int minisnn_action_decoding_diagnostics_init ( MiniSNNActionDecodingDiagnostics * diagnostics , uint32_t action_count ) ;
+surface=minisnn_action_decoder.h;function=int minisnn_action_decoding_diagnostics_reset ( MiniSNNActionDecodingDiagnostics * diagnostics ) ;
+surface=minisnn_action_decoder.h;function=int minisnn_neural_activity_frame_capture_step ( MiniSNNNeuralActivityFrame * frame , uint32_t brain_step , const MiniSNN * network , MiniSNNActionDecoderError * out_error ) ;
+surface=minisnn_action_decoder.h;function=int minisnn_neural_activity_frame_copy ( MiniSNNNeuralActivityFrame * destination , const MiniSNNNeuralActivityFrame * source , MiniSNNActionDecoderError * out_error ) ;
+surface=minisnn_action_decoder.h;function=int minisnn_neural_activity_frame_get_spike ( const MiniSNNNeuralActivityFrame * frame , uint32_t brain_step , uint32_t neuron_id , uint8_t * out_spike , MiniSNNActionDecoderError * out_error ) ;
+surface=minisnn_action_decoder.h;function=int minisnn_neural_activity_frame_init ( MiniSNNNeuralActivityFrame * frame , uint32_t neuron_count , uint32_t brain_step_count , MiniSNNActionDecoderError * out_error ) ;
+surface=minisnn_action_decoder.h;function=int minisnn_neural_activity_frame_is_complete ( const MiniSNNNeuralActivityFrame * frame , MiniSNNActionDecoderError * out_error ) ;
+surface=minisnn_action_decoder.h;function=int minisnn_neural_activity_frame_reset ( MiniSNNNeuralActivityFrame * frame , uint64_t tick , MiniSNNActionDecoderError * out_error ) ;
+surface=minisnn_action_decoder.h;function=int minisnn_neural_activity_frame_set_step ( MiniSNNNeuralActivityFrame * frame , uint32_t brain_step , const uint8_t * spikes , uint32_t spike_count , MiniSNNActionDecoderError * out_error ) ;
+surface=minisnn_action_decoder.h;function=int minisnn_neural_activity_frame_validate ( const MiniSNNNeuralActivityFrame * frame , MiniSNNActionDecoderError * out_error ) ;
+surface=minisnn_action_decoder.h;function=uint32_t minisnn_action_decoder_action_count ( const MiniSNNActionDecoder * decoder ) ;
+surface=minisnn_action_decoder.h;function=uint32_t minisnn_action_decoder_brain_steps_per_tick ( const MiniSNNActionDecoder * decoder ) ;
+surface=minisnn_action_decoder.h;function=uint32_t minisnn_action_decoder_neuron_count ( const MiniSNNActionDecoder * decoder ) ;
+surface=minisnn_action_decoder.h;function=uint64_t minisnn_action_decoder_action_schema_signature ( const MiniSNNActionDecoder * decoder ) ;
+surface=minisnn_action_decoder.h;function=uint64_t minisnn_action_decoder_contract_signature ( const MiniSNNActionDecoder * decoder ) ;
+surface=minisnn_action_decoder.h;function=uint64_t minisnn_action_decoding_mapping_signature ( const MiniSNNActionDecoder * decoder ) ;
+surface=minisnn_action_decoder.h;function=void minisnn_action_decoder_destroy ( MiniSNNActionDecoder * * decoder_ptr ) ;
+surface=minisnn_action_decoder.h;function=void minisnn_action_decoder_reset ( MiniSNNActionDecoder * decoder ) ;
+surface=minisnn_action_decoder.h;function=void minisnn_action_decoding_diagnostics_destroy ( MiniSNNActionDecodingDiagnostics * diagnostics ) ;
+surface=minisnn_action_decoder.h;function=void minisnn_neural_activity_frame_destroy ( MiniSNNNeuralActivityFrame * frame ) ;
+surface=minisnn_action_decoder.h;macro=MINISNN_ACTION_DECODER_MAX_MAPPINGS 256 U
+surface=minisnn_action_decoder.h;type=typedef enum { MINISNN_ACTION_DECODER_ERROR_NONE = 0 , MINISNN_ACTION_DECODER_ERROR_INVALID_ARGUMENT , MINISNN_ACTION_DECODER_ERROR_INVALID_ACTION_SCHEMA , MINISNN_ACTION_DECODER_ERROR_UNKNOWN_ACTION_CHANNEL , MINISNN_ACTION_DECODER_ERROR_INVALID_NEURON_RANGE , MINISNN_ACTION_DECODER_ERROR_OVERLAPPING_NEURON_RANGE , MINISNN_ACTION_DECODER_ERROR_INVALID_DECODING_MODE , MINISNN_ACTION_DECODER_ERROR_INVALID_PARAMETER , MINISNN_ACTION_DECODER_ERROR_DIMENSION_MISMATCH , MINISNN_ACTION_DECODER_ERROR_INCOMPLETE_ACTIVITY_FRAME , MINISNN_ACTION_DECODER_ERROR_DUPLICATE_CAPTURED_STEP , MINISNN_ACTION_DECODER_ERROR_INVALID_SPIKE_VALUE , MINISNN_ACTION_DECODER_ERROR_NONFINITE_RESULT , MINISNN_ACTION_DECODER_ERROR_ACTION_FRAME_REJECTED , MINISNN_ACTION_DECODER_ERROR_SIGNATURE_MISMATCH , MINISNN_ACTION_DECODER_ERROR_FORMAT , MINISNN_ACTION_DECODER_ERROR_ALLOCATION , MINISNN_ACTION_DECODER_ERROR_IO } MiniSNNActionDecoderError ;
+surface=minisnn_action_decoder.h;type=typedef enum { MINISNN_ACTION_DECODING_POPULATION_RATE = 0 , MINISNN_ACTION_DECODING_BIPOLAR_DIFFERENCE , MINISNN_ACTION_DECODING_THRESHOLD , MINISNN_ACTION_DECODING_WTA_MEMBER } MiniSNNActionDecodingMode ;
+surface=minisnn_action_decoder.h;type=typedef struct MiniSNN MiniSNN ;
+surface=minisnn_action_decoder.h;type=typedef struct MiniSNNActionDecoder MiniSNNActionDecoder ;
+surface=minisnn_action_decoder.h;type=typedef struct { uint32_t action_channel_id ; MiniSNNActionDecodingMode mode ; uint32_t primary_neuron_start ; uint32_t primary_neuron_count ; uint32_t secondary_neuron_start ; uint32_t secondary_neuron_count ; double minimum_rate ; double maximum_rate ; double threshold ; double active_value ; double inactive_value ; uint32_t competition_group_id ; double minimum_activation ; double minimum_confidence ; double winner_value ; double loser_value ; } MiniSNNActionDecodingSpec ;
+surface=minisnn_action_decoder.h;type=typedef struct { uint64_t tick ; uint32_t action_count ; double * raw_scores ; double * confidences ; double * values ; uint8_t * selected ; } MiniSNNActionDecodingDiagnostics ;
+surface=minisnn_action_decoder.h;type=typedef struct { uint64_t tick ; uint32_t neuron_count ; uint32_t brain_step_count ; uint8_t * spikes ; uint8_t * captured_steps ; } MiniSNNNeuralActivityFrame ;
+header=minisnn_agent_cycle.h;semantic_sha256=1e0109beaafd9cd8ba15385dabdf724d4c4aa588ef5220309e5bb133d6a02674
+surface=minisnn_agent_cycle.h;function=MiniSNNAgentCycle * minisnn_agent_cycle_create ( MiniSNN * network , MiniSNNAgentIOContext * agent_io , MiniSNNSensorEncoder * sensor_encoder , MiniSNNActionDecoder * action_decoder , MiniSNNAgentCycleError * out_error ) ;
+surface=minisnn_agent_cycle.h;function=MiniSNNAgentCycleError minisnn_agent_cycle_last_error ( const MiniSNNAgentCycle * cycle ) ;
+surface=minisnn_agent_cycle.h;function=MiniSNNAgentCycleState minisnn_agent_cycle_state ( const MiniSNNAgentCycle * cycle ) ;
+surface=minisnn_agent_cycle.h;function=const char * minisnn_agent_cycle_error_string ( MiniSNNAgentCycleError error ) ;
+surface=minisnn_agent_cycle.h;function=double minisnn_agent_cycle_total_reward ( const MiniSNNAgentCycle * cycle ) ;
+surface=minisnn_agent_cycle.h;function=int minisnn_agent_cycle_load_checkpoint ( MiniSNNAgentCycle * cycle , const char * directory , MiniSNNAgentCycleError * out_error ) ;
+surface=minisnn_agent_cycle.h;function=int minisnn_agent_cycle_reset_episode ( MiniSNNAgentCycle * cycle ) ;
+surface=minisnn_agent_cycle.h;function=int minisnn_agent_cycle_run_tick ( MiniSNNAgentCycle * cycle , MiniSNNAgentCycleDiagnostics * diagnostics ) ;
+surface=minisnn_agent_cycle.h;function=int minisnn_agent_cycle_save_checkpoint ( const MiniSNNAgentCycle * cycle , const char * directory , MiniSNNAgentCycleError * out_error ) ;
+surface=minisnn_agent_cycle.h;function=int minisnn_agent_cycle_submit_feedback ( MiniSNNAgentCycle * cycle , const MiniSNNAgentFeedback * feedback ) ;
+surface=minisnn_agent_cycle.h;function=uint64_t minisnn_agent_cycle_episode_id ( const MiniSNNAgentCycle * cycle ) ;
+surface=minisnn_agent_cycle.h;function=uint64_t minisnn_agent_cycle_episode_tick ( const MiniSNNAgentCycle * cycle ) ;
+surface=minisnn_agent_cycle.h;function=uint64_t minisnn_agent_cycle_next_global_tick ( const MiniSNNAgentCycle * cycle ) ;
+surface=minisnn_agent_cycle.h;function=uint64_t minisnn_agent_cycle_reset_count ( const MiniSNNAgentCycle * cycle ) ;
+surface=minisnn_agent_cycle.h;function=uint64_t minisnn_agent_cycle_total_actions ( const MiniSNNAgentCycle * cycle ) ;
+surface=minisnn_agent_cycle.h;function=uint64_t minisnn_agent_cycle_total_neural_steps ( const MiniSNNAgentCycle * cycle ) ;
+surface=minisnn_agent_cycle.h;function=uint64_t minisnn_agent_cycle_total_ticks ( const MiniSNNAgentCycle * cycle ) ;
+surface=minisnn_agent_cycle.h;function=void minisnn_agent_cycle_destroy ( MiniSNNAgentCycle * * cycle_ptr ) ;
+surface=minisnn_agent_cycle.h;type=typedef enum { MINISNN_AGENT_CYCLE_ERROR_NONE = 0 , MINISNN_AGENT_CYCLE_ERROR_INVALID_ARGUMENT , MINISNN_AGENT_CYCLE_ERROR_INVALID_STATE , MINISNN_AGENT_CYCLE_ERROR_SCHEMA_MISMATCH , MINISNN_AGENT_CYCLE_ERROR_DIMENSION_MISMATCH , MINISNN_AGENT_CYCLE_ERROR_SENSOR_UNAVAILABLE , MINISNN_AGENT_CYCLE_ERROR_ACTION_PENDING , MINISNN_AGENT_CYCLE_ERROR_TICK_MISMATCH , MINISNN_AGENT_CYCLE_ERROR_FEEDBACK_INVALID , MINISNN_AGENT_CYCLE_ERROR_FEEDBACK_TOO_LATE , MINISNN_AGENT_CYCLE_ERROR_UNKNOWN_SOURCE_TICK , MINISNN_AGENT_CYCLE_ERROR_NONFINITE_REWARD , MINISNN_AGENT_CYCLE_ERROR_REWARD_UNAVAILABLE , MINISNN_AGENT_CYCLE_ERROR_NETWORK_STEP , MINISNN_AGENT_CYCLE_ERROR_ACTIVITY_CAPTURE , MINISNN_AGENT_CYCLE_ERROR_ACTION_PUBLICATION , MINISNN_AGENT_CYCLE_ERROR_RESET_WHILE_BUSY , MINISNN_AGENT_CYCLE_ERROR_ALLOCATION , MINISNN_AGENT_CYCLE_ERROR_FAULTED , MINISNN_AGENT_CYCLE_ERROR_CHECKPOINT_UNSTABLE , MINISNN_AGENT_CYCLE_ERROR_CHECKPOINT_IO , MINISNN_AGENT_CYCLE_ERROR_CHECKPOINT_FORMAT , MINISNN_AGENT_CYCLE_ERROR_CHECKPOINT_SIGNATURE , MINISNN_AGENT_CYCLE_ERROR_CHECKPOINT_INCOMPATIBLE , MINISNN_AGENT_CYCLE_ERROR_COUNTER_OVERFLOW } MiniSNNAgentCycleError ;
+surface=minisnn_agent_cycle.h;type=typedef enum { MINISNN_AGENT_CYCLE_STATE_READY = 0 , MINISNN_AGENT_CYCLE_STATE_RUNNING , MINISNN_AGENT_CYCLE_STATE_ACTION_PENDING , MINISNN_AGENT_CYCLE_STATE_FAULTED } MiniSNNAgentCycleState ;
+surface=minisnn_agent_cycle.h;type=typedef struct MiniSNNAgentCycle MiniSNNAgentCycle ;
+surface=minisnn_agent_cycle.h;type=typedef struct { uint64_t episode_id ; uint64_t episode_tick ; uint64_t global_tick ; uint32_t brain_steps_executed ; uint64_t total_spikes ; uint32_t feedback_events_delivered ; double reward_delivered ; MiniSNNAgentCycleState state ; uint32_t failed_brain_step ; } MiniSNNAgentCycleDiagnostics ;
+surface=minisnn_agent_cycle.h;type=typedef struct { uint64_t source_tick ; uint64_t delivery_tick ; double reward ; uint8_t episode_terminal ; } MiniSNNAgentFeedback ;
+header=minisnn_agent_io.h;semantic_sha256=56bb67ca39e9d85108d6c1ef613aa95f855ab74af8caccaea4487fe9a2196add
+surface=minisnn_agent_io.h;function=MiniSNNActionSchema * minisnn_action_schema_create ( const MiniSNNActionChannelSpec * channels , uint32_t channel_count , MiniSNNAgentIOError * out_error ) ;
+surface=minisnn_agent_io.h;function=MiniSNNActionSchema * minisnn_action_schema_read_file ( const char * filename , MiniSNNAgentIOError * out_error ) ;
+surface=minisnn_agent_io.h;function=MiniSNNAgentIOContext * minisnn_agent_io_create ( const MiniSNNSensorSchema * sensor_schema , const MiniSNNActionSchema * action_schema , MiniSNNAgentIOError * out_error ) ;
+surface=minisnn_agent_io.h;function=MiniSNNAgentIOError minisnn_agent_io_last_error ( const MiniSNNAgentIOContext * context ) ;
+surface=minisnn_agent_io.h;function=MiniSNNSensorSchema * minisnn_sensor_schema_create ( const MiniSNNSensorChannelSpec * channels , uint32_t channel_count , MiniSNNAgentIOError * out_error ) ;
+surface=minisnn_agent_io.h;function=MiniSNNSensorSchema * minisnn_sensor_schema_read_file ( const char * filename , MiniSNNAgentIOError * out_error ) ;
+surface=minisnn_agent_io.h;function=const char * minisnn_agent_io_error_string ( MiniSNNAgentIOError error ) ;
+surface=minisnn_agent_io.h;function=int minisnn_action_frame_init ( MiniSNNActionFrame * frame , uint32_t value_count ) ;
+surface=minisnn_agent_io.h;function=int minisnn_action_frame_reset ( MiniSNNActionFrame * frame , const MiniSNNActionSchema * schema , MiniSNNAgentIOError * out_error ) ;
+surface=minisnn_agent_io.h;function=int minisnn_action_frame_set_values ( MiniSNNActionFrame * frame , uint64_t tick , const double * values , uint32_t value_count , MiniSNNAgentIOError * out_error ) ;
+surface=minisnn_agent_io.h;function=int minisnn_action_schema_get_channel ( const MiniSNNActionSchema * schema , uint32_t index , MiniSNNActionChannelSpec * out_channel ) ;
+surface=minisnn_agent_io.h;function=int minisnn_action_schema_write_file ( const MiniSNNActionSchema * schema , const char * filename , MiniSNNAgentIOError * out_error ) ;
+surface=minisnn_agent_io.h;function=int minisnn_agent_io_action_pending ( const MiniSNNAgentIOContext * context ) ;
+surface=minisnn_agent_io.h;function=int minisnn_agent_io_consume_action_frame ( MiniSNNAgentIOContext * context , MiniSNNActionFrame * out_frame ) ;
+surface=minisnn_agent_io.h;function=int minisnn_agent_io_consume_sensor_frame ( MiniSNNAgentIOContext * context , MiniSNNSensorFrame * out_frame ) ;
+surface=minisnn_agent_io.h;function=int minisnn_agent_io_copy_last_action_frame ( MiniSNNAgentIOContext * context , MiniSNNActionFrame * out_frame ) ;
+surface=minisnn_agent_io.h;function=int minisnn_agent_io_copy_last_sensor_frame ( MiniSNNAgentIOContext * context , MiniSNNSensorFrame * out_frame ) ;
+surface=minisnn_agent_io.h;function=int minisnn_agent_io_finish_tick ( MiniSNNAgentIOContext * context ) ;
+surface=minisnn_agent_io.h;function=int minisnn_agent_io_pending_sensor_tick ( MiniSNNAgentIOContext * context , uint64_t * out_tick ) ;
+surface=minisnn_agent_io.h;function=int minisnn_agent_io_submit_action_and_finish_tick ( MiniSNNAgentIOContext * context , const MiniSNNActionFrame * frame ) ;
+surface=minisnn_agent_io.h;function=int minisnn_agent_io_submit_action_frame ( MiniSNNAgentIOContext * context , const MiniSNNActionFrame * frame ) ;
+surface=minisnn_agent_io.h;function=int minisnn_agent_io_submit_sensor_frame ( MiniSNNAgentIOContext * context , const MiniSNNSensorFrame * frame ) ;
+surface=minisnn_agent_io.h;function=int minisnn_sensor_frame_init ( MiniSNNSensorFrame * frame , uint32_t value_count ) ;
+surface=minisnn_agent_io.h;function=int minisnn_sensor_frame_reset ( MiniSNNSensorFrame * frame , const MiniSNNSensorSchema * schema , MiniSNNAgentIOError * out_error ) ;
+surface=minisnn_agent_io.h;function=int minisnn_sensor_frame_set_values ( MiniSNNSensorFrame * frame , uint64_t tick , const double * values , uint32_t value_count , MiniSNNAgentIOError * out_error ) ;
+surface=minisnn_agent_io.h;function=int minisnn_sensor_schema_get_channel ( const MiniSNNSensorSchema * schema , uint32_t index , MiniSNNSensorChannelSpec * out_channel ) ;
+surface=minisnn_agent_io.h;function=int minisnn_sensor_schema_write_file ( const MiniSNNSensorSchema * schema , const char * filename , MiniSNNAgentIOError * out_error ) ;
+surface=minisnn_agent_io.h;function=uint32_t minisnn_action_schema_channel_count ( const MiniSNNActionSchema * schema ) ;
+surface=minisnn_agent_io.h;function=uint32_t minisnn_sensor_schema_channel_count ( const MiniSNNSensorSchema * schema ) ;
+surface=minisnn_agent_io.h;function=uint64_t minisnn_action_schema_signature ( const MiniSNNActionSchema * schema ) ;
+surface=minisnn_agent_io.h;function=uint64_t minisnn_agent_io_action_schema_signature ( const MiniSNNAgentIOContext * context ) ;
+surface=minisnn_agent_io.h;function=uint64_t minisnn_agent_io_contract_signature ( const MiniSNNAgentIOContext * context ) ;
+surface=minisnn_agent_io.h;function=uint64_t minisnn_agent_io_sensor_schema_signature ( const MiniSNNAgentIOContext * context ) ;
+surface=minisnn_agent_io.h;function=uint64_t minisnn_sensor_schema_signature ( const MiniSNNSensorSchema * schema ) ;
+surface=minisnn_agent_io.h;function=void minisnn_action_frame_destroy ( MiniSNNActionFrame * frame ) ;
+surface=minisnn_agent_io.h;function=void minisnn_action_schema_destroy ( MiniSNNActionSchema * * schema_ptr ) ;
+surface=minisnn_agent_io.h;function=void minisnn_agent_io_destroy ( MiniSNNAgentIOContext * * context_ptr ) ;
+surface=minisnn_agent_io.h;function=void minisnn_agent_io_reset ( MiniSNNAgentIOContext * context ) ;
+surface=minisnn_agent_io.h;function=void minisnn_sensor_frame_destroy ( MiniSNNSensorFrame * frame ) ;
+surface=minisnn_agent_io.h;function=void minisnn_sensor_schema_destroy ( MiniSNNSensorSchema * * schema_ptr ) ;
+surface=minisnn_agent_io.h;macro=MINISNN_AGENT_IO_MAX_CHANNELS 256 U
+surface=minisnn_agent_io.h;macro=MINISNN_AGENT_IO_MAX_CHANNEL_NAME_LENGTH 96 U
+surface=minisnn_agent_io.h;type=typedef enum { MINISNN_AGENT_IO_ERROR_NONE = 0 , MINISNN_AGENT_IO_ERROR_INVALID_ARGUMENT , MINISNN_AGENT_IO_ERROR_ALLOCATION , MINISNN_AGENT_IO_ERROR_SCHEMA_EMPTY , MINISNN_AGENT_IO_ERROR_SCHEMA_TOO_LARGE , MINISNN_AGENT_IO_ERROR_CHANNEL_ID_DUPLICATE , MINISNN_AGENT_IO_ERROR_CHANNEL_NAME_EMPTY , MINISNN_AGENT_IO_ERROR_CHANNEL_NAME_TOO_LONG , MINISNN_AGENT_IO_ERROR_CHANNEL_NAME_INVALID , MINISNN_AGENT_IO_ERROR_CHANNEL_NAME_DUPLICATE , MINISNN_AGENT_IO_ERROR_CHANNEL_LIMITS_INVALID , MINISNN_AGENT_IO_ERROR_NONFINITE_VALUE , MINISNN_AGENT_IO_ERROR_VALUE_COUNT_MISMATCH , MINISNN_AGENT_IO_ERROR_VALUE_OUT_OF_RANGE , MINISNN_AGENT_IO_ERROR_TICK_REPEATED , MINISNN_AGENT_IO_ERROR_TICK_REGRESSIVE , MINISNN_AGENT_IO_ERROR_SENSOR_ALREADY_SUBMITTED , MINISNN_AGENT_IO_ERROR_ACTION_BEFORE_SENSOR , MINISNN_AGENT_IO_ERROR_ACTION_ALREADY_SUBMITTED , MINISNN_AGENT_IO_ERROR_ACTION_TICK_MISMATCH , MINISNN_AGENT_IO_ERROR_TICK_NOT_READY , MINISNN_AGENT_IO_ERROR_TICK_FINISHED , MINISNN_AGENT_IO_ERROR_SENSOR_NOT_AVAILABLE , MINISNN_AGENT_IO_ERROR_SENSOR_ALREADY_CONSUMED , MINISNN_AGENT_IO_ERROR_SENSOR_NOT_CONSUMED , MINISNN_AGENT_IO_ERROR_ACTION_NOT_AVAILABLE , MINISNN_AGENT_IO_ERROR_ACTION_ALREADY_CONSUMED , MINISNN_AGENT_IO_ERROR_PREVIOUS_ACTION_NOT_CONSUMED , MINISNN_AGENT_IO_ERROR_IO , MINISNN_AGENT_IO_ERROR_FORMAT } MiniSNNAgentIOError ;
+surface=minisnn_agent_io.h;type=typedef struct MiniSNNActionSchema MiniSNNActionSchema ;
+surface=minisnn_agent_io.h;type=typedef struct MiniSNNAgentIOContext MiniSNNAgentIOContext ;
+surface=minisnn_agent_io.h;type=typedef struct MiniSNNSensorSchema MiniSNNSensorSchema ;
+surface=minisnn_agent_io.h;type=typedef struct { uint32_t id ; const char * name ; double minimum ; double maximum ; double default_value ; } MiniSNNActionChannelSpec ;
+surface=minisnn_agent_io.h;type=typedef struct { uint32_t id ; const char * name ; double minimum ; double maximum ; double default_value ; } MiniSNNSensorChannelSpec ;
+surface=minisnn_agent_io.h;type=typedef struct { uint64_t tick ; uint32_t value_count ; double * values ; } MiniSNNActionFrame ;
+surface=minisnn_agent_io.h;type=typedef struct { uint64_t tick ; uint32_t value_count ; double * values ; } MiniSNNSensorFrame ;
+header=minisnn_evolution_legacy.h;semantic_sha256=c6db1cf764361e4c850ae5dbd7fc06f53d8b9673a6f7280766f7544dbe022059
+surface=minisnn_evolution_legacy.h;declaration=int evolution_aggregate_replicates ( const double * fitness_values , size_t count , double std_penalty , double * out_mean , double * out_std , double * out_selection ) ;
+surface=minisnn_evolution_legacy.h;declaration=int evolution_engine_breed_next_generation ( EvolutionEngine * engine ) ;
+surface=minisnn_evolution_legacy.h;declaration=int evolution_engine_breed_next_generation_deferred_mutation ( EvolutionEngine * engine ) ;
+surface=minisnn_evolution_legacy.h;declaration=int evolution_engine_config_is_valid ( const EvolutionEngineConfig * config ) ;
+surface=minisnn_evolution_legacy.h;declaration=int evolution_engine_init ( EvolutionEngine * engine , const EvolutionEngineConfig * config , const EvolutionGeneMetadata * metadata , size_t gene_count ) ;
+surface=minisnn_evolution_legacy.h;declaration=int evolution_engine_initialize_population ( EvolutionEngine * engine ) ;
+surface=minisnn_evolution_legacy.h;declaration=int evolution_engine_mutate_population_individual ( EvolutionEngine * engine , size_t population_index ) ;
+surface=minisnn_evolution_legacy.h;declaration=int evolution_engine_rank_population ( const EvolutionEngine * engine , size_t * out_indices , size_t count ) ;
+surface=minisnn_evolution_legacy.h;declaration=int evolution_engine_read_checkpoint ( EvolutionEngine * engine , FILE * file , const EvolutionEngineConfig * config , const EvolutionGeneMetadata * metadata , size_t gene_count , const char * expected_signature , int * out_next_generation , int * out_completed ) ;
+surface=minisnn_evolution_legacy.h;declaration=int evolution_engine_set_evaluation ( EvolutionEngine * engine , size_t population_index , double fitness_mean , double fitness_std , double fitness_min , double fitness_max , int valid_replicates , int invalid_replicates ) ;
+surface=minisnn_evolution_legacy.h;declaration=int evolution_engine_set_evaluation_with_selection ( EvolutionEngine * engine , size_t population_index , double fitness_mean , double fitness_std , double fitness_min , double fitness_max , double fitness_selection , int valid_replicates , int invalid_replicates ) ;
+surface=minisnn_evolution_legacy.h;declaration=int evolution_engine_tournament_select ( EvolutionEngine * engine , size_t * out_population_index ) ;
+surface=minisnn_evolution_legacy.h;declaration=int evolution_engine_write_checkpoint ( const EvolutionEngine * engine , FILE * file , const char * signature , int next_generation , int completed ) ;
+surface=minisnn_evolution_legacy.h;declaration=int evolution_fitness_weighted_mean ( const double * scores , const double * weights , size_t count , double * out_fitness ) ;
+surface=minisnn_evolution_legacy.h;declaration=int evolution_gene_metadata_is_valid ( const EvolutionGeneMetadata * metadata , size_t count ) ;
+surface=minisnn_evolution_legacy.h;declaration=static inline uint32_t evolution_prng_next ( EvolutionPrng * prng ) { uint64_t old_state ; uint32_t xor_shifted ; uint32_t rotation ; if ( prng == NULL ) return 0 U ; old_state = prng -> state ; prng -> state = old_state * 6364136223846793005 ULL + prng -> increment ; xor_shifted = ( uint32_t ) ( ( ( old_state >> 18 U ) ^ old_state ) >> 27 U ) ; rotation = ( uint32_t ) ( old_state >> 59 U ) ; return ( xor_shifted >> rotation ) | ( xor_shifted << ( ( 0 U - rotation ) & 31 U ) ) ; } static inline void evolution_prng_seed ( EvolutionPrng * prng , uint64_t initial_state , uint64_t sequence ) { if ( prng == NULL ) return ; prng -> state = 0 U ; prng -> increment = ( sequence << 1 U ) | 1 U ; ( void ) evolution_prng_next ( prng ) ; prng -> state + = initial_state ; ( void ) evolution_prng_next ( prng ) ; } static inline double evolution_prng_unit ( EvolutionPrng * prng ) { return ( double ) evolution_prng_next ( prng ) / 4294967296.0 ; } double evolution_fitness_score ( EvolutionFitnessGoal goal , double observed , double target , double scale ) ;
+surface=minisnn_evolution_legacy.h;declaration=void evolution_engine_destroy ( EvolutionEngine * engine ) ;
+surface=minisnn_evolution_legacy.h;type=typedef enum { EVOLUTION_FITNESS_TARGET = 0 , EVOLUTION_FITNESS_MAXIMIZE = 1 , EVOLUTION_FITNESS_MINIMIZE = 2 } EvolutionFitnessGoal ;
+surface=minisnn_evolution_legacy.h;type=typedef enum { EVOLUTION_GENE_SCALAR_PARAMETER = 0 , EVOLUTION_GENE_EXC_CONNECTION_WEIGHT = 1 , EVOLUTION_GENE_INH_CONNECTION_MAGNITUDE = 2 } EvolutionGeneKind ;
+surface=minisnn_evolution_legacy.h;type=typedef enum { EVOLUTION_INITIALIZATION_BASELINE_PLUS_MUTATION = 0 , EVOLUTION_INITIALIZATION_UNIFORM = 1 } EvolutionInitialization ;
+surface=minisnn_evolution_legacy.h;type=typedef struct { EvolutionEngineConfig config ; EvolutionGeneMetadata * metadata ; size_t gene_count ; EvolutionIndividual * population ; EvolutionPrng prng ; uint64_t next_individual_id ; int current_generation ; int has_global_best ; uint64_t global_best_individual_id ; int global_best_generation ; double global_best_fitness_selection ; double global_best_fitness_mean ; double global_best_fitness_std ; double * global_best_genes ; } EvolutionEngine ;
+surface=minisnn_evolution_legacy.h;type=typedef struct { size_t gene_index ; char gene_name [ EVOLUTION_GENE_NAME_MAX + 1 ] ; EvolutionGeneKind gene_kind ; double minimum ; double maximum ; double baseline_value ; double mutation_scale ; size_t connection_id ; int has_connection_id ; char parameter_path [ EVOLUTION_PARAMETER_PATH_MAX + 1 ] ; } EvolutionGeneMetadata ;
+surface=minisnn_evolution_legacy.h;type=typedef struct { size_t mutation_count ; double mutation_absolute_sum ; double mutation_max_absolute ; size_t clamp_min_count ; size_t clamp_max_count ; } EvolutionMutationStats ;
+surface=minisnn_evolution_legacy.h;type=typedef struct { size_t population_size ; size_t elite_count ; size_t tournament_size ; double crossover_rate ; double mutation_rate ; double mutation_scale ; double initialization_scale ; double replicate_std_penalty ; EvolutionInitialization initialization ; uint64_t evolution_seed ; } EvolutionEngineConfig ;
+surface=minisnn_evolution_legacy.h;type=typedef struct { uint64_t individual_id ; int generation ; uint64_t parent_a_id ; uint64_t parent_b_id ; int has_parent_a ; int has_parent_b ; char operation [ EVOLUTION_OPERATION_MAX + 1 ] ; double * genes ; size_t gene_count ; double fitness_selection ; double fitness_mean ; double fitness_std ; double fitness_min ; double fitness_max ; int valid_replicates ; int invalid_replicates ; int evaluated ; EvolutionMutationStats mutation ; int crossover_applied ; size_t genes_from_parent_a ; size_t genes_from_parent_b ; } EvolutionIndividual ;
+surface=minisnn_evolution_legacy.h;type=typedef struct { uint64_t state ; uint64_t increment ; } EvolutionPrng ;
+header=minisnn_sensor_encoder.h;semantic_sha256=3a2d667e08d1a15c5922a13a931bb45f33846a88983e7b74cd4bfcb876a48a40
+surface=minisnn_sensor_encoder.h;function=MiniSNNSensorEncoder * minisnn_sensor_encoder_create ( const MiniSNNSensorSchema * sensor_schema , const MiniSNNSensorEncodingSpec * mappings , uint32_t mapping_count , uint32_t neuron_count , uint32_t brain_steps_per_tick , MiniSNNSensorEncoderError * out_error ) ;
+surface=minisnn_sensor_encoder.h;function=MiniSNNSensorEncoder * minisnn_sensor_encoder_read_file ( const char * filename , const MiniSNNSensorSchema * sensor_schema , MiniSNNSensorEncoderError * out_error ) ;
+surface=minisnn_sensor_encoder.h;function=MiniSNNSensorEncoderError minisnn_sensor_encoder_last_error ( const MiniSNNSensorEncoder * encoder ) ;
+surface=minisnn_sensor_encoder.h;function=const char * minisnn_sensor_encoder_error_string ( MiniSNNSensorEncoderError error ) ;
+surface=minisnn_sensor_encoder.h;function=int minisnn_neural_input_frame_apply_step ( const MiniSNNNeuralInputFrame * frame , uint32_t brain_step , MiniSNN * network , MiniSNNSensorEncoderError * out_error ) ;
+surface=minisnn_sensor_encoder.h;function=int minisnn_neural_input_frame_copy ( MiniSNNNeuralInputFrame * destination , const MiniSNNNeuralInputFrame * source , MiniSNNSensorEncoderError * out_error ) ;
+surface=minisnn_sensor_encoder.h;function=int minisnn_neural_input_frame_get_current ( const MiniSNNNeuralInputFrame * frame , uint32_t brain_step , uint32_t neuron_id , double * out_current , MiniSNNSensorEncoderError * out_error ) ;
+surface=minisnn_sensor_encoder.h;function=int minisnn_neural_input_frame_init ( MiniSNNNeuralInputFrame * frame , uint32_t neuron_count , uint32_t brain_step_count , MiniSNNSensorEncoderError * out_error ) ;
+surface=minisnn_sensor_encoder.h;function=int minisnn_neural_input_frame_reset ( MiniSNNNeuralInputFrame * frame , MiniSNNSensorEncoderError * out_error ) ;
+surface=minisnn_sensor_encoder.h;function=int minisnn_neural_input_frame_validate ( const MiniSNNNeuralInputFrame * frame , MiniSNNSensorEncoderError * out_error ) ;
+surface=minisnn_sensor_encoder.h;function=int minisnn_sensor_encoder_encode_frame ( MiniSNNSensorEncoder * encoder , const MiniSNNSensorFrame * sensor_frame , MiniSNNNeuralInputFrame * out_frame ) ;
+surface=minisnn_sensor_encoder.h;function=int minisnn_sensor_encoder_encode_from_agent_io ( MiniSNNSensorEncoder * encoder , MiniSNNAgentIOContext * agent_io , MiniSNNNeuralInputFrame * out_frame ) ;
+surface=minisnn_sensor_encoder.h;function=int minisnn_sensor_encoder_write_file ( const MiniSNNSensorEncoder * encoder , const char * filename , MiniSNNSensorEncoderError * out_error ) ;
+surface=minisnn_sensor_encoder.h;function=uint32_t minisnn_sensor_encoder_brain_steps_per_tick ( const MiniSNNSensorEncoder * encoder ) ;
+surface=minisnn_sensor_encoder.h;function=uint32_t minisnn_sensor_encoder_neuron_count ( const MiniSNNSensorEncoder * encoder ) ;
+surface=minisnn_sensor_encoder.h;function=uint64_t minisnn_sensor_encoder_contract_signature ( const MiniSNNSensorEncoder * encoder ) ;
+surface=minisnn_sensor_encoder.h;function=uint64_t minisnn_sensor_encoder_sensor_schema_signature ( const MiniSNNSensorEncoder * encoder ) ;
+surface=minisnn_sensor_encoder.h;function=uint64_t minisnn_sensor_encoding_mapping_signature ( const MiniSNNSensorEncoder * encoder ) ;
+surface=minisnn_sensor_encoder.h;function=void minisnn_neural_input_frame_destroy ( MiniSNNNeuralInputFrame * frame ) ;
+surface=minisnn_sensor_encoder.h;function=void minisnn_sensor_encoder_destroy ( MiniSNNSensorEncoder * * encoder_ptr ) ;
+surface=minisnn_sensor_encoder.h;function=void minisnn_sensor_encoder_reset ( MiniSNNSensorEncoder * encoder ) ;
+surface=minisnn_sensor_encoder.h;macro=MINISNN_SENSOR_ENCODER_MAX_MAPPINGS 256 U
+surface=minisnn_sensor_encoder.h;type=typedef enum { MINISNN_SENSOR_ENCODER_ERROR_NONE = 0 , MINISNN_SENSOR_ENCODER_ERROR_INVALID_ARGUMENT , MINISNN_SENSOR_ENCODER_ERROR_INVALID_SCHEMA , MINISNN_SENSOR_ENCODER_ERROR_UNKNOWN_SENSOR_CHANNEL , MINISNN_SENSOR_ENCODER_ERROR_INVALID_NEURON_RANGE , MINISNN_SENSOR_ENCODER_ERROR_OVERLAPPING_NEURON_RANGE , MINISNN_SENSOR_ENCODER_ERROR_INVALID_ENCODING_MODE , MINISNN_SENSOR_ENCODER_ERROR_INVALID_PARAMETER , MINISNN_SENSOR_ENCODER_ERROR_DIMENSION_MISMATCH , MINISNN_SENSOR_ENCODER_ERROR_FRAME_UNAVAILABLE , MINISNN_SENSOR_ENCODER_ERROR_FRAME_ALREADY_CONSUMED , MINISNN_SENSOR_ENCODER_ERROR_NONFINITE_RESULT , MINISNN_SENSOR_ENCODER_ERROR_SIGNATURE_MISMATCH , MINISNN_SENSOR_ENCODER_ERROR_FORMAT , MINISNN_SENSOR_ENCODER_ERROR_ALLOCATION , MINISNN_SENSOR_ENCODER_ERROR_IO } MiniSNNSensorEncoderError ;
+surface=minisnn_sensor_encoder.h;type=typedef enum { MINISNN_SENSOR_ENCODING_LINEAR_CURRENT = 0 , MINISNN_SENSOR_ENCODING_BIPOLAR_CURRENT , MINISNN_SENSOR_ENCODING_DETERMINISTIC_RATE } MiniSNNSensorEncodingMode ;
+surface=minisnn_sensor_encoder.h;type=typedef struct MiniSNN MiniSNN ;
+surface=minisnn_sensor_encoder.h;type=typedef struct MiniSNNSensorEncoder MiniSNNSensorEncoder ;
+surface=minisnn_sensor_encoder.h;type=typedef struct { uint32_t sensor_channel_id ; uint32_t target_neuron_start ; uint32_t target_neuron_count ; MiniSNNSensorEncodingMode mode ; double gain ; double bias ; double pulse_current ; double maximum_rate ; uint32_t phase_offset ; } MiniSNNSensorEncodingSpec ;
+surface=minisnn_sensor_encoder.h;type=typedef struct { uint64_t tick ; uint32_t neuron_count ; uint32_t brain_step_count ; double * currents ; } MiniSNNNeuralInputFrame ;
+header=minisnn_types.h;semantic_sha256=c459dcf31589d82e6fd518931f204de2e5603ae8eb0078a09155f09c9c12e16f
+surface=minisnn_types.h;macro=MINISNN_TOPOLOGY_REASON_MAX 95
+surface=minisnn_types.h;type=typedef enum { MINISNN_LEARNING_MODE_DIRECT_STDP = 0 , MINISNN_LEARNING_MODE_REWARD_MODULATED_STDP = 1 } MiniSNNLearningMode ;
+surface=minisnn_types.h;type=typedef enum { MINISNN_NEURON_EXCITATORY = 0 , MINISNN_NEURON_INHIBITORY = 1 } MiniSNNNeuronType ;
+surface=minisnn_types.h;type=typedef enum { MINISNN_NEURON_MODEL_LIF = 0 , MINISNN_NEURON_MODEL_ADEX = 1 , MINISNN_NEURON_MODEL_HODGKIN_HUXLEY = 2 } MiniSNNNeuronModel ;
+surface=minisnn_types.h;type=typedef enum { MINISNN_PLASTICITY_NONE = 0 , MINISNN_PLASTICITY_STDP_PAIR_TRACE = 1 } MiniSNNPlasticityRule ;
+surface=minisnn_types.h;type=typedef enum { MINISNN_REWARD_MODE_RSTDP = 1 } MiniSNNRewardMode ;
+surface=minisnn_types.h;type=typedef enum { MINISNN_STRUCTURAL_RESET_STATE = 0 , MINISNN_STRUCTURAL_RESTORE_INITIAL_TOPOLOGY = 1 } MiniSNNStructuralResetMode ;
+surface=minisnn_types.h;type=typedef enum { MINISNN_TOPOLOGY_ADD = 0 , MINISNN_TOPOLOGY_REMOVE = 1 , MINISNN_TOPOLOGY_REWIRE = 2 , MINISNN_TOPOLOGY_SET_DELAY = 3 } MiniSNNTopologyOperationType ;
+surface=minisnn_types.h;type=typedef struct { MiniSNNTopologyOperationType type ; size_t source ; size_t target ; size_t new_source ; size_t new_target ; double magnitude ; unsigned int delay ; int allow_self_connection ; } MiniSNNTopologyOperation ;
+surface=minisnn_types.h;type=typedef struct { double capacitance ; double g_leak ; double e_leak ; double delta_t ; double v_threshold ; double tau_w ; double a ; double b ; double v_reset ; double v_peak ; double dt ; } MiniSNNAdExConfig ;
+surface=minisnn_types.h;type=typedef struct { double capacitance ; double g_na ; double g_k ; double g_leak ; double e_na ; double e_k ; double e_leak ; double v_init ; double spike_threshold ; double dt ; } MiniSNNHodgkinHuxleyConfig ;
+surface=minisnn_types.h;type=typedef struct { double voltage ; double adaptation ; int spike ; } MiniSNNAdExState ;
+surface=minisnn_types.h;type=typedef struct { double voltage ; double m ; double h ; double n ; int spike ; } MiniSNNHodgkinHuxleyState ;
+surface=minisnn_types.h;type=typedef struct { int eligible ; double eligibility ; double max_absolute_eligibility ; unsigned long long reward_update_count ; double reward_signed_change ; double reward_absolute_change ; } MiniSNNRewardConnectionStats ;
+surface=minisnn_types.h;type=typedef struct { int enabled ; MiniSNNPlasticityRule rule ; MiniSNNLearningMode learning_mode ; double a_plus ; double a_minus ; double tau_plus ; double tau_minus ; double trace_increment ; double weight_min ; double weight_max ; } MiniSNNPlasticityConfig ;
+surface=minisnn_types.h;type=typedef struct { int enabled ; MiniSNNRewardMode mode ; double learning_rate ; double eligibility_tau ; double eligibility_min ; double eligibility_max ; double reward_min ; double reward_max ; int clip_reward ; } MiniSNNRewardConfig ;
+surface=minisnn_types.h;type=typedef struct { int enabled ; int intrinsic_enabled ; double target_rate ; double rate_tau ; unsigned int update_interval_steps ; double threshold_eta ; double threshold_min ; double threshold_max ; int synaptic_scaling_enabled ; double scaling_eta ; double scaling_min_factor ; double scaling_max_factor ; double scaling_weight_min ; double scaling_weight_max ; int inhibitory_gain_enabled ; double inhibitory_gain_initial ; double inhibitory_gain_eta ; double inhibitory_gain_min ; double inhibitory_gain_max ; } MiniSNNHomeostasisConfig ;
+surface=minisnn_types.h;type=typedef struct { int enabled ; unsigned int maintenance_interval_steps ; unsigned int grace_period_steps ; int pruning_enabled ; double prune_weight_threshold ; double prune_activity_threshold ; size_t max_prunes_per_interval ; int growth_enabled ; size_t growth_candidate_count ; double growth_score_threshold ; size_t max_growth_per_interval ; uint64_t growth_seed ; double new_exc_weight ; double new_inh_magnitude ; unsigned int new_delay ; size_t min_connections ; size_t max_connections ; int allow_self_connections ; int allow_inh_to_inh ; } MiniSNNStructuralPlasticityConfig ;
+surface=minisnn_types.h;type=typedef struct { int supports_voltage ; int supports_spike_event ; int supports_homeostatic_threshold ; int supports_adaptation_state ; int supports_hh_gates ; } MiniSNNNeuronModelCapabilities ;
+surface=minisnn_types.h;type=typedef struct { size_t requested_operations ; size_t applied_operations ; size_t connections_added ; size_t connections_removed ; size_t connections_rewired ; size_t delays_changed ; uint64_t signature_before ; uint64_t signature_after ; int success ; char reason [ MINISNN_TOPOLOGY_REASON_MAX + 1 ] ; } MiniSNNTopologyPatchResult ;
+surface=minisnn_types.h;type=typedef struct { size_t source ; size_t target ; MiniSNNNeuronType source_type ; MiniSNNNeuronType target_type ; double weight ; unsigned int delay ; int plasticity_eligible ; } MiniSNNConnectionInfo ;
+surface=minisnn_types.h;type=typedef struct { uint64_t connection_key ; size_t source ; size_t target ; double magnitude ; unsigned int delay ; unsigned int inherited_from ; } MiniSNNConnectionGene ;
+surface=minisnn_types.h;type=typedef struct { uint64_t connection_key ; unsigned long long birth_step ; unsigned long long last_structural_update_step ; double max_absolute_weight ; double activity_score ; unsigned long long prune_candidate_count ; unsigned int growth_origin ; } MiniSNNStructuralConnectionState ;
+surface=minisnn_types.h;type=typedef struct { unsigned long long maintenance_count ; unsigned long long add_attempt_count ; unsigned long long add_success_count ; unsigned long long add_rejected_count ; unsigned long long remove_attempt_count ; unsigned long long remove_success_count ; unsigned long long remove_rejected_count ; unsigned long long rewire_count ; unsigned long long delay_change_count ; unsigned long long rebuild_count ; size_t initial_connection_count ; size_t current_connection_count ; size_t minimum_connection_count_observed ; size_t maximum_connection_count_observed ; double cumulative_growth_score ; double cumulative_pruned_usage ; uint64_t initial_topology_signature ; uint64_t current_topology_signature ; } MiniSNNStructuralStats ;
+surface=minisnn_types.h;type=typedef struct { unsigned long long potentiation_events ; unsigned long long depression_events ; unsigned long long clamp_min_events ; unsigned long long clamp_max_events ; size_t eligible_connections ; size_t modified_connections ; double total_signed_change ; double total_absolute_change ; double max_absolute_change ; } MiniSNNPlasticityStats ;
+surface=minisnn_types.h;type=typedef struct { unsigned long long reward_event_count ; unsigned long long positive_reward_event_count ; unsigned long long negative_reward_event_count ; unsigned long long zero_reward_event_count ; unsigned long long eligibility_potentiation_events ; unsigned long long eligibility_depression_events ; unsigned long long eligibility_clamp_min_events ; unsigned long long eligibility_clamp_max_events ; unsigned long long reward_potentiation_events ; unsigned long long reward_depression_events ; unsigned long long weight_clamp_min_events ; unsigned long long weight_clamp_max_events ; size_t eligible_connection_count ; size_t modified_connection_count ; size_t last_active_eligibility_count ; size_t last_modified_connection_count ; unsigned int last_reward_component_count ; double cumulative_raw_reward ; double cumulative_applied_reward ; double cumulative_positive_reward ; double cumulative_negative_reward ; double cumulative_absolute_reward ; double total_signed_weight_change ; double total_absolute_weight_change ; double max_absolute_weight_change ; double eligibility_final_mean ; double eligibility_final_min ; double eligibility_final_max ; double eligibility_final_mean_absolute ; double eligibility_max_absolute_observed ; double last_raw_reward ; double last_applied_reward ; double last_weight_signed_change ; double last_weight_absolute_change ; unsigned long long last_weight_clamp_min_count ; unsigned long long last_weight_clamp_max_count ; } MiniSNNRewardStats ;
+surface=minisnn_types.h;type=typedef struct { unsigned long long step ; unsigned long long event_index ; MiniSNNTopologyOperationType type ; size_t source ; size_t target ; size_t new_source ; size_t new_target ; uint64_t connection_key ; uint64_t new_connection_key ; double magnitude ; unsigned int delay ; double activity_score ; double growth_score ; unsigned long long age_steps ; int applied ; char reason [ MINISNN_TOPOLOGY_REASON_MAX + 1 ] ; uint64_t signature_before ; uint64_t signature_after ; } MiniSNNStructuralEvent ;
+surface=minisnn_types.h;type=typedef struct { unsigned long long update_count ; unsigned long long threshold_increase_events ; unsigned long long threshold_decrease_events ; unsigned long long threshold_clamp_min_events ; unsigned long long threshold_clamp_max_events ; unsigned long long threshold_modified_neuron_count ; unsigned long long scaling_events ; unsigned long long scaling_connections_modified ; unsigned long long scaling_clamp_min_events ; unsigned long long scaling_clamp_max_events ; unsigned long long scaling_zero_sum_skips ; unsigned long long inhibitory_gain_increase_events ; unsigned long long inhibitory_gain_decrease_events ; unsigned long long inhibitory_gain_clamp_min_events ; unsigned long long inhibitory_gain_clamp_max_events ; double total_threshold_absolute_change ; double total_scaling_absolute_change ; double total_scaling_signed_change ; double population_rate_sum ; double population_rate_min ; double population_rate_max ; unsigned long long population_rate_sample_count ; double rate_error_sum ; double rate_error_absolute_sum ; double scaling_factor_sum ; double scaling_factor_min ; double scaling_factor_max ; unsigned long long scaling_factor_count ; double inhibitory_gain_min_observed ; double inhibitory_gain_max_observed ; double final_population_rate ; double final_inhibitory_gain ; } MiniSNNHomeostasisStats ;
+header=minisnn_version.h;semantic_sha256=656d49b263ebac34a1504ce860e93153ee9de41a1dd8a6a0fc5b3fe4d11b4650
+surface=minisnn_version.h;function=const char * minisnn_version_prerelease ( void ) ;
+surface=minisnn_version.h;function=const char * minisnn_version_string ( void ) ;
+surface=minisnn_version.h;function=uint32_t minisnn_version_major ( void ) ;
+surface=minisnn_version.h;function=uint32_t minisnn_version_minor ( void ) ;
+surface=minisnn_version.h;function=uint32_t minisnn_version_patch ( void ) ;
+surface=minisnn_version.h;macro=MINISNN_VERSION_MAJOR UINT32_C ( 1 )
+surface=minisnn_version.h;macro=MINISNN_VERSION_MINOR UINT32_C ( 0 )
+surface=minisnn_version.h;macro=MINISNN_VERSION_PATCH UINT32_C ( 0 )
+surface=minisnn_version.h;macro=MINISNN_VERSION_PRERELEASE "rc.1"
+surface=minisnn_version.h;macro=MINISNN_VERSION_STRING "1.0.0-rc.1"

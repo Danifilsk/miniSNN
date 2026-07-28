@@ -3,6 +3,7 @@
 
 #include "minisnn_types.h"
 #include "minisnn_agent_io.h"
+#include "minisnn_version.h"
 
 typedef struct MiniSNN MiniSNN;
 

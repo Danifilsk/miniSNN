@@ -1,12 +1,19 @@
 # Arquitetura do monorepo
 
+## D1 concluido: release candidate local
+
+O produto `miniSNN Core` tem versao tecnica `1.0.0-rc.1`. O Core e distribuido
+separadamente do miniSNN Studio em pacotes locais de avaliacao; a Bridge entre
+Core e Worlds ainda e candidata e nao existe Worlds neste monorepo. D1 esta
+concluido para `miniSNN Core 1.0.0-rc.1`; K0 e o proximo bloco planejado.
+
 ## D1-A: produtos de build e API candidata
 
 `core/include/` e `core/src/` formam a biblioteca headless. `core/app/` contem
 runners e demos headless; `core/studio/` contem somente a GUI Win32. A
 biblioteca estatica fica em `build/core/lib`, ferramentas em `build/tools/bin`,
-testes em `build/tests/bin` e o Studio em `build/studio/bin`. D1-A nao declara
-Core v1.0-rc, API congelada ou Worlds autorizado.
+testes em `build/tests/bin` e o Studio em `build/studio/bin`. D1 nao declara
+Core 1.0, API congelada definitivamente ou Worlds implementado.
 
 ## D1-B: robustez headless
 
@@ -60,7 +67,8 @@ dependencia de Worlds. C7.2 aplica correntes por API publica sem avancar a
 rede; C7.3 decodifica atividade completa sem avancar a rede; C7.4 e o unico
 orquestrador C7 que avanca a rede e publica a action atomicamente. C7.5-A
 adiciona persistencia e replay verificados; C7.5-B fecha a auditoria por
-matriz, ciclo de vida e long run. C7 esta concluido e D1 e o proximo bloco.
+matriz, ciclo de vida e long run. C7 e D1 estao concluidos; K0 e o proximo
+bloco planejado.
 
 ## Limites planejados
 

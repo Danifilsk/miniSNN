@@ -2,12 +2,26 @@
 
 ## Abrir o Studio
 
+## Release candidate do Core
+
+O Core esta em `1.0.0-rc.1`, com API candidata provisoria ate D2. Para uma
+biblioteca de release use `mingw32-make release-core`; para Core, Studio e
+ferramentas use `mingw32-make release-all`; para os ZIPs locais de avaliacao use
+`mingw32-make package-release`. D1 esta concluido para `miniSNN Core
+1.0.0-rc.1`: os gates automaticos e o [checklist visual](D1_C_STUDIO_MANUAL_CHECKLIST.md)
+foram registrados. A API candidata permanece provisoria ate D2.
+
 Para abrir o aplicativo no Windows, de dois cliques em
 `Abrir miniSNN Studio.cmd` na raiz do repositorio. O launcher garante que
 `build/studio/bin/minisnn_studio.exe` exista, compilando-o com
 `mingw32-make core-studio` quando necessario, e entao abre o executavel.
 `core/studio/minisnn_studio.c` e apenas o codigo-fonte do frontend. A biblioteca
 neural compilada fica em `build/core/lib/libminisnn_core.a`.
+
+O launcher informa a raiz do repositorio ao Studio. A abertura direta dos
+executaveis debug/release tambem identifica o layout por sentinelas; no pacote
+extraido, `configs/`, `scripts/`, `results/` e os runners em `bin/` ficam na
+raiz do pacote. O diretorio atual nao e usado para adivinhar esses recursos.
 
 ## Escolher o modelo neuronal
 
@@ -318,6 +332,10 @@ O Studio evita sobrescrita automaticamente. Ao rodar duas vezes o mesmo
 `results/`, `ABRIR ULTIMA` para abrir a pasta real mais recente e `ABRIR
 HISTORICO` para gerar e abrir `results/scenarios/history.html`.
 
+`RODAR SIMULACAO` executa um lote completo. O Studio atual nao oferece pause,
+controle de velocidade ou one-step neural ao vivo; a duracao depende do
+cenario e da maquina.
+
 O arquivo `results/scenarios/index.csv` continua sendo a fonte bruta
 append-only. O HTML apenas apresenta esse CSV, ordena as runs mais recentes
 primeiro e oferece busca, filtros e links relativos para arquivos existentes.
@@ -357,6 +375,13 @@ Na janela `NEUROEVOLUCAO`, `ABRIR EVENTOS ESTRUTURAIS` gera e abre
 `best_topology.csv` continuam sendo os dados cientificos brutos. Sem Python, o
 Studio somente abre um relatorio HTML anterior e avisa que ele pode estar
 desatualizado.
+
+`NEUROEVOLUCAO` carrega por padrao
+`configs/evolution_weight_target_demo.ini` e seu cenario-base. O runner e
+resolvido em `build/tools/bin/` no debug, em `build/release/tools/bin/` no
+release e em `bin/` no pacote. A evolucao basica nao depende de Python; Python
+com pandas e matplotlib e necessario apenas para os fluxos de graficos e
+relatorios que o solicitam.
 
 ## Resultados e sobrescrita
 

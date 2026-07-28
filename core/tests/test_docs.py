@@ -54,6 +54,14 @@ def main() -> int:
         "docs/DETERMINISM_CONTRACT.md",
         "docs/ROBUSTNESS_AND_FAULT_MODEL.md",
         "docs/PERFORMANCE_BASELINE.md",
+        "docs/CORE_BRIDGE_API_CANDIDATE.md",
+        "docs/INSTALLING_AND_LINKING.md",
+        "docs/KNOWN_LIMITATIONS_1_0_0_RC1.md",
+        "docs/RELEASE_NOTES_1_0_0_RC1.md",
+        "docs/RELEASE_CHECKLIST_1_0_RC.md",
+        "docs/D1_C_RELEASE_CANDIDATE_AUDIT.md",
+        "docs/D1_C_STUDIO_MANUAL_CHECKLIST.md",
+        "docs/PUBLIC_API_BASELINE_1_0_RC.txt",
         "scripts/check_d1_posix_headless.py",
         "tests/test_d1_portability.py",
         "include/minisnn_sensor_encoder.h",
@@ -81,10 +89,12 @@ def main() -> int:
     errors = validate_docs(PROJECT_ROOT)
     roadmap = (PROJECT_ROOT / "docs" / "ROADMAP.md").read_text(encoding="utf-8")
     for token in (
-        "D1-A - arquitetura, produtos de build e API candidata provisoria",
-        "D1-B - robustez, determinismo, stress e desempenho",
-        "D1-C - fechamento do Core e avaliacao para `miniSNN Core v1.0-rc`",
-        "miniSNN Core v1.0-rc",
+        "D1-A — concluído",
+        "D1-B — concluído",
+        "D1-C — concluído",
+        "D1 — concluído",
+        "miniSNN Core 1.0.0-rc.1",
+        "K0 — fundação determinística do Worlds Kernel",
         "D2 — auditoria pos-integracao",
         "congelada definitivamente",
     ):
@@ -92,6 +102,8 @@ def main() -> int:
             errors.append(f"roadmap sem contrato D1/D2: {token}")
     if "D1 — congelamento definitivo do Core" in roadmap:
         errors.append("roadmap atribui congelamento definitivo a D1")
+    if "READY_FOR_MANUAL_VALIDATION" in roadmap or "D1-C manual - pendente" in roadmap:
+        errors.append("roadmap ainda declara validacao manual D1 pendente")
     if errors:
         print("Documentation validation FAILED")
         for error in errors:

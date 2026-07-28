@@ -1,5 +1,22 @@
 # miniSNN
 
+## D1 concluido: release candidate
+
+O miniSNN Core possui identidade tecnica `1.0.0-rc.1` e uma API
+`CANDIDATE_V1`, provisoria ate D2. O Core e a biblioteca neural headless; o
+miniSNN Studio e um frontend Win32 consumidor da mesma biblioteca. Compile os
+produtos candidatos com `mingw32-make release-all`, gere os ZIPs locais com
+`mingw32-make package-release` e execute `mingw32-make audit-d1`.
+
+O estado e **D1 concluido** para `miniSNN Core 1.0.0-rc.1`. A validacao manual
+do Studio foi registrada no [checklist](docs/D1_C_STUDIO_MANUAL_CHECKLIST.md).
+A API Core-Brain Bridge permanece candidata e provisoria ate D2; K0 e o proximo
+bloco planejado. Consulte
+[instalacao e linkagem](docs/INSTALLING_AND_LINKING.md), a
+[API Core-Brain Bridge candidata](docs/CORE_BRIDGE_API_CANDIDATE.md), as
+[limitacoes conhecidas](docs/KNOWN_LIMITATIONS_1_0_0_RC1.md) e as
+[release notes](docs/RELEASE_NOTES_1_0_0_RC1.md).
+
 ## Abrir o Studio
 
 Para abrir o aplicativo no Windows, de dois cliques em
@@ -38,8 +55,7 @@ Validacao C5: `mingw32-make test-adex`,
 `mingw32-make compare-neuron-models`.
 
 A miniSNN Core é uma plataforma experimental em C para simulação, observação e
-comparação de redes neurais pulsadas baseadas atualmente em um modelo LIF
-simplificado.
+comparação de redes neurais pulsadas com LIF, AdEx e Hodgkin-Huxley.
 
 O projeto é um protótipo funcional de laboratório experimental, com suíte
 automatizada numérica, estrutural, de integração e regressão. Ele não é um
@@ -60,10 +76,10 @@ neuroevolução C3 serial com topologia fixa, fitness configurável e checkpoint
 O STDP do C1 também é uma regra experimental simplificada. Esses recursos não
 são verdades biológicas nem prova de aprendizado de tarefa.
 
-**Estado da v0.2:** auditoria automática concluída; revisão manual do Studio e
-revisão humana de release permanecem pendentes. O C1 foi implementado sobre
-essa base; C1.5, C2 e C3 foram implementados localmente. miniSNN Worlds e
-evolução estrutural ainda não estão implementados.
+**Estado do Core 1.0.0-rc.1:** D1 esta concluido; Worlds ainda nao esta
+implementado. K0, a fundacao deterministica do Worlds Kernel, e o proximo
+bloco planejado. A API Core-Brain Bridge nao esta congelada definitivamente;
+isso pertence a D2 apos a primeira integracao real.
 
 ## Início rápido
 

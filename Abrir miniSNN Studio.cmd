@@ -31,7 +31,7 @@ if /I "%~1"=="--build-only" (
     exit /b 0
 )
 
-start "" "%CD%\%STUDIO_EXE%"
+start "" "%CD%\%STUDIO_EXE%" --repository-root "%CD%"
 if errorlevel 1 (
     echo ERRO: nao foi possivel abrir o miniSNN Studio.
     pause

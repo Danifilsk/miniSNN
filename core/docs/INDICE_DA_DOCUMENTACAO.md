@@ -10,6 +10,17 @@ implementados, experimentais e planejados.
 - [Manual de uso](MANUAL_DE_USO.md) — instalação, comandos, solução de problemas e fluxos completos.
 - [Guia do Studio](GUIA_DO_STUDIO.md) — uso da interface gráfica Win32.
 
+## Release candidate D1-C
+
+- [Instalacao e linkagem](INSTALLING_AND_LINKING.md) - consumo externo do Core.
+- [API Core-Brain Bridge candidata](CORE_BRIDGE_API_CANDIDATE.md) - ownership, ciclo e contratos provisÃ³rios.
+- [Baseline publico v1.0-rc](PUBLIC_API_BASELINE_1_0_RC.txt) - superficie verificavel da API candidata.
+- [Release notes 1.0.0-rc.1](RELEASE_NOTES_1_0_0_RC1.md) - recursos e limites.
+- [Limitacoes conhecidas](KNOWN_LIMITATIONS_1_0_0_RC1.md) - riscos tecnicos e ambientais.
+- [Checklist de release](RELEASE_CHECKLIST_1_0_RC.md) - gates automaticos e validacao manual registrados.
+- [Checklist manual do Studio](D1_C_STUDIO_MANUAL_CHECKLIST.md) - revisao humana registrada.
+- [Auditoria D1-C](D1_C_RELEASE_CANDIDATE_AUDIT.md) - achados e fechamento concluido.
+
 ## Para executar experimentos
 
 - [Guia de cognicao C6](GUIA_DE_COGNICAO_C6.md) - visao integrada de memoria dinamica, associativa e previsao contextual.

@@ -43,7 +43,7 @@ def main() -> int:
     required_docs = (
         "PUBLIC_API_MANIFEST.md", "OWNERSHIP_AND_LIFETIME.md", "ERROR_MODEL.md",
         "LIMITS.md", "PERSISTENCE_COMPATIBILITY.md", "D1_A_API_ARCHITECTURE_AUDIT.md",
-        "BUILD_PRODUCTS.md",
+        "BUILD_PRODUCTS.md", "CORE_BRIDGE_API_CANDIDATE.md",
     )
     for name in required_docs:
         if not (ROOT / "docs" / name).is_file():
@@ -69,6 +69,10 @@ def main() -> int:
     if not legacy.is_file() or "LEGACY_SUPPORTED" not in manifest:
         fail("superficie historica de evolucao nao esta documentada")
 
+    version = INCLUDE / "minisnn_version.h"
+    if not version.is_file() or "MINISNN_VERSION_STRING" not in read(version):
+        fail("identidade de versao publica ausente")
+
     declaration = re.compile(r"\b([A-Za-z_][A-Za-z0-9_]*)\s*\(")
     for header in headers:
         if header == legacy:
@@ -76,7 +80,7 @@ def main() -> int:
         declarations = re.sub(r"/\*.*?\*/|//[^\n]*", "", read(header),
                               flags=re.DOTALL)
         for name in declaration.findall(declarations):
-            if name in {"if", "while", "switch", "sizeof"}:
+            if name in {"if", "while", "switch", "sizeof"} or name.isupper():
                 continue
             if not name.startswith("minisnn_"):
                 fail(f"funcao publica sem namespace em {header.name}: {name}")

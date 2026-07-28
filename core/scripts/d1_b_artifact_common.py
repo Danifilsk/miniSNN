@@ -15,19 +15,20 @@ def execute_test_and_write_artifact(
     artifact_name: str,
     success_marker: str,
     description: str,
+    working_directory: Path | None = None,
 ) -> int:
     if len(sys.argv) != 2:
         print(f"D1-B {description} FAILED: expected one test executable path")
         return 1
 
     test_binary_argument = sys.argv[1]
-    test_binary = Path(test_binary_argument)
+    test_binary = Path(test_binary_argument).resolve()
     if not test_binary.is_file():
         print(f"D1-B {description} FAILED: test executable absent: {test_binary_argument}")
         return 1
 
     result = subprocess.run(
-        [str(test_binary)], cwd=ROOT, text=True, stdout=subprocess.PIPE,
+        [str(test_binary)], cwd=working_directory or ROOT, text=True, stdout=subprocess.PIPE,
         stderr=subprocess.STDOUT, check=False,
     )
     evidence = " ".join(result.stdout.split())

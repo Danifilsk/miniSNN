@@ -1,6 +1,7 @@
 # Build local
 /build/
 /core/build/
+/dist/
 *.exe
 *.o
 *.obj

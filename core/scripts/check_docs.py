@@ -67,11 +67,21 @@ CENTRAL_DOCUMENTS = (
     "docs/DETERMINISM_CONTRACT.md",
     "docs/ROBUSTNESS_AND_FAULT_MODEL.md",
     "docs/PERFORMANCE_BASELINE.md",
+    "docs/CORE_BRIDGE_API_CANDIDATE.md",
+    "docs/INSTALLING_AND_LINKING.md",
+    "docs/KNOWN_LIMITATIONS_1_0_0_RC1.md",
+    "docs/RELEASE_NOTES_1_0_0_RC1.md",
+    "docs/RELEASE_CHECKLIST_1_0_RC.md",
+    "docs/D1_C_RELEASE_CANDIDATE_AUDIT.md",
+    "docs/D1_C_STUDIO_MANUAL_CHECKLIST.md",
+    "docs/PUBLIC_API_BASELINE_1_0_RC.txt",
 )
 
 IMPORTANT_FILES = (
     "Makefile",
     "include/minisnn.h",
+    "include/minisnn_version.h",
+    "src/minisnn_version.c",
     "include/minisnn_types.h",
     "include/minisnn_agent_io.h",
     "src/agent_io.c",
@@ -132,6 +142,12 @@ IMPORTANT_FILES = (
     "scripts/check_d1_b.py",
     "scripts/check_d1_determinism.py",
     "scripts/check_d1_corruption.py",
+    "scripts/check_api_baseline.py",
+    "scripts/check_d1_c.py",
+    "scripts/check_release_build.py",
+    "scripts/check_release_packages.py",
+    "scripts/test_external_consumer.py",
+    "scripts/build_release_packages.py",
     "scripts/check_d1_optimization_determinism.py",
     "scripts/check_d1_posix_headless.py",
     "scripts/d1_b_artifact_common.py",
@@ -202,6 +218,8 @@ IMPORTANT_FILES = (
     "tests/test_d1_corruption.c",
     "tests/test_d1_lifecycle_stress.c",
     "tests/test_d1_portability.py",
+    "tests/test_version.c",
+    "examples/external_consumer.c",
 )
 
 REQUIRED_TARGETS = (
@@ -299,11 +317,26 @@ REQUIRED_TARGETS = (
     "benchmark-d1",
     "scenario-d1-b",
     "audit-d1-b",
+    "audit-d1",
     "test-c7-integration",
     "test-c7-evolution",
     "test-c7-long-run",
     "test-c7",
     "scenario-c7-integrated-audit",
+    "test-version",
+    "test-api-baseline",
+    "test-api-baseline-regressions",
+    "release-core",
+    "release-headless",
+    "release-studio",
+    "release-all",
+    "test-release-build",
+    "test-external-consumer",
+    "package-release",
+    "test-release-integrity",
+    "test-release-packages",
+    "audit-d1-c-automated",
+    "audit-d1-c",
 )
 
 IMPORTANT_KEYS = (
@@ -592,8 +625,8 @@ def validate_docs(root: Path) -> list[str]:
             "C7.3" not in roadmap or "C7.4" not in roadmap or "C7.5" not in roadmap or
             "D1" not in roadmap):
         errors.append("roadmap não documenta a sequência C6/C7/D1")
-    if "C6 -> C7 -> D1-A -> D1-B -> D1-C -> Worlds" not in roadmap:
-        errors.append("roadmap não documenta o caminho oficial D1-A/D1-B/D1-C para Worlds")
+    if "C6 -> C7 -> D1-A -> D1-B -> D1-C -> K0 Worlds Kernel -> Domain minimo -> Brain Bridge" not in roadmap:
+        errors.append("roadmap não documenta o caminho oficial D1 para K0 e Worlds")
     if "C7 — estados internos" in roadmap:
         errors.append("roadmap ainda apresenta a descricao antiga de C7")
     if "[x] C7.2 - codificacao generica de sensores numericos para entrada neural" not in roadmap:
@@ -611,15 +644,20 @@ def validate_docs(root: Path) -> list[str]:
         "C7.4 - reward, reset e ciclo cerebro-agente",
         "C7.5-A - persistencia, resume e replay deterministico do ciclo cerebro-agente",
         "C7.5-B - auditoria integrada da interface cerebro-agente",
-        "D1-A - arquitetura, produtos de build e API candidata provisoria",
-        "D1-B - robustez, determinismo, stress e desempenho",
-        "D1-C - fechamento do Core e avaliacao para `miniSNN Core v1.0-rc`",
-        "miniSNN Core v1.0-rc",
-        "API candidata provisoria",
+        "D1-A — concluído",
+        "D1-B — concluído",
+        "D1-C — concluído",
+        "D1 — concluído",
+        "miniSNN Core 1.0.0-rc.1",
+        "K0 — fundação determinística do Worlds Kernel",
+        "API Core-Brain Bridge candidata provisoriamente estável",
         "D2 — auditoria pos-integracao",
         "miniSNN Core v1.0",
         "congelada definitivamente",
         "Worlds Kernel -> Domain minimo -> Brain Bridge -> organismo headless -> App minimo -> D2 pos-integracao",
+        "C8",
+        "Bloco E permanece pausado",
+        "Pesquisa neural futura permanece uma trilha separada",
     ):
         if token not in roadmap:
             errors.append(f"roadmap sem etapa oficial: {token}")
@@ -679,7 +717,9 @@ def validate_docs(root: Path) -> list[str]:
         if required_output not in documentation_text:
             errors.append(f"saída central não documentada: {required_output}")
 
-    api_header = (root / "include" / "minisnn.h").read_text(encoding="utf-8")
+    api_header = ((root / "include" / "minisnn.h").read_text(encoding="utf-8") +
+                  "\n" +
+                  (root / "include" / "minisnn_version.h").read_text(encoding="utf-8"))
     api_reference = texts.get(root / "API_REFERENCE.md", "")
     public_functions = set(re.findall(r"\b(minisnn_[a-z_]+)\s*\(", api_header))
     for function in public_functions:

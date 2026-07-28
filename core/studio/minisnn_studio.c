@@ -14,8 +14,10 @@
 #include "scenario_runner.h"
 #include "evolution_config.h"
 #include "minisnn.h"
+#include "minisnn_version.h"
+#include "studio_runtime_layout.h"
 
-#define APP_TITLE "miniSNN Studio"
+#define APP_TITLE "miniSNN Studio - Powered by miniSNN Core " MINISNN_VERSION_STRING
 #define TEXT_BUFFER_SIZE 128
 #define STATUS_BUFFER_SIZE 1024
 #define SUMMARY_BUFFER_SIZE 2048
@@ -27,6 +29,7 @@
 #define STUDIO_BUTTON_COUNT 25
 #define REWARD_EVENTS_TEXT_SIZE 4096
 #define EVOLUTION_TEXT_SIZE 4096
+#define STUDIO_RUNTIME_ERROR_SIZE 512
 
 #define STUDIO_MIN_CLIENT_WIDTH 1320
 #define STUDIO_MIN_CLIENT_HEIGHT 980
@@ -367,7 +370,7 @@ typedef struct
     int has_comparison;
     char last_comparison_dir[MAX_PATH];
 
-    char project_root[MAX_PATH];
+    StudioRuntimeLayout runtime_layout;
     char pixel_font_face[LF_FACESIZE];
     int resolved_python_uses_py_launcher;
     HANDLE evolution_process;
@@ -970,13 +973,11 @@ static int project_path(
     size_t out_path_size,
     const char *relative_path)
 {
-    size_t root_length;
     const char *tail = relative_path;
 
     if (out_path == NULL ||
         out_path_size == 0 ||
-        relative_path == NULL ||
-        g_app.project_root[0] == '\0')
+        relative_path == NULL)
     {
         return 0;
     }
@@ -984,26 +985,36 @@ static int project_path(
     while (*tail == '\\' || *tail == '/')
         tail++;
 
-    root_length = strlen(g_app.project_root);
-
-    if (snprintf(
-            out_path,
-            out_path_size,
-            "%s%s%s",
-            g_app.project_root,
-            root_length > 0 && g_app.project_root[root_length - 1] == '\\' ? "" : "\\",
-            tail) >= (int)out_path_size)
+    if (strncmp(tail, "configs", strlen("configs")) == 0 &&
+        (tail[7] == '\0' || tail[7] == '\\' || tail[7] == '/'))
     {
-        return 0;
+        return studio_runtime_layout_resource_path(
+            &g_app.runtime_layout, tail, out_path, out_path_size);
     }
-
-    for (char *c = out_path; *c != '\0'; c++)
+    if (strncmp(tail, "scripts", strlen("scripts")) == 0 &&
+        (tail[7] == '\0' || tail[7] == '\\' || tail[7] == '/'))
     {
-        if (*c == '/')
-            *c = '\\';
+        return studio_runtime_layout_resource_path(
+            &g_app.runtime_layout, tail, out_path, out_path_size);
     }
+    if (strncmp(tail, "results", strlen("results")) == 0 &&
+        (tail[7] == '\0' || tail[7] == '\\' || tail[7] == '/'))
+    {
+        tail += 7;
+        while (*tail == '\\' || *tail == '/')
+            tail++;
+        if (*tail == '\0')
+            return copy_path(out_path, out_path_size, g_app.runtime_layout.results_root);
+        return studio_runtime_layout_results_path(
+            &g_app.runtime_layout, tail, out_path, out_path_size);
+    }
+    return 0;
+}
 
-    return 1;
+static const char *studio_working_directory(void)
+{
+    return g_app.runtime_layout.core_resource_root[0] != '\0' ?
+        g_app.runtime_layout.core_resource_root : NULL;
 }
 
 static int scenarios_directory_path(char *out_path, size_t out_path_size)
@@ -1014,13 +1025,13 @@ static int scenarios_directory_path(char *out_path, size_t out_path_size)
     if (!project_path(results_path, sizeof(results_path), "results") ||
         !project_path(scenarios_path, sizeof(scenarios_path), "results\\scenarios"))
     {
-        return copy_path(out_path, out_path_size, g_app.project_root);
+        return copy_path(out_path, out_path_size, studio_working_directory());
     }
 
     if (!ensure_directory_exists(results_path) ||
         !ensure_directory_exists(scenarios_path))
     {
-        return copy_path(out_path, out_path_size, g_app.project_root);
+        return copy_path(out_path, out_path_size, studio_working_directory());
     }
 
     return copy_path(out_path, out_path_size, scenarios_path);
@@ -1109,7 +1120,7 @@ static int run_hidden_process(
             FALSE,
             CREATE_NO_WINDOW,
             NULL,
-            g_app.project_root[0] != '\0' ? g_app.project_root : NULL,
+            studio_working_directory(),
             &startup,
             &process))
     {
@@ -1852,11 +1863,11 @@ static void load_scenario_file(void)
 
     if (!GetOpenFileNameA(&ofn))
     {
-        SetCurrentDirectoryA(g_app.project_root);
+        SetCurrentDirectoryA(studio_working_directory());
         return;
     }
 
-    SetCurrentDirectoryA(g_app.project_root);
+    SetCurrentDirectoryA(studio_working_directory());
 
     if (!scenario_config_load_file(
             filename,
@@ -1914,11 +1925,11 @@ static void save_scenario_file(void)
 
     if (!GetSaveFileNameA(&ofn))
     {
-        SetCurrentDirectoryA(g_app.project_root);
+        SetCurrentDirectoryA(studio_working_directory());
         return;
     }
 
-    SetCurrentDirectoryA(g_app.project_root);
+    SetCurrentDirectoryA(studio_working_directory());
 
     if (!scenario_config_save_file(filename, &config, error, sizeof(error)))
     {
@@ -1947,7 +1958,7 @@ static void run_scenario(void)
     set_status("SIMULACAO EM EXECUCAO...");
     UpdateWindow(g_app.window);
 
-    if (!SetCurrentDirectoryA(g_app.project_root))
+    if (!SetCurrentDirectoryA(studio_working_directory()))
     {
         show_error(
             "Erro interno",
@@ -2064,7 +2075,7 @@ static void generate_graphs(void)
             FALSE,
             CREATE_NO_WINDOW,
             NULL,
-            g_app.project_root,
+            studio_working_directory(),
             &startup,
             &process))
     {
@@ -2253,7 +2264,7 @@ static void open_last_execution(void)
         "open",
         output_path,
         NULL,
-        g_app.project_root,
+        studio_working_directory(),
         SW_SHOWNORMAL);
 
     if ((INT_PTR)result <= 32)
@@ -2301,7 +2312,7 @@ static void open_results_root(void)
         "open",
         results_path,
         NULL,
-        g_app.project_root,
+        studio_working_directory(),
         SW_SHOWNORMAL);
 
     if ((INT_PTR)result <= 32)
@@ -2436,7 +2447,7 @@ static void open_scenario_history(void)
         "open",
         history_path,
         NULL,
-        g_app.project_root,
+        studio_working_directory(),
         SW_SHOWNORMAL);
 
     if ((INT_PTR)result <= 32)
@@ -2541,7 +2552,7 @@ static void open_existing_file(
         "open",
         path,
         NULL,
-        g_app.project_root,
+        studio_working_directory(),
         SW_SHOWNORMAL);
 
     if ((INT_PTR)result <= 32)
@@ -3394,7 +3405,7 @@ static void generate_neuron_graph(void)
             FALSE,
             CREATE_NO_WINDOW,
             NULL,
-            g_app.project_root,
+            studio_working_directory(),
             &startup,
             &process))
     {
@@ -3558,7 +3569,7 @@ static void open_comparison_results(void)
         "open",
         g_app.last_comparison_dir,
         NULL,
-        g_app.project_root,
+        studio_working_directory(),
         SW_SHOWNORMAL);
 
     if ((INT_PTR)result <= 32)
@@ -3692,7 +3703,7 @@ static void compare_runs_from_studio(void)
             FALSE,
             CREATE_NO_WINDOW,
             NULL,
-            g_app.project_root,
+            studio_working_directory(),
             &startup,
             &process))
     {
@@ -6715,7 +6726,19 @@ static int load_evolution_config_path(const char *path)
 
     if (!evolution_config_load_file(path, &config, &base, error, sizeof(error)))
     {
-        show_error("Config evolutiva invalida", error);
+        char message[SUMMARY_BUFFER_SIZE];
+
+        snprintf(
+            message,
+            sizeof(message),
+            "Nao foi possivel abrir a configuracao evolutiva.\n\n"
+            "Caminho tentado:\n%s\n\nDetalhe:\n%s\n\n"
+            "Modo detectado: %s\n\n"
+            "Confirme os recursos do runtime e reconstrua ou reinstale o Studio.",
+            path != NULL ? path : "(caminho invalido)",
+            error,
+            studio_runtime_layout_mode_name(&g_app.runtime_layout));
+        show_error("Config evolutiva invalida", message);
         return 0;
     }
     g_evolution.config = config;
@@ -6730,10 +6753,63 @@ static int load_evolution_config_path(const char *path)
     return 1;
 }
 
+static int evolution_configs_directory(char *out_path, size_t out_path_size)
+{
+    if (project_path(out_path, out_path_size, "configs"))
+        return 1;
+
+    {
+        char message[SUMMARY_BUFFER_SIZE];
+        const char *resource_root = studio_working_directory();
+
+        snprintf(
+            message,
+            sizeof(message),
+            "Nao foi possivel resolver o recurso configs.\n\n"
+            "Raiz de recursos:\n%s\n\n"
+            "Modo detectado: %s\n\n"
+            "Reconstrua o projeto ou reinstale o pacote do Studio.",
+            resource_root != NULL ? resource_root : "(raiz invalida)",
+            studio_runtime_layout_mode_name(&g_app.runtime_layout));
+        show_error("Diretorio de configuracoes indisponivel", message);
+    }
+    return 0;
+}
+
+static int restore_evolution_working_directory(const char *working_directory)
+{
+    if (working_directory != NULL && SetCurrentDirectoryA(working_directory))
+        return 1;
+
+    {
+        char message[SUMMARY_BUFFER_SIZE];
+
+        snprintf(
+            message,
+            sizeof(message),
+            "Nao foi possivel restaurar o diretorio de recursos:\n%s\n\n"
+            "Modo detectado: %s",
+            working_directory != NULL ? working_directory : "(diretorio invalido)",
+            studio_runtime_layout_mode_name(&g_app.runtime_layout));
+        show_error("Diretorio de trabalho indisponivel", message);
+    }
+    return 0;
+}
+
 static void choose_evolution_config(void)
 {
     OPENFILENAMEA ofn;
     char path[MAX_PATH] = "";
+    char configs_path[MAX_PATH];
+    const char *working_directory = studio_working_directory();
+    int selected;
+
+    if (working_directory == NULL ||
+        !evolution_configs_directory(configs_path, sizeof(configs_path)) ||
+        !restore_evolution_working_directory(working_directory))
+    {
+        return;
+    }
 
     memset(&ofn, 0, sizeof(ofn));
     ofn.lStructSize = sizeof(ofn);
@@ -6741,9 +6817,12 @@ static void choose_evolution_config(void)
     ofn.lpstrFilter = "Configuracao evolutiva (*.ini)\0*.ini\0Todos (*.*)\0*.*\0";
     ofn.lpstrFile = path;
     ofn.nMaxFile = sizeof(path);
-    ofn.lpstrInitialDir = "configs";
-    ofn.Flags = OFN_FILEMUSTEXIST | OFN_PATHMUSTEXIST;
-    if (GetOpenFileNameA(&ofn))
+    ofn.lpstrInitialDir = configs_path;
+    ofn.Flags = OFN_FILEMUSTEXIST | OFN_PATHMUSTEXIST | OFN_NOCHANGEDIR;
+    selected = GetOpenFileNameA(&ofn);
+    if (!restore_evolution_working_directory(working_directory))
+        return;
+    if (selected)
         load_evolution_config_path(path);
 }
 
@@ -6752,7 +6831,9 @@ static int save_evolution_dialog_config(int choose_path)
     EvolutionExperimentConfig config;
     ScenarioConfig base;
     char path[MAX_PATH];
+    char configs_path[MAX_PATH];
     char error[512];
+    const char *working_directory = studio_working_directory();
 
     if (!evolution_controls_to_config(&config, &base, error, sizeof(error)))
     {
@@ -6764,6 +6845,13 @@ static int save_evolution_dialog_config(int choose_path)
     if (choose_path || path[0] == '\0')
     {
         OPENFILENAMEA ofn;
+
+        if (working_directory == NULL ||
+            !evolution_configs_directory(configs_path, sizeof(configs_path)) ||
+            !restore_evolution_working_directory(working_directory))
+        {
+            return 0;
+        }
         memset(&ofn, 0, sizeof(ofn));
         ofn.lStructSize = sizeof(ofn);
         ofn.hwndOwner = g_evolution.window;
@@ -6771,9 +6859,14 @@ static int save_evolution_dialog_config(int choose_path)
         ofn.lpstrFile = path;
         ofn.nMaxFile = sizeof(path);
         ofn.lpstrDefExt = "ini";
-        ofn.lpstrInitialDir = "configs";
-        ofn.Flags = OFN_OVERWRITEPROMPT | OFN_PATHMUSTEXIST;
+        ofn.lpstrInitialDir = configs_path;
+        ofn.Flags = OFN_OVERWRITEPROMPT | OFN_PATHMUSTEXIST | OFN_NOCHANGEDIR;
         if (!GetSaveFileNameA(&ofn))
+        {
+            restore_evolution_working_directory(working_directory);
+            return 0;
+        }
+        if (!restore_evolution_working_directory(working_directory))
             return 0;
     }
     if (!scenario_config_save_file(
@@ -6804,11 +6897,24 @@ static int launch_evolution_process(const char *argument, int resume)
                    "O Studio permite apenas uma evolucao por vez.");
         return 0;
     }
-    if (!project_path(runner_path, sizeof(runner_path), "build\\evolution_runner.exe") ||
+    if (!studio_runtime_layout_tool_path(
+            &g_app.runtime_layout,
+            "evolution_runner.exe",
+            runner_path,
+            sizeof(runner_path)) ||
         !file_exists(runner_path))
     {
-        show_error("Runner evolutivo ausente",
-                   "Compile primeiro com: mingw32-make evolution-build");
+        char message[SUMMARY_BUFFER_SIZE];
+
+        snprintf(
+            message,
+            sizeof(message),
+            "Runner evolutivo ausente.\n\nCaminho tentado:\n%s\n\n"
+            "Modo detectado: %s\n\n"
+            "Reconstrua o projeto ou reinstale o pacote do Studio.",
+            runner_path[0] != '\0' ? runner_path : "(caminho invalido)",
+            studio_runtime_layout_mode_name(&g_app.runtime_layout));
+        show_error("Runner evolutivo ausente", message);
         return 0;
     }
     if (snprintf(command, sizeof(command), resume ?
@@ -6822,7 +6928,7 @@ static int launch_evolution_process(const char *argument, int resume)
     memset(&process, 0, sizeof(process));
     startup.cb = sizeof(startup);
     if (!CreateProcessA(NULL, command, NULL, NULL, FALSE, CREATE_NO_WINDOW,
-            NULL, g_app.project_root, &startup, &process))
+            NULL, studio_working_directory(), &startup, &process))
     {
         show_error("Erro ao iniciar evolucao",
                    "CreateProcessA nao conseguiu iniciar evolution_runner.exe.");
@@ -6886,7 +6992,7 @@ static int open_evolution_artifact(const char *relative_artifact, const char *st
         return 0;
     }
     result = ShellExecuteA(g_app.window, "open", path, NULL,
-                           g_app.project_root, SW_SHOWNORMAL);
+                           studio_working_directory(), SW_SHOWNORMAL);
     if ((INT_PTR)result <= 32)
     {
         show_error("Erro ao abrir", "O Windows nao conseguiu abrir o artefato evolutivo.");
@@ -7057,7 +7163,7 @@ static void open_evolution_history(void)
         show_info("Historico anterior",
                   "Python nao foi encontrado; o HTML anterior sera aberto.");
     ShellExecuteA(g_app.window, "open", history, NULL,
-                  g_app.project_root, SW_SHOWNORMAL);
+                  studio_working_directory(), SW_SHOWNORMAL);
     set_status("HISTORICO EVOLUTIVO ABERTO");
 }
 
@@ -7829,11 +7935,30 @@ static void open_evolution_options(void)
     HWND dialog;
     MSG message;
     char default_path[MAX_PATH];
+    char preflight_error[STUDIO_RUNTIME_ERROR_SIZE];
 
     if (g_app.evolution_active)
     {
         show_info("Evolucao em andamento",
                   "Aguarde a conclusao antes de abrir uma nova execucao.");
+        return;
+    }
+    if (!studio_runtime_layout_preflight(
+            &g_app.runtime_layout,
+            preflight_error,
+            sizeof(preflight_error)))
+    {
+        char message[SUMMARY_BUFFER_SIZE];
+
+        snprintf(
+            message,
+            sizeof(message),
+            "Nao foi possivel preparar a Neuroevolucao.\n\n%s\n\n"
+            "Modo detectado: %s\n\n"
+            "Reconstrua o projeto ou reinstale o pacote do Studio.",
+            preflight_error,
+            studio_runtime_layout_mode_name(&g_app.runtime_layout));
+        show_error("Runtime da Neuroevolucao indisponivel", message);
         return;
     }
     memset(&window_class, 0, sizeof(window_class));
@@ -7844,9 +7969,12 @@ static void open_evolution_options(void)
     RegisterClassA(&window_class);
 
     memset(&g_evolution, 0, sizeof(g_evolution));
-    if (project_path(default_path, sizeof(default_path),
-                     "configs\\evolution_weight_target_demo.ini"))
-        load_evolution_config_path(default_path);
+    if (!project_path(default_path, sizeof(default_path),
+                      "configs\\evolution_weight_target_demo.ini") ||
+        !load_evolution_config_path(default_path))
+    {
+        return;
+    }
     dialog = CreateWindowExA(WS_EX_DLGMODALFRAME,
         "MiniSNNEvolutionWindow", "NEUROEVOLUCAO",
         WS_POPUP | WS_CAPTION | WS_SYSMENU,
@@ -8349,28 +8477,133 @@ static LRESULT handle_edit_color(HDC hdc)
     return (LRESULT)g_app.edit_brush;
 }
 
-static int setup_project_root(void)
+typedef struct
 {
-    char path[MAX_PATH];
-    char *slash;
+    int smoke_test;
+    int runtime_smoke_test;
+    char repository_root[MAX_PATH];
+    char runtime_root[MAX_PATH];
+} StudioLaunchArguments;
 
-    if (GetModuleFileNameA(NULL, path, sizeof(path)) == 0)
+static int next_command_token(
+    const char **cursor,
+    char *out_token,
+    size_t out_token_size)
+{
+    const char *source;
+    char quote = '\0';
+    size_t used = 0;
+
+    if (cursor == NULL || *cursor == NULL || out_token == NULL || out_token_size == 0)
         return 0;
-
-    slash = strrchr(path, '\\');
-    if (slash == NULL)
+    source = *cursor;
+    while (*source != '\0' && isspace((unsigned char)*source))
+        source++;
+    if (*source == '\0')
+    {
+        *cursor = source;
         return 0;
+    }
+    if (*source == '"')
+        quote = *source++;
+    while (*source != '\0' &&
+           (quote != '\0' ? *source != quote : !isspace((unsigned char)*source)))
+    {
+        if (used + 1 >= out_token_size)
+            return -1;
+        out_token[used++] = *source++;
+    }
+    if (quote != '\0')
+    {
+        if (*source != quote)
+            return -1;
+        source++;
+    }
+    out_token[used] = '\0';
+    *cursor = source;
+    return 1;
+}
 
-    *slash = '\0';
+static int parse_launch_arguments(
+    const char *command_line,
+    StudioLaunchArguments *arguments,
+    char *error_message,
+    size_t error_message_size)
+{
+    const char *cursor = command_line;
+    char token[MAX_PATH];
+    int result;
 
-    slash = strrchr(path, '\\');
-    if (slash != NULL && strcmp(slash + 1, "build") == 0)
-        *slash = '\0';
-
-    if (!copy_path(g_app.project_root, sizeof(g_app.project_root), path))
+    if (arguments == NULL)
         return 0;
+    memset(arguments, 0, sizeof(*arguments));
+    while ((result = next_command_token(&cursor, token, sizeof(token))) != 0)
+    {
+        if (result < 0)
+        {
+            snprintf(error_message, error_message_size, "argumento de linha de comando invalido");
+            return 0;
+        }
+        if (strcmp(token, "--smoke-test") == 0)
+            arguments->smoke_test = 1;
+        else if (strcmp(token, "--runtime-smoke-test") == 0)
+            arguments->runtime_smoke_test = 1;
+        else if (strcmp(token, "--repository-root") == 0 ||
+                 strcmp(token, "--runtime-root") == 0)
+        {
+            char *destination = strcmp(token, "--repository-root") == 0 ?
+                arguments->repository_root : arguments->runtime_root;
+            result = next_command_token(&cursor, destination, MAX_PATH);
+            if (result != 1 || destination[0] == '\0')
+            {
+                snprintf(error_message, error_message_size,
+                         "%s exige um caminho", token);
+                return 0;
+            }
+        }
+        else
+        {
+            snprintf(error_message, error_message_size,
+                     "argumento desconhecido: %s", token);
+            return 0;
+        }
+    }
+    if (arguments->smoke_test && arguments->runtime_smoke_test)
+    {
+        snprintf(error_message, error_message_size,
+                 "--smoke-test e --runtime-smoke-test nao podem ser usados juntos");
+        return 0;
+    }
+    return 1;
+}
 
-    return SetCurrentDirectoryA(g_app.project_root) != 0;
+static int setup_runtime_layout(
+    const StudioLaunchArguments *arguments,
+    char *error_message,
+    size_t error_message_size)
+{
+    char executable_path[MAX_PATH];
+
+    if (arguments == NULL || GetModuleFileNameA(NULL, executable_path,
+                                                sizeof(executable_path)) == 0 ||
+        !studio_runtime_layout_resolve(
+            &g_app.runtime_layout,
+            executable_path,
+            arguments->repository_root[0] != '\0' ? arguments->repository_root : NULL,
+            arguments->runtime_root[0] != '\0' ? arguments->runtime_root : NULL,
+            error_message,
+            error_message_size))
+    {
+        return 0;
+    }
+    if (!SetCurrentDirectoryA(studio_working_directory()))
+    {
+        snprintf(error_message, error_message_size,
+                 "nao foi possivel usar o diretorio de recursos: %s",
+                 studio_working_directory());
+        return 0;
+    }
+    return 1;
 }
 
 static LRESULT CALLBACK window_proc(
@@ -8697,6 +8930,78 @@ static LRESULT CALLBACK window_proc(
     return DefWindowProcA(hwnd, message, wparam, lparam);
 }
 
+static int write_smoke_message(const char *message)
+{
+    DWORD written = 0;
+    size_t length;
+
+    if (message == NULL)
+        return 0;
+    length = strlen(message);
+    return WriteFile(GetStdHandle(STD_OUTPUT_HANDLE), message, (DWORD)length,
+                     &written, NULL) && written == (DWORD)length;
+}
+
+static int run_studio_smoke_test(int runtime_smoke)
+{
+    MiniSNNConfig config;
+    MiniSNN *network;
+    const char *version;
+    char message[SUMMARY_BUFFER_SIZE];
+    int message_length;
+    char error[STUDIO_RUNTIME_ERROR_SIZE];
+
+    version = minisnn_version_string();
+    if (version == NULL || strcmp(version, MINISNN_VERSION_STRING) != 0 ||
+        minisnn_version_major() != MINISNN_VERSION_MAJOR ||
+        minisnn_version_minor() != MINISNN_VERSION_MINOR ||
+        minisnn_version_patch() != MINISNN_VERSION_PATCH ||
+        strcmp(minisnn_version_prerelease(), MINISNN_VERSION_PRERELEASE) != 0)
+    {
+        return 1;
+    }
+
+    config = minisnn_default_config();
+    if (!minisnn_config_is_valid(&config))
+        return 2;
+
+    network = minisnn_create_with_config(&config);
+    if (network == NULL)
+        return 3;
+    minisnn_destroy(&network);
+
+    if (runtime_smoke && !studio_runtime_layout_preflight(
+            &g_app.runtime_layout, error, sizeof(error)))
+    {
+        snprintf(message, sizeof(message),
+                 "miniSNN Studio runtime smoke FAILED: %s\n", error);
+        write_smoke_message(message);
+        return 4;
+    }
+
+    if (runtime_smoke)
+    {
+        message_length = snprintf(
+            message,
+            sizeof(message),
+            "miniSNN Studio runtime smoke OK\nmode=%s\nversion=%s\n",
+            studio_runtime_layout_mode_name(&g_app.runtime_layout),
+            version);
+    }
+    else
+    {
+        message_length = snprintf(message, sizeof(message),
+                                  "miniSNN Studio smoke test OK: %s\n", version);
+    }
+    if (message_length <= 0 || (size_t)message_length >= sizeof(message) ||
+        !write_smoke_message(message))
+    {
+        return 5;
+    }
+
+    return 0;
+}
+
 int WINAPI WinMain(
     HINSTANCE instance,
     HINSTANCE previous_instance,
@@ -8708,22 +9013,41 @@ int WINAPI WinMain(
     MSG message;
     int window_width;
     int window_height;
+    StudioLaunchArguments arguments;
+    char layout_error[STUDIO_RUNTIME_ERROR_SIZE];
 
     (void)previous_instance;
-    (void)command_line;
 
     memset(&g_app, 0, sizeof(g_app));
     memset(&window_class, 0, sizeof(window_class));
 
-    if (!setup_project_root())
+    if (!parse_launch_arguments(command_line, &arguments,
+                                layout_error, sizeof(layout_error)) ||
+        ((arguments.runtime_smoke_test || !arguments.smoke_test) &&
+         !setup_runtime_layout(&arguments, layout_error, sizeof(layout_error))))
     {
-        MessageBoxA(
-            NULL,
-            "Erro interno: nao foi possivel acessar a raiz do projeto.",
-            APP_TITLE,
-            MB_ICONERROR | MB_OK);
+        if (arguments.smoke_test || arguments.runtime_smoke_test)
+        {
+            char message[SUMMARY_BUFFER_SIZE];
+
+            snprintf(message, sizeof(message),
+                     "miniSNN Studio runtime smoke FAILED: %s\n", layout_error);
+            write_smoke_message(message);
+        }
+        else
+        {
+            MessageBoxA(
+                NULL,
+                layout_error,
+                APP_TITLE,
+                MB_ICONERROR | MB_OK);
+        }
         return 1;
     }
+    if (arguments.smoke_test)
+        return run_studio_smoke_test(0);
+    if (arguments.runtime_smoke_test)
+        return run_studio_smoke_test(1);
 
     window_class.lpfnWndProc = window_proc;
     window_class.hInstance = instance;
