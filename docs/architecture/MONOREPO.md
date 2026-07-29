@@ -4,8 +4,15 @@
 
 O produto `miniSNN Core` tem versao tecnica `1.0.0-rc.1`. O Core e distribuido
 separadamente do miniSNN Studio em pacotes locais de avaliacao; a Bridge entre
-Core e Worlds ainda e candidata e nao existe Worlds neste monorepo. D1 esta
-concluido para `miniSNN Core 1.0.0-rc.1`; K0 e o proximo bloco planejado.
+Core e Worlds ainda e candidata. D1 esta concluido para `miniSNN Core
+1.0.0-rc.1`; K0-A e o primeiro sub-bloco do novo Worlds Kernel.
+
+## K0-A: Worlds Kernel
+
+`worlds/kernel/` e um produto fisico C11, headless e independente para o
+Worlds Kernel. K0-A conclui configuracao, lifecycle, tempo logico, diagnostico
+e tick atomico. O Kernel nao depende do Core, e o Core nao depende do Kernel.
+K0 permanece em andamento; K0-B e o proximo sub-bloco.
 
 ## D1-A: produtos de build e API candidata
 
@@ -73,8 +80,6 @@ bloco planejado.
 ## Limites planejados
 
 - Core nao depende de Worlds.
-- Worlds Kernel sera uma biblioteca generica independente e nao dependera do
-  Core.
+- Worlds Kernel e uma biblioteca generica independente e nao depende do Core.
 - Brain Bridge sera o unico modulo que conhecera Core e Domain.
-- Worlds, Worlds Kernel, Domain e Brain Bridge nao sao implementados nesta
-  migracao.
+- Worlds Domain, Brain Bridge e Worlds App ainda nao sao implementados.

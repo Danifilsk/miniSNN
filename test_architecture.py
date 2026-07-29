@@ -7,6 +7,7 @@ import sys
 
 ROOT = Path(__file__).resolve().parent
 CORE = ROOT / "core"
+WORLDS_KERNEL = ROOT / "worlds" / "kernel"
 EXPECTED_DIRECTORIES = (
     "include", "src", "app", "studio", "tests", "scripts", "configs", "docs",
     "examples", "experiments", "results",
@@ -33,6 +34,8 @@ def main() -> int:
     root_makefile = (ROOT / "Makefile").read_text(encoding="utf-8")
     for target in ("core:", "core-lib:", "core-headless:", "core-test:",
                    "core-tests:", "core-studio:", "core-evolution:",
+                   "worlds-kernel-lib:", "worlds-kernel:", "worlds-kernel-test:",
+                   "test-k0-a-sanitize:", "audit-k0-a:", "clean-worlds-kernel:",
                    "audit-d1-build-products:", "audit-d1-api:", "test:",
                    "test-architecture:"):
         if target not in root_makefile:
@@ -61,6 +64,22 @@ def main() -> int:
             fail(f"caminho anterior da raiz no Makefile do Core: {obsolete_path}")
     if "worlds" in core_makefile.lower():
         fail("o Makefile do Core exige uma dependencia de Worlds")
+
+    for directory in ("include", "src", "app", "tests", "scripts", "configs", "docs", "results"):
+        if not (WORLDS_KERNEL / directory).is_dir():
+            fail(f"worlds/kernel/{directory}/ ausente")
+    worlds_makefile = (WORLDS_KERNEL / "Makefile").read_text(encoding="utf-8")
+    if "libminisnn_core" in worlds_makefile or "core/" in worlds_makefile:
+        fail("Makefile do Worlds Kernel depende do Core")
+    for path in list((WORLDS_KERNEL / "include").rglob("*")) + list((WORLDS_KERNEL / "src").rglob("*")):
+        if path.is_dir() or path.suffix.lower() not in {".c", ".h"}:
+            continue
+        content = path.read_text(encoding="utf-8", errors="replace")
+        for include in INCLUDE_PATTERN.findall(content):
+            normalized = include.replace("\\", "/").lower()
+            if ("minisnn.h" in normalized or "core/" in normalized or
+                    "windows.h" in normalized or "pthread" in normalized):
+                fail(f"Worlds Kernel depende de produto externo: {path.relative_to(ROOT)}")
 
     if (CORE / "app" / "minisnn_studio.c").exists():
         fail("Studio ainda esta misturado a core/app")

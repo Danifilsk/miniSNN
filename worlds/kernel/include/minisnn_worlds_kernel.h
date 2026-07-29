@@ -1,0 +1,37 @@
+#ifndef MINISNN_WORLDS_KERNEL_H
+#define MINISNN_WORLDS_KERNEL_H
+
+#include "minisnn_worlds_kernel_config.h"
+#include "minisnn_worlds_kernel_diagnostics.h"
+
+MiniSNNWorldsKernel *minisnn_worlds_kernel_create(
+    const MiniSNNWorldsKernelConfig *config,
+    MiniSNNWorldsKernelError *out_error);
+
+void minisnn_worlds_kernel_destroy(MiniSNNWorldsKernel *kernel);
+
+MiniSNNWorldsTick minisnn_worlds_kernel_tick(
+    const MiniSNNWorldsKernel *kernel);
+
+MiniSNNWorldsKernelState minisnn_worlds_kernel_state(
+    const MiniSNNWorldsKernel *kernel);
+
+MiniSNNWorldsKernelError minisnn_worlds_kernel_last_error(
+    const MiniSNNWorldsKernel *kernel);
+
+MiniSNNWorldsKernelError minisnn_worlds_kernel_step(
+    MiniSNNWorldsKernel *kernel);
+
+MiniSNNWorldsKernelError minisnn_worlds_kernel_get_diagnostics(
+    const MiniSNNWorldsKernel *kernel,
+    MiniSNNWorldsKernelDiagnostics *out_diagnostics);
+
+#ifdef MINISNN_WORLDS_KERNEL_TESTING
+void minisnn_worlds_kernel_testing_fail_next_allocation(void);
+
+MiniSNNWorldsKernelError minisnn_worlds_kernel_testing_set_tick(
+    MiniSNNWorldsKernel *kernel,
+    MiniSNNWorldsTick tick);
+#endif
+
+#endif

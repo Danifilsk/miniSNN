@@ -28,8 +28,13 @@ de dependencia explicitos.
 
 - **miniSNN Core**: a biblioteca e o laboratorio neural existentes, em
   [`core/`](core/README.md).
-- **miniSNN Worlds**: produto futuro; ainda nao foi criado neste repositorio.
-- **Worlds Kernel**: futura biblioteca generica independente.
+- **miniSNN Worlds Kernel**: produto headless e independente em
+  [`worlds/kernel/`](worlds/kernel/), com K0-A concluido para lifecycle e tempo
+  logico.
+- **miniSNN Worlds Domain**: ainda nao criado.
+- **Brain Bridge**: ainda nao criada; sera a unica integracao entre Domain e
+  Core.
+- **Worlds App**: ainda nao criada.
 
 A migracao M1 organiza fisicamente o Core sem alterar sua dinamica neural,
 parametros cientificos ou formatos de resultados. Consulte a

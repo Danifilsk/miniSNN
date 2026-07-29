@@ -48,3 +48,7 @@ tmp_*.csv
 # Artefatos locais e regeneraveis da auditoria D1-B
 /core/results/d1_b_robustness/*
 !/core/results/d1_b_robustness/.gitkeep
+
+# Resultados locais do Worlds Kernel
+/worlds/kernel/results/*
+!/worlds/kernel/results/.gitkeep

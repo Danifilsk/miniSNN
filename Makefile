@@ -11,8 +11,9 @@ PYTHON := python
 endif
 endif
 CORE_DIR = core
+WORLDS_KERNEL_DIR = worlds/kernel
 
-.PHONY: all help clean clean-core clean-studio clean-tests core core-lib core-headless core-test core-tests core-studio studio studio-path core-evolution test test-architecture audit-d1-build-products audit-d1-api test-d1-determinism test-d1-corruption test-d1-lifecycle-stress test-d1-optimization-determinism test-d1-posix-headless test-d1-portability test-d1-long-run test-d1-symbols benchmark-d1 scenario-d1-b audit-d1-b audit-d1 test-version test-api-baseline test-api-baseline-regressions release-core release-headless release-studio release-all test-release-build test-external-consumer package-release test-release-integrity test-release-packages test-studio-source-contracts test-studio-runtime-layout audit-d1-c-automated audit-d1-c test-working-memory test-associative-memory test-sequence-prediction test-c6-checkpoints test-c6-integration test-c6-long test-agent-io test-sensor-encoder test-action-decoder test-agent-cycle test-agent-cycle-checkpoint test-c7-integration test-c7-evolution test-c7-long-run test-c7 scenario-working-memory scenario-associative-memory scenario-sequence-prediction scenario-sequence-prediction-context scenario-c6-suite scenario-sensor-encoding scenario-action-decoding scenario-agent-cycle scenario-agent-cycle-checkpoint scenario-c7-integrated-audit check-c6 check-c7
+.PHONY: all help clean clean-core clean-studio clean-tests core core-lib core-headless core-test core-tests core-studio studio studio-path core-evolution worlds-kernel-lib worlds-kernel worlds-kernel-test test-k0-a-sanitize audit-k0-a clean-worlds-kernel test test-architecture audit-d1-build-products audit-d1-api test-d1-determinism test-d1-corruption test-d1-lifecycle-stress test-d1-optimization-determinism test-d1-posix-headless test-d1-portability test-d1-long-run test-d1-symbols benchmark-d1 scenario-d1-b audit-d1-b audit-d1 test-version test-api-baseline test-api-baseline-regressions release-core release-headless release-studio release-all test-release-build test-external-consumer package-release test-release-integrity test-release-packages test-studio-source-contracts test-studio-runtime-layout audit-d1-c-automated audit-d1-c test-working-memory test-associative-memory test-sequence-prediction test-c6-checkpoints test-c6-integration test-c6-long test-agent-io test-sensor-encoder test-action-decoder test-agent-cycle test-agent-cycle-checkpoint test-c7-integration test-c7-evolution test-c7-long-run test-c7 scenario-working-memory scenario-associative-memory scenario-sequence-prediction scenario-sequence-prediction-context scenario-c6-suite scenario-sensor-encoding scenario-action-decoding scenario-agent-cycle scenario-agent-cycle-checkpoint scenario-c7-integrated-audit check-c6 check-c7
 
 all: test
 
@@ -27,6 +28,12 @@ help:
 	@echo   mingw32-make studio-path      - mostra o caminho do executavel do Studio
 	@echo   Abrir miniSNN Studio.cmd      - launcher clicavel para o uso normal
 	@echo   mingw32-make core-evolution   - compila o runner de neuroevolucao
+	@echo   mingw32-make worlds-kernel-lib - compila somente a biblioteca Worlds Kernel
+	@echo   mingw32-make worlds-kernel     - compila a biblioteca e o demo Worlds Kernel
+	@echo   mingw32-make worlds-kernel-test - executa os testes Worlds Kernel
+	@echo   mingw32-make test-k0-a-sanitize - executa a regressao ASan/UBSan K0-A
+	@echo   mingw32-make audit-k0-a        - audita a fundacao K0-A do Worlds Kernel
+	@echo   mingw32-make clean-worlds-kernel - limpa somente outputs Worlds Kernel
 	@echo   mingw32-make audit-d1-build-products - audita separacao dos produtos
 	@echo   mingw32-make audit-d1-api     - audita API publica candidata
 	@echo   mingw32-make test-d1-determinism - valida matriz deterministica D1-B
@@ -106,6 +113,24 @@ studio-path:
 
 core-evolution:
 	$(MAKE) -C $(CORE_DIR) evolution-build
+
+worlds-kernel-lib:
+	$(MAKE) -C $(WORLDS_KERNEL_DIR) lib
+
+worlds-kernel:
+	$(MAKE) -C $(WORLDS_KERNEL_DIR) all
+
+worlds-kernel-test:
+	$(MAKE) -C $(WORLDS_KERNEL_DIR) test
+
+test-k0-a-sanitize:
+	$(MAKE) -C $(WORLDS_KERNEL_DIR) sanitize
+
+audit-k0-a:
+	$(MAKE) -C $(WORLDS_KERNEL_DIR) audit-k0-a
+
+clean-worlds-kernel:
+	$(MAKE) -C $(WORLDS_KERNEL_DIR) clean
 
 audit-d1-build-products:
 	$(MAKE) -C $(CORE_DIR) audit-d1-build-products
