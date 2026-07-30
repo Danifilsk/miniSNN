@@ -24,3 +24,7 @@ altera seed, estado de stream ou output em caso de falha.
 Os vetores da versao 1 estao travados em `test_k0_c_random.c`, incluindo seeds
 0, 12345 e `UINT64_MAX`. Uma mudanca de algoritmo exige nova versao, novos
 vetores e incompatibilidade declarada.
+
+K0-D consumes configured streams only through the public API. Its normalized
+scenario signature includes the seed and stream keys, while technical artifact
+files record the resulting stream and draw counters without recording each draw.

@@ -12,7 +12,8 @@ logico. K0-B adiciona somente um registro de entidades por ID forte, uma fila
 de comandos futuros e uma janela de eventos. K0-C adiciona seed explicita,
 streams PCG32 independentes, hash canonico e observabilidade por copia. A
 execucao de cada tick prepara um plano temporario completo e o promove em um
-unico commit.
+unico commit. K0-D coloca parser INI, runner, CSV, manifesto e report somente
+em `app/`; a biblioteca continua sem filesystem, CLI ou formatos de artefato.
 
 A biblioteca nao inclui headers do Core, Win32 ou APIs de thread. O Core nao
 inclui headers do Kernel. Uma integracao futura pertence somente a Brain

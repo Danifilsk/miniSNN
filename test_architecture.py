@@ -41,7 +41,12 @@ def main() -> int:
                    "audit-k0-b", "test-k0-c-random", "test-k0-c-hash",
                    "test-k0-c-observability", "test-k0-c-determinism",
                    "test-k0-c-optimization-determinism", "test-k0-c-sanitize",
-                   "demo-k0-c", "audit-k0-c:", "clean-worlds-kernel:",
+                   "demo-k0-c", "audit-k0-c", "demo-k0-d", "test-k0-d-config",
+                   "test-k0-d-artifacts", "test-k0-d-determinism",
+                   "test-k0-d-optimization-determinism", "test-k0-d-corruption",
+                   "test-k0-d-stress", "test-k0-d-long-run", "test-k0-d-sanitize",
+                   "test-k0-external-consumer", "audit-k0-d", "audit-k0:",
+                   "clean-worlds-kernel:",
                    "audit-d1-build-products:", "audit-d1-api:", "test:",
                    "test-architecture:"):
         if target not in root_makefile:
@@ -86,6 +91,13 @@ def main() -> int:
             if ("minisnn.h" in normalized or "core/" in normalized or
                     "windows.h" in normalized or "pthread" in normalized):
                 fail(f"Worlds Kernel depende de produto externo: {path.relative_to(ROOT)}")
+
+    for path in (WORLDS_KERNEL / "app").glob("k0_scenario_*.c"):
+        content = path.read_text(encoding="utf-8", errors="replace")
+        if "minisnn_worlds_kernel.h" not in content and path.name != "k0_scenario_artifacts.c":
+            fail(f"ferramenta K0-D nao usa a API publica: {path.relative_to(ROOT)}")
+        if "src/minisnn_worlds_kernel" in content:
+            fail(f"ferramenta K0-D inclui implementacao privada: {path.relative_to(ROOT)}")
 
     if (CORE / "app" / "minisnn_studio.c").exists():
         fail("Studio ainda esta misturado a core/app")

@@ -10,5 +10,7 @@ independente em `core/`.
 
 K0-A estabelece lifecycle, configuracao, tempo logico e diagnostico minimo.
 K0-B estabelece entidades, comandos futuros e eventos deterministas. K0-C
-estabelece streams PRNG, hash canonico e observabilidade. K0-A, K0-B e K0-C
-estao concluidos; K0 permanece em andamento e K0-D e o proximo sub-bloco.
+estabelece streams PRNG, hash canonico e observabilidade. K0-D estabelece um
+runner configuravel, artefatos tecnicos e auditoria de stress fora da
+biblioteca. K0 esta concluido; K1 e o proximo bloco para entidades genericas,
+transforms, espaco, ocupacao, barreiras, deslocamento e links.

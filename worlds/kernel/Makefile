@@ -15,6 +15,7 @@ LIB_OBJECT := $(OBJ_DIR)/minisnn_worlds_kernel.o
 DEMO := $(BIN_DIR)/k0_tick_demo.exe
 K0B_DEMO := $(BIN_DIR)/k0_entity_command_demo.exe
 K0C_DEMO := $(BIN_DIR)/k0_random_hash_demo.exe
+K0D_RUNNER := $(BIN_DIR)/k0_scenario_runner.exe
 TEST_EXE := $(TEST_DIR)/test_worlds_kernel.exe
 K0B_ENTITY_TEST := $(TEST_DIR)/test_k0_b_entities.exe
 K0B_COMMAND_TEST := $(TEST_DIR)/test_k0_b_commands.exe
@@ -24,14 +25,27 @@ K0C_RANDOM_TEST := $(TEST_DIR)/test_k0_c_random.exe
 K0C_HASH_TEST := $(TEST_DIR)/test_k0_c_hash.exe
 K0C_OBSERVABILITY_TEST := $(TEST_DIR)/test_k0_c_observability.exe
 K0C_DETERMINISM_TEST := $(TEST_DIR)/test_k0_c_determinism.exe
+K0D_CONFIG_TEST := $(TEST_DIR)/test_k0_d_config.exe
+K0D_ARTIFACT_TEST := $(TEST_DIR)/test_k0_d_artifacts.exe
+K0D_ARTIFACT_VALIDATOR := $(TEST_DIR)/k0_d_artifact_validator.exe
+K0_EXTERNAL_CONSUMER_TEST := $(TEST_DIR)/k0_external_consumer.exe
 PUBLIC_HEADERS := $(wildcard $(PUBLIC_INCLUDE_DIR)/*.h)
 SANITIZER_SCRIPT := tests/test_k0_a_sanitize.py
 K0C_SANITIZER_SCRIPT := tests/test_k0_c_sanitize.py
 K0C_OPTIMIZATION_SCRIPT := tests/test_k0_c_optimization_determinism.py
+K0D_DETERMINISM_SCRIPT := tests/test_k0_d_determinism.py
+K0D_CORRUPTION_SCRIPT := tests/test_k0_d_corruption.py
+K0D_STRESS_SCRIPT := tests/test_k0_d_stress.py
+K0D_LONG_RUN_SCRIPT := tests/test_k0_d_long_run.py
+K0D_OPTIMIZATION_SCRIPT := tests/test_k0_d_optimization_determinism.py
+K0D_SANITIZER_SCRIPT := tests/test_k0_d_sanitize.py
+K0D_ARTIFACT_CORRUPTION_SCRIPT := tests/test_k0_d_artifact_corruption.py
+K0D_POSIX_SMOKE_SCRIPT := tests/test_k0_d_posix_smoke.py
+K0D_APP_SOURCES := app/k0_scenario_config.c app/k0_scenario_engine.c app/k0_scenario_artifacts.c
 
-.PHONY: all lib demo demo-k0-b demo-k0-c test test-k0-b-entities test-k0-b-commands test-k0-b-events test-k0-b-determinism test-k0-b-sanitize test-k0-c-random test-k0-c-hash test-k0-c-observability test-k0-c-determinism test-k0-c-optimization-determinism test-k0-c-sanitize sanitize audit-k0-a audit-k0-b audit-k0-c clean
+.PHONY: all lib demo demo-k0-b demo-k0-c demo-k0-d test test-k0-b-entities test-k0-b-commands test-k0-b-events test-k0-b-determinism test-k0-b-sanitize test-k0-c-random test-k0-c-hash test-k0-c-observability test-k0-c-determinism test-k0-c-optimization-determinism test-k0-c-sanitize test-k0-d-config test-k0-d-artifacts test-k0-d-determinism test-k0-d-optimization-determinism test-k0-d-corruption test-k0-d-stress test-k0-d-long-run test-k0-d-posix-smoke test-k0-d-sanitize test-k0-external-consumer sanitize audit-k0-a audit-k0-b audit-k0-c audit-k0-d audit-k0 clean
 
-all: lib demo demo-k0-b demo-k0-c
+all: lib demo demo-k0-b demo-k0-c $(K0D_RUNNER)
 
 help:
 	@echo Worlds Kernel targets:
@@ -39,6 +53,7 @@ help:
 	@echo   make demo         - compila o demo headless de ticks
 	@echo   make demo-k0-b    - compila e executa o demo de entidades e comandos
 	@echo   make demo-k0-c    - compila e executa o demo de PRNG e hash
+	@echo   make demo-k0-d    - executa o cenario integrado e produz artefatos tecnicos
 	@echo   make test         - executa testes do Kernel
 	@echo   make test-k0-b-entities - valida Entity IDs e registro
 	@echo   make test-k0-b-commands - valida fila e ordenacao canonica
@@ -51,10 +66,22 @@ help:
 	@echo   make test-k0-c-determinism - valida matriz deterministica K0-C
 	@echo   make test-k0-c-optimization-determinism - compara trajetoria -O0/-O2
 	@echo   make test-k0-c-sanitize - executa ASan/UBSan K0-C
+	@echo   make test-k0-d-config - valida parser e assinatura normalizada
+	@echo   make test-k0-d-artifacts - valida CSV, manifesto, report e atomicidade
+	@echo   make test-k0-d-determinism - compara processos e configuracoes equivalentes
+	@echo   make test-k0-d-optimization-determinism - compara cenario -O0/-O2
+	@echo   make test-k0-d-corruption - valida corpus de configuracoes invalidas
+	@echo   make test-k0-d-stress - executa workload de stress e overwrite atomico
+	@echo   make test-k0-d-long-run - executa 1000000 ticks reproduziveis
+	@echo   make test-k0-d-posix-smoke - compila o app K0-D em alvo POSIX quando disponivel
+	@echo   make test-k0-d-sanitize - executa ASan/UBSan do runner quando disponivel
+	@echo   make test-k0-external-consumer - valida consumo externo por header e biblioteca
 	@echo   make sanitize     - executa a regressao ASan/UBSan do Kernel
 	@echo   make audit-k0-a   - valida arquitetura, headers, simbolos e demo
 	@echo   make audit-k0-b   - valida K0-A e K0-B de forma integrada
 	@echo   make audit-k0-c   - valida K0-A, K0-B e K0-C de forma integrada
+	@echo   make audit-k0-d   - valida cenario, artefatos, stress e consumer K0-D
+	@echo   make audit-k0     - fecha a fundacao deterministica K0
 	@echo   make clean        - limpa somente build/worlds/kernel
 
 lib: $(LIB)
@@ -78,6 +105,9 @@ $(K0B_DEMO): app/k0_entity_command_demo.c $(LIB) | $(BIN_DIR)
 
 $(K0C_DEMO): app/k0_random_hash_demo.c $(LIB) | $(BIN_DIR)
 	$(CC) $(CFLAGS) -I$(PUBLIC_INCLUDE_DIR) $< $(LIB) -o $@
+
+$(K0D_RUNNER): app/k0_scenario_runner.c $(K0D_APP_SOURCES) $(LIB) | $(BIN_DIR)
+	$(CC) $(CFLAGS) -I$(PUBLIC_INCLUDE_DIR) -Iapp $< $(K0D_APP_SOURCES) $(LIB) -o $@
 
 $(TEST_EXE): tests/test_worlds_kernel.c src/minisnn_worlds_kernel.c $(PUBLIC_HEADERS) | $(TEST_DIR)
 	$(CC) $(CFLAGS) -DMINISNN_WORLDS_KERNEL_TESTING -I$(PUBLIC_INCLUDE_DIR) $< src/minisnn_worlds_kernel.c -o $@
@@ -106,7 +136,19 @@ $(K0C_OBSERVABILITY_TEST): tests/test_k0_c_observability.c src/minisnn_worlds_ke
 $(K0C_DETERMINISM_TEST): tests/test_k0_c_determinism.c src/minisnn_worlds_kernel.c $(PUBLIC_HEADERS) | $(TEST_DIR)
 	$(CC) $(CFLAGS) -DMINISNN_WORLDS_KERNEL_TESTING -I$(PUBLIC_INCLUDE_DIR) $< src/minisnn_worlds_kernel.c -o $@
 
-test: $(LIB) $(TEST_EXE) $(K0B_ENTITY_TEST) $(K0B_COMMAND_TEST) $(K0B_EVENT_TEST) $(K0B_DETERMINISM_TEST) $(K0C_RANDOM_TEST) $(K0C_HASH_TEST) $(K0C_OBSERVABILITY_TEST) $(K0C_DETERMINISM_TEST)
+$(K0D_CONFIG_TEST): tests/test_k0_d_config.c app/k0_scenario_config.c $(PUBLIC_HEADERS) | $(TEST_DIR)
+	$(CC) $(CFLAGS) -I$(PUBLIC_INCLUDE_DIR) -Iapp $< app/k0_scenario_config.c -o $@
+
+$(K0D_ARTIFACT_TEST): tests/test_k0_d_artifacts.c $(K0D_APP_SOURCES) $(LIB) | $(TEST_DIR)
+	$(CC) $(CFLAGS) -I$(PUBLIC_INCLUDE_DIR) -Iapp $< $(K0D_APP_SOURCES) $(LIB) -o $@
+
+$(K0D_ARTIFACT_VALIDATOR): tests/k0_d_artifact_validator.c $(K0D_APP_SOURCES) $(LIB) | $(TEST_DIR)
+	$(CC) $(CFLAGS) -I$(PUBLIC_INCLUDE_DIR) -Iapp $< $(K0D_APP_SOURCES) $(LIB) -o $@
+
+$(K0_EXTERNAL_CONSUMER_TEST): tests/k0_external_consumer.c $(LIB) | $(TEST_DIR)
+	$(CC) $(CFLAGS) -I$(PUBLIC_INCLUDE_DIR) $< $(LIB) -o $@
+
+test: $(LIB) $(K0D_RUNNER) $(TEST_EXE) $(K0B_ENTITY_TEST) $(K0B_COMMAND_TEST) $(K0B_EVENT_TEST) $(K0B_DETERMINISM_TEST) $(K0C_RANDOM_TEST) $(K0C_HASH_TEST) $(K0C_OBSERVABILITY_TEST) $(K0C_DETERMINISM_TEST) $(K0D_CONFIG_TEST) $(K0D_ARTIFACT_TEST) $(K0_EXTERNAL_CONSUMER_TEST)
 	$(PYTHON) tests/test_public_headers.py "$(CC)" "$(CFLAGS)" "$(PUBLIC_INCLUDE_DIR)" "$(TEST_DIR)"
 	$(TEST_EXE)
 	$(K0B_ENTITY_TEST)
@@ -117,6 +159,9 @@ test: $(LIB) $(TEST_EXE) $(K0B_ENTITY_TEST) $(K0B_COMMAND_TEST) $(K0B_EVENT_TEST
 	$(K0C_HASH_TEST)
 	$(K0C_OBSERVABILITY_TEST)
 	$(K0C_DETERMINISM_TEST)
+	$(K0D_CONFIG_TEST)
+	$(K0D_ARTIFACT_TEST)
+	$(K0_EXTERNAL_CONSUMER_TEST)
 
 test-k0-b-entities: $(K0B_ENTITY_TEST)
 	$(K0B_ENTITY_TEST)
@@ -136,6 +181,9 @@ demo-k0-b: $(K0B_DEMO)
 demo-k0-c: $(K0C_DEMO)
 	$(K0C_DEMO)
 
+demo-k0-d: $(K0D_RUNNER)
+	$(K0D_RUNNER) --config configs/k0_integrated_demo.ini --output $(BUILD_ROOT)/demo/k0_d --overwrite
+
 test-k0-c-random: $(K0C_RANDOM_TEST)
 	$(K0C_RANDOM_TEST)
 
@@ -154,6 +202,37 @@ test-k0-c-optimization-determinism: | $(TEST_DIR)
 test-k0-c-sanitize:
 	$(PYTHON) $(K0C_SANITIZER_SCRIPT) --compiler "$(CC)" --include "$(PUBLIC_INCLUDE_DIR)" --source "src/minisnn_worlds_kernel.c" --output-dir "$(TEST_DIR)" --demo "app/k0_random_hash_demo.c" --tests "tests/test_k0_c_random.c" "tests/test_k0_c_hash.c" "tests/test_k0_c_observability.c" "tests/test_k0_c_determinism.c"
 
+test-k0-d-config: $(K0D_CONFIG_TEST)
+	$(K0D_CONFIG_TEST)
+
+test-k0-d-artifacts: $(K0D_ARTIFACT_TEST) $(K0D_ARTIFACT_VALIDATOR) $(K0D_RUNNER)
+	$(K0D_ARTIFACT_TEST)
+	$(PYTHON) $(K0D_ARTIFACT_CORRUPTION_SCRIPT) --runner "$(K0D_RUNNER)" --validator "$(K0D_ARTIFACT_VALIDATOR)" --config "configs/k0_integrated_demo.ini" --output-dir "$(BUILD_ROOT)/tests/k0_d_artifact_corruption"
+
+test-k0-d-determinism: $(K0D_RUNNER)
+	$(PYTHON) $(K0D_DETERMINISM_SCRIPT) --runner "$(K0D_RUNNER)" --config "configs/k0_integrated_demo.ini" --output-dir "$(BUILD_ROOT)/tests/k0_d_determinism" --repository-root "$(REPOSITORY_ROOT)"
+
+test-k0-d-optimization-determinism:
+	$(PYTHON) $(K0D_OPTIMIZATION_SCRIPT) --compiler "$(CC)" --kernel-root "." --config "configs/k0_integrated_demo.ini" --output-dir "$(BUILD_ROOT)/audit/k0_d"
+
+test-k0-d-corruption: $(K0D_RUNNER)
+	$(PYTHON) $(K0D_CORRUPTION_SCRIPT) --runner "$(K0D_RUNNER)" --config "configs/k0_integrated_demo.ini" --output-dir "$(BUILD_ROOT)/tests/k0_d_corruption"
+
+test-k0-d-stress: $(K0D_RUNNER)
+	$(PYTHON) $(K0D_STRESS_SCRIPT) --runner "$(K0D_RUNNER)" --config "configs/k0_stress.ini" --output-dir "$(BUILD_ROOT)/tests/k0_d_stress"
+
+test-k0-d-long-run: $(K0D_RUNNER)
+	$(PYTHON) $(K0D_LONG_RUN_SCRIPT) --runner "$(K0D_RUNNER)" --config "configs/k0_long_run.ini" --output-dir "$(BUILD_ROOT)/tests/k0_d_long_run"
+
+test-k0-d-posix-smoke:
+	$(PYTHON) $(K0D_POSIX_SMOKE_SCRIPT) --compiler "$(CC)" --kernel-root "." --config "configs/k0_integrated_demo.ini" --output-dir "$(BUILD_ROOT)/tests/k0_d_posix_smoke"
+
+test-k0-d-sanitize:
+	$(PYTHON) $(K0D_SANITIZER_SCRIPT) --compiler "$(CC)" --kernel-root "." --config "configs/k0_integrated_demo.ini" --output-dir "$(BUILD_ROOT)/tests/k0_d_sanitize"
+
+test-k0-external-consumer: $(K0_EXTERNAL_CONSUMER_TEST)
+	$(K0_EXTERNAL_CONSUMER_TEST)
+
 sanitize: | $(TEST_DIR)
 	$(PYTHON) $(SANITIZER_SCRIPT) --compiler "$(CC)" --include "$(PUBLIC_INCLUDE_DIR)" --source "src/minisnn_worlds_kernel.c" --test "tests/test_worlds_kernel.c" --output-dir "$(TEST_DIR)"
 
@@ -168,6 +247,12 @@ audit-k0-b: audit-k0-a test-k0-b-entities test-k0-b-commands test-k0-b-events te
 
 audit-k0-c: audit-k0-b test-k0-c-random test-k0-c-hash test-k0-c-observability test-k0-c-determinism test-k0-c-optimization-determinism test-k0-c-sanitize demo-k0-c
 	$(PYTHON) scripts/check_k0_c.py --root . --library "$(LIB)" --demo "$(K0C_DEMO)" --random-test "$(K0C_RANDOM_TEST)" --hash-test "$(K0C_HASH_TEST)" --observability-test "$(K0C_OBSERVABILITY_TEST)" --determinism-test "$(K0C_DETERMINISM_TEST)"
+
+audit-k0-d: $(K0D_ARTIFACT_VALIDATOR) audit-k0-c demo-k0-d test-k0-d-config test-k0-d-artifacts test-k0-d-determinism test-k0-d-optimization-determinism test-k0-d-corruption test-k0-d-stress test-k0-d-long-run test-k0-d-posix-smoke test-k0-d-sanitize test-k0-external-consumer
+	$(PYTHON) scripts/check_k0_d.py --root . --library "$(LIB)" --runner "$(K0D_RUNNER)" --validator "$(K0D_ARTIFACT_VALIDATOR)"
+
+audit-k0: audit-k0-d
+	$(PYTHON) scripts/check_k0.py --root .
 
 clean:
 	@if exist "$(BUILD_ROOT)" rmdir /S /Q "$(BUILD_ROOT)"

@@ -5,16 +5,20 @@
 O produto `miniSNN Core` tem versao tecnica `1.0.0-rc.1`. O Core e distribuido
 separadamente do miniSNN Studio em pacotes locais de avaliacao; a Bridge entre
 Core e Worlds ainda e candidata. D1 esta concluido para `miniSNN Core
-1.0.0-rc.1`; K0 esta em andamento no novo Worlds Kernel.
+1.0.0-rc.1`; K0 esta concluido no Worlds Kernel deterministico.
 
-## K0-A, K0-B e K0-C: Worlds Kernel
+## K0-A a K0-D: Worlds Kernel
 
 `worlds/kernel/` e um produto fisico C11, headless e independente para o
 Worlds Kernel. K0-A conclui configuracao, lifecycle, tempo logico, diagnostico
 e tick atomico. K0-B conclui Entity IDs, comandos futuros, resolucao canonica,
 eventos e preflight atomico. K0-C conclui PRNG por streams, hash canonico e
-observabilidade. O Kernel nao depende do Core, e o Core nao depende do Kernel.
-K0 permanece em andamento; K0-D e o proximo sub-bloco.
+observabilidade. K0-D conclui parser de cenario, runner, artefatos tecnicos,
+determinismo integrado, stress e auditoria sem levar filesystem para a
+biblioteca. O Kernel nao depende do Core, e o Core nao depende do Kernel.
+K0 esta concluido; K1 e o proximo bloco de transforms, espaco, ocupacao,
+barreiras, deslocamento e links. K2 vem depois para snapshots, save/load e
+replay.
 
 ## D1-A: produtos de build e API candidata
 
@@ -76,7 +80,7 @@ dependencia de Worlds. C7.2 aplica correntes por API publica sem avancar a
 rede; C7.3 decodifica atividade completa sem avancar a rede; C7.4 e o unico
 orquestrador C7 que avanca a rede e publica a action atomicamente. C7.5-A
 adiciona persistencia e replay verificados; C7.5-B fecha a auditoria por
-matriz, ciclo de vida e long run. C7 e D1 estao concluidos; K0 e o proximo
+matriz, ciclo de vida e long run. C7, D1 e K0 estao concluidos; K1 e o proximo
 bloco planejado.
 
 ## Limites planejados

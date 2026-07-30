@@ -14,3 +14,7 @@ Eventos continuam representando somente fatos causais de comandos. K0-C nao
 emite um evento por draw. Um erro de API, como chave invalida, fica observavel
 por `last_error`, mas nao faz parte do estado causal nem do hash. K0-C tambem
 nao preserva historico de traces ou eventos entre execucoes.
+
+K0-D is the external consumer that converts copied diagnostics and events into
+canonical technical CSV artifacts. The Kernel itself still retains no file,
+CSV, manifest, or report responsibility.

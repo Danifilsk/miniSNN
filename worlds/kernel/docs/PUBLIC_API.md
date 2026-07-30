@@ -52,3 +52,7 @@ K0-C acrescenta `minisnn_worlds_kernel_random.h` e
 somente em sucesso. `random_stream_at` devolve uma copia em ordem canonica.
 `state_hash` e `capture_trace_point` sao consultas sem alocacao que exigem
 estado `READY`.
+
+K0-D nao amplia a API da biblioteca. O executavel `k0_scenario_runner` e uma
+ferramenta externa que inclui somente este header agregado e usa essas APIs
+para produzir artefatos tecnicos.

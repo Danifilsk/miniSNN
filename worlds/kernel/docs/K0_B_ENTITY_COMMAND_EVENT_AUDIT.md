@@ -4,7 +4,7 @@
 
 K0-B conclui o registro deterministico de entidades, a fila de comandos
 futuros e a janela de eventos do ultimo tick. K0-A, K0-B e K0-C estao
-concluidos; K0 permanece em andamento e K0-D e o proximo sub-bloco.
+concluidos; K0-D fechou o bloco K0 com um runner externo e artefatos tecnicos.
 
 | ID | Severidade | Area | Problema | Correcao | Teste | Estado |
 | --- | --- | --- | --- | --- | --- | --- |
@@ -58,5 +58,5 @@ espaco, mapa, persistencia, Domain, Brain Bridge ou Worlds App.
 O Kernel continua C11 headless e sem dependencia do miniSNN Core.
 
 K0-C concluiu PRNG deterministico, streams derivados, hash canonico e
-observabilidade. K0-D permanece responsavel pelos artefatos integrados e pelo
-fechamento completo do bloco K0.
+observabilidade. K0-D entregou os artefatos integrados e o fechamento completo
+do bloco K0; K1 e o proximo passo.

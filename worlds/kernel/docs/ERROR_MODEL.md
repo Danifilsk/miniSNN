@@ -32,3 +32,8 @@ que nao consegue reservar o registro retorna `ALLOCATION` sem publicar stream,
 contador, hash ou output. Exaustao de contador retorna `IDENTIFIER_OVERFLOW`
 antes de qualquer wrap. Hash, diagnostico, trace e enumeracao preservam o
 buffer de saida quando retornam erro.
+
+K0-D parser and artifact errors are tool-layer errors, not new Kernel errors.
+They reject before Kernel creation or publication, keep existing finals intact
+when possible, remove known temporaries, and return a nonzero runner exit code
+with a short configuration, execution, output, or artifact message.

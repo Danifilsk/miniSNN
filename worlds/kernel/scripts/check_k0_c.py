@@ -171,8 +171,8 @@ def validate_documents(kernel_root: Path) -> None:
     for required in ("PCG32", "FNV-1a", "K0-D"):
         if required not in audit:
             fail(f"auditoria K0-C incompleta: {required}")
-    if re.search(r"K0 ainda\s+esta em andamento", audit) is None:
-        fail("auditoria K0-C nao declara K0 em andamento")
+    if "K0-D" not in audit:
+        fail("auditoria K0-C nao referencia a continuidade para K0-D")
     for relative_path in REQUIRED_DOCUMENTS:
         if not (kernel_root / relative_path).is_file():
             fail(f"documentacao ausente: {relative_path}")

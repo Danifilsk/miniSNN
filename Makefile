@@ -13,7 +13,7 @@ endif
 CORE_DIR = core
 WORLDS_KERNEL_DIR = worlds/kernel
 
-.PHONY: all help clean clean-core clean-studio clean-tests core core-lib core-headless core-test core-tests core-studio studio studio-path core-evolution worlds-kernel-lib worlds-kernel worlds-kernel-test test-k0-a-sanitize audit-k0-a test-k0-b-entities test-k0-b-commands test-k0-b-events test-k0-b-determinism test-k0-b-sanitize demo-k0-b audit-k0-b test-k0-c-random test-k0-c-hash test-k0-c-observability test-k0-c-determinism test-k0-c-optimization-determinism test-k0-c-sanitize demo-k0-c audit-k0-c clean-worlds-kernel test test-architecture audit-d1-build-products audit-d1-api test-d1-determinism test-d1-corruption test-d1-lifecycle-stress test-d1-optimization-determinism test-d1-posix-headless test-d1-portability test-d1-long-run test-d1-symbols benchmark-d1 scenario-d1-b audit-d1-b audit-d1 test-version test-api-baseline test-api-baseline-regressions release-core release-headless release-studio release-all test-release-build test-external-consumer package-release test-release-integrity test-release-packages test-studio-source-contracts test-studio-runtime-layout audit-d1-c-automated audit-d1-c test-working-memory test-associative-memory test-sequence-prediction test-c6-checkpoints test-c6-integration test-c6-long test-agent-io test-sensor-encoder test-action-decoder test-agent-cycle test-agent-cycle-checkpoint test-c7-integration test-c7-evolution test-c7-long-run test-c7 scenario-working-memory scenario-associative-memory scenario-sequence-prediction scenario-sequence-prediction-context scenario-c6-suite scenario-sensor-encoding scenario-action-decoding scenario-agent-cycle scenario-agent-cycle-checkpoint scenario-c7-integrated-audit check-c6 check-c7
+.PHONY: all help clean clean-core clean-studio clean-tests core core-lib core-headless core-test core-tests core-studio studio studio-path core-evolution worlds-kernel-lib worlds-kernel worlds-kernel-test test-k0-a-sanitize audit-k0-a test-k0-b-entities test-k0-b-commands test-k0-b-events test-k0-b-determinism test-k0-b-sanitize demo-k0-b audit-k0-b test-k0-c-random test-k0-c-hash test-k0-c-observability test-k0-c-determinism test-k0-c-optimization-determinism test-k0-c-sanitize demo-k0-c audit-k0-c demo-k0-d test-k0-d-config test-k0-d-artifacts test-k0-d-determinism test-k0-d-optimization-determinism test-k0-d-corruption test-k0-d-stress test-k0-d-long-run test-k0-d-posix-smoke test-k0-d-sanitize test-k0-external-consumer audit-k0-d audit-k0 clean-worlds-kernel test test-architecture test-docs test-analyzer audit-d1-build-products audit-d1-api test-d1-determinism test-d1-corruption test-d1-lifecycle-stress test-d1-optimization-determinism test-d1-posix-headless test-d1-portability test-d1-long-run test-d1-symbols benchmark-d1 scenario-d1-b audit-d1-b audit-d1 test-version test-api-baseline test-api-baseline-regressions release-core release-headless release-studio release-all test-release-build test-external-consumer package-release test-release-integrity test-release-packages test-studio-source-contracts test-studio-runtime-layout audit-d1-c-automated audit-d1-c test-working-memory test-associative-memory test-sequence-prediction test-c6-checkpoints test-c6-integration test-c6-long test-agent-io test-sensor-encoder test-action-decoder test-agent-cycle test-agent-cycle-checkpoint test-c7-integration test-c7-evolution test-c7-long-run test-c7 scenario-working-memory scenario-associative-memory scenario-sequence-prediction scenario-sequence-prediction-context scenario-c6-suite scenario-sensor-encoding scenario-action-decoding scenario-agent-cycle scenario-agent-cycle-checkpoint scenario-c7-integrated-audit check-c6 check-c7
 
 all: test
 
@@ -48,6 +48,19 @@ help:
 	@echo   mingw32-make test-k0-c-sanitize - executa ASan/UBSan K0-C
 	@echo   mingw32-make demo-k0-c         - executa o demo de PRNG/hash K0-C
 	@echo   mingw32-make audit-k0-c        - audita PRNG, hash e observabilidade K0-C
+	@echo   mingw32-make demo-k0-d         - executa o cenario integrado Worlds K0-D
+	@echo   mingw32-make test-k0-d-config  - valida configuracao INI K0-D
+	@echo   mingw32-make test-k0-d-artifacts - valida artefatos e atomicidade K0-D
+	@echo   mingw32-make test-k0-d-determinism - valida processos e texto equivalente K0-D
+	@echo   mingw32-make test-k0-d-optimization-determinism - compara K0-D -O0/-O2
+	@echo   mingw32-make test-k0-d-corruption - valida corrupcao do parser K0-D
+	@echo   mingw32-make test-k0-d-stress  - executa stress deterministico K0-D
+	@echo   mingw32-make test-k0-d-long-run - executa long run K0-D
+	@echo   mingw32-make test-k0-d-posix-smoke - compila o app K0-D em POSIX quando disponivel
+	@echo   mingw32-make test-k0-d-sanitize - executa sanitizers K0-D quando disponivel
+	@echo   mingw32-make test-k0-external-consumer - valida consumidor externo Worlds
+	@echo   mingw32-make audit-k0-d        - audita entrega integrada K0-D
+	@echo   mingw32-make audit-k0          - fecha a fundacao deterministica K0
 	@echo   mingw32-make clean-worlds-kernel - limpa somente outputs Worlds Kernel
 	@echo   mingw32-make audit-d1-build-products - audita separacao dos produtos
 	@echo   mingw32-make audit-d1-api     - audita API publica candidata
@@ -100,6 +113,8 @@ help:
 	@echo   mingw32-make check-c7          - verifica C7.1-C7.5-B e fecha C7
 	@echo   mingw32-make test             - testes do Core e arquitetura do monorepo
 	@echo   mingw32-make test-architecture - valida isolamento e estrutura M1
+	@echo   mingw32-make test-docs         - valida documentacao do Core e monorepo
+	@echo   mingw32-make test-analyzer     - executa analise estatica do Core
 	@echo   mingw32-make target-do-core - encaminha targets legados ao Core
 
 core:
@@ -144,8 +159,14 @@ test-k0-a-sanitize:
 audit-k0-a:
 	$(MAKE) -C $(WORLDS_KERNEL_DIR) audit-k0-a
 
-test-k0-b-entities test-k0-b-commands test-k0-b-events test-k0-b-determinism test-k0-b-sanitize demo-k0-b audit-k0-b test-k0-c-random test-k0-c-hash test-k0-c-observability test-k0-c-determinism test-k0-c-optimization-determinism test-k0-c-sanitize demo-k0-c audit-k0-c:
+test-k0-b-entities test-k0-b-commands test-k0-b-events test-k0-b-determinism test-k0-b-sanitize demo-k0-b audit-k0-b test-k0-c-random test-k0-c-hash test-k0-c-observability test-k0-c-determinism test-k0-c-optimization-determinism test-k0-c-sanitize demo-k0-c audit-k0-c demo-k0-d test-k0-d-config test-k0-d-artifacts test-k0-d-determinism test-k0-d-optimization-determinism test-k0-d-corruption test-k0-d-stress test-k0-d-long-run test-k0-d-posix-smoke test-k0-d-sanitize test-k0-external-consumer audit-k0-d:
 	$(MAKE) -C $(WORLDS_KERNEL_DIR) $@
+
+audit-k0: test-architecture test-docs
+	$(MAKE) -C $(WORLDS_KERNEL_DIR) audit-k0
+
+test-docs test-analyzer:
+	$(MAKE) -C $(CORE_DIR) $@
 
 clean-worlds-kernel:
 	$(MAKE) -C $(WORLDS_KERNEL_DIR) clean

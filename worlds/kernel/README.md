@@ -1,6 +1,6 @@
 # miniSNN Worlds Kernel
 
-K0-A, K0-B e K0-C fornecem uma biblioteca estatica C11 independente para
+K0-A, K0-B, K0-C e K0-D fornecem uma biblioteca estatica C11 independente para
 lifecycle, tempo logico deterministico, entidades, comandos futuros, eventos,
 PRNG por streams, hash canonico e observabilidade. A
 biblioteca resultante e
@@ -12,6 +12,9 @@ mingw32-make worlds-kernel-test
 mingw32-make audit-k0-a
 mingw32-make audit-k0-b
 mingw32-make audit-k0-c
+mingw32-make demo-k0-d
+mingw32-make audit-k0-d
+mingw32-make audit-k0
 ```
 
 Um consumidor normal inclui somente `minisnn_worlds_kernel.h`. O Kernel nao
@@ -23,7 +26,10 @@ Consulte [a arquitetura](docs/ARCHITECTURE.md), o
 [contrato de comandos e eventos](docs/COMMAND_AND_EVENT_CONTRACT.md), o
 [contrato de aleatoriedade](docs/RANDOMNESS_CONTRACT.md), o
 [contrato de hash](docs/STATE_HASH_CONTRACT.md) e o
-[contrato de observabilidade](docs/OBSERVABILITY_CONTRACT.md).
+[contrato de observabilidade](docs/OBSERVABILITY_CONTRACT.md), a
+[configuracao de cenarios](docs/SCENARIO_CONFIG_CONTRACT.md) e os
+[artefatos tecnicos](docs/ARTIFACT_CONTRACT.md).
 
-K0-A, K0-B e K0-C estao concluidos. K0 permanece em andamento; K0-D e o
-proximo sub-bloco.
+K0 esta concluido como fundacao deterministica. K1 e o proximo bloco de
+entidades genericas, transforms, espaco, ocupacao, barreiras, deslocamento e
+links. K0-D continua headless e nao implementa Domain, Brain Bridge ou App.

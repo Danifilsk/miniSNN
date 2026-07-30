@@ -20,3 +20,7 @@ assinatura, mas um comando aceito, draw, tick ou evento comprometido muda.
 Vetores para estados vazios, tick vazio, comando pendente, entidade criada e
 primeiro draw estao em `test_k0_c_hash.c`. Uma alteracao deliberada do encoding
 exige nova versao do hash e migracao documentada.
+
+K0-D writes this value as fixed hexadecimal in `trace.csv` and checks that the
+last trace value equals the manifest final hash before publishing artifacts.
+Its separate scenario configuration signature is never named a state hash.

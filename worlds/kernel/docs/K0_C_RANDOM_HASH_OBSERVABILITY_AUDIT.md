@@ -4,8 +4,8 @@
 
 K0-C adiciona seed-mestra tail-compatible, PCG32 versionado, streams
 independentes, sorteios inteiros bounded sem vies, hash canonico FNV-1a,
-diagnosticos e trace por copia. K0-A, K0-B e K0-C estao concluidos; K0 ainda
-esta em andamento e K0-D e o proximo sub-bloco.
+diagnosticos e trace por copia. K0-A, K0-B e K0-C estao concluidos. K0-D
+consumiu estes contratos para fechar o bloco K0 sem alterar a biblioteca.
 
 | ID | Severidade | Area | Problema | Correcao | Teste | Estado |
 | --- | --- | --- | --- | --- | --- | --- |

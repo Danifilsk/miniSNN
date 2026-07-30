@@ -21,7 +21,8 @@ de avaliacao ficam em `dist/` apos `mingw32-make package-release`; eles nao sao
 uma publicacao, tag ou release definitiva. D1 esta concluido para
 **miniSNN Core 1.0.0-rc.1**: os gates automaticos e a validacao manual do
 Studio foram registrados. A API Core-Brain Bridge continua candidata e
-provisoria ate D2; K0 esta em andamento.
+provisoria ate D2; K0 esta concluido como fundacao deterministica do Worlds
+Kernel.
 
 Este repositorio esta preparado para abrigar produtos relacionados, com limites
 de dependencia explicitos.
@@ -29,10 +30,10 @@ de dependencia explicitos.
 - **miniSNN Core**: a biblioteca e o laboratorio neural existentes, em
   [`core/`](core/README.md).
 - **miniSNN Worlds Kernel**: produto headless e independente em
-  [`worlds/kernel/`](worlds/kernel/), com K0-A, K0-B e K0-C concluidos para
+  [`worlds/kernel/`](worlds/kernel/), com K0-A a K0-D concluidos para
   lifecycle, tempo logico, entidades, comandos, eventos, PRNG por streams,
-  hash canonico e observabilidade. K0-D e o proximo sub-bloco; K0 continua em
-  andamento.
+  hash canonico, observabilidade, cenario configuravel e artefatos tecnicos.
+  K1 e o proximo bloco; Domain, Brain Bridge e App seguem nao criados.
 - **miniSNN Worlds Domain**: ainda nao criado.
 - **Brain Bridge**: ainda nao criada; sera a unica integracao entre Domain e
   Core.

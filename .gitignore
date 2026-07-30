@@ -6,6 +6,7 @@
 *.o
 *.obj
 *.out
+*.tmp
 *.dll
 *.pdb
 *.ilk
@@ -52,3 +53,6 @@ tmp_*.csv
 # Resultados locais do Worlds Kernel
 /worlds/kernel/results/*
 !/worlds/kernel/results/.gitkeep
+
+# K0-D runner outputs and audit artifacts are always recreatable.
+/build/worlds/kernel/**
