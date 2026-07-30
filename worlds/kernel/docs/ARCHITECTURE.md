@@ -22,3 +22,10 @@ mapas, agentes ou semantica de dominio.
 
 Os outputs ficam em `build/worlds/kernel/`; fontes e headers nunca recebem
 objetos ou executaveis.
+
+## K1-A Space And Transforms
+
+K0 is complete. K1-A is complete and K1 remains in progress. The public Worlds
+Kernel now exposes a single immutable 2D fixed-point space, optional entity
+transforms, and command-only placement/removal. See the K1-A coordinate and
+transform contracts in worlds/kernel/docs. K1-B is next.

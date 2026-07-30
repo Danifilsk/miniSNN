@@ -54,3 +54,10 @@ mingw32-make check-c4
 
 Os targets legados continuam disponiveis na raiz e sao encaminhados para
 `core/`. Tambem e possivel entrar em `core/` e executar o Makefile diretamente.
+
+## K1-A Space And Transforms
+
+K0 is complete. K1-A is complete and K1 remains in progress. The public Worlds
+Kernel now exposes a single immutable 2D fixed-point space, optional entity
+transforms, and command-only placement/removal. See the K1-A coordinate and
+transform contracts in worlds/kernel/docs. K1-B is next.

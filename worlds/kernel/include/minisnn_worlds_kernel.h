@@ -2,6 +2,7 @@
 #define MINISNN_WORLDS_KERNEL_H
 
 #include "minisnn_worlds_kernel_config.h"
+#include "minisnn_worlds_kernel_space.h"
 #include "minisnn_worlds_kernel_entity.h"
 #include "minisnn_worlds_kernel_command.h"
 #include "minisnn_worlds_kernel_event.h"
@@ -27,6 +28,10 @@ MiniSNNWorldsKernelError minisnn_worlds_kernel_last_error(
 uint64_t minisnn_worlds_kernel_master_seed(
     const MiniSNNWorldsKernel *kernel);
 
+MiniSNNWorldsKernelError minisnn_worlds_kernel_space_bounds(
+    const MiniSNNWorldsKernel *kernel,
+    MiniSNNWorldsKernelSpaceBounds *out_bounds);
+
 MiniSNNWorldsKernelError minisnn_worlds_kernel_step(
     MiniSNNWorldsKernel *kernel);
 
@@ -39,6 +44,16 @@ MiniSNNWorldsKernelError minisnn_worlds_kernel_capture_trace_point(
     MiniSNNWorldsKernelTracePoint *out_trace);
 
 #ifdef MINISNN_WORLDS_KERNEL_TESTING
+int minisnn_worlds_kernel_testing_scalar_add(
+    MiniSNNWorldsKernelScalar left,
+    MiniSNNWorldsKernelScalar right,
+    MiniSNNWorldsKernelScalar *out_result);
+
+int minisnn_worlds_kernel_testing_scalar_subtract(
+    MiniSNNWorldsKernelScalar left,
+    MiniSNNWorldsKernelScalar right,
+    MiniSNNWorldsKernelScalar *out_result);
+
 void minisnn_worlds_kernel_testing_fail_next_allocation(void);
 
 MiniSNNWorldsKernelError minisnn_worlds_kernel_testing_set_tick(

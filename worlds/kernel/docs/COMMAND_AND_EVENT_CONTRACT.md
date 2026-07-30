@@ -40,3 +40,10 @@ semantica recebe evento; uma falha interna preserva o estado anterior.
 
 O hash K0-C inclui a fila pendente em ordem canonica e a janela de eventos em
 ordem de emissao. Sorteios do PRNG nao sao eventos de dominio.
+
+## K1-A Space And Transforms
+
+K0 is complete. K1-A is complete and K1 remains in progress. The public Worlds
+Kernel now exposes a single immutable 2D fixed-point space, optional entity
+transforms, and command-only placement/removal. See the K1-A coordinate and
+transform contracts in worlds/kernel/docs. K1-B is next.

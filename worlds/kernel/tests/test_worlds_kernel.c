@@ -64,7 +64,6 @@ int main(void)
     void *truncated_config;
     size_t larger_config_size;
     uint32_t declared_size;
-    uint32_t format_version;
 
     CHECK(config.struct_size == sizeof(MiniSNNWorldsKernelConfig));
     CHECK(config.format_version == MINISNN_WORLDS_KERNEL_CONFIG_VERSION);
@@ -116,12 +115,10 @@ int main(void)
     larger_config = malloc(larger_config_size);
     CHECK(larger_config != NULL);
     memset(larger_config, 0xa5, larger_config_size);
+    memcpy(larger_config, &config, sizeof(config));
     declared_size = (uint32_t)larger_config_size;
-    format_version = MINISNN_WORLDS_KERNEL_CONFIG_VERSION;
     memcpy(larger_config + offsetof(MiniSNNWorldsKernelConfig, struct_size),
            &declared_size, sizeof(declared_size));
-    memcpy(larger_config + offsetof(MiniSNNWorldsKernelConfig, format_version),
-           &format_version, sizeof(format_version));
     larger_kernel = minisnn_worlds_kernel_create(
         (const MiniSNNWorldsKernelConfig *)larger_config, &error);
     CHECK(larger_kernel != NULL);

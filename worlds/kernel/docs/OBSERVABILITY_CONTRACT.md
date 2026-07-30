@@ -18,3 +18,10 @@ nao preserva historico de traces ou eventos entre execucoes.
 K0-D is the external consumer that converts copied diagnostics and events into
 canonical technical CSV artifacts. The Kernel itself still retains no file,
 CSV, manifest, or report responsibility.
+
+## K1-A Space And Transforms
+
+K0 is complete. K1-A is complete and K1 remains in progress. The public Worlds
+Kernel now exposes a single immutable 2D fixed-point space, optional entity
+transforms, and command-only placement/removal. See the K1-A coordinate and
+transform contracts in worlds/kernel/docs. K1-B is next.

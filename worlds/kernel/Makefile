@@ -29,6 +29,12 @@ K0D_CONFIG_TEST := $(TEST_DIR)/test_k0_d_config.exe
 K0D_ARTIFACT_TEST := $(TEST_DIR)/test_k0_d_artifacts.exe
 K0D_ARTIFACT_VALIDATOR := $(TEST_DIR)/k0_d_artifact_validator.exe
 K0_EXTERNAL_CONSUMER_TEST := $(TEST_DIR)/k0_external_consumer.exe
+K1A_DEMO := $(BIN_DIR)/k1_transform_demo.exe
+K1A_SPACE_TEST := $(TEST_DIR)/test_k1_a_space.exe
+K1A_STRESS_TEST := $(TEST_DIR)/test_k1_a_stress.exe
+K1A_OPTIMIZATION_SCRIPT := tests/test_k1_a_optimization_determinism.py
+K1A_SANITIZER_SCRIPT := tests/test_k1_a_sanitize.py
+K1A_POSIX_SMOKE_SCRIPT := tests/test_k1_a_posix_smoke.py
 PUBLIC_HEADERS := $(wildcard $(PUBLIC_INCLUDE_DIR)/*.h)
 SANITIZER_SCRIPT := tests/test_k0_a_sanitize.py
 K0C_SANITIZER_SCRIPT := tests/test_k0_c_sanitize.py
@@ -43,9 +49,9 @@ K0D_ARTIFACT_CORRUPTION_SCRIPT := tests/test_k0_d_artifact_corruption.py
 K0D_POSIX_SMOKE_SCRIPT := tests/test_k0_d_posix_smoke.py
 K0D_APP_SOURCES := app/k0_scenario_config.c app/k0_scenario_engine.c app/k0_scenario_artifacts.c
 
-.PHONY: all lib demo demo-k0-b demo-k0-c demo-k0-d test test-k0-b-entities test-k0-b-commands test-k0-b-events test-k0-b-determinism test-k0-b-sanitize test-k0-c-random test-k0-c-hash test-k0-c-observability test-k0-c-determinism test-k0-c-optimization-determinism test-k0-c-sanitize test-k0-d-config test-k0-d-artifacts test-k0-d-determinism test-k0-d-optimization-determinism test-k0-d-corruption test-k0-d-stress test-k0-d-long-run test-k0-d-posix-smoke test-k0-d-sanitize test-k0-external-consumer sanitize audit-k0-a audit-k0-b audit-k0-c audit-k0-d audit-k0 clean
+.PHONY: all lib demo demo-k0-b demo-k0-c demo-k0-d demo-k1-a test test-k1-a-scalar test-k1-a-space test-k1-a-transform test-k1-a-determinism test-k1-a-optimization-determinism test-k1-a-stress test-k1-a-sanitize test-k1-a-posix-smoke audit-k1-a test-k0-b-entities test-k0-b-commands test-k0-b-events test-k0-b-determinism test-k0-b-sanitize test-k0-c-random test-k0-c-hash test-k0-c-observability test-k0-c-determinism test-k0-c-optimization-determinism test-k0-c-sanitize test-k0-d-config test-k0-d-artifacts test-k0-d-determinism test-k0-d-optimization-determinism test-k0-d-corruption test-k0-d-stress test-k0-d-long-run test-k0-d-posix-smoke test-k0-d-sanitize test-k0-external-consumer sanitize audit-k0-a audit-k0-b audit-k0-c audit-k0-d audit-k0 clean
 
-all: lib demo demo-k0-b demo-k0-c $(K0D_RUNNER)
+all: lib demo demo-k0-b demo-k0-c $(K0D_RUNNER) $(K1A_DEMO)
 
 help:
 	@echo Worlds Kernel targets:
@@ -106,6 +112,9 @@ $(K0B_DEMO): app/k0_entity_command_demo.c $(LIB) | $(BIN_DIR)
 $(K0C_DEMO): app/k0_random_hash_demo.c $(LIB) | $(BIN_DIR)
 	$(CC) $(CFLAGS) -I$(PUBLIC_INCLUDE_DIR) $< $(LIB) -o $@
 
+$(K1A_DEMO): app/k1_transform_demo.c $(LIB) | $(BIN_DIR)
+	$(CC) $(CFLAGS) -I$(PUBLIC_INCLUDE_DIR) $< $(LIB) -o $@
+
 $(K0D_RUNNER): app/k0_scenario_runner.c $(K0D_APP_SOURCES) $(LIB) | $(BIN_DIR)
 	$(CC) $(CFLAGS) -I$(PUBLIC_INCLUDE_DIR) -Iapp $< $(K0D_APP_SOURCES) $(LIB) -o $@
 
@@ -145,10 +154,16 @@ $(K0D_ARTIFACT_TEST): tests/test_k0_d_artifacts.c $(K0D_APP_SOURCES) $(LIB) | $(
 $(K0D_ARTIFACT_VALIDATOR): tests/k0_d_artifact_validator.c $(K0D_APP_SOURCES) $(LIB) | $(TEST_DIR)
 	$(CC) $(CFLAGS) -I$(PUBLIC_INCLUDE_DIR) -Iapp $< $(K0D_APP_SOURCES) $(LIB) -o $@
 
+$(K1A_SPACE_TEST): tests/test_k1_a_space.c src/minisnn_worlds_kernel.c $(PUBLIC_HEADERS) | $(TEST_DIR)
+	$(CC) $(CFLAGS) -DMINISNN_WORLDS_KERNEL_TESTING -I$(PUBLIC_INCLUDE_DIR) $< src/minisnn_worlds_kernel.c -o $@
+
+$(K1A_STRESS_TEST): tests/test_k1_a_stress.c src/minisnn_worlds_kernel.c $(PUBLIC_HEADERS) | $(TEST_DIR)
+	$(CC) $(CFLAGS) -O2 -DMINISNN_WORLDS_KERNEL_TESTING -I$(PUBLIC_INCLUDE_DIR) $< src/minisnn_worlds_kernel.c -o $@
+
 $(K0_EXTERNAL_CONSUMER_TEST): tests/k0_external_consumer.c $(LIB) | $(TEST_DIR)
 	$(CC) $(CFLAGS) -I$(PUBLIC_INCLUDE_DIR) $< $(LIB) -o $@
 
-test: $(LIB) $(K0D_RUNNER) $(TEST_EXE) $(K0B_ENTITY_TEST) $(K0B_COMMAND_TEST) $(K0B_EVENT_TEST) $(K0B_DETERMINISM_TEST) $(K0C_RANDOM_TEST) $(K0C_HASH_TEST) $(K0C_OBSERVABILITY_TEST) $(K0C_DETERMINISM_TEST) $(K0D_CONFIG_TEST) $(K0D_ARTIFACT_TEST) $(K0_EXTERNAL_CONSUMER_TEST)
+test: $(LIB) $(K0D_RUNNER) $(K1A_DEMO) $(K1A_SPACE_TEST) $(K1A_STRESS_TEST) $(TEST_EXE) $(K0B_ENTITY_TEST) $(K0B_COMMAND_TEST) $(K0B_EVENT_TEST) $(K0B_DETERMINISM_TEST) $(K0C_RANDOM_TEST) $(K0C_HASH_TEST) $(K0C_OBSERVABILITY_TEST) $(K0C_DETERMINISM_TEST) $(K0D_CONFIG_TEST) $(K0D_ARTIFACT_TEST) $(K0_EXTERNAL_CONSUMER_TEST)
 	$(PYTHON) tests/test_public_headers.py "$(CC)" "$(CFLAGS)" "$(PUBLIC_INCLUDE_DIR)" "$(TEST_DIR)"
 	$(TEST_EXE)
 	$(K0B_ENTITY_TEST)
@@ -162,6 +177,8 @@ test: $(LIB) $(K0D_RUNNER) $(TEST_EXE) $(K0B_ENTITY_TEST) $(K0B_COMMAND_TEST) $(
 	$(K0D_CONFIG_TEST)
 	$(K0D_ARTIFACT_TEST)
 	$(K0_EXTERNAL_CONSUMER_TEST)
+	$(K1A_SPACE_TEST)
+	$(K1A_STRESS_TEST)
 
 test-k0-b-entities: $(K0B_ENTITY_TEST)
 	$(K0B_ENTITY_TEST)
@@ -183,6 +200,25 @@ demo-k0-c: $(K0C_DEMO)
 
 demo-k0-d: $(K0D_RUNNER)
 	$(K0D_RUNNER) --config configs/k0_integrated_demo.ini --output $(BUILD_ROOT)/demo/k0_d --overwrite
+
+demo-k1-a: $(K1A_DEMO)
+	@if not exist "$(BUILD_ROOT)/demo/k1_a" mkdir "$(BUILD_ROOT)/demo/k1_a"
+	$(K1A_DEMO) configs/k1_transform_demo.ini $(BUILD_ROOT)/demo/k1_a
+
+test-k1-a-scalar test-k1-a-space test-k1-a-transform test-k1-a-determinism: $(K1A_SPACE_TEST)
+	$(K1A_SPACE_TEST)
+
+test-k1-a-stress: $(K1A_STRESS_TEST)
+	$(K1A_STRESS_TEST)
+
+test-k1-a-optimization-determinism: | $(TEST_DIR)
+	$(PYTHON) $(K1A_OPTIMIZATION_SCRIPT) --compiler "$(CC)" --include "$(PUBLIC_INCLUDE_DIR)" --source "src/minisnn_worlds_kernel.c" --test "tests/test_k1_a_space.c" --output-dir "$(BUILD_ROOT)/audit/k1_a"
+
+test-k1-a-sanitize:
+	$(PYTHON) $(K1A_SANITIZER_SCRIPT) --compiler "$(CC)" --include "$(PUBLIC_INCLUDE_DIR)" --source "src/minisnn_worlds_kernel.c" --test "tests/test_k1_a_space.c" --output-dir "$(TEST_DIR)"
+
+test-k1-a-posix-smoke:
+	$(PYTHON) $(K1A_POSIX_SMOKE_SCRIPT) --include "$(PUBLIC_INCLUDE_DIR)" --source "src/minisnn_worlds_kernel.c" --test "tests/test_k1_a_space.c" --output-dir "$(TEST_DIR)"
 
 test-k0-c-random: $(K0C_RANDOM_TEST)
 	$(K0C_RANDOM_TEST)
@@ -232,6 +268,8 @@ test-k0-d-sanitize:
 
 test-k0-external-consumer: $(K0_EXTERNAL_CONSUMER_TEST)
 	$(K0_EXTERNAL_CONSUMER_TEST)
+	$(K1A_SPACE_TEST)
+	$(K1A_STRESS_TEST)
 
 sanitize: | $(TEST_DIR)
 	$(PYTHON) $(SANITIZER_SCRIPT) --compiler "$(CC)" --include "$(PUBLIC_INCLUDE_DIR)" --source "src/minisnn_worlds_kernel.c" --test "tests/test_worlds_kernel.c" --output-dir "$(TEST_DIR)"
@@ -253,6 +291,10 @@ audit-k0-d: $(K0D_ARTIFACT_VALIDATOR) audit-k0-c demo-k0-d test-k0-d-config test
 
 audit-k0: audit-k0-d
 	$(PYTHON) scripts/check_k0.py --root .
+
+audit-k1-a: audit-k0 test-k1-a-scalar test-k1-a-space test-k1-a-transform test-k1-a-determinism test-k1-a-optimization-determinism test-k1-a-stress test-k1-a-sanitize test-k1-a-posix-smoke demo-k1-a
+	$(PYTHON) scripts/check_k1_a.py --root . --library "$(LIB)" --demo "$(K1A_DEMO)" --space-test "$(K1A_SPACE_TEST)" --stress-test "$(K1A_STRESS_TEST)"
+	@echo K1-A Worlds Kernel fixed-point space and transform validation OK
 
 clean:
 	@if exist "$(BUILD_ROOT)" rmdir /S /Q "$(BUILD_ROOT)"

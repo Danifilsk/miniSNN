@@ -21,3 +21,10 @@ eventos. A velocidade visual futura nao participara do tempo logico.
 O estado normal e `READY`. `STEPPING` e transitorio durante o passo. `FAULTED`
 fica reservado a falha interna irrecuperavel. Overflow e detectado antes do
 incremento; o tick maximo nunca volta para zero e o estado retorna a `READY`.
+
+## K1-A Space And Transforms
+
+K0 is complete. K1-A is complete and K1 remains in progress. The public Worlds
+Kernel now exposes a single immutable 2D fixed-point space, optional entity
+transforms, and command-only placement/removal. See the K1-A coordinate and
+transform contracts in worlds/kernel/docs. K1-B is next.

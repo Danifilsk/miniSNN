@@ -14,3 +14,10 @@ estabelece streams PRNG, hash canonico e observabilidade. K0-D estabelece um
 runner configuravel, artefatos tecnicos e auditoria de stress fora da
 biblioteca. K0 esta concluido; K1 e o proximo bloco para entidades genericas,
 transforms, espaco, ocupacao, barreiras, deslocamento e links.
+
+## K1-A Space And Transforms
+
+K0 is complete. K1-A is complete and K1 remains in progress. The public Worlds
+Kernel now exposes a single immutable 2D fixed-point space, optional entity
+transforms, and command-only placement/removal. See the K1-A coordinate and
+transform contracts in worlds/kernel/docs. K1-B is next.

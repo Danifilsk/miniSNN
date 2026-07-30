@@ -4,15 +4,18 @@ O header agregado e `minisnn_worlds_kernel.h`. Todos os simbolos publicos usam
 o namespace `minisnn_worlds_kernel_*`, os tipos usam `MiniSNNWorldsKernel*` e
 as macros usam `MINISNN_WORLDS_KERNEL_*`.
 
-`MiniSNNWorldsKernelConfig` contem `struct_size`, `format_version` e a cauda
-`master_seed`. A funcao
+`MiniSNNWorldsKernelConfig` contem `struct_size`, `format_version`, `master_seed`
+e o tail opcional `space_bounds`. A funcao
 `minisnn_worlds_kernel_config_default()` produz a configuracao deterministica
 da versao atual. `create(NULL, ...)` usa esse default; uma configuracao
-explicita exige versao atual e `struct_size` suficiente. K0-A le primeiro
+explicita exige versao atual e `struct_size` suficiente. O Kernel le primeiro
 `struct_size`, confirma que o prefixo contem `format_version` e somente entao
 le a versao. Estruturas pequenas demais sao rejeitadas antes da leitura de
-campo ausente ou alocacao. Uma estrutura maior com versao V1 aceita a cauda
-desconhecida sem copia ou interpretacao.
+campo ausente ou alocacao. Uma configuracao V1 cujo tamanho alcanca por
+completo `master_seed` preserva essa seed; se nao alcanca `space_bounds`, usa
+bounds default. Quando alcanca `space_bounds` completo, o Kernel le e valida
+esse campo mesmo se a struct tiver uma cauda maior desconhecida. Os bytes
+posteriores nao sao copiados nem interpretados.
 
 Se uma configuracao V1 historica nao alcanca `master_seed`, o Kernel usa
 `MINISNN_WORLDS_KERNEL_DEFAULT_MASTER_SEED`; seed zero continua valida.
@@ -56,3 +59,10 @@ estado `READY`.
 K0-D nao amplia a API da biblioteca. O executavel `k0_scenario_runner` e uma
 ferramenta externa que inclui somente este header agregado e usa essas APIs
 para produzir artefatos tecnicos.
+
+## K1-A Space And Transforms
+
+K0 is complete. K1-A is complete and K1 remains in progress. The public Worlds
+Kernel now exposes a single immutable 2D fixed-point space, optional entity
+transforms, and command-only placement/removal. See the K1-A coordinate and
+transform contracts in worlds/kernel/docs. K1-B is next.

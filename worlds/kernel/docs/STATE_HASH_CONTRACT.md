@@ -24,3 +24,10 @@ exige nova versao do hash e migracao documentada.
 K0-D writes this value as fixed hexadecimal in `trace.csv` and checks that the
 last trace value equals the manifest final hash before publishing artifacts.
 Its separate scenario configuration signature is never named a state hash.
+
+## K1-A Space And Transforms
+
+K0 is complete. K1-A is complete and K1 remains in progress. The public Worlds
+Kernel now exposes a single immutable 2D fixed-point space, optional entity
+transforms, and command-only placement/removal. See the K1-A coordinate and
+transform contracts in worlds/kernel/docs. K1-B is next.

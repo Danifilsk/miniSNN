@@ -12,6 +12,10 @@
     (offsetof(MiniSNNWorldsKernelConfig, master_seed) + \
      sizeof(((MiniSNNWorldsKernelConfig *)0)->master_seed))
 
+#define MINISNN_WORLDS_KERNEL_CONFIG_SPACE_BOUNDS_READABLE_SIZE \
+    (offsetof(MiniSNNWorldsKernelConfig, space_bounds) + \
+     sizeof(((MiniSNNWorldsKernelConfig *)0)->space_bounds))
+
 #define MINISNN_WORLDS_KERNEL_PCG32_MULTIPLIER UINT64_C(6364136223846793005)
 #define MINISNN_WORLDS_KERNEL_FNV1A_OFFSET UINT64_C(14695981039346656037)
 #define MINISNN_WORLDS_KERNEL_FNV1A_PRIME UINT64_C(1099511628211)
@@ -22,6 +26,8 @@ typedef struct
     MiniSNNWorldsTick creation_tick;
     MiniSNNWorldsTick destruction_tick;
     int alive;
+    int has_transform;
+    MiniSNNWorldsKernelTransform transform;
 } EntityRecord;
 
 typedef struct
@@ -47,6 +53,9 @@ typedef struct
     uint64_t rejected_count;
     uint64_t created_count;
     uint64_t destroyed_count;
+    uint64_t placed_count;
+    uint64_t removed_from_space_count;
+    size_t planned_placed_entity_count;
 } StepPlan;
 
 struct MiniSNNWorldsKernel
@@ -58,6 +67,8 @@ struct MiniSNNWorldsKernel
     size_t entity_count;
     size_t entity_capacity;
     size_t alive_entity_count;
+    size_t placed_entity_count;
+    MiniSNNWorldsKernelSpaceBounds space_bounds;
     MiniSNNWorldsKernelCommandInfo *pending_commands;
     size_t pending_command_count;
     size_t pending_command_capacity;
@@ -68,6 +79,8 @@ struct MiniSNNWorldsKernel
     MiniSNNWorldsKernelEventId next_event_id;
     uint64_t total_entities_created;
     uint64_t total_entities_destroyed;
+    uint64_t total_entities_placed;
+    uint64_t total_entities_removed_from_space;
     uint64_t total_commands_submitted;
     uint64_t total_commands_applied;
     uint64_t total_commands_rejected;
@@ -103,6 +116,105 @@ static void set_last_error(
     }
 }
 
+static MiniSNNWorldsKernelTransform zero_transform(void)
+{
+    MiniSNNWorldsKernelTransform transform;
+
+    transform.position.x = MINISNN_WORLDS_KERNEL_SCALAR_ZERO;
+    transform.position.y = MINISNN_WORLDS_KERNEL_SCALAR_ZERO;
+    transform.orientation = UINT32_C(0);
+    return transform;
+}
+
+static MiniSNNWorldsKernelSpaceBounds default_space_bounds(void)
+{
+    MiniSNNWorldsKernelSpaceBounds bounds;
+
+    bounds.min_x = INT64_C(-1000000);
+    bounds.min_y = INT64_C(-1000000);
+    bounds.max_x = INT64_C(1000000);
+    bounds.max_y = INT64_C(1000000);
+    return bounds;
+}
+
+static int scalar_add_checked(
+    MiniSNNWorldsKernelScalar left,
+    MiniSNNWorldsKernelScalar right,
+    MiniSNNWorldsKernelScalar *out_result)
+{
+    if (out_result == NULL ||
+        (right > 0 && left > INT64_MAX - right) ||
+        (right < 0 && left < INT64_MIN - right))
+    {
+        return 0;
+    }
+    *out_result = left + right;
+    return 1;
+}
+
+static int scalar_subtract_checked(
+    MiniSNNWorldsKernelScalar left,
+    MiniSNNWorldsKernelScalar right,
+    MiniSNNWorldsKernelScalar *out_result)
+{
+    if (right == INT64_MIN)
+    {
+        if (left >= 0)
+        {
+            return 0;
+        }
+        *out_result = left - right;
+        return 1;
+    }
+    return scalar_add_checked(left, -right, out_result);
+}
+
+static int space_bounds_are_valid(MiniSNNWorldsKernelSpaceBounds bounds)
+{
+    MiniSNNWorldsKernelScalar unused;
+
+    if (bounds.min_x >= bounds.max_x || bounds.min_y >= bounds.max_y)
+    {
+        return 0;
+    }
+    /* Width overflow is observable to callers only through checked arithmetic. */
+    (void)scalar_subtract_checked(bounds.max_x, bounds.min_x, &unused);
+    (void)scalar_subtract_checked(bounds.max_y, bounds.min_y, &unused);
+    return 1;
+}
+
+static int transform_orientation_is_valid(MiniSNNWorldsKernelTransform transform)
+{
+    return transform.orientation < MINISNN_WORLDS_KERNEL_ORIENTATION_FULL_TURN;
+}
+
+static int transform_is_within_bounds(
+    MiniSNNWorldsKernelTransform transform,
+    MiniSNNWorldsKernelSpaceBounds bounds)
+{
+    return transform.position.x >= bounds.min_x && transform.position.x <= bounds.max_x &&
+           transform.position.y >= bounds.min_y && transform.position.y <= bounds.max_y;
+}
+
+static MiniSNNWorldsKernelSpaceBounds config_space_bounds(
+    const MiniSNNWorldsKernelConfig *config)
+{
+    const unsigned char *bytes = (const unsigned char *)config;
+    uint32_t struct_size;
+    MiniSNNWorldsKernelSpaceBounds bounds;
+
+    memcpy(&struct_size, bytes + offsetof(MiniSNNWorldsKernelConfig, struct_size),
+           sizeof(struct_size));
+    if (struct_size <
+        (uint32_t)MINISNN_WORLDS_KERNEL_CONFIG_SPACE_BOUNDS_READABLE_SIZE)
+    {
+        return default_space_bounds();
+    }
+    memcpy(&bounds, bytes + offsetof(MiniSNNWorldsKernelConfig, space_bounds),
+           sizeof(bounds));
+    return bounds;
+}
+
 static int config_is_valid(const MiniSNNWorldsKernelConfig *config)
 {
     const unsigned char *bytes;
@@ -125,7 +237,8 @@ static int config_is_valid(const MiniSNNWorldsKernelConfig *config)
     memcpy(&format_version,
            bytes + offsetof(MiniSNNWorldsKernelConfig, format_version),
            sizeof(format_version));
-    return format_version == MINISNN_WORLDS_KERNEL_CONFIG_VERSION;
+    return format_version == MINISNN_WORLDS_KERNEL_CONFIG_VERSION &&
+           space_bounds_are_valid(config_space_bounds(config));
 }
 
 static uint64_t config_master_seed(const MiniSNNWorldsKernelConfig *config)
@@ -582,6 +695,7 @@ static MiniSNNWorldsKernelError prepare_step_plan(
     }
     out_plan->planned_entity_count = kernel->entity_count;
     out_plan->planned_alive_entity_count = kernel->alive_entity_count;
+    out_plan->planned_placed_entity_count = kernel->placed_entity_count;
     out_plan->next_entity_id = kernel->next_entity_id;
     out_plan->next_event_id = kernel->next_event_id;
     for (index = 0U; index < due_count; ++index)
@@ -598,6 +712,8 @@ static MiniSNNWorldsKernelError prepare_step_plan(
         event->tick = next_tick;
         event->command_id = command->command_id;
         event->issuer = command->issuer;
+        event->has_transform = false;
+        event->transform = zero_transform();
         if (command->issuer.value != 0U &&
             !entity_id_is_alive(out_plan->planned_entities,
                                 out_plan->planned_entity_count, command->issuer))
@@ -618,6 +734,8 @@ static MiniSNNWorldsKernelError prepare_step_plan(
             record->creation_tick = next_tick;
             record->destruction_tick = MINISNN_WORLDS_TICK_INITIAL;
             record->alive = 1;
+            record->has_transform = 0;
+            record->transform = zero_transform();
             subject = out_plan->next_entity_id;
             ++out_plan->planned_entity_count;
             ++out_plan->planned_alive_entity_count;
@@ -638,12 +756,80 @@ static MiniSNNWorldsKernelError prepare_step_plan(
             }
             else
             {
+                if (record->has_transform != 0)
+                {
+                    event->has_transform = true;
+                    event->transform = record->transform;
+                    record->has_transform = 0;
+                    record->transform = zero_transform();
+                    --out_plan->planned_placed_entity_count;
+                }
                 record->alive = 0;
                 record->destruction_tick = next_tick;
                 --out_plan->planned_alive_entity_count;
                 ++out_plan->destroyed_count;
                 ++out_plan->applied_count;
                 event_type = MINISNN_WORLDS_KERNEL_EVENT_ENTITY_DESTROYED;
+            }
+        }
+        else if (command->type == MINISNN_WORLDS_KERNEL_COMMAND_PLACE_ENTITY)
+        {
+            EntityRecord *record = find_entity_record(
+                out_plan->planned_entities, out_plan->planned_entity_count,
+                command->target_entity);
+
+            if (record == NULL || record->alive == 0)
+            {
+                rejection = MINISNN_WORLDS_KERNEL_COMMAND_REJECTION_TARGET_NOT_ALIVE;
+            }
+            else if (record->has_transform != 0)
+            {
+                rejection = MINISNN_WORLDS_KERNEL_COMMAND_REJECTION_TARGET_ALREADY_PLACED;
+            }
+            else if (!transform_orientation_is_valid(command->transform))
+            {
+                rejection = MINISNN_WORLDS_KERNEL_COMMAND_REJECTION_INVALID_ORIENTATION;
+            }
+            else if (!transform_is_within_bounds(command->transform, kernel->space_bounds))
+            {
+                rejection = MINISNN_WORLDS_KERNEL_COMMAND_REJECTION_POSITION_OUT_OF_BOUNDS;
+            }
+            else
+            {
+                record->has_transform = 1;
+                record->transform = command->transform;
+                ++out_plan->planned_placed_entity_count;
+                ++out_plan->placed_count;
+                ++out_plan->applied_count;
+                event->has_transform = true;
+                event->transform = command->transform;
+                event_type = MINISNN_WORLDS_KERNEL_EVENT_ENTITY_PLACED;
+            }
+        }
+        else if (command->type == MINISNN_WORLDS_KERNEL_COMMAND_REMOVE_ENTITY_FROM_SPACE)
+        {
+            EntityRecord *record = find_entity_record(
+                out_plan->planned_entities, out_plan->planned_entity_count,
+                command->target_entity);
+
+            if (record == NULL || record->alive == 0)
+            {
+                rejection = MINISNN_WORLDS_KERNEL_COMMAND_REJECTION_TARGET_NOT_ALIVE;
+            }
+            else if (record->has_transform == 0)
+            {
+                rejection = MINISNN_WORLDS_KERNEL_COMMAND_REJECTION_TARGET_NOT_PLACED;
+            }
+            else
+            {
+                event->has_transform = true;
+                event->transform = record->transform;
+                record->has_transform = 0;
+                record->transform = zero_transform();
+                --out_plan->planned_placed_entity_count;
+                ++out_plan->removed_from_space_count;
+                ++out_plan->applied_count;
+                event_type = MINISNN_WORLDS_KERNEL_EVENT_ENTITY_REMOVED_FROM_SPACE;
             }
         }
         else
@@ -669,6 +855,8 @@ static MiniSNNWorldsKernelError queue_command(
     MiniSNNWorldsKernelEntityId issuer,
     MiniSNNWorldsKernelCommandType type,
     MiniSNNWorldsKernelEntityId target_entity,
+    int has_transform,
+    MiniSNNWorldsKernelTransform transform,
     MiniSNNWorldsKernelCommandId *out_command_id)
 {
     MiniSNNWorldsKernelCommandInfo *expanded_commands = NULL;
@@ -694,16 +882,40 @@ static MiniSNNWorldsKernelError queue_command(
         return kernel->last_error;
     }
     if (type != MINISNN_WORLDS_KERNEL_COMMAND_CREATE_ENTITY &&
-        type != MINISNN_WORLDS_KERNEL_COMMAND_DESTROY_ENTITY)
+        type != MINISNN_WORLDS_KERNEL_COMMAND_DESTROY_ENTITY &&
+        type != MINISNN_WORLDS_KERNEL_COMMAND_PLACE_ENTITY &&
+        type != MINISNN_WORLDS_KERNEL_COMMAND_REMOVE_ENTITY_FROM_SPACE)
     {
         set_last_error(kernel, MINISNN_WORLDS_KERNEL_ERROR_INVALID_COMMAND);
         return kernel->last_error;
     }
-    if (type == MINISNN_WORLDS_KERNEL_COMMAND_DESTROY_ENTITY &&
+    if (type == MINISNN_WORLDS_KERNEL_COMMAND_CREATE_ENTITY &&
+        target_entity.value != 0U)
+    {
+        set_last_error(kernel, MINISNN_WORLDS_KERNEL_ERROR_INVALID_ENTITY_ID);
+        return kernel->last_error;
+    }
+    if (type != MINISNN_WORLDS_KERNEL_COMMAND_CREATE_ENTITY &&
         target_entity.value == 0U)
     {
         set_last_error(kernel, MINISNN_WORLDS_KERNEL_ERROR_INVALID_ENTITY_ID);
         return kernel->last_error;
+    }
+    if (type == MINISNN_WORLDS_KERNEL_COMMAND_PLACE_ENTITY)
+    {
+        if (has_transform == 0 || !transform_orientation_is_valid(transform) ||
+            !transform_is_within_bounds(transform, kernel->space_bounds))
+        {
+            set_last_error(kernel, !transform_orientation_is_valid(transform) ?
+                MINISNN_WORLDS_KERNEL_ERROR_INVALID_TRANSFORM :
+                MINISNN_WORLDS_KERNEL_ERROR_INVALID_BOUND);
+            return kernel->last_error;
+        }
+    }
+    else
+    {
+        has_transform = 0;
+        transform = zero_transform();
     }
     if (!identifiers_available(kernel->next_command_id.value, 1U))
     {
@@ -746,6 +958,9 @@ static MiniSNNWorldsKernelError queue_command(
     kernel->pending_commands[kernel->pending_command_count].issuer = issuer;
     kernel->pending_commands[kernel->pending_command_count].type = type;
     kernel->pending_commands[kernel->pending_command_count].target_entity = target_entity;
+    kernel->pending_commands[kernel->pending_command_count].has_transform =
+        has_transform != 0;
+    kernel->pending_commands[kernel->pending_command_count].transform = transform;
     *out_command_id = kernel->next_command_id;
     ++kernel->pending_command_count;
     ++kernel->next_command_id.value;
@@ -761,6 +976,7 @@ MiniSNNWorldsKernelConfig minisnn_worlds_kernel_config_default(void)
     config.struct_size = (uint32_t)sizeof(config);
     config.format_version = MINISNN_WORLDS_KERNEL_CONFIG_VERSION;
     config.master_seed = MINISNN_WORLDS_KERNEL_DEFAULT_MASTER_SEED;
+    config.space_bounds = default_space_bounds();
     return config;
 }
 
@@ -795,6 +1011,7 @@ MiniSNNWorldsKernel *minisnn_worlds_kernel_create(
     kernel->next_command_id.value = UINT64_C(1);
     kernel->next_event_id.value = UINT64_C(1);
     kernel->master_seed = config_master_seed(config);
+    kernel->space_bounds = config_space_bounds(config);
     return kernel;
 }
 
@@ -832,6 +1049,18 @@ uint64_t minisnn_worlds_kernel_master_seed(const MiniSNNWorldsKernel *kernel)
 {
     return kernel == NULL ? MINISNN_WORLDS_KERNEL_DEFAULT_MASTER_SEED :
                             kernel->master_seed;
+}
+
+MiniSNNWorldsKernelError minisnn_worlds_kernel_space_bounds(
+    const MiniSNNWorldsKernel *kernel,
+    MiniSNNWorldsKernelSpaceBounds *out_bounds)
+{
+    if (kernel == NULL || out_bounds == NULL)
+    {
+        return MINISNN_WORLDS_KERNEL_ERROR_NULL_ARGUMENT;
+    }
+    *out_bounds = kernel->space_bounds;
+    return MINISNN_WORLDS_KERNEL_ERROR_NONE;
 }
 
 MiniSNNWorldsKernelError minisnn_worlds_kernel_random_u32(
@@ -1060,6 +1289,97 @@ MiniSNNWorldsKernelError minisnn_worlds_kernel_entity_at(
     return MINISNN_WORLDS_KERNEL_ERROR_INDEX_OUT_OF_RANGE;
 }
 
+bool minisnn_worlds_kernel_entity_is_placed(
+    const MiniSNNWorldsKernel *kernel,
+    MiniSNNWorldsKernelEntityId entity_id)
+{
+    size_t index;
+
+    if (kernel == NULL || entity_id.value == 0U)
+    {
+        return false;
+    }
+    for (index = 0U; index < kernel->entity_count; ++index)
+    {
+        const EntityRecord *record = &kernel->entities[index];
+
+        if (record->entity_id.value == entity_id.value)
+        {
+            return record->alive != 0 && record->has_transform != 0;
+        }
+    }
+    return false;
+}
+
+MiniSNNWorldsKernelError minisnn_worlds_kernel_entity_transform(
+    const MiniSNNWorldsKernel *kernel,
+    MiniSNNWorldsKernelEntityId entity_id,
+    MiniSNNWorldsKernelTransform *out_transform)
+{
+    size_t index;
+
+    if (kernel == NULL || out_transform == NULL)
+    {
+        return MINISNN_WORLDS_KERNEL_ERROR_NULL_ARGUMENT;
+    }
+    for (index = 0U; index < kernel->entity_count; ++index)
+    {
+        const EntityRecord *record = &kernel->entities[index];
+
+        if (record->entity_id.value == entity_id.value)
+        {
+            if (record->alive == 0 || record->has_transform == 0)
+            {
+                return MINISNN_WORLDS_KERNEL_ERROR_ENTITY_NOT_PLACED;
+            }
+            *out_transform = record->transform;
+            return MINISNN_WORLDS_KERNEL_ERROR_NONE;
+        }
+    }
+    return MINISNN_WORLDS_KERNEL_ERROR_INVALID_ENTITY_ID;
+}
+
+size_t minisnn_worlds_kernel_placed_entity_count(
+    const MiniSNNWorldsKernel *kernel)
+{
+    return kernel == NULL ? 0U : kernel->placed_entity_count;
+}
+
+MiniSNNWorldsKernelError minisnn_worlds_kernel_placed_entity_at(
+    const MiniSNNWorldsKernel *kernel,
+    size_t canonical_index,
+    MiniSNNWorldsKernelEntityId *out_entity_id,
+    MiniSNNWorldsKernelTransform *out_transform)
+{
+    size_t index;
+    size_t found = 0U;
+
+    if (kernel == NULL || out_entity_id == NULL || out_transform == NULL)
+    {
+        return MINISNN_WORLDS_KERNEL_ERROR_NULL_ARGUMENT;
+    }
+    if (canonical_index >= kernel->placed_entity_count)
+    {
+        return MINISNN_WORLDS_KERNEL_ERROR_INDEX_OUT_OF_RANGE;
+    }
+    for (index = 0U; index < kernel->entity_count; ++index)
+    {
+        const EntityRecord *record = &kernel->entities[index];
+
+        if (record->alive != 0 && record->has_transform != 0)
+        {
+            if (found == canonical_index)
+            {
+                *out_entity_id = record->entity_id;
+                *out_transform = record->transform;
+                return MINISNN_WORLDS_KERNEL_ERROR_NONE;
+            }
+            ++found;
+        }
+    }
+    return MINISNN_WORLDS_KERNEL_ERROR_INTERNAL;
+}
+
 MiniSNNWorldsKernelError minisnn_worlds_kernel_queue_create_entity(
     MiniSNNWorldsKernel *kernel,
     MiniSNNWorldsTick target_tick,
@@ -1071,6 +1391,7 @@ MiniSNNWorldsKernelError minisnn_worlds_kernel_queue_create_entity(
 
     return queue_command(kernel, target_tick, priority, issuer,
                          MINISNN_WORLDS_KERNEL_COMMAND_CREATE_ENTITY, no_target,
+                         0, zero_transform(),
                          out_command_id);
 }
 
@@ -1084,7 +1405,35 @@ MiniSNNWorldsKernelError minisnn_worlds_kernel_queue_destroy_entity(
 {
     return queue_command(kernel, target_tick, priority, issuer,
                          MINISNN_WORLDS_KERNEL_COMMAND_DESTROY_ENTITY, target_entity,
+                         0, zero_transform(),
                          out_command_id);
+}
+
+MiniSNNWorldsKernelError minisnn_worlds_kernel_queue_place_entity(
+    MiniSNNWorldsKernel *kernel,
+    MiniSNNWorldsTick target_tick,
+    uint32_t priority,
+    MiniSNNWorldsKernelEntityId issuer,
+    MiniSNNWorldsKernelEntityId target_entity,
+    MiniSNNWorldsKernelTransform transform,
+    MiniSNNWorldsKernelCommandId *out_command_id)
+{
+    return queue_command(kernel, target_tick, priority, issuer,
+                         MINISNN_WORLDS_KERNEL_COMMAND_PLACE_ENTITY, target_entity,
+                         1, transform, out_command_id);
+}
+
+MiniSNNWorldsKernelError minisnn_worlds_kernel_queue_remove_entity_from_space(
+    MiniSNNWorldsKernel *kernel,
+    MiniSNNWorldsTick target_tick,
+    uint32_t priority,
+    MiniSNNWorldsKernelEntityId issuer,
+    MiniSNNWorldsKernelEntityId target_entity,
+    MiniSNNWorldsKernelCommandId *out_command_id)
+{
+    return queue_command(kernel, target_tick, priority, issuer,
+                         MINISNN_WORLDS_KERNEL_COMMAND_REMOVE_ENTITY_FROM_SPACE,
+                         target_entity, 0, zero_transform(), out_command_id);
 }
 
 size_t minisnn_worlds_kernel_pending_command_count(
@@ -1194,30 +1543,13 @@ static const EntityRecord *canonical_entity_at(
     const MiniSNNWorldsKernel *kernel,
     size_t canonical_index)
 {
-    size_t candidate_index;
-
-    for (candidate_index = 0U; candidate_index < kernel->entity_count;
-         ++candidate_index)
+    /* Entity IDs are committed monotonically and records are never reordered. */
+    if (canonical_index >= kernel->entity_count)
     {
-        size_t other_index;
-        size_t rank = 0U;
-
-        for (other_index = 0U; other_index < kernel->entity_count; ++other_index)
-        {
-            if (kernel->entities[other_index].entity_id.value <
-                kernel->entities[candidate_index].entity_id.value)
-            {
-                ++rank;
-            }
-        }
-        if (rank == canonical_index)
-        {
-            return &kernel->entities[candidate_index];
-        }
+        return NULL;
     }
-    return NULL;
+    return &kernel->entities[canonical_index];
 }
-
 static const MiniSNNWorldsKernelCommandInfo *canonical_pending_command_at(
     const MiniSNNWorldsKernel *kernel,
     size_t canonical_index)
@@ -1276,7 +1608,7 @@ static const RandomStreamRecord *canonical_random_stream_at(
     return NULL;
 }
 
-static uint64_t compute_state_hash(const MiniSNNWorldsKernel *kernel)
+static uint64_t compute_state_hash_v1(const MiniSNNWorldsKernel *kernel)
 {
     uint64_t hash = MINISNN_WORLDS_KERNEL_FNV1A_OFFSET;
     size_t index;
@@ -1352,8 +1684,130 @@ static uint64_t compute_state_hash(const MiniSNNWorldsKernel *kernel)
     return hash;
 }
 
-MiniSNNWorldsKernelError minisnn_worlds_kernel_state_hash(
+
+static int space_bounds_equal(
+    MiniSNNWorldsKernelSpaceBounds left,
+    MiniSNNWorldsKernelSpaceBounds right)
+{
+    return left.min_x == right.min_x && left.min_y == right.min_y &&
+           left.max_x == right.max_x && left.max_y == right.max_y;
+}
+
+static int state_is_k0_hash_compatible(const MiniSNNWorldsKernel *kernel)
+{
+    size_t index;
+
+    if (!space_bounds_equal(kernel->space_bounds, default_space_bounds()) ||
+        kernel->placed_entity_count != 0U || kernel->total_entities_placed != 0U ||
+        kernel->total_entities_removed_from_space != 0U)
+    {
+        return 0;
+    }
+    for (index = 0U; index < kernel->entity_count; ++index)
+    {
+        if (kernel->entities[index].has_transform != 0)
+        {
+            return 0;
+        }
+    }
+    for (index = 0U; index < kernel->pending_command_count; ++index)
+    {
+        const MiniSNNWorldsKernelCommandInfo *command = &kernel->pending_commands[index];
+
+        if (command->type == MINISNN_WORLDS_KERNEL_COMMAND_PLACE_ENTITY ||
+            command->type == MINISNN_WORLDS_KERNEL_COMMAND_REMOVE_ENTITY_FROM_SPACE ||
+            command->has_transform)
+        {
+            return 0;
+        }
+    }
+    for (index = 0U; index < kernel->last_tick_event_count; ++index)
+    {
+        const MiniSNNWorldsKernelEvent *event = &kernel->last_tick_events[index];
+
+        if (event->type == MINISNN_WORLDS_KERNEL_EVENT_ENTITY_PLACED ||
+            event->type == MINISNN_WORLDS_KERNEL_EVENT_ENTITY_REMOVED_FROM_SPACE ||
+            event->has_transform)
+        {
+            return 0;
+        }
+    }
+    return 1;
+}
+
+static uint64_t scalar_hash_encoding(MiniSNNWorldsKernelScalar value)
+{
+    return ((uint64_t)value) ^ UINT64_C(0x8000000000000000);
+}
+
+static uint64_t compute_state_hash_v2(const MiniSNNWorldsKernel *kernel)
+{
+    uint64_t hash = compute_state_hash_v1(kernel);
+    size_t index;
+
+    fnv1a_append_literal(&hash, "MSWK_STATE_V2");
+    fnv1a_append_u32(&hash, MINISNN_WORLDS_KERNEL_STATE_HASH_VERSION_V2);
+    fnv1a_append_u64(&hash, (uint64_t)MINISNN_WORLDS_KERNEL_SCALAR_SCALE);
+    fnv1a_append_u64(&hash, scalar_hash_encoding(kernel->space_bounds.min_x));
+    fnv1a_append_u64(&hash, scalar_hash_encoding(kernel->space_bounds.min_y));
+    fnv1a_append_u64(&hash, scalar_hash_encoding(kernel->space_bounds.max_x));
+    fnv1a_append_u64(&hash, scalar_hash_encoding(kernel->space_bounds.max_y));
+    fnv1a_append_u64(&hash, (uint64_t)kernel->placed_entity_count);
+    for (index = 0U; index < kernel->entity_count; ++index)
+    {
+        const EntityRecord *record = canonical_entity_at(kernel, index);
+
+        fnv1a_append_u64(&hash, record->entity_id.value);
+        fnv1a_append_byte(&hash, record->has_transform != 0 ? UINT8_C(1) : UINT8_C(0));
+        if (record->has_transform != 0)
+        {
+            fnv1a_append_u64(&hash, scalar_hash_encoding(record->transform.position.x));
+            fnv1a_append_u64(&hash, scalar_hash_encoding(record->transform.position.y));
+            fnv1a_append_u32(&hash, record->transform.orientation);
+        }
+    }
+    for (index = 0U; index < kernel->pending_command_count; ++index)
+    {
+        const MiniSNNWorldsKernelCommandInfo *command =
+            canonical_pending_command_at(kernel, index);
+
+        fnv1a_append_u64(&hash, command->command_id.value);
+        fnv1a_append_byte(&hash, command->has_transform ? UINT8_C(1) : UINT8_C(0));
+        if (command->has_transform)
+        {
+            fnv1a_append_u64(&hash, scalar_hash_encoding(command->transform.position.x));
+            fnv1a_append_u64(&hash, scalar_hash_encoding(command->transform.position.y));
+            fnv1a_append_u32(&hash, command->transform.orientation);
+        }
+    }
+    for (index = 0U; index < kernel->last_tick_event_count; ++index)
+    {
+        const MiniSNNWorldsKernelEvent *event = &kernel->last_tick_events[index];
+
+        fnv1a_append_u64(&hash, event->event_id.value);
+        fnv1a_append_byte(&hash, event->has_transform ? UINT8_C(1) : UINT8_C(0));
+        if (event->has_transform)
+        {
+            fnv1a_append_u64(&hash, scalar_hash_encoding(event->transform.position.x));
+            fnv1a_append_u64(&hash, scalar_hash_encoding(event->transform.position.y));
+            fnv1a_append_u32(&hash, event->transform.orientation);
+        }
+    }
+    fnv1a_append_u64(&hash, kernel->total_entities_placed);
+    fnv1a_append_u64(&hash, kernel->total_entities_removed_from_space);
+    return hash;
+}
+
+static uint32_t current_state_hash_version(const MiniSNNWorldsKernel *kernel)
+{
+    return state_is_k0_hash_compatible(kernel) ?
+        MINISNN_WORLDS_KERNEL_STATE_HASH_VERSION_V1 :
+        MINISNN_WORLDS_KERNEL_STATE_HASH_VERSION_V2;
+}
+
+MiniSNNWorldsKernelError minisnn_worlds_kernel_state_hash_versioned(
     const MiniSNNWorldsKernel *kernel,
+    uint32_t version,
     uint64_t *out_hash)
 {
     if (kernel == NULL || out_hash == NULL)
@@ -1364,8 +1818,33 @@ MiniSNNWorldsKernelError minisnn_worlds_kernel_state_hash(
     {
         return MINISNN_WORLDS_KERNEL_ERROR_INVALID_STATE;
     }
-    *out_hash = compute_state_hash(kernel);
+    if (version == MINISNN_WORLDS_KERNEL_STATE_HASH_VERSION_V1)
+    {
+        if (!state_is_k0_hash_compatible(kernel))
+        {
+            return MINISNN_WORLDS_KERNEL_ERROR_INVALID_STATE;
+        }
+        *out_hash = compute_state_hash_v1(kernel);
+        return MINISNN_WORLDS_KERNEL_ERROR_NONE;
+    }
+    if (version != MINISNN_WORLDS_KERNEL_STATE_HASH_VERSION_V2)
+    {
+        return MINISNN_WORLDS_KERNEL_ERROR_INVALID_ARGUMENT;
+    }
+    *out_hash = compute_state_hash_v2(kernel);
     return MINISNN_WORLDS_KERNEL_ERROR_NONE;
+}
+
+MiniSNNWorldsKernelError minisnn_worlds_kernel_state_hash(
+    const MiniSNNWorldsKernel *kernel,
+    uint64_t *out_hash)
+{
+    if (kernel == NULL)
+    {
+        return MINISNN_WORLDS_KERNEL_ERROR_NULL_ARGUMENT;
+    }
+    return minisnn_worlds_kernel_state_hash_versioned(
+        kernel, current_state_hash_version(kernel), out_hash);
 }
 
 MiniSNNWorldsKernelError minisnn_worlds_kernel_step(MiniSNNWorldsKernel *kernel)
@@ -1409,10 +1888,13 @@ MiniSNNWorldsKernelError minisnn_worlds_kernel_step(MiniSNNWorldsKernel *kernel)
     }
     kernel->entity_count = plan.planned_entity_count;
     kernel->alive_entity_count = plan.planned_alive_entity_count;
+    kernel->placed_entity_count = plan.planned_placed_entity_count;
     kernel->next_entity_id = plan.next_entity_id;
     kernel->next_event_id = plan.next_event_id;
     kernel->total_entities_created += plan.created_count;
     kernel->total_entities_destroyed += plan.destroyed_count;
+    kernel->total_entities_placed += plan.placed_count;
+    kernel->total_entities_removed_from_space += plan.removed_from_space_count;
     kernel->total_commands_applied += plan.applied_count;
     kernel->total_commands_rejected += plan.rejected_count;
     kernel->total_events_emitted += (uint64_t)plan.command_count;
@@ -1457,6 +1939,10 @@ MiniSNNWorldsKernelError minisnn_worlds_kernel_get_diagnostics(
     diagnostics.alive_entities = (uint64_t)kernel->alive_entity_count;
     diagnostics.total_entities_created = kernel->total_entities_created;
     diagnostics.total_entities_destroyed = kernel->total_entities_destroyed;
+    diagnostics.placed_entities = (uint64_t)kernel->placed_entity_count;
+    diagnostics.total_entities_placed = kernel->total_entities_placed;
+    diagnostics.total_entities_removed_from_space =
+        kernel->total_entities_removed_from_space;
     diagnostics.pending_commands = (uint64_t)kernel->pending_command_count;
     diagnostics.total_commands_submitted = kernel->total_commands_submitted;
     diagnostics.total_commands_applied = kernel->total_commands_applied;
@@ -1466,9 +1952,16 @@ MiniSNNWorldsKernelError minisnn_worlds_kernel_get_diagnostics(
     diagnostics.master_seed = kernel->master_seed;
     diagnostics.random_streams = (uint64_t)kernel->random_stream_count;
     diagnostics.total_random_u32_generated = kernel->total_random_u32_generated;
-    diagnostics.current_state_hash = compute_state_hash(kernel);
-    diagnostics.state_hash_version = MINISNN_WORLDS_KERNEL_STATE_HASH_VERSION;
+    diagnostics.state_hash_version = current_state_hash_version(kernel);
+    diagnostics.current_state_hash = diagnostics.state_hash_version ==
+        MINISNN_WORLDS_KERNEL_STATE_HASH_VERSION_V1 ?
+        compute_state_hash_v1(kernel) : compute_state_hash_v2(kernel);
     diagnostics.prng_version = MINISNN_WORLDS_KERNEL_PRNG_VERSION;
+    diagnostics.space_min_x = kernel->space_bounds.min_x;
+    diagnostics.space_min_y = kernel->space_bounds.min_y;
+    diagnostics.space_max_x = kernel->space_bounds.max_x;
+    diagnostics.space_max_y = kernel->space_bounds.max_y;
+    diagnostics.scalar_scale = MINISNN_WORLDS_KERNEL_SCALAR_SCALE;
     *out_diagnostics = diagnostics;
     return MINISNN_WORLDS_KERNEL_ERROR_NONE;
 }
@@ -1488,7 +1981,7 @@ MiniSNNWorldsKernelError minisnn_worlds_kernel_capture_trace_point(
         return MINISNN_WORLDS_KERNEL_ERROR_INVALID_STATE;
     }
     trace.tick = kernel->tick;
-    trace.state_hash = compute_state_hash(kernel);
+    trace.state_hash = current_state_hash_version(kernel) == MINISNN_WORLDS_KERNEL_STATE_HASH_VERSION_V1 ? compute_state_hash_v1(kernel) : compute_state_hash_v2(kernel);
     trace.alive_entities = (uint64_t)kernel->alive_entity_count;
     trace.pending_commands = (uint64_t)kernel->pending_command_count;
     trace.last_tick_events = (uint64_t)kernel->last_tick_event_count;
@@ -1499,6 +1992,22 @@ MiniSNNWorldsKernelError minisnn_worlds_kernel_capture_trace_point(
 }
 
 #ifdef MINISNN_WORLDS_KERNEL_TESTING
+int minisnn_worlds_kernel_testing_scalar_add(
+    MiniSNNWorldsKernelScalar left,
+    MiniSNNWorldsKernelScalar right,
+    MiniSNNWorldsKernelScalar *out_result)
+{
+    return scalar_add_checked(left, right, out_result);
+}
+
+int minisnn_worlds_kernel_testing_scalar_subtract(
+    MiniSNNWorldsKernelScalar left,
+    MiniSNNWorldsKernelScalar right,
+    MiniSNNWorldsKernelScalar *out_result)
+{
+    return scalar_subtract_checked(left, right, out_result);
+}
+
 void minisnn_worlds_kernel_testing_fail_next_allocation(void)
 {
     testing_allocation_fail_after = 0U;

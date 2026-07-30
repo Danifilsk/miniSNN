@@ -33,3 +33,10 @@ Consulte [a arquitetura](docs/ARCHITECTURE.md), o
 K0 esta concluido como fundacao deterministica. K1 e o proximo bloco de
 entidades genericas, transforms, espaco, ocupacao, barreiras, deslocamento e
 links. K0-D continua headless e nao implementa Domain, Brain Bridge ou App.
+
+## K1-A Space And Transforms
+
+K0 is complete. K1-A is complete and K1 remains in progress. The public Worlds
+Kernel now exposes a single immutable 2D fixed-point space, optional entity
+transforms, and command-only placement/removal. See the K1-A coordinate and
+transform contracts in worlds/kernel/docs. K1-B is next.

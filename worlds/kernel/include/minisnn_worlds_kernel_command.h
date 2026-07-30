@@ -1,16 +1,20 @@
 #ifndef MINISNN_WORLDS_KERNEL_COMMAND_H
 #define MINISNN_WORLDS_KERNEL_COMMAND_H
 
+#include <stdbool.h>
 #include <stddef.h>
 
 #include "minisnn_worlds_kernel_types.h"
+#include "minisnn_worlds_kernel_space.h"
 
 #define MINISNN_WORLDS_KERNEL_COMMAND_PRIORITY_DEFAULT UINT32_C(0)
 
 typedef enum
 {
     MINISNN_WORLDS_KERNEL_COMMAND_CREATE_ENTITY = 1,
-    MINISNN_WORLDS_KERNEL_COMMAND_DESTROY_ENTITY = 2
+    MINISNN_WORLDS_KERNEL_COMMAND_DESTROY_ENTITY = 2,
+    MINISNN_WORLDS_KERNEL_COMMAND_PLACE_ENTITY = 3,
+    MINISNN_WORLDS_KERNEL_COMMAND_REMOVE_ENTITY_FROM_SPACE = 4
 } MiniSNNWorldsKernelCommandType;
 
 typedef struct
@@ -21,6 +25,8 @@ typedef struct
     MiniSNNWorldsKernelEntityId issuer;
     MiniSNNWorldsKernelCommandType type;
     MiniSNNWorldsKernelEntityId target_entity;
+    bool has_transform;
+    MiniSNNWorldsKernelTransform transform;
 } MiniSNNWorldsKernelCommandInfo;
 
 MiniSNNWorldsKernelError minisnn_worlds_kernel_queue_create_entity(
@@ -31,6 +37,23 @@ MiniSNNWorldsKernelError minisnn_worlds_kernel_queue_create_entity(
     MiniSNNWorldsKernelCommandId *out_command_id);
 
 MiniSNNWorldsKernelError minisnn_worlds_kernel_queue_destroy_entity(
+    MiniSNNWorldsKernel *kernel,
+    MiniSNNWorldsTick target_tick,
+    uint32_t priority,
+    MiniSNNWorldsKernelEntityId issuer,
+    MiniSNNWorldsKernelEntityId target_entity,
+    MiniSNNWorldsKernelCommandId *out_command_id);
+
+MiniSNNWorldsKernelError minisnn_worlds_kernel_queue_place_entity(
+    MiniSNNWorldsKernel *kernel,
+    MiniSNNWorldsTick target_tick,
+    uint32_t priority,
+    MiniSNNWorldsKernelEntityId issuer,
+    MiniSNNWorldsKernelEntityId target_entity,
+    MiniSNNWorldsKernelTransform transform,
+    MiniSNNWorldsKernelCommandId *out_command_id);
+
+MiniSNNWorldsKernelError minisnn_worlds_kernel_queue_remove_entity_from_space(
     MiniSNNWorldsKernel *kernel,
     MiniSNNWorldsTick target_tick,
     uint32_t priority,

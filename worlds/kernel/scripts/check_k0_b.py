@@ -46,7 +46,7 @@ def validate_boundary(kernel_root: Path, repository_root: Path) -> None:
     forbidden_terms = (
         "neuron", "spike", "sensor", "stdp", "creature", "food", "hunger",
         "body", "combat", "government", "profession", "brain bridge", "domain",
-        "worlds app", "component", "position", "grid", "map", "collision",
+        "worlds app", "component", "grid", "map", "collision",
         "barrier", "link", "callback", "plugin", "snapshot", "replay", "sleep",
         "thread",
     )
