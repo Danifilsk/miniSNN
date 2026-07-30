@@ -47,8 +47,14 @@ def validate_boundary(kernel_root: Path, repository_root: Path) -> None:
         "neuron", "spike", "sensor", "stdp", "creature", "food", "hunger",
         "body", "combat", "government", "profession", "brain bridge", "domain",
         "worlds app", "component", "position", "grid", "map", "collision",
-        "barrier", "link", "callback", "plugin", "snapshot", "replay", "seed",
-        "hash", "rand", "srand", "time", "clock", "sleep", "thread",
+        "barrier", "link", "callback", "plugin", "snapshot", "replay", "sleep",
+        "thread",
+    )
+    forbidden_calls = (
+        r"\btime\s*\(", r"\bclock\s*\(", r"\bgettickcount\b",
+        r"\bqueryperformancecounter\b", r"\bsleep\s*\(",
+        r"\bnanosleep\s*\(", r"\brand\s*\(", r"\bsrand\s*\(",
+        r"\bcreatethread\b",
     )
 
     for directory_name in ("include", "src"):
@@ -68,6 +74,9 @@ def validate_boundary(kernel_root: Path, repository_root: Path) -> None:
             for term in forbidden_terms:
                 if re.search(rf"\b{re.escape(term)}\b", lowered):
                     fail(f"conceito fora de escopo em {path.relative_to(repository_root)}: {term}")
+            for pattern in forbidden_calls:
+                if re.search(pattern, lowered):
+                    fail(f"tempo real, aleatoriedade ou thread em {path.relative_to(repository_root)}")
 
 
 def validate_source_contracts(kernel_root: Path) -> None:
@@ -156,7 +165,8 @@ def validate_symbols(library: Path, repository_root: Path) -> None:
             fail(f"simbolo fora do namespace Worlds Kernel: {name}")
         if "testing_" in name or name == "WinMain":
             fail(f"simbolo proibido na biblioteca normal: {name}")
-    if any(token in output.lower() for token in ("rand", "srand", "time", "clock")):
+    prohibited_symbols = {"rand", "srand", "time", "clock"}
+    if any(name.lower() in prohibited_symbols for name in names):
         fail("biblioteca exporta simbolo de aleatoriedade ou tempo real")
 
 

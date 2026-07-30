@@ -45,7 +45,7 @@ def validate_source_boundary(kernel_root: Path, repository_root: Path) -> None:
         "neuron", "spike", "sensor", "stdp", "creature", "body", "hunger",
         "food", "combat", "government", "callback", "plugin", "position",
         "grid", "snapshot", "replay",
-        "action", "seed", "hash", "map",
+        "action", "map",
     )
     forbidden_calls = (
         r"\btime\s*\(", r"\bclock\s*\(", r"\bgettickcount\b",
@@ -114,8 +114,8 @@ def validate_symbols(library: Path, repository_root: Path) -> None:
             fail(f"simbolo fora do namespace Worlds Kernel: {name}")
         if "testing_" in name or name == "WinMain":
             fail(f"simbolo proibido no build normal: {name}")
-    lowered = output.lower()
-    if any(token in lowered for token in ("minisnn_create", "rand", "srand", "time")):
+    prohibited_symbols = {"minisnn_create", "rand", "srand", "time", "clock"}
+    if any(name.lower() in prohibited_symbols for name in names):
         fail("biblioteca exporta simbolo proibido")
 
 

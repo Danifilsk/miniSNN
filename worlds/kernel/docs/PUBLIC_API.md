@@ -1,10 +1,11 @@
-# API publica K0-A e K0-B
+# API publica K0-A, K0-B e K0-C
 
 O header agregado e `minisnn_worlds_kernel.h`. Todos os simbolos publicos usam
 o namespace `minisnn_worlds_kernel_*`, os tipos usam `MiniSNNWorldsKernel*` e
 as macros usam `MINISNN_WORLDS_KERNEL_*`.
 
-`MiniSNNWorldsKernelConfig` contem `struct_size` e `format_version`. A funcao
+`MiniSNNWorldsKernelConfig` contem `struct_size`, `format_version` e a cauda
+`master_seed`. A funcao
 `minisnn_worlds_kernel_config_default()` produz a configuracao deterministica
 da versao atual. `create(NULL, ...)` usa esse default; uma configuracao
 explicita exige versao atual e `struct_size` suficiente. K0-A le primeiro
@@ -12,6 +13,9 @@ explicita exige versao atual e `struct_size` suficiente. K0-A le primeiro
 le a versao. Estruturas pequenas demais sao rejeitadas antes da leitura de
 campo ausente ou alocacao. Uma estrutura maior com versao V1 aceita a cauda
 desconhecida sem copia ou interpretacao.
+
+Se uma configuracao V1 historica nao alcanca `master_seed`, o Kernel usa
+`MINISNN_WORLDS_KERNEL_DEFAULT_MASTER_SEED`; seed zero continua valida.
 
 O chamador ainda deve fornecer um ponteiro valido para pelo menos o primeiro
 campo `struct_size`; um ponteiro totalmente invalido nao pode ser detectado de
@@ -41,3 +45,10 @@ vivas, totais criados e destruidos, fila pendente, comandos submetidos,
 aplicados e rejeitados, eventos do ultimo tick e total emitido. Uma falha de
 submissao nao incrementa `submitted`; uma rejeicao semantica durante o tick
 incrementa `rejected` e o total de eventos.
+
+K0-C acrescenta `minisnn_worlds_kernel_random.h` e
+`minisnn_worlds_kernel_hash.h`. `random_u32`, `random_u64` e
+`random_bounded_u32` usam uma chave forte de dois `uint64_t` e publicam output
+somente em sucesso. `random_stream_at` devolve uma copia em ordem canonica.
+`state_hash` e `capture_trace_point` sao consultas sem alocacao que exigem
+estado `READY`.

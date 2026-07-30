@@ -36,6 +36,7 @@ aceita somente quando o probe minimo demonstra ausencia do sanitizer.
 
 ## Limites preservados
 
-K0-A continua sendo a fundacao de lifecycle e tempo. K0-B nao adiciona
-sistemas, aleatoriedade, espaco, persistencia, Domain, Brain Bridge ou App.
-Esses contratos permanecem para os sub-blocos seguintes.
+K0-A continua sendo a fundacao de lifecycle e tempo. K0-C adiciona somente
+aleatoriedade deterministica, hash e observabilidade, sem sistemas, espaco,
+persistencia, Domain, Brain Bridge ou App. Esses contratos permanecem para os
+sub-blocos seguintes.

@@ -26,3 +26,9 @@ Uma ordem valida que nao pode ser aplicada, como destruir alvo ja destruido ou
 usar emissor morto, nao e falha do motor. O comando e consumido e produz um
 evento `COMMAND_REJECTED` com motivo. Assim, uma aplicacao pode distinguir
 erro interno de uma decisao observavel da simulacao.
+
+K0-C acrescenta `INVALID_RANDOM_STREAM_KEY` e `INVALID_BOUND`. Um draw lazy
+que nao consegue reservar o registro retorna `ALLOCATION` sem publicar stream,
+contador, hash ou output. Exaustao de contador retorna `IDENTIFIER_OVERFLOW`
+antes de qualquer wrap. Hash, diagnostico, trace e enumeracao preservam o
+buffer de saida quando retornam erro.

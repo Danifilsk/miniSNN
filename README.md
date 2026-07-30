@@ -29,9 +29,10 @@ de dependencia explicitos.
 - **miniSNN Core**: a biblioteca e o laboratorio neural existentes, em
   [`core/`](core/README.md).
 - **miniSNN Worlds Kernel**: produto headless e independente em
-  [`worlds/kernel/`](worlds/kernel/), com K0-A e K0-B concluidos para
-  lifecycle, tempo logico, entidades, comandos e eventos. K0-C sera o proximo
-  sub-bloco apos a auditoria K0-B bem-sucedida.
+  [`worlds/kernel/`](worlds/kernel/), com K0-A, K0-B e K0-C concluidos para
+  lifecycle, tempo logico, entidades, comandos, eventos, PRNG por streams,
+  hash canonico e observabilidade. K0-D e o proximo sub-bloco; K0 continua em
+  andamento.
 - **miniSNN Worlds Domain**: ainda nao criado.
 - **Brain Bridge**: ainda nao criada; sera a unica integracao entre Domain e
   Core.

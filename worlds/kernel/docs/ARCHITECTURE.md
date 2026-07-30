@@ -9,8 +9,10 @@ O Worlds Kernel e um produto C11 headless, deterministico e independente.
 
 K0-A fornece configuracao, lifecycle, estados, erros, diagnostico e tempo
 logico. K0-B adiciona somente um registro de entidades por ID forte, uma fila
-de comandos futuros e uma janela de eventos. A execucao de cada tick prepara
-um plano temporario completo e o promove em um unico commit.
+de comandos futuros e uma janela de eventos. K0-C adiciona seed explicita,
+streams PCG32 independentes, hash canonico e observabilidade por copia. A
+execucao de cada tick prepara um plano temporario completo e o promove em um
+unico commit.
 
 A biblioteca nao inclui headers do Core, Win32 ou APIs de thread. O Core nao
 inclui headers do Kernel. Uma integracao futura pertence somente a Brain

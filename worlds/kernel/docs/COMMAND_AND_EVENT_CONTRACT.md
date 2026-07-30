@@ -37,3 +37,6 @@ O plano completo do tick e preparado em memoria temporaria: comandos ordenados,
 eventos, registro de entidades e contadores futuros. Somente depois de toda a
 prevalidacao o plano e promovido ao estado observavel. Portanto, uma rejeicao
 semantica recebe evento; uma falha interna preserva o estado anterior.
+
+O hash K0-C inclui a fila pendente em ordem canonica e a janela de eventos em
+ordem de emissao. Sorteios do PRNG nao sao eventos de dominio.

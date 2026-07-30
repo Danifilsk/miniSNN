@@ -3,9 +3,8 @@
 ## Escopo entregue
 
 K0-B conclui o registro deterministico de entidades, a fila de comandos
-futuros e a janela de eventos do ultimo tick. K0-A e K0-B estao concluidos;
-K0 permanece em andamento. K0-C e o proximo sub-bloco somente depois de
-`audit-k0-b` passar.
+futuros e a janela de eventos do ultimo tick. K0-A, K0-B e K0-C estao
+concluidos; K0 permanece em andamento e K0-D e o proximo sub-bloco.
 
 | ID | Severidade | Area | Problema | Correcao | Teste | Estado |
 | --- | --- | --- | --- | --- | --- | --- |
@@ -49,15 +48,15 @@ quando ha compilador. ASan/UBSan e classificado como `PASS`, `FAIL` ou
 ## Achados
 
 Nao ha achado funcional aberto em K0-B quando `audit-k0-b` passa. O Kernel
-continua sem performance espacial, PRNG, hash, persistencia ou historico de
-eventos; essas sao limitacoes deliberadas, nao promessas implementadas.
+continua sem performance espacial, persistencia ou historico de eventos;
+essas sao limitacoes deliberadas, nao promessas implementadas.
 
 ## Limites de K0-B
 
 K0-B nao introduz sistemas de simulacao, armazenamento de componentes,
-espaco, mapa, aleatoriedade, persistencia, Domain, Brain Bridge ou Worlds App.
+espaco, mapa, persistencia, Domain, Brain Bridge ou Worlds App.
 O Kernel continua C11 headless e sem dependencia do miniSNN Core.
 
-K0-C permanece responsavel por PRNG deterministico, streams derivados, hash
-canonico, observabilidade e artefatos. Nenhuma dessas capacidades e antecipada
-por K0-B.
+K0-C concluiu PRNG deterministico, streams derivados, hash canonico e
+observabilidade. K0-D permanece responsavel pelos artefatos integrados e pelo
+fechamento completo do bloco K0.

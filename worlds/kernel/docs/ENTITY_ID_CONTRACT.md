@@ -26,5 +26,8 @@ O registro inicial privilegia determinismo, clareza e auditabilidade, nao uma
 estrutura espacial ou de desempenho final. A estrategia de ID podera ser
 reavaliada somente antes de uma futura estabilidade definitiva do Kernel.
 
+O hash K0-C inclui registros vivos e mortos em ordem crescente de Entity ID,
+pois a reserva causal de IDs faz parte do estado deterministico.
+
 K0-B nao define componentes, posicao, espacamento, corpo, atributos ou regras
 de dominio para entidades. Esses conceitos permanecem fora do Worlds Kernel.

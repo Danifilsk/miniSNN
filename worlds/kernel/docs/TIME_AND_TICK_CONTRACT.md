@@ -14,8 +14,9 @@ sao resolvidos por tick, prioridade, emissor e Command ID. Cada comando
 consumido gera um evento, inclusive uma rejeicao semantica. Um passo sem
 comandos conclui normalmente e deixa a janela de eventos vazia.
 
-K0-A nao consulta relogio real, nao dorme, nao cria threads e nao usa gerador
-aleatorio. A velocidade visual futura nao participara do tempo logico.
+O Kernel nao consulta relogio real, nao dorme e nao cria threads. K0-C oferece
+um PRNG interno deterministico, mas sorteios nao avancam o tick e nao emitem
+eventos. A velocidade visual futura nao participara do tempo logico.
 
 O estado normal e `READY`. `STEPPING` e transitorio durante o passo. `FAULTED`
 fica reservado a falha interna irrecuperavel. Overflow e detectado antes do

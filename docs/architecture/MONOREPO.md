@@ -7,14 +7,14 @@ separadamente do miniSNN Studio em pacotes locais de avaliacao; a Bridge entre
 Core e Worlds ainda e candidata. D1 esta concluido para `miniSNN Core
 1.0.0-rc.1`; K0 esta em andamento no novo Worlds Kernel.
 
-## K0-A e K0-B: Worlds Kernel
+## K0-A, K0-B e K0-C: Worlds Kernel
 
 `worlds/kernel/` e um produto fisico C11, headless e independente para o
 Worlds Kernel. K0-A conclui configuracao, lifecycle, tempo logico, diagnostico
 e tick atomico. K0-B conclui Entity IDs, comandos futuros, resolucao canonica,
-eventos e preflight atomico. O Kernel nao depende do Core, e o Core nao depende
-do Kernel. K0 permanece em andamento; K0-C e o proximo sub-bloco apos a
-auditoria K0-B bem-sucedida.
+eventos e preflight atomico. K0-C conclui PRNG por streams, hash canonico e
+observabilidade. O Kernel nao depende do Core, e o Core nao depende do Kernel.
+K0 permanece em andamento; K0-D e o proximo sub-bloco.
 
 ## D1-A: produtos de build e API candidata
 

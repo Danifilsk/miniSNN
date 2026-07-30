@@ -38,7 +38,10 @@ def main() -> int:
                    "test-k0-a-sanitize:", "audit-k0-a:",
                    "test-k0-b-entities", "test-k0-b-commands", "test-k0-b-events",
                    "test-k0-b-determinism", "test-k0-b-sanitize", "demo-k0-b",
-                   "audit-k0-b:", "clean-worlds-kernel:",
+                   "audit-k0-b", "test-k0-c-random", "test-k0-c-hash",
+                   "test-k0-c-observability", "test-k0-c-determinism",
+                   "test-k0-c-optimization-determinism", "test-k0-c-sanitize",
+                   "demo-k0-c", "audit-k0-c:", "clean-worlds-kernel:",
                    "audit-d1-build-products:", "audit-d1-api:", "test:",
                    "test-architecture:"):
         if target not in root_makefile:
