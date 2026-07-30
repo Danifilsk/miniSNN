@@ -43,8 +43,8 @@ def validate_source_boundary(kernel_root: Path, repository_root: Path) -> None:
     forbidden_includes = ("minisnn.h", "core/", "windows.h", "pthread")
     forbidden_terms = (
         "neuron", "spike", "sensor", "stdp", "creature", "body", "hunger",
-        "food", "combat", "government", "entity", "command", "event",
-        "callback", "plugin", "position", "grid", "snapshot", "replay",
+        "food", "combat", "government", "callback", "plugin", "position",
+        "grid", "snapshot", "replay",
         "action", "seed", "hash", "map",
     )
     forbidden_calls = (

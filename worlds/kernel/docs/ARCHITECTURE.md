@@ -7,10 +7,15 @@ O Worlds Kernel e um produto C11 headless, deterministico e independente.
 - Kernel nao e App.
 - Kernel nao conhece Brain Bridge.
 
-K0-A possui apenas configuracao, lifecycle, estados, erros, diagnostico e
-tempo logico. A biblioteca nao inclui headers do Core, Win32 ou APIs de thread.
-O Core nao inclui headers do Kernel. Uma integracao futura pertence somente a
-Brain Bridge, que ainda nao existe.
+K0-A fornece configuracao, lifecycle, estados, erros, diagnostico e tempo
+logico. K0-B adiciona somente um registro de entidades por ID forte, uma fila
+de comandos futuros e uma janela de eventos. A execucao de cada tick prepara
+um plano temporario completo e o promove em um unico commit.
+
+A biblioteca nao inclui headers do Core, Win32 ou APIs de thread. O Core nao
+inclui headers do Kernel. Uma integracao futura pertence somente a Brain
+Bridge, que ainda nao existe. O Kernel nao define componentes, espacamento,
+mapas, agentes ou semantica de dominio.
 
 Os outputs ficam em `build/worlds/kernel/`; fontes e headers nunca recebem
 objetos ou executaveis.

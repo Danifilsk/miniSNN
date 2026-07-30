@@ -1,4 +1,4 @@
-# API publica K0-A
+# API publica K0-A e K0-B
 
 O header agregado e `minisnn_worlds_kernel.h`. Todos os simbolos publicos usam
 o namespace `minisnn_worlds_kernel_*`, os tipos usam `MiniSNNWorldsKernel*` e
@@ -23,3 +23,21 @@ retornam respectivamente tick inicial, estado `FAULTED` e erro `NULL_ARGUMENT`.
 
 As interfaces sob `MINISNN_WORLDS_KERNEL_TESTING` sao excluidas da biblioteca
 normal e existem apenas para os testes de overflow e alocacao.
+
+K0-B acrescenta os headers `minisnn_worlds_kernel_entity.h`,
+`minisnn_worlds_kernel_command.h` e `minisnn_worlds_kernel_event.h`, todos
+incluidos pelo header agregado. `EntityId`, `CommandId` e `EventId` sao structs
+fortes de 64 bits; zero e invalido. As consultas de entidades sao somente
+leitura. Criacao e destruicao ocorrem exclusivamente por comandos agendados.
+
+`queue_create_entity` e `queue_destroy_entity` exigem tick futuro e devolvem
+Command ID apenas em sucesso. `pending_command_at` expoe a fila em ordem
+canonica. `last_tick_event_at` expoe apenas a janela do ultimo tick concluido.
+Consulte os contratos detalhados de [entidades](ENTITY_ID_CONTRACT.md) e de
+[comandos e eventos](COMMAND_AND_EVENT_CONTRACT.md).
+
+`MiniSNNWorldsKernelDiagnostics` conserva os campos K0-A e acrescenta entidades
+vivas, totais criados e destruidos, fila pendente, comandos submetidos,
+aplicados e rejeitados, eventos do ultimo tick e total emitido. Uma falha de
+submissao nao incrementa `submitted`; uma rejeicao semantica durante o tick
+incrementa `rejected` e o total de eventos.

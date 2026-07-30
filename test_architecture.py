@@ -35,7 +35,10 @@ def main() -> int:
     for target in ("core:", "core-lib:", "core-headless:", "core-test:",
                    "core-tests:", "core-studio:", "core-evolution:",
                    "worlds-kernel-lib:", "worlds-kernel:", "worlds-kernel-test:",
-                   "test-k0-a-sanitize:", "audit-k0-a:", "clean-worlds-kernel:",
+                   "test-k0-a-sanitize:", "audit-k0-a:",
+                   "test-k0-b-entities", "test-k0-b-commands", "test-k0-b-events",
+                   "test-k0-b-determinism", "test-k0-b-sanitize", "demo-k0-b",
+                   "audit-k0-b:", "clean-worlds-kernel:",
                    "audit-d1-build-products:", "audit-d1-api:", "test:",
                    "test-architecture:"):
         if target not in root_makefile:

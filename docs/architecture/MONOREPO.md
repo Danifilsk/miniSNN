@@ -5,14 +5,16 @@
 O produto `miniSNN Core` tem versao tecnica `1.0.0-rc.1`. O Core e distribuido
 separadamente do miniSNN Studio em pacotes locais de avaliacao; a Bridge entre
 Core e Worlds ainda e candidata. D1 esta concluido para `miniSNN Core
-1.0.0-rc.1`; K0-A e o primeiro sub-bloco do novo Worlds Kernel.
+1.0.0-rc.1`; K0 esta em andamento no novo Worlds Kernel.
 
-## K0-A: Worlds Kernel
+## K0-A e K0-B: Worlds Kernel
 
 `worlds/kernel/` e um produto fisico C11, headless e independente para o
 Worlds Kernel. K0-A conclui configuracao, lifecycle, tempo logico, diagnostico
-e tick atomico. O Kernel nao depende do Core, e o Core nao depende do Kernel.
-K0 permanece em andamento; K0-B e o proximo sub-bloco.
+e tick atomico. K0-B conclui Entity IDs, comandos futuros, resolucao canonica,
+eventos e preflight atomico. O Kernel nao depende do Core, e o Core nao depende
+do Kernel. K0 permanece em andamento; K0-C e o proximo sub-bloco apos a
+auditoria K0-B bem-sucedida.
 
 ## D1-A: produtos de build e API candidata
 

@@ -16,3 +16,13 @@ cauda. Ponteiro totalmente invalido continua sendo erro do chamador.
 
 `get_diagnostics` copia um snapshot apenas em sucesso. Em erro, o buffer de
 saida permanece inalterado.
+
+K0-B distingue falhas de API e conflitos semanticos. `INVALID_TICK`,
+`INVALID_ENTITY_ID`, `INVALID_COMMAND`, `INDEX_OUT_OF_RANGE` e
+`IDENTIFIER_OVERFLOW` sao retornos de erro. Falha de preflight por alocacao ou
+overflow preserva o estado comprometido, a fila e a janela de eventos.
+
+Uma ordem valida que nao pode ser aplicada, como destruir alvo ja destruido ou
+usar emissor morto, nao e falha do motor. O comando e consumido e produz um
+evento `COMMAND_REJECTED` com motivo. Assim, uma aplicacao pode distinguir
+erro interno de uma decisao observavel da simulacao.

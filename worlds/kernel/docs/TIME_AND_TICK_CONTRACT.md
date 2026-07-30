@@ -5,8 +5,14 @@ zero e significa que nenhum tick foi concluido. Depois de N passos bem-sucedidos
 o valor e N.
 
 Cada `minisnn_worlds_kernel_step` executa um ciclo atomico com as fases internas
-`BEGIN`, `PROCESS`, `FINALIZE` e `COMMIT`. O incremento ocorre somente no
+de preflight, resolucao canonica e commit. O incremento ocorre somente no
 commit. Uma falha antes dele preserva o tick comprometido anterior.
+
+Em K0-B, um comando deve ter `target_tick` estritamente maior que o tick atual.
+No passo para `N + 1`, somente comandos com alvo `N + 1` sao consumidos. Eles
+sao resolvidos por tick, prioridade, emissor e Command ID. Cada comando
+consumido gera um evento, inclusive uma rejeicao semantica. Um passo sem
+comandos conclui normalmente e deixa a janela de eventos vazia.
 
 K0-A nao consulta relogio real, nao dorme, nao cria threads e nao usa gerador
 aleatorio. A velocidade visual futura nao participara do tempo logico.

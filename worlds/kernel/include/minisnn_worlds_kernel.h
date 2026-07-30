@@ -3,6 +3,9 @@
 
 #include "minisnn_worlds_kernel_config.h"
 #include "minisnn_worlds_kernel_diagnostics.h"
+#include "minisnn_worlds_kernel_entity.h"
+#include "minisnn_worlds_kernel_command.h"
+#include "minisnn_worlds_kernel_event.h"
 
 MiniSNNWorldsKernel *minisnn_worlds_kernel_create(
     const MiniSNNWorldsKernelConfig *config,
@@ -32,6 +35,20 @@ void minisnn_worlds_kernel_testing_fail_next_allocation(void);
 MiniSNNWorldsKernelError minisnn_worlds_kernel_testing_set_tick(
     MiniSNNWorldsKernel *kernel,
     MiniSNNWorldsTick tick);
+
+MiniSNNWorldsKernelError minisnn_worlds_kernel_testing_set_next_entity_id(
+    MiniSNNWorldsKernel *kernel,
+    MiniSNNWorldsKernelEntityId entity_id);
+
+MiniSNNWorldsKernelError minisnn_worlds_kernel_testing_set_next_command_id(
+    MiniSNNWorldsKernel *kernel,
+    MiniSNNWorldsKernelCommandId command_id);
+
+MiniSNNWorldsKernelError minisnn_worlds_kernel_testing_set_next_event_id(
+    MiniSNNWorldsKernel *kernel,
+    MiniSNNWorldsKernelEventId event_id);
+
+void minisnn_worlds_kernel_testing_fail_allocation_after(size_t successful_allocations);
 #endif
 
 #endif
