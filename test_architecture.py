@@ -8,6 +8,7 @@ import sys
 ROOT = Path(__file__).resolve().parent
 CORE = ROOT / "core"
 WORLDS_KERNEL = ROOT / "worlds" / "kernel"
+WORLDS_DOMAIN = ROOT / "worlds" / "domain"
 EXPECTED_DIRECTORIES = (
     "include", "src", "app", "studio", "tests", "scripts", "configs", "docs",
     "examples", "experiments", "results",
@@ -35,6 +36,11 @@ def main() -> int:
     for target in ("core:", "core-lib:", "core-headless:", "core-test:",
                    "core-tests:", "core-studio:", "core-evolution:",
                    "worlds-kernel-lib:", "worlds-kernel:", "worlds-kernel-test:",
+                   "worlds-domain-lib:", "worlds-domain:", "worlds-domain-test:",
+                   "test-wd0-domain", "test-wd0-actions", "test-wd0-perception",
+                   "test-wd0-invariants", "test-wd0-stress", "test-wd0-determinism",
+                   "test-wd0-optimization-determinism", "test-wd0-sanitize",
+                   "test-wd0-posix-smoke", "demo-wd0", "check-wd0:", "audit-wd0:",
                    "test-k0-a-sanitize:", "audit-k0-a:",
                    "test-k0-b-entities", "test-k0-b-commands", "test-k0-b-events",
                    "test-k0-b-determinism", "test-k0-b-sanitize", "demo-k0-b",
@@ -98,6 +104,31 @@ def main() -> int:
             fail(f"ferramenta K0-D nao usa a API publica: {path.relative_to(ROOT)}")
         if "src/minisnn_worlds_kernel" in content:
             fail(f"ferramenta K0-D inclui implementacao privada: {path.relative_to(ROOT)}")
+
+    for directory in ("include", "src", "app", "tests", "docs", "scripts"):
+        if not (WORLDS_DOMAIN / directory).is_dir():
+            fail(f"worlds/domain/{directory}/ ausente")
+    for filename in ("Makefile", "README.md"):
+        if not (WORLDS_DOMAIN / filename).is_file():
+            fail(f"worlds/domain/{filename} ausente")
+    domain_makefile = (WORLDS_DOMAIN / "Makefile").read_text(encoding="utf-8")
+    if "core/" in domain_makefile.replace("\\", "/"):
+        fail("Makefile do Worlds Domain depende do Core")
+    for path in WORLDS_DOMAIN.rglob("*"):
+        if path.is_dir() or path.suffix.lower() not in {".c", ".h"}:
+            continue
+        content = path.read_text(encoding="utf-8", errors="replace")
+        for include in INCLUDE_PATTERN.findall(content):
+            normalized = include.replace("\\", "/").lower()
+            if ("core/" in normalized or "minisnn.h" == normalized or
+                    "windows.h" == normalized or "minisnn_worlds_kernel_internal" in normalized or
+                    "/src/" in normalized or normalized.startswith("src/")):
+                fail(f"Worlds Domain viola a fronteira publica: {path.relative_to(ROOT)}")
+    for path in list((WORLDS_KERNEL / "include").rglob("*")) + list((WORLDS_KERNEL / "src").rglob("*")):
+        if path.is_dir() or path.suffix.lower() not in {".c", ".h"}:
+            continue
+        if "minisnn_worlds_domain" in path.read_text(encoding="utf-8", errors="replace").lower():
+            fail(f"Worlds Kernel depende do Domain: {path.relative_to(ROOT)}")
 
     if (CORE / "app" / "minisnn_studio.c").exists():
         fail("Studio ainda esta misturado a core/app")

@@ -16,9 +16,7 @@ eventos e preflight atomico. K0-C conclui PRNG por streams, hash canonico e
 observabilidade. K0-D conclui parser de cenario, runner, artefatos tecnicos,
 determinismo integrado, stress e auditoria sem levar filesystem para a
 biblioteca. O Kernel nao depende do Core, e o Core nao depende do Kernel.
-K0 esta concluido; K1 e o proximo bloco de transforms, espaco, ocupacao,
-barreiras, deslocamento e links. K2 vem depois para snapshots, save/load e
-replay.
+K0 e K1 estao concluidos: K1-A, K1-B1/B2 e K1-C1..C4 formam a fundacao espacial deterministica. K2-A concluiu o snapshot canonico em memoria, K2-B concluiu restore e save/load e K2-C concluiu command replay deterministico e K2-D concluiu auditoria final de persistencia; WD0 - Domain minimo esta concluido; WB0 - Brain Bridge minimo e o proximo bloco.
 
 ## D1-A: produtos de build e API candidata
 
@@ -65,11 +63,11 @@ scripts, exemplos, experimentos e resultados do miniSNN atual. A migracao M1
 e apenas fisica: nao altera comportamento neural, equacoes, seeds, fitness ou
 formatos cientificos.
 
-## C5: modelos neuronais avançados
+## C5: modelos neuronais avan?ados
 
-O Core possui uma fronteira interna comum para redes homogêneas LIF, AdEx e
-Hodgkin-Huxley. O C5 foi concluído sem introduzir redes híbridas ou
-dependências para os módulos futuros do monorepo.
+O Core possui uma fronteira interna comum para redes homog?neas LIF, AdEx e
+Hodgkin-Huxley. O C5 foi conclu?do sem introduzir redes h?bridas ou
+depend?ncias para os m?dulos futuros do monorepo.
 
 ## C7.1-C7.5: contratos, codificacao, decodificacao, ciclo, replay e auditoria
 
@@ -80,19 +78,31 @@ dependencia de Worlds. C7.2 aplica correntes por API publica sem avancar a
 rede; C7.3 decodifica atividade completa sem avancar a rede; C7.4 e o unico
 orquestrador C7 que avanca a rede e publica a action atomicamente. C7.5-A
 adiciona persistencia e replay verificados; C7.5-B fecha a auditoria por
-matriz, ciclo de vida e long run. C7, D1 e K0 estao concluidos; K1 e o proximo
-bloco planejado.
+matriz, ciclo de vida e long run. C7, D1, K0, K1-A, K1-B1 e K1-B2 estao concluidos; K1 segue com links e estruturas espaciais.
 
 ## Limites planejados
 
 - Core nao depende de Worlds.
 - Worlds Kernel e uma biblioteca generica independente e nao depende do Core.
 - Brain Bridge sera o unico modulo que conhecera Core e Domain.
-- Worlds Domain, Brain Bridge e Worlds App ainda nao sao implementados.
+- Worlds Domain e um produto C11 headless em `worlds/domain/` e depende somente da API publica do Worlds Kernel. Brain Bridge e Worlds App ainda nao sao implementados. O Domain nao depende do Core e ainda nao possui persistencia propria.
 
 ## K1-A Space And Transforms
 
-K0 is complete. K1-A is complete and K1 remains in progress. The public Worlds
+K0 and K1 are complete. K1-A through K1-C4 form the deterministic spatial foundation; K2-A through K2-D are complete; WD0 - Worlds Domain is complete; WB0 - Brain Bridge minimo is the next Worlds block. The public Worlds
 Kernel now exposes a single immutable 2D fixed-point space, optional entity
 transforms, and command-only placement/removal. See the K1-A coordinate and
-transform contracts in worlds/kernel/docs. K1-B is next.
+transform contracts in worlds/kernel/docs.
+
+## K1-B1 Occupancy
+
+K1-B1/B2 and K1-C1..C4 are complete; K2-A through K2-D are complete; WD0 - Worlds Domain is complete; WB0 - Brain Bridge minimo is the next Worlds block. The Worlds
+Kernel now supports one optional fixed-point axis-aligned occupancy per
+entity, generic category bits and blocking masks, command-only set/clear,
+deterministic conflict rejection with related_entity, diagnostics, and
+canonical state hash v3. Orientation does not rotate the AABB. See
+worlds/kernel/docs/OCCUPANCY_AND_BARRIER_CONTRACT.md and
+worlds/kernel/docs/K1_B1_OCCUPANCY_BARRIER_AUDIT.md.
+## K1-B2 Atomic Movement
+
+K1-B2 is complete. The Worlds Kernel now supports command-only atomic fixed-point displacement, destination AABB validation, canonical conflict rejection, movement diagnostics and state hash v4. See worlds/kernel/docs/MOVEMENT_AND_DISPLACEMENT_CONTRACT.md and worlds/kernel/docs/K1_B2_MOVEMENT_AUDIT.md.

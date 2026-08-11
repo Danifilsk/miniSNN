@@ -62,7 +62,76 @@ para produzir artefatos tecnicos.
 
 ## K1-A Space And Transforms
 
-K0 is complete. K1-A is complete and K1 remains in progress. The public Worlds
+K0, K1 and K2 are complete. K1-A through K1-C4 form the deterministic spatial foundation; K2-A through K2-D freeze snapshot, restore, replay and state-bound persistence. WD0 - Worlds Domain is complete; WB0 - Brain Bridge minimo is the next Worlds block. The public Worlds
 Kernel now exposes a single immutable 2D fixed-point space, optional entity
 transforms, and command-only placement/removal. See the K1-A coordinate and
-transform contracts in worlds/kernel/docs. K1-B is next.
+transform contracts in worlds/kernel/docs. K2-A through K2-D are complete; WD0 - Worlds Domain is complete; WB0 - Brain Bridge minimo is the next Worlds block.
+## K1-B1 Occupancy
+
+K1-B1/B2 and K1-C1..C4 are complete; canonical spatial links, rigid subtree translation and V5 are part of completed K1. K2-A through K2-D are complete; WD0 - Worlds Domain is complete; WB0 - Brain Bridge minimo is the next Worlds block. The Worlds Kernel supports one optional fixed-point axis-aligned occupancy per
+entity, generic category bits and blocking masks, command-only set/clear,
+deterministic conflict rejection with related_entity, diagnostics, and
+canonical state hash v3. Orientation does not rotate the AABB. See
+worlds/kernel/docs/OCCUPANCY_AND_BARRIER_CONTRACT.md and
+worlds/kernel/docs/K1_B1_OCCUPANCY_BARRIER_AUDIT.md.
+
+## K1-B2 Atomic Movement
+
+K1-B2 is complete. MOVE_ENTITY applies checked fixed-point deltas in canonical tick order, preserves orientation, validates the destination and optional AABB, and emits origin/destination event data. Semantic rejection never mutates official placement. See MOVEMENT_AND_DISPLACEMENT_CONTRACT.md and K1_B2_MOVEMENT_AUDIT.md.
+## K1-C1 spatial links
+
+`minisnn_worlds_kernel_spatial_link.h` defines the public link and endpoint
+value types. `queue_create_spatial_link` and `queue_remove_spatial_link` use
+`target_entity = parent` and duplicate that parent in explicit endpoints. Zero
+parent or child is rejected synchronously; a nonzero self-link reaches the tick
+pipeline and is rejected semantically. Query functions return copies only.
+## K2-A Canonical Snapshot
+
+`minisnn_worlds_kernel_snapshot.h`, included by the aggregate header, declares
+an opaque caller-owned immutable snapshot. `snapshot_capture()` returns a
+memory-only V1 byte blob; `snapshot_destroy()` releases it; version, size and
+const data accessors support comparison and inspection. Capture does not modify
+the Kernel and exposes no internal pointers. The blob records the state hash
+and state-hash version for audit, but is not itself a new state hash.
+
+## K2-B Restore And Persistence
+
+`snapshot_from_bytes()` copies and fully validates a V1 byte sequence;
+`create_from_snapshot()` transactionally constructs a new Kernel only after
+semantic validation, invariant checking, state-hash verification and a
+canonical byte-for-byte re-capture. These APIs remain memory-only. File
+save/load lives only in `app/k2_snapshot_file.c`, which writes and reads
+exactly the V1 bytes. See `K2_B_RESTORE_AND_PERSISTENCE_CONTRACT.md`.
+
+## K2-C Command Log And Replay
+
+`minisnn_worlds_kernel_command_log.h`, included by the aggregate header,
+declares an opaque canonical V1 command log. Capture copies an accepted pending
+submission by CommandId; accessors expose copies or immutable bytes only;
+`command_log_from_bytes()` validates canonical little-endian bytes; and
+`command_log_replay_next()` reuses the public queue API only when logical time
+and the next expected CommandId match. A mismatch returns
+`MINISNN_WORLDS_KERNEL_ERROR_REPLAY_DIVERGENCE` before queue mutation. File
+save/load remains in `app/k2_command_log_file.c`; see
+`K2_C_COMMAND_REPLAY_CONTRACT.md`.
+
+## K2-D State-Bound Replay
+
+MiniSNNWorldsKernelReplaySession is opaque and caller-owned. Creation binds a
+command-log cursor to an expected canonical Kernel state hash. validate() and
+replay_next() return REPLAY_DIVERGENCE before queue mutation when the binding,
+logical tick or next CommandId is incompatible. The cursor advances only after
+a successful replay. The session does not own or mutate Command Log V1 bytes.
+
+Snapshot Format V1 and Command Log Format V1 are frozen after K2. K2-D file
+persistence remains in app and the library remains filesystem-free. See
+K2_D_PERSISTENCE_CLOSURE_AUDIT.md.
+
+## Provisional command batches
+
+`minisnn_worlds_kernel_command_batch_begin`, `_commit`, `_rollback` and
+`_active` provide a small generic transaction boundary around normal command
+submissions. The API has no knowledge of any consumer-specific semantics. A
+rollback before tick advancement restores the official queue and command-id
+provenance to the begin checkpoint. Active batches cannot be captured by the
+V1 snapshot or command-log capture APIs.

@@ -1,0 +1,13 @@
+command_log_format=1
+record_count=5
+log_size=720
+log_digest=0xB230C10BF7B62777
+initial_state_hash=0x5847B76E144EBBD3
+checkpoint_tick=2
+checkpoint_record_cursor=4
+checkpoint_state_hash=0x465FFA8BDBFED9B5
+final_original_hash=0x8A13308B95E25FDE
+final_replay_hash=0x8A13308B95E25FDE
+final_snapshot_digest=0x14226C6A04187EDA
+divergence_count=0
+replay=PASSOU

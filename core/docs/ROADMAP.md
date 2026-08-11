@@ -31,11 +31,21 @@ O roadmap indica ordem de trabalho, não promessa de prazo.
 - [x] D1-B — concluído: robustez, determinismo, stress e desempenho.
 - [x] D1-C — concluído: versão candidata, baseline, release build, consumidor externo, pacotes locais e validação manual do Studio.
 - [x] D1 — concluído: `miniSNN Core 1.0.0-rc.1` e API Core-Brain Bridge candidata provisoriamente estável.
+- [x] K0 - fundacao deterministica do Worlds Kernel.
+- [x] K1 - fundacao espacial: K1-A, K1-B1/B2 e K1-C1..C4 concluidos.
 
 ## Proximos
 
-- [ ] K0 — fundação determinística do Worlds Kernel.
-- [ ] D2 — auditoria pos-integracao.
+- [x] K2-A - snapshot canonico em memoria do Worlds Kernel.
+- [x] K2-B - restore + save/load do snapshot canonico.
+- [x] K2-C - command log canonico e replay deterministico.
+- [x] K2-D - auditoria final de persistencia e replay.
+- [x] WD0 - Domain minimo semantico sobre o Worlds Kernel.
+- [ ] WB0 - Brain Bridge minimo.
+- [ ] WF0 - Organismo headless.
+- [ ] App visual minimo.
+- [ ] Integracao predador-presa.
+- [ ] D2 - auditoria pos-integracao.
   Resultado: `miniSNN Core v1.0` e API Core-Brain Bridge v1 congelada definitivamente.
 
 A parte automática do Bloco B foi concluída. ASan/UBSan permanece pendente em
@@ -44,12 +54,12 @@ toolchain compatível.
 ## Ordem oficial posterior
 
 ```text
-C6 -> C7 -> D1-A -> D1-B -> D1-C -> K0 Worlds Kernel -> Domain minimo -> Brain Bridge -> organismo headless -> App minimo -> D2 pos-integracao
+C6 -> C7 -> D1-A -> D1-B -> D1-C -> K0 -> K1 -> K2-A -> K2-B -> K2-C -> K2-D -> WD0 Domain minimo -> WB0 Brain Bridge minimo -> WF0 organismo headless -> App visual minimo -> integracao predador-presa -> D2 pos-integracao
 ```
 
 O C8 — otimização iterativa automatizada — pode evoluir em paralelo e não
 bloqueia Worlds. O Bloco E permanece pausado até nova decisão de produto.
-Pesquisa neural futura permanece uma trilha separada do caminho K0, Worlds e
+Pesquisa neural futura permanece uma trilha separada do caminho K2, Worlds e
 da Bridge.
 
 ## Registro histórico

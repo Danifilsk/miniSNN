@@ -28,3 +28,15 @@ the configured public random stream, retain the minimum, and enqueue one
 duplicate destroy as a deterministic command-conflict observation. Technical
 draws are independent of the entity selection stream. No world-domain meaning
 is attached to entities or events.
+
+## K1-B2 demo configuration
+
+`configs/k1_movement_demo.ini` is a small headless application configuration,
+not a general command language. It accepts only the documented `[scenario]`
+and `[space]` keys, rejects unknown or duplicate keys, and supplies the seed,
+tick count and fixed-point bounds used by the deterministic compiled movement
+sequence.
+
+## K1-C4 spatial-links demo configuration
+
+configs/k1_spatial_links_demo.ini is an intentionally limited, strict application-layer INI. It accepts only scenario, space, entities, links and commands sections; unknown or duplicate keys fail before the Kernel is created. It is not a general Worlds serialization format. The demo writes the effective canonical form as config_used.ini; save/load and replay remain K2 work.

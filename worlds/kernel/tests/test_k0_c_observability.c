@@ -57,7 +57,7 @@ int main(void)
     CHECK(diagnostics.master_seed == UINT64_C(42));
     CHECK(diagnostics.random_streams == UINT64_C(2));
     CHECK(diagnostics.total_random_u32_generated == UINT64_C(2));
-    CHECK(diagnostics.state_hash_version == MINISNN_WORLDS_KERNEL_STATE_HASH_VERSION);
+    CHECK(diagnostics.state_hash_version == MINISNN_WORLDS_KERNEL_STATE_HASH_VERSION_V1);
     CHECK(diagnostics.prng_version == MINISNN_WORLDS_KERNEL_PRNG_VERSION);
     CHECK(minisnn_worlds_kernel_state_hash(first, &state_hash) ==
           MINISNN_WORLDS_KERNEL_ERROR_NONE);

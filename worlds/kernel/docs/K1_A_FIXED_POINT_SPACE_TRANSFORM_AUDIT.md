@@ -28,5 +28,4 @@ and headless portability/sanitizer probes.
 ## Limitations And Next Work
 
 K1-A does not model movement, occupancy, collision, barriers, or spatial
-queries. K1-B is next for minimal shapes, barriers, displacement, destination
-conflicts, and deterministic collision. K1 remains in progress.
+queries. At the K1-A milestone, K1-B was planned for minimal shapes, barriers, displacement, destination conflicts, and deterministic collision. K1-B1/B2 and K1-C1..C4 are now complete; K2-A through K2-D are complete and WD0 - Worlds Domain is complete; WB0 - Brain Bridge minimo is the next Worlds block.

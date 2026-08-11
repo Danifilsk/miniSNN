@@ -24,10 +24,10 @@ def main() -> int:
         if required not in content:
             fail(f"completion audit missing: {required}")
     combined = "\n".join(path.read_text(encoding="utf-8") for path in roadmap_sources if path.is_file())
-    if "K0 esta concluido" not in combined or "K1" not in combined:
-        fail("roadmap does not mark K0 complete and K1 next")
+    if "K0 e K1 estao concluidos" not in combined or "K2-A" not in combined or "K2-B" not in combined or "K2-C" not in combined or "K2-D" not in combined:
+        fail("roadmap does not preserve K0/K1/K2-A/B/C/D completion")
     print("K0 Worlds Kernel deterministic foundation validation OK")
-    print("K0 complete; K1 authorized")
+    print("K0 complete; K1 complete; K2-A complete; K2-B complete; K2-C complete; K2-D complete; WD0 Domain complete; WB0 Brain Bridge next")
     return 0
 
 

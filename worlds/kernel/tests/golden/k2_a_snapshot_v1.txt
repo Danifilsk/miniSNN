@@ -1,0 +1,4 @@
+snapshot_format_version=1
+snapshot_size=1443
+snapshot_digest=0xC12509D783A5C6C0
+state_hash=0xAA73D6A793A66B5B

@@ -1,46 +1,39 @@
-# Modelo de erros
+N?o ? poss?vel substituir a vari?vel Error porque ela ? somente leitura ou constante. N?o ? poss?vel substituir a vari?vel Error porque ela ? somente leitura ou constante.
+For K1-B2, `DESTINATION_OVERFLOW` is a semantic command rejection: it consumes
+one move command, emits one rejection event and preserves the official spatial
+state. It is not an internal tick failure.
+## K1-C1 structural rejection
 
-As funcoes mutaveis retornam `MiniSNNWorldsKernelError`. `create` retorna
-ponteiro nulo em falha e preenche `out_error` quando ele existe. Nao ha erro
-global.
+Spatial-link semantic failures use explicit parent/child alive, placement,
+self, duplicate, child-parent, cycle, offset-overflow and not-found rejection
+reasons. Lifecycle with an incident link rejects as
+`TARGET_HAS_SPATIAL_LINKS`; linked movement rejects as
+`TARGET_HAS_SPATIAL_PARENT`; the historical children rejection is retained only for compatibility and is not emitted by K1-C2 root movement. Allocation,
+identifier overflow and invariant failures remain atomic kernel errors rather
+than command rejection.
 
-Erros de configuracao e alocacao nao criam objeto parcial. Erro de overflow
-preserva o tick anterior e continua observavel por `last_error`. Um passo
-normal limpa o erro anterior ao concluir o commit. Argumento nulo nao produz
-um estado `STEPPING` ou `FAULTED` em outra instancia.
+## K1-C3 hardening
 
-Uma configuracao cujo `struct_size` nao alcanca `format_version` falha com
-`INVALID_CONFIG` sem acessar o campo ausente e sem tentar alocar. Para uma
-estrutura maior com versao V1, K0-A usa somente o prefixo conhecido e ignora a
-cauda. Ponteiro totalmente invalido continua sendo erro do chamador.
+Overflow de identificadores, contadores de promocao, capacidade de plano ou alocacao interrompe o tick antes da promocao. O estado oficial, a fila pendente, eventos, diagnosticos e hash permanecem atomicos em falhas de preflight.
 
-`get_diagnostics` copia um snapshot apenas em sucesso. Em erro, o buffer de
-saida permanece inalterado.
+## K2-A snapshot
 
-K0-B distingue falhas de API e conflitos semanticos. `INVALID_TICK`,
-`INVALID_ENTITY_ID`, `INVALID_COMMAND`, `INDEX_OUT_OF_RANGE` e
-`IDENTIFIER_OVERFLOW` sao retornos de erro. Falha de preflight por alocacao ou
-overflow preserva o estado comprometido, a fila e a janela de eventos.
+MINISNN_WORLDS_KERNEL_ERROR_SNAPSHOT_SIZE_OVERFLOW indica que a aritmetica
+do payload V1 excederia size_t. A captura falha sem alocar snapshot parcial e sem
+modificar o Kernel. Falhas de alocacao retornam MINISNN_WORLDS_KERNEL_ERROR_ALLOCATION.
+## K2-B restore
 
-Uma ordem valida que nao pode ser aplicada, como destruir alvo ja destruido ou
-usar emissor morto, nao e falha do motor. O comando e consumido e produz um
-evento `COMMAND_REJECTED` com motivo. Assim, uma aplicacao pode distinguir
-erro interno de uma decisao observavel da simulacao.
+`MINISNN_WORLDS_KERNEL_ERROR_SNAPSHOT_INVALID_FORMAT` rejects malformed V1
+bytes; `MINISNN_WORLDS_KERNEL_ERROR_SNAPSHOT_UNSUPPORTED_VERSION` rejects a
+non-V1 format; `MINISNN_WORLDS_KERNEL_ERROR_SNAPSHOT_STATE_HASH_MISMATCH`
+rejects a syntactically valid decoded state whose stored official state hash
+does not match. Import and restore leave output pointers NULL on failure.
 
-K0-C acrescenta `INVALID_RANDOM_STREAM_KEY` e `INVALID_BOUND`. Um draw lazy
-que nao consegue reservar o registro retorna `ALLOCATION` sem publicar stream,
-contador, hash ou output. Exaustao de contador retorna `IDENTIFIER_OVERFLOW`
-antes de qualquer wrap. Hash, diagnostico, trace e enumeracao preservam o
-buffer de saida quando retornam erro.
+## K2-C command replay
 
-K0-D parser and artifact errors are tool-layer errors, not new Kernel errors.
-They reject before Kernel creation or publication, keep existing finals intact
-when possible, remove known temporaries, and return a nonzero runner exit code
-with a short configuration, execution, output, or artifact message.
-
-## K1-A Space And Transforms
-
-K0 is complete. K1-A is complete and K1 remains in progress. The public Worlds
-Kernel now exposes a single immutable 2D fixed-point space, optional entity
-transforms, and command-only placement/removal. See the K1-A coordinate and
-transform contracts in worlds/kernel/docs. K1-B is next.
+`MINISNN_WORLDS_KERNEL_ERROR_COMMAND_LOG_INVALID_FORMAT` rejects malformed or
+noncanonical command-log V1 bytes; `MINISNN_WORLDS_KERNEL_ERROR_COMMAND_LOG_UNSUPPORTED_VERSION`
+rejects another format version. `MINISNN_WORLDS_KERNEL_ERROR_REPLAY_DIVERGENCE`
+means the ready Kernel tick or expected CommandId did not match a record before
+submission. Replay is incremental; earlier successfully replayed records are
+not rolled back by a later divergence.

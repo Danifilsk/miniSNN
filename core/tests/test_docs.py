@@ -94,12 +94,17 @@ def main() -> int:
         "D1-C — concluído",
         "D1 — concluído",
         "miniSNN Core 1.0.0-rc.1",
-        "K0 — fundação determinística do Worlds Kernel",
-        "D2 — auditoria pos-integracao",
+        "K0 - fundacao deterministica do Worlds Kernel",
+        "K1 - fundacao espacial: K1-A, K1-B1/B2 e K1-C1..C4 concluidos",
+        "K2-A - snapshot canonico em memoria do Worlds Kernel",
+        "K2-B - restore + save/load do snapshot canonico",
+        "K2-C - command log canonico e replay deterministico",
+        "[x] K2-D - auditoria final de persistencia e replay",
+        "D2 - auditoria pos-integracao",
         "congelada definitivamente",
     ):
         if token not in roadmap:
-            errors.append(f"roadmap sem contrato D1/D2: {token}")
+            errors.append(f"roadmap sem status oficial: {token}")
     if "D1 — congelamento definitivo do Core" in roadmap:
         errors.append("roadmap atribui congelamento definitivo a D1")
     if "READY_FOR_MANUAL_VALIDATION" in roadmap or "D1-C manual - pendente" in roadmap:

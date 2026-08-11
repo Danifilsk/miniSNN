@@ -59,4 +59,6 @@ O Kernel continua C11 headless e sem dependencia do miniSNN Core.
 
 K0-C concluiu PRNG deterministico, streams derivados, hash canonico e
 observabilidade. K0-D entregou os artefatos integrados e o fechamento completo
-do bloco K0; K1 e o proximo passo.
+do bloco K0; K1 e K2-A ate K2-D foram concluidos; WD0 - Domain minimo esta concluido; WB0 - Brain Bridge minimo e o proximo passo.
+
+> Historical roadmap note: this closure was written before K2-B. K2-A through K2-D are now complete; WD0 - Worlds Domain is complete; WB0 - Brain Bridge minimo is the next Worlds block.

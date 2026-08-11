@@ -33,3 +33,15 @@ existing finals are held as `.bak` during best-effort replacement and restored
 when publishing fails. Directory checks use portable `S_ISDIR`. Multi-file replacement cannot be fully transactional on
 all filesystems; known temporaries are removed and prior finals are preserved
 where the filesystem permits rename restoration.
+
+## K1-B2 movement demo artifacts
+
+`demo-k1-b2` writes only under `build/worlds/kernel/demo/k1_b2/`: `trace.csv`,
+`events.csv`, `positions.csv`, `manifest.ini` and `report.txt`. The CSVs expose
+movement counters, origin/destination transforms, occupancy descriptor data,
+rejection reason and canonical state hash version. The manifest records the V4
+golden and scenario checks; artifacts remain outside the Kernel library.
+
+## K1-C4 integrated spatial links artifacts
+
+demo-k1-c4 writes only to build/worlds/kernel/demo/k1_c4/. Its canonical artifact set is config_used.ini, commands.csv, events.csv, entities.csv, spatial_links.csv, diagnostics.csv, state_hash.txt and summary.txt. The set contains no wall-clock timestamp, pointer or absolute path. check_k1_c4.py validates headers, command/event ordering, rejections, diagnostics, final links, V5 state hash and the frozen C4 golden hash.

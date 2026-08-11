@@ -625,8 +625,8 @@ def validate_docs(root: Path) -> list[str]:
             "C7.3" not in roadmap or "C7.4" not in roadmap or "C7.5" not in roadmap or
             "D1" not in roadmap):
         errors.append("roadmap não documenta a sequência C6/C7/D1")
-    if "C6 -> C7 -> D1-A -> D1-B -> D1-C -> K0 Worlds Kernel -> Domain minimo -> Brain Bridge" not in roadmap:
-        errors.append("roadmap não documenta o caminho oficial D1 para K0 e Worlds")
+    if "C6 -> C7 -> D1-A -> D1-B -> D1-C -> K0 -> K1 -> K2-A -> K2-B -> K2-C -> K2-D -> WD0 Domain minimo -> WB0 Brain Bridge minimo" not in roadmap:
+        errors.append("roadmap não documenta o caminho oficial K2 após K1")
     if "C7 — estados internos" in roadmap:
         errors.append("roadmap ainda apresenta a descricao antiga de C7")
     if "[x] C7.2 - codificacao generica de sensores numericos para entrada neural" not in roadmap:
@@ -649,12 +649,17 @@ def validate_docs(root: Path) -> list[str]:
         "D1-C — concluído",
         "D1 — concluído",
         "miniSNN Core 1.0.0-rc.1",
-        "K0 — fundação determinística do Worlds Kernel",
+        "K0 - fundacao deterministica do Worlds Kernel",
+        "K1 - fundacao espacial: K1-A, K1-B1/B2 e K1-C1..C4 concluidos",
+        "K2-A - snapshot canonico em memoria do Worlds Kernel",
+        "K2-B - restore + save/load do snapshot canonico",
+        "K2-C - command log canonico e replay deterministico",
+        "[x] K2-D - auditoria final de persistencia e replay",
         "API Core-Brain Bridge candidata provisoriamente estável",
-        "D2 — auditoria pos-integracao",
+        "D2 - auditoria pos-integracao",
         "miniSNN Core v1.0",
         "congelada definitivamente",
-        "Worlds Kernel -> Domain minimo -> Brain Bridge -> organismo headless -> App minimo -> D2 pos-integracao",
+        "K0 -> K1 -> K2-A -> K2-B -> K2-C -> K2-D -> WD0 Domain minimo -> WB0 Brain Bridge minimo -> WF0 organismo headless -> App visual minimo -> integracao predador-presa -> D2 pos-integracao",
         "C8",
         "Bloco E permanece pausado",
         "Pesquisa neural futura permanece uma trilha separada",

@@ -24,6 +24,18 @@ REQUIRED_DOCUMENTS = (
     "docs/K0_A_FOUNDATION_AUDIT.md",
 )
 GENERATED_SUFFIXES = {".a", ".dll", ".exe", ".lib", ".o", ".obj", ".pyc"}
+# Later modules are verified by their own phase gates. Historical gates keep
+# auditing their original surface without treating a future public extension as
+# a forbidden K0 concept.
+LATER_MODULE_PATHS = {
+    "include/minisnn_worlds_kernel.h",
+    "include/minisnn_worlds_kernel_snapshot.h",
+    "include/minisnn_worlds_kernel_command_log.h",
+    "src/minisnn_worlds_kernel_internal.h",
+    "src/minisnn_worlds_kernel_snapshot.c",
+    "src/minisnn_worlds_kernel_restore.c",
+    "src/minisnn_worlds_kernel_command_log.c",
+}
 INCLUDE_PATTERN = re.compile(r'^\s*#\s*include\s*[<"]([^>"]+)[>"]', re.MULTILINE)
 
 
@@ -60,6 +72,8 @@ def validate_source_boundary(kernel_root: Path, repository_root: Path) -> None:
                 continue
             if path.suffix.lower() in GENERATED_SUFFIXES:
                 fail(f"artefato junto ao fonte: {path.relative_to(repository_root)}")
+            if path.relative_to(kernel_root).as_posix() in LATER_MODULE_PATHS:
+                continue
             if path.suffix.lower() not in {".c", ".h"}:
                 continue
             content = path.read_text(encoding="utf-8", errors="replace")
@@ -210,8 +224,9 @@ def main() -> int:
     for document in REQUIRED_DOCUMENTS:
         if not (kernel_root / document).is_file():
             fail(f"documentacao ausente: worlds/kernel/{document}")
-    if (repository_root / "worlds" / "domain").exists() or \
-       (repository_root / "worlds" / "bridge").exists() or \
+    # O Domain pode existir como consumidor posterior da API publica do Kernel.
+    # Bridge e App continuam fora do escopo da fundacao K0-A.
+    if (repository_root / "worlds" / "bridge").exists() or \
        (repository_root / "worlds" / "app").exists():
         fail("produto futuro criado antes do sub-bloco correspondente")
     kernel_makefile = (kernel_root / "Makefile").read_text(encoding="utf-8")

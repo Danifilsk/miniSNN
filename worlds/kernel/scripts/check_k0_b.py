@@ -27,6 +27,18 @@ REQUIRED_TEST_SOURCES = (
 )
 INCLUDE_PATTERN = re.compile(r'^\s*#\s*include\s*[<"]([^>"]+)[>"]', re.MULTILINE)
 GENERATED_SUFFIXES = {".a", ".dll", ".exe", ".lib", ".o", ".obj", ".pyc"}
+# Later modules are verified by their own phase gates. Historical gates keep
+# auditing their original surface without treating a future public extension as
+# a forbidden K0 concept.
+LATER_MODULE_PATHS = {
+    "include/minisnn_worlds_kernel.h",
+    "include/minisnn_worlds_kernel_snapshot.h",
+    "include/minisnn_worlds_kernel_command_log.h",
+    "src/minisnn_worlds_kernel_internal.h",
+    "src/minisnn_worlds_kernel_snapshot.c",
+    "src/minisnn_worlds_kernel_restore.c",
+    "src/minisnn_worlds_kernel_command_log.c",
+}
 
 
 def fail(message: str) -> None:
@@ -47,7 +59,8 @@ def validate_boundary(kernel_root: Path, repository_root: Path) -> None:
         "neuron", "spike", "sensor", "stdp", "creature", "food", "hunger",
         "body", "combat", "government", "profession", "brain bridge", "domain",
         "worlds app", "component", "grid", "map", "collision",
-        "barrier", "link", "callback", "plugin", "snapshot", "replay", "sleep",
+        # Barrier and spatial-link support are cumulative Kernel extensions after K0.
+        "callback", "plugin", "snapshot", "replay", "sleep",
         "thread",
     )
     forbidden_calls = (
@@ -63,6 +76,8 @@ def validate_boundary(kernel_root: Path, repository_root: Path) -> None:
                 continue
             if path.suffix.lower() in GENERATED_SUFFIXES:
                 fail(f"artefato junto ao codigo: {path.relative_to(repository_root)}")
+            if path.relative_to(kernel_root).as_posix() in LATER_MODULE_PATHS:
+                continue
             if path.suffix.lower() not in {".c", ".h"}:
                 continue
             content = path.read_text(encoding="utf-8", errors="replace")

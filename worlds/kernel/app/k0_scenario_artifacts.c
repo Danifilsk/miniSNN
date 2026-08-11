@@ -709,7 +709,7 @@ static int set_manifest_field(
     else if (strcmp(key, "kernel_config_version") == 0 && parse_u32(value, &manifest->kernel_config_version) && manifest->kernel_config_version == MINISNN_WORLDS_KERNEL_CONFIG_VERSION) *out_bit = MANIFEST_KERNEL_CONFIG;
     else if (strcmp(key, "master_seed") == 0 && parse_unsigned(value, &manifest->master_seed)) *out_bit = MANIFEST_MASTER_SEED;
     else if (strcmp(key, "prng_version") == 0 && parse_u32(value, &manifest->prng_version) && manifest->prng_version == MINISNN_WORLDS_KERNEL_PRNG_VERSION) *out_bit = MANIFEST_PRNG_VERSION;
-    else if (strcmp(key, "state_hash_version") == 0 && parse_u32(value, &manifest->state_hash_version) && manifest->state_hash_version == MINISNN_WORLDS_KERNEL_STATE_HASH_VERSION) *out_bit = MANIFEST_HASH_VERSION;
+    else if (strcmp(key, "state_hash_version") == 0 && parse_u32(value, &manifest->state_hash_version) && manifest->state_hash_version == MINISNN_WORLDS_KERNEL_STATE_HASH_VERSION_V1) *out_bit = MANIFEST_HASH_VERSION;
     else if (strcmp(key, "ticks_requested") == 0 && parse_unsigned(value, &manifest->ticks_requested)) *out_bit = MANIFEST_TICKS_REQUESTED;
     else if (strcmp(key, "ticks_completed") == 0 && parse_unsigned(value, &manifest->ticks_completed)) *out_bit = MANIFEST_TICKS_COMPLETED;
     else if (strcmp(key, "initial_state_hash") == 0 && parse_hex_hash(value, &manifest->initial_state_hash)) *out_bit = MANIFEST_INITIAL_HASH;

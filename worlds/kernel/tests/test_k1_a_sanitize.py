@@ -1,11 +1,23 @@
 #!/usr/bin/env python3
-"""Probe a real sanitizer toolchain for the K1-A public test."""
+"""Run the K1-A public test only after a separate ASan/UBSan probe succeeds."""
 from __future__ import annotations
 
 import argparse
-import pathlib
-import subprocess
+from pathlib import Path
 import sys
+
+sys.dont_write_bytecode = True
+
+from sanitizer_support import (
+    BASE_FLAGS,
+    SANITIZER_FLAGS,
+    has_sanitizer_failure,
+    probe_toolchain,
+    project_failed,
+    project_has_failed,
+    run,
+    sanitizer_environment,
+)
 
 
 def main() -> int:
@@ -16,25 +28,42 @@ def main() -> int:
     parser.add_argument("--test", required=True)
     parser.add_argument("--output-dir", required=True)
     args = parser.parse_args()
-    output = pathlib.Path(args.output_dir)
+
+    include = Path(args.include).resolve()
+    source = Path(args.source).resolve()
+    test_source = Path(args.test).resolve()
+    output = Path(args.output_dir).resolve()
     output.mkdir(parents=True, exist_ok=True)
     executable = output / "k1_a_sanitize.exe"
-    command = [args.compiler, "-std=c11", "-Wall", "-Wextra", "-Wpedantic",
-               "-DMINISNN_WORLDS_KERNEL_TESTING", "-fsanitize=address,undefined",
-               f"-I{args.include}", args.test, args.source, "-o", str(executable)]
-    try:
-        build = subprocess.run(command, text=True, capture_output=True)
-    except OSError as error:
-        print(f"K1-A sanitizer UNAVAILABLE: {error}")
+
+    probe = probe_toolchain(args.compiler, output, "K1-A")
+    if probe is None:
         return 0
-    if build.returncode != 0:
-        print("K1-A sanitizer UNAVAILABLE: compiler has no usable ASan/UBSan")
-        return 0
-    result = subprocess.run([str(executable)], text=True, capture_output=True)
-    if result.returncode != 0:
-        sys.stderr.write(result.stdout + result.stderr)
-        print("K1-A sanitizer FAIL", file=sys.stderr)
+    if not probe:
         return 1
+
+    build = run([
+        args.compiler,
+        *BASE_FLAGS,
+        *SANITIZER_FLAGS,
+        "-DMINISNN_WORLDS_KERNEL_TESTING",
+        f"-I{include}",
+        str(test_source),
+        str(source),
+        "-o",
+        str(executable),
+    ])
+    if project_has_failed(build):
+        return project_failed(
+            "K1-A", "project compilation after a valid ASan/UBSan probe", build
+        )
+
+    result = run([str(executable)], sanitizer_environment())
+    if project_has_failed(result):
+        return project_failed("K1-A", "project test execution", result)
+    if "K1-A scalar, space, transform and hash validation OK" not in result.stdout:
+        return project_failed("K1-A", "project test did not confirm execution", result)
+
     print("K1-A sanitizer PASS")
     return 0
 

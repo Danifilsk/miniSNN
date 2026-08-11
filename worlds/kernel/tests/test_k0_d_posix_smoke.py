@@ -16,7 +16,7 @@ def unavailable(message: str) -> int:
 
 
 def run(command: list[str], cwd: Path) -> subprocess.CompletedProcess[str]:
-    return subprocess.run(command, cwd=cwd, text=True, capture_output=True, check=False)
+    return subprocess.run(command, cwd=cwd, input="", text=True, capture_output=True, check=False)
 
 
 def fail(result: subprocess.CompletedProcess[str], context: str) -> int:
