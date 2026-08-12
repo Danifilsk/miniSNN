@@ -13,6 +13,7 @@ endif
 CORE_DIR = core
 WORLDS_KERNEL_DIR = worlds/kernel
 WORLDS_DOMAIN_DIR = worlds/domain
+WORLDS_BRAIN_BRIDGE_DIR = worlds/brain_bridge
 
 .PHONY: all help clean clean-core clean-studio clean-tests core core-lib core-headless core-test core-tests core-studio studio studio-path core-evolution worlds-kernel-lib worlds-kernel worlds-kernel-test test-kernel-command-batch test-k0-a-sanitize audit-k0-a test-k0-b-entities test-k0-b-commands test-k0-b-events test-k0-b-determinism test-k0-b-sanitize demo-k0-b audit-k0-b test-k0-c-random test-k0-c-hash test-k0-c-observability test-k0-c-determinism test-k0-c-optimization-determinism test-k0-c-sanitize demo-k0-c audit-k0-c demo-k0-d test-k0-d-config test-k0-d-artifacts test-k0-d-determinism test-k0-d-optimization-determinism test-k0-d-corruption test-k0-d-stress test-k0-d-long-run test-k0-d-posix-smoke test-k0-d-sanitize test-k0-external-consumer audit-k0-d audit-k0 clean-worlds-kernel test test-architecture test-docs test-analyzer audit-d1-build-products audit-d1-api test-d1-determinism test-d1-corruption test-d1-lifecycle-stress test-d1-optimization-determinism test-d1-posix-headless test-d1-portability test-d1-long-run test-d1-symbols benchmark-d1 scenario-d1-b audit-d1-b audit-d1 test-version test-api-baseline test-api-baseline-regressions release-core release-headless release-studio release-all test-release-build test-external-consumer package-release test-release-integrity test-release-packages test-studio-source-contracts test-studio-runtime-layout audit-d1-c-automated audit-d1-c test-working-memory test-associative-memory test-sequence-prediction test-c6-checkpoints test-c6-integration test-c6-long test-agent-io test-sensor-encoder test-action-decoder test-agent-cycle test-agent-cycle-checkpoint test-c7-integration test-c7-evolution test-c7-long-run test-c7 scenario-working-memory scenario-associative-memory scenario-sequence-prediction scenario-sequence-prediction-context scenario-c6-suite scenario-sensor-encoding scenario-action-decoding scenario-agent-cycle scenario-agent-cycle-checkpoint scenario-c7-integrated-audit check-c6 check-c7 test-k1-a-scalar test-k1-a-space test-k1-a-transform test-k1-a-determinism test-k1-a-optimization-determinism test-k1-a-stress test-k1-a-sanitize test-k1-a-posix-smoke demo-k1-a audit-k1-a test-k1-b1-occupancy test-k1-b1-overlap test-k1-b1-conflicts test-k1-b1-determinism test-k1-b1-optimization-determinism test-k1-b1-stress test-k1-b1-sanitizer-classification test-k1-b1-sanitize test-k1-b1-posix-smoke demo-k1-b1 audit-k1-b1 test-k1-b2-movement test-k1-b2-determinism test-k1-b2-optimization-determinism test-k1-b2-stress test-k1-b2-sanitizer-classification test-k1-b2-sanitize test-k1-b2-posix-smoke demo-k1-b2 audit-k1-b2 test-k1-c1-spatial-links test-k1-c1-hash test-k1-c1-determinism test-k1-c1-optimization-determinism test-k1-c1-sanitizer-classification test-k1-c1-sanitize test-k1-c1-posix-smoke audit-k1-c1
 
@@ -52,6 +53,17 @@ help:
 	@echo   mingw32-make demo-wd0           - gera o demo semantico deterministico WD0
 	@echo   mingw32-make check-wd0          - valida os artefatos semanticos WD0
 	@echo   mingw32-make audit-wd0          - executa a auditoria completa do Worlds Domain
+	@echo   mingw32-make test-wd1-snapshot    - valida captura, restore, binding e corrupcao WD1
+	@echo   mingw32-make test-wd1-file-roundtrip - valida save/load atomico WD1
+	@echo   mingw32-make demo-wd1             - gera o demo de persistencia semantica WD1
+	@echo   mingw32-make check-wd1            - valida o golden do Domain Snapshot V1
+	@echo   mingw32-make test-wd1-golden-portability - valida LF e rejeicao semantica do golden WD1
+	@echo   mingw32-make audit-wd1            - executa a auditoria focada de persistencia Domain
+	@echo   mingw32-make worlds-brain-bridge - compila a biblioteca e demo WB0
+	@echo   mingw32-make test-wb0-core-integration - valida Bridge com Core real
+	@echo   mingw32-make demo-wb0           - gera artefatos deterministas do Brain Bridge
+	@echo   mingw32-make check-wb0          - valida conteudo dos artefatos WB0
+	@echo   mingw32-make audit-wb0          - executa a auditoria completa WB0
 	@echo   mingw32-make test-k0-a-sanitize - executa a regressao ASan/UBSan K0-A
 	@echo   mingw32-make audit-k0-a        - audita a fundacao K0-A do Worlds Kernel
 	@echo   mingw32-make test-k0-b-entities - valida IDs e registro K0-B
@@ -235,11 +247,32 @@ worlds-domain-test:
 test-wd0-domain test-wd0-actions test-wd0-perception test-wd0-invariants test-wd0-atomicity test-wd0-stress test-wd0-determinism test-wd0-optimization-determinism test-wd0-sanitizer-classification test-wd0-sanitize test-wd0-posix-smoke demo-wd0 check-wd0:
 	$(MAKE) -C $(WORLDS_DOMAIN_DIR) $@
 
+test-wd1-snapshot test-wd1-restore test-wd1-corruption test-wd1-file-roundtrip test-wd1-golden-portability test-wd1-determinism test-wd1-optimization-determinism test-wd1-sanitizer-classification test-wd1-sanitize test-wd1-posix-smoke demo-wd1 check-wd1:
+	$(MAKE) -C $(WORLDS_DOMAIN_DIR) $@
+
 audit-wd0: test-architecture test-docs test-analyzer audit-k2 test-kernel-command-batch
 	$(MAKE) -C $(WORLDS_DOMAIN_DIR) audit-wd0
 
+audit-wd1: test-architecture test-docs test-analyzer audit-wd0 audit-wb0
+	$(MAKE) -C $(WORLDS_DOMAIN_DIR) audit-wd1
+
 clean-worlds-domain:
 	$(MAKE) -C $(WORLDS_DOMAIN_DIR) clean
+
+worlds-brain-bridge-lib:
+	$(MAKE) -C $(WORLDS_BRAIN_BRIDGE_DIR) lib
+
+worlds-brain-bridge:
+	$(MAKE) -C $(WORLDS_BRAIN_BRIDGE_DIR) all
+
+worlds-brain-bridge-test:
+	$(MAKE) -C $(WORLDS_BRAIN_BRIDGE_DIR) test
+
+test-wb0-encoder test-wb0-decoder test-wb0-binding test-wb0-core-integration test-wb0-cache test-wb0-failure-retry test-wb0-multi-organism test-wb0-invariants test-wb0-determinism test-wb0-optimization-determinism test-wb0-sanitizer-classification test-wb0-sanitize test-wb0-posix-smoke demo-wb0 check-wb0:
+	$(MAKE) -C $(WORLDS_BRAIN_BRIDGE_DIR) $@
+
+audit-wb0: test-architecture test-docs test-analyzer audit-wd0
+	$(MAKE) -C $(WORLDS_BRAIN_BRIDGE_DIR) audit-wb0
 
 test-k0-a-sanitize:
 	$(MAKE) -C $(WORLDS_KERNEL_DIR) sanitize
@@ -434,3 +467,9 @@ audit-k2-d: test-architecture test-docs test-analyzer
 audit-k2: test-architecture test-docs test-analyzer
 	$(MAKE) -C $(WORLDS_KERNEL_DIR) audit-k2
 .PHONY: worlds-domain-lib worlds-domain worlds-domain-test clean-worlds-domain test-wd0-domain test-wd0-actions test-wd0-perception test-wd0-invariants test-wd0-atomicity test-wd0-stress test-wd0-determinism test-wd0-optimization-determinism test-wd0-sanitizer-classification test-wd0-sanitize test-wd0-posix-smoke demo-wd0 check-wd0 audit-wd0
+.PHONY: test-wd1-snapshot test-wd1-restore test-wd1-corruption test-wd1-file-roundtrip test-wd1-golden-portability test-wd1-determinism test-wd1-optimization-determinism test-wd1-sanitizer-classification test-wd1-sanitize test-wd1-posix-smoke demo-wd1 check-wd1 audit-wd1
+
+.PHONY: worlds-brain-bridge-lib worlds-brain-bridge worlds-brain-bridge-test clean-worlds-brain-bridge test-wb0-encoder test-wb0-decoder test-wb0-binding test-wb0-core-integration test-wb0-cache test-wb0-failure-retry test-wb0-multi-organism test-wb0-invariants test-wb0-determinism test-wb0-optimization-determinism test-wb0-sanitizer-classification test-wb0-sanitize test-wb0-posix-smoke demo-wb0 check-wb0 audit-wb0
+
+clean-worlds-brain-bridge:
+	$(MAKE) -C $(WORLDS_BRAIN_BRIDGE_DIR) clean

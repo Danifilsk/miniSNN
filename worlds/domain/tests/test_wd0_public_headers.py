@@ -1,5 +1,5 @@
-﻿#!/usr/bin/env python3
-"""Validate the WD0 public header without Domain private sources."""
+#!/usr/bin/env python3
+"""Validate the WD0/WD1 public header without Domain private sources."""
 from __future__ import annotations
 
 from pathlib import Path
@@ -14,11 +14,11 @@ def main() -> int:
     compiler, flags, domain_include, kernel_include, output = sys.argv[1:]
     with tempfile.TemporaryDirectory(prefix="wd0_headers_") as directory:
         source = Path(directory) / "headers.c"
-        source.write_text('#include "minisnn_worlds_domain.h"\nint main(void) { return 0; }\n', encoding="ascii")
+        source.write_text('#include "minisnn_worlds_domain.h"\nint main(void) { MiniSNNWorldsDomainSnapshot *snapshot = 0; return minisnn_worlds_domain_snapshot_format_version(snapshot) != 0U; }\n', encoding="ascii")
         command = [compiler, *flags.split(), f"-I{domain_include}", f"-I{kernel_include}", str(source), "-fsyntax-only"]
         if subprocess.run(command, check=False).returncode != 0:
             raise SystemExit("WD0 public header standalone compilation failed")
-    print("WD0 public header standalone validation OK")
+    print("WD0/WD1 public header standalone validation OK")
     return 0
 
 

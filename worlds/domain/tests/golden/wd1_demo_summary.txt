@@ -1,0 +1,9 @@
+format=Domain Snapshot V1
+checkpoint_tick=4
+domain_snapshot_size=228
+domain_snapshot_digest=0xB4CE41DA93C33EA7
+checkpoint_kernel_hash=0x0E2AE788C82D77C6
+checkpoint_domain_hash=0x5F8039182A62C4B6
+final_kernel_hash=0xD5E6FF1433895F93
+final_domain_hash=0x45EA7AB771D75BF2
+round_trip=PASS

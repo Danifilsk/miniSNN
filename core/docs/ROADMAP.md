@@ -41,7 +41,8 @@ O roadmap indica ordem de trabalho, não promessa de prazo.
 - [x] K2-C - command log canonico e replay deterministico.
 - [x] K2-D - auditoria final de persistencia e replay.
 - [x] WD0 - Domain minimo semantico sobre o Worlds Kernel.
-- [ ] WB0 - Brain Bridge minimo.
+- [x] WB0 - Brain Bridge minimo.
+- [x] WD1 - persistencia semantica do Worlds Domain.
 - [ ] WF0 - Organismo headless.
 - [ ] App visual minimo.
 - [ ] Integracao predador-presa.
@@ -54,7 +55,7 @@ toolchain compatível.
 ## Ordem oficial posterior
 
 ```text
-C6 -> C7 -> D1-A -> D1-B -> D1-C -> K0 -> K1 -> K2-A -> K2-B -> K2-C -> K2-D -> WD0 Domain minimo -> WB0 Brain Bridge minimo -> WF0 organismo headless -> App visual minimo -> integracao predador-presa -> D2 pos-integracao
+C6 -> C7 -> D1-A -> D1-B -> D1-C -> K0 -> K1 -> K2-A -> K2-B -> K2-C -> K2-D -> WD0 Domain minimo -> WB0 Brain Bridge minimo -> WD1 persistencia do Domain -> WF0 organismo headless -> App visual minimo -> integracao predador-presa -> D2 pos-integracao
 ```
 
 O C8 — otimização iterativa automatizada — pode evoluir em paralelo e não

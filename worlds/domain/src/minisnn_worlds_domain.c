@@ -578,7 +578,8 @@ static int validate_invariants(const MiniSNNWorldsDomain *domain)
             }
         }
     }
-    if (domain->next_event_id != prior_event_id + UINT64_C(1) ||
+    if (prior_event_id == UINT64_MAX ||
+        domain->next_event_id != prior_event_id + UINT64_C(1) ||
         domain->diagnostics.total_actions != actions ||
         domain->diagnostics.total_actions_applied != applied ||
         domain->diagnostics.total_actions_rejected != rejected ||
@@ -1437,3 +1438,757 @@ MiniSNNWorldsDomainError minisnn_worlds_domain_testing_inject_corruption(
     return MINISNN_WORLDS_DOMAIN_ERROR_NONE;
 }
 #endif
+
+#define MINISNN_WORLDS_DOMAIN_SNAPSHOT_MAGIC "MSWDOMS1"
+#define MINISNN_WORLDS_DOMAIN_SNAPSHOT_MAGIC_SIZE 8U
+#define MINISNN_WORLDS_DOMAIN_SNAPSHOT_HEADER_SIZE 148U
+#define MINISNN_WORLDS_DOMAIN_SNAPSHOT_DIGEST_OFFSET 44U
+#define MINISNN_WORLDS_DOMAIN_SNAPSHOT_SPECIES_SIZE 40U
+#define MINISNN_WORLDS_DOMAIN_SNAPSHOT_ORGANISM_SIZE 24U
+#define MINISNN_WORLDS_DOMAIN_SNAPSHOT_FOOD_SIZE 16U
+#define MINISNN_WORLDS_DOMAIN_SNAPSHOT_EVENT_SIZE 60U
+
+struct MiniSNNWorldsDomainSnapshot
+{
+    uint8_t *data;
+    size_t size;
+    uint64_t digest;
+};
+
+typedef struct
+{
+    MiniSNNWorldsTick kernel_tick;
+    uint64_t kernel_hash;
+    uint64_t digest;
+    MiniSNNWorldsTick domain_tick;
+    uint64_t next_event_id;
+    size_t species_count;
+    size_t organism_count;
+    size_t food_count;
+    size_t event_count;
+    MiniSNNWorldsDomainDiagnostics diagnostics;
+    size_t species_offset;
+    size_t organism_offset;
+    size_t food_offset;
+    size_t event_offset;
+} DomainSnapshotLayout;
+
+static int domain_snapshot_size_add(size_t left, size_t right, size_t *out_result)
+{
+    if (out_result == NULL || left > SIZE_MAX - right)
+    {
+        return 0;
+    }
+    *out_result = left + right;
+    return 1;
+}
+
+static int domain_snapshot_size_multiply(size_t left, size_t right, size_t *out_result)
+{
+    if (out_result == NULL || (left != 0U && right > SIZE_MAX / left))
+    {
+        return 0;
+    }
+    *out_result = left * right;
+    return 1;
+}
+
+static void domain_snapshot_write_u32(uint8_t *data, size_t *offset, uint32_t value)
+{
+    size_t index;
+    for (index = 0U; index < 4U; ++index)
+    {
+        data[*offset + index] = (uint8_t)(value >> (index * 8U));
+    }
+    *offset += 4U;
+}
+
+static void domain_snapshot_write_u64(uint8_t *data, size_t *offset, uint64_t value)
+{
+    size_t index;
+    for (index = 0U; index < 8U; ++index)
+    {
+        data[*offset + index] = (uint8_t)(value >> (index * 8U));
+    }
+    *offset += 8U;
+}
+
+static uint32_t domain_snapshot_read_u32(const uint8_t *data, size_t offset)
+{
+    uint32_t value = 0U;
+    size_t index;
+    for (index = 0U; index < 4U; ++index)
+    {
+        value |= (uint32_t)data[offset + index] << (index * 8U);
+    }
+    return value;
+}
+
+static uint64_t domain_snapshot_read_u64(const uint8_t *data, size_t offset)
+{
+    uint64_t value = 0U;
+    size_t index;
+    for (index = 0U; index < 8U; ++index)
+    {
+        value |= (uint64_t)data[offset + index] << (index * 8U);
+    }
+    return value;
+}
+
+static void domain_snapshot_store_u64(uint8_t *data, size_t offset, uint64_t value)
+{
+    size_t index;
+    for (index = 0U; index < 8U; ++index)
+    {
+        data[offset + index] = (uint8_t)(value >> (index * 8U));
+    }
+}
+
+static uint64_t domain_snapshot_digest_bytes(const uint8_t *data, size_t size)
+{
+    uint64_t hash = UINT64_C(14695981039346656037);
+    size_t index;
+    for (index = 0U; index < size; ++index)
+    {
+        uint8_t value = (index >= MINISNN_WORLDS_DOMAIN_SNAPSHOT_DIGEST_OFFSET &&
+                         index < MINISNN_WORLDS_DOMAIN_SNAPSHOT_DIGEST_OFFSET + 8U) ? 0U : data[index];
+        hash ^= value;
+        hash *= UINT64_C(1099511628211);
+    }
+    return hash;
+}
+
+static int domain_snapshot_count_from_u64(uint64_t value, size_t *out_count)
+{
+    if (out_count == NULL || value > (uint64_t)SIZE_MAX)
+    {
+        return 0;
+    }
+    *out_count = (size_t)value;
+    return 1;
+}
+
+static int domain_snapshot_compute_size(const DomainSnapshotLayout *layout, size_t *out_size)
+{
+    size_t size = MINISNN_WORLDS_DOMAIN_SNAPSHOT_HEADER_SIZE;
+    size_t part;
+
+    if (layout == NULL || out_size == NULL ||
+        !domain_snapshot_size_multiply(layout->species_count,
+                                       MINISNN_WORLDS_DOMAIN_SNAPSHOT_SPECIES_SIZE, &part) ||
+        !domain_snapshot_size_add(size, part, &size) ||
+        !domain_snapshot_size_multiply(layout->organism_count,
+                                       MINISNN_WORLDS_DOMAIN_SNAPSHOT_ORGANISM_SIZE, &part) ||
+        !domain_snapshot_size_add(size, part, &size) ||
+        !domain_snapshot_size_multiply(layout->food_count,
+                                       MINISNN_WORLDS_DOMAIN_SNAPSHOT_FOOD_SIZE, &part) ||
+        !domain_snapshot_size_add(size, part, &size) ||
+        !domain_snapshot_size_multiply(layout->event_count,
+                                       MINISNN_WORLDS_DOMAIN_SNAPSHOT_EVENT_SIZE, &part) ||
+        !domain_snapshot_size_add(size, part, &size))
+    {
+        return 0;
+    }
+    *out_size = size;
+    return 1;
+}
+
+static int domain_snapshot_parse_layout(const uint8_t *data, size_t size,
+                                        DomainSnapshotLayout *out_layout)
+{
+    DomainSnapshotLayout layout;
+    size_t expected_size;
+    size_t offset = MINISNN_WORLDS_DOMAIN_SNAPSHOT_MAGIC_SIZE;
+
+    if (data == NULL || out_layout == NULL || size < MINISNN_WORLDS_DOMAIN_SNAPSHOT_HEADER_SIZE ||
+        memcmp(data, MINISNN_WORLDS_DOMAIN_SNAPSHOT_MAGIC,
+               MINISNN_WORLDS_DOMAIN_SNAPSHOT_MAGIC_SIZE) != 0 ||
+        domain_snapshot_read_u32(data, offset) != MINISNN_WORLDS_DOMAIN_SNAPSHOT_FORMAT_VERSION_V1)
+    {
+        return 0;
+    }
+    offset += 4U;
+    if (domain_snapshot_read_u32(data, offset) != MINISNN_WORLDS_DOMAIN_SNAPSHOT_HEADER_SIZE)
+    {
+        return 0;
+    }
+    offset += 4U;
+    if (domain_snapshot_read_u64(data, offset) != (uint64_t)size)
+    {
+        return 0;
+    }
+    offset += 8U;
+    if (domain_snapshot_read_u32(data, offset) != MINISNN_WORLDS_KERNEL_STATE_HASH_VERSION)
+    {
+        return 0;
+    }
+    offset += 4U;
+    memset(&layout, 0, sizeof(layout));
+    layout.kernel_tick = domain_snapshot_read_u64(data, offset); offset += 8U;
+    layout.kernel_hash = domain_snapshot_read_u64(data, offset); offset += 8U;
+    layout.digest = domain_snapshot_read_u64(data, offset); offset += 8U;
+    layout.domain_tick = domain_snapshot_read_u64(data, offset); offset += 8U;
+    layout.next_event_id = domain_snapshot_read_u64(data, offset); offset += 8U;
+    if (!domain_snapshot_count_from_u64(domain_snapshot_read_u64(data, offset), &layout.species_count)) return 0;
+    offset += 8U;
+    if (!domain_snapshot_count_from_u64(domain_snapshot_read_u64(data, offset), &layout.organism_count)) return 0;
+    offset += 8U;
+    if (!domain_snapshot_count_from_u64(domain_snapshot_read_u64(data, offset), &layout.food_count)) return 0;
+    offset += 8U;
+    if (!domain_snapshot_count_from_u64(domain_snapshot_read_u64(data, offset), &layout.event_count)) return 0;
+    offset += 8U;
+    layout.diagnostics.total_actions = domain_snapshot_read_u64(data, offset); offset += 8U;
+    layout.diagnostics.total_actions_applied = domain_snapshot_read_u64(data, offset); offset += 8U;
+    layout.diagnostics.total_actions_rejected = domain_snapshot_read_u64(data, offset); offset += 8U;
+    layout.diagnostics.total_food_consumed = domain_snapshot_read_u64(data, offset); offset += 8U;
+    layout.diagnostics.total_energy_gained = domain_snapshot_read_u64(data, offset); offset += 8U;
+    layout.diagnostics.total_energy_spent = domain_snapshot_read_u64(data, offset); offset += 8U;
+    if (offset != MINISNN_WORLDS_DOMAIN_SNAPSHOT_HEADER_SIZE ||
+        layout.kernel_tick != layout.domain_tick ||
+        !domain_snapshot_compute_size(&layout, &expected_size) || expected_size != size ||
+        layout.digest != domain_snapshot_digest_bytes(data, size))
+    {
+        return 0;
+    }
+    layout.species_offset = MINISNN_WORLDS_DOMAIN_SNAPSHOT_HEADER_SIZE;
+    layout.organism_offset = layout.species_offset +
+                             layout.species_count * MINISNN_WORLDS_DOMAIN_SNAPSHOT_SPECIES_SIZE;
+    layout.food_offset = layout.organism_offset +
+                         layout.organism_count * MINISNN_WORLDS_DOMAIN_SNAPSHOT_ORGANISM_SIZE;
+    layout.event_offset = layout.food_offset +
+                          layout.food_count * MINISNN_WORLDS_DOMAIN_SNAPSHOT_FOOD_SIZE;
+    *out_layout = layout;
+    return 1;
+}
+
+static int domain_snapshot_species_max(const uint8_t *data,
+                                       const DomainSnapshotLayout *layout,
+                                       MiniSNNWorldsDomainSpeciesId id,
+                                       MiniSNNWorldsDomainEnergy *out_max)
+{
+    size_t low = 0U;
+    size_t high = layout->species_count;
+    while (low < high)
+    {
+        size_t middle = low + (high - low) / 2U;
+        uint64_t current = domain_snapshot_read_u64(
+            data, layout->species_offset + middle * MINISNN_WORLDS_DOMAIN_SNAPSHOT_SPECIES_SIZE);
+        if (current < id)
+        {
+            low = middle + 1U;
+        }
+        else
+        {
+            high = middle;
+        }
+    }
+    if (low == layout->species_count ||
+        domain_snapshot_read_u64(data, layout->species_offset +
+                                 low * MINISNN_WORLDS_DOMAIN_SNAPSHOT_SPECIES_SIZE) != id)
+    {
+        return 0;
+    }
+    if (out_max != NULL)
+    {
+        *out_max = domain_snapshot_read_u64(
+            data, layout->species_offset + low * MINISNN_WORLDS_DOMAIN_SNAPSHOT_SPECIES_SIZE + 8U);
+    }
+    return 1;
+}
+
+static int domain_snapshot_organism_contains(const uint8_t *data,
+                                             const DomainSnapshotLayout *layout,
+                                             MiniSNNWorldsKernelEntityId entity_id)
+{
+    size_t low = 0U;
+    size_t high = layout->organism_count;
+    while (low < high)
+    {
+        size_t middle = low + (high - low) / 2U;
+        uint64_t current = domain_snapshot_read_u64(
+            data, layout->organism_offset + middle * MINISNN_WORLDS_DOMAIN_SNAPSHOT_ORGANISM_SIZE);
+        if (current < entity_id.value)
+        {
+            low = middle + 1U;
+        }
+        else
+        {
+            high = middle;
+        }
+    }
+    return low < layout->organism_count && domain_snapshot_read_u64(
+               data, layout->organism_offset + low * MINISNN_WORLDS_DOMAIN_SNAPSHOT_ORGANISM_SIZE) ==
+               entity_id.value;
+}
+
+static int domain_snapshot_validate_payload(const uint8_t *data,
+                                            const DomainSnapshotLayout *layout)
+{
+    size_t index;
+    uint64_t prior = 0U;
+    uint64_t actions = 0U;
+    uint64_t applied = 0U;
+    uint64_t rejected = 0U;
+    uint64_t foods = 0U;
+    uint64_t gained = 0U;
+    uint64_t spent = 0U;
+
+    for (index = 0U; index < layout->species_count; ++index)
+    {
+        size_t offset = layout->species_offset + index * MINISNN_WORLDS_DOMAIN_SNAPSHOT_SPECIES_SIZE;
+        uint64_t id = domain_snapshot_read_u64(data, offset);
+        uint64_t max_energy = domain_snapshot_read_u64(data, offset + 8U);
+        uint64_t eat_range = domain_snapshot_read_u64(data, offset + 32U);
+        if (id == 0U || max_energy == 0U || eat_range > (uint64_t)INT64_MAX ||
+            (index > 0U && id <= prior))
+        {
+            return 0;
+        }
+        prior = id;
+    }
+    prior = 0U;
+    for (index = 0U; index < layout->organism_count; ++index)
+    {
+        size_t offset = layout->organism_offset + index * MINISNN_WORLDS_DOMAIN_SNAPSHOT_ORGANISM_SIZE;
+        MiniSNNWorldsDomainEnergy max_energy;
+        uint64_t id = domain_snapshot_read_u64(data, offset);
+        uint64_t species_id = domain_snapshot_read_u64(data, offset + 8U);
+        uint64_t energy = domain_snapshot_read_u64(data, offset + 16U);
+        if (id == 0U || (index > 0U && id <= prior) ||
+            !domain_snapshot_species_max(data, layout, species_id, &max_energy) || energy > max_energy)
+        {
+            return 0;
+        }
+        prior = id;
+    }
+    prior = 0U;
+    for (index = 0U; index < layout->food_count; ++index)
+    {
+        size_t offset = layout->food_offset + index * MINISNN_WORLDS_DOMAIN_SNAPSHOT_FOOD_SIZE;
+        MiniSNNWorldsKernelEntityId id = { domain_snapshot_read_u64(data, offset) };
+        uint64_t nutrition = domain_snapshot_read_u64(data, offset + 8U);
+        if (id.value == 0U || nutrition == 0U || (index > 0U && id.value <= prior) ||
+            domain_snapshot_organism_contains(data, layout, id))
+        {
+            return 0;
+        }
+        prior = id.value;
+    }
+    prior = 0U;
+    for (index = 0U; index < layout->event_count; ++index)
+    {
+        size_t offset = layout->event_offset + index * MINISNN_WORLDS_DOMAIN_SNAPSHOT_EVENT_SIZE;
+        uint64_t event_id = domain_snapshot_read_u64(data, offset);
+        uint64_t tick = domain_snapshot_read_u64(data, offset + 8U);
+        MiniSNNWorldsDomainEventType type =
+            (MiniSNNWorldsDomainEventType)domain_snapshot_read_u32(data, offset + 16U);
+        MiniSNNWorldsDomainActionType action =
+            (MiniSNNWorldsDomainActionType)domain_snapshot_read_u32(data, offset + 36U);
+        MiniSNNWorldsDomainActionReason reason =
+            (MiniSNNWorldsDomainActionReason)domain_snapshot_read_u32(data, offset + 40U);
+        uint64_t before = domain_snapshot_read_u64(data, offset + 44U);
+        uint64_t after = domain_snapshot_read_u64(data, offset + 52U);
+        if (event_id == 0U || event_id <= prior || tick > layout->domain_tick ||
+            !valid_event_type(type) || !valid_action_type(action) || !valid_reason(reason))
+        {
+            return 0;
+        }
+        prior = event_id;
+        if (type == MINISNN_WORLDS_DOMAIN_EVENT_ACTION_APPLIED)
+        {
+            ++actions;
+            ++applied;
+        }
+        else if (type == MINISNN_WORLDS_DOMAIN_EVENT_ACTION_REJECTED)
+        {
+            ++actions;
+            ++rejected;
+        }
+        else if (type == MINISNN_WORLDS_DOMAIN_EVENT_FOOD_CONSUMED)
+        {
+            ++foods;
+        }
+        else if (after > before)
+        {
+            gained = add_saturating_u64(gained, after - before);
+        }
+        else
+        {
+            spent = add_saturating_u64(spent, before - after);
+        }
+    }
+    return prior != UINT64_MAX &&
+           layout->next_event_id == prior + UINT64_C(1) &&
+           layout->diagnostics.total_actions == actions &&
+           layout->diagnostics.total_actions_applied == applied &&
+           layout->diagnostics.total_actions_rejected == rejected &&
+           layout->diagnostics.total_food_consumed == foods &&
+           layout->diagnostics.total_energy_gained == gained &&
+           layout->diagnostics.total_energy_spent == spent;
+}
+
+static int domain_snapshot_validate_bytes(const uint8_t *data, size_t size,
+                                          DomainSnapshotLayout *out_layout)
+{
+    DomainSnapshotLayout layout;
+    if (!domain_snapshot_parse_layout(data, size, &layout) ||
+        !domain_snapshot_validate_payload(data, &layout))
+    {
+        return 0;
+    }
+    if (out_layout != NULL)
+    {
+        *out_layout = layout;
+    }
+    return 1;
+}
+
+static int domain_snapshot_allocate_state(MiniSNNWorldsDomain *candidate,
+                                          const DomainSnapshotLayout *layout)
+{
+    if ((layout->species_count != 0U &&
+         (layout->species_count > SIZE_MAX / sizeof(*candidate->species) ||
+          (candidate->species = malloc(layout->species_count * sizeof(*candidate->species))) == NULL)) ||
+        (layout->organism_count != 0U &&
+         (layout->organism_count > SIZE_MAX / sizeof(*candidate->organisms) ||
+          (candidate->organisms = malloc(layout->organism_count * sizeof(*candidate->organisms))) == NULL)) ||
+        (layout->food_count != 0U &&
+         (layout->food_count > SIZE_MAX / sizeof(*candidate->foods) ||
+          (candidate->foods = malloc(layout->food_count * sizeof(*candidate->foods))) == NULL)) ||
+        (layout->event_count != 0U &&
+         (layout->event_count > SIZE_MAX / sizeof(*candidate->events) ||
+          (candidate->events = malloc(layout->event_count * sizeof(*candidate->events))) == NULL)))
+    {
+        free(candidate->species);
+        free(candidate->organisms);
+        free(candidate->foods);
+        free(candidate->events);
+        candidate->species = NULL;
+        candidate->organisms = NULL;
+        candidate->foods = NULL;
+        candidate->events = NULL;
+        return 0;
+    }
+    candidate->species_count = layout->species_count;
+    candidate->species_capacity = layout->species_count;
+    candidate->organism_count = layout->organism_count;
+    candidate->organism_capacity = layout->organism_count;
+    candidate->food_count = layout->food_count;
+    candidate->food_capacity = layout->food_count;
+    candidate->event_count = layout->event_count;
+    candidate->event_capacity = layout->event_count;
+    return 1;
+}
+
+static void domain_snapshot_free_state(MiniSNNWorldsDomain *domain)
+{
+    free(domain->species);
+    free(domain->organisms);
+    free(domain->foods);
+    free(domain->events);
+}
+
+static void domain_snapshot_copy_payload(MiniSNNWorldsDomain *candidate,
+                                         const uint8_t *data,
+                                         const DomainSnapshotLayout *layout)
+{
+    size_t index;
+    candidate->tick = layout->domain_tick;
+    candidate->next_event_id = layout->next_event_id;
+    candidate->diagnostics = layout->diagnostics;
+    for (index = 0U; index < layout->species_count; ++index)
+    {
+        size_t offset = layout->species_offset + index * MINISNN_WORLDS_DOMAIN_SNAPSHOT_SPECIES_SIZE;
+        candidate->species[index].config.species_id = domain_snapshot_read_u64(data, offset);
+        candidate->species[index].config.max_energy = domain_snapshot_read_u64(data, offset + 8U);
+        candidate->species[index].config.metabolism_per_tick = domain_snapshot_read_u64(data, offset + 16U);
+        candidate->species[index].config.move_energy_cost = domain_snapshot_read_u64(data, offset + 24U);
+        candidate->species[index].config.eat_range =
+            (MiniSNNWorldsKernelScalar)domain_snapshot_read_u64(data, offset + 32U);
+    }
+    for (index = 0U; index < layout->organism_count; ++index)
+    {
+        size_t offset = layout->organism_offset + index * MINISNN_WORLDS_DOMAIN_SNAPSHOT_ORGANISM_SIZE;
+        candidate->organisms[index].entity_id.value = domain_snapshot_read_u64(data, offset);
+        candidate->organisms[index].species_id = domain_snapshot_read_u64(data, offset + 8U);
+        candidate->organisms[index].energy = domain_snapshot_read_u64(data, offset + 16U);
+    }
+    for (index = 0U; index < layout->food_count; ++index)
+    {
+        size_t offset = layout->food_offset + index * MINISNN_WORLDS_DOMAIN_SNAPSHOT_FOOD_SIZE;
+        candidate->foods[index].entity_id.value = domain_snapshot_read_u64(data, offset);
+        candidate->foods[index].nutrition = domain_snapshot_read_u64(data, offset + 8U);
+    }
+    for (index = 0U; index < layout->event_count; ++index)
+    {
+        size_t offset = layout->event_offset + index * MINISNN_WORLDS_DOMAIN_SNAPSHOT_EVENT_SIZE;
+        MiniSNNWorldsDomainEvent *event = &candidate->events[index];
+        event->event_id = domain_snapshot_read_u64(data, offset);
+        event->tick = domain_snapshot_read_u64(data, offset + 8U);
+        event->type = (MiniSNNWorldsDomainEventType)domain_snapshot_read_u32(data, offset + 16U);
+        event->subject.value = domain_snapshot_read_u64(data, offset + 20U);
+        event->related.value = domain_snapshot_read_u64(data, offset + 28U);
+        event->action_type = (MiniSNNWorldsDomainActionType)domain_snapshot_read_u32(data, offset + 36U);
+        event->reason = (MiniSNNWorldsDomainActionReason)domain_snapshot_read_u32(data, offset + 40U);
+        event->energy_before = domain_snapshot_read_u64(data, offset + 44U);
+        event->energy_after = domain_snapshot_read_u64(data, offset + 52U);
+    }
+}
+
+MiniSNNWorldsDomainError minisnn_worlds_domain_snapshot_capture(
+    const MiniSNNWorldsDomain *domain, MiniSNNWorldsDomainSnapshot **out_snapshot)
+{
+    DomainSnapshotLayout layout;
+    MiniSNNWorldsDomainSnapshot *snapshot;
+    uint64_t kernel_hash;
+    size_t size;
+    size_t offset = 0U;
+    size_t index;
+
+    if (out_snapshot == NULL)
+    {
+        return MINISNN_WORLDS_DOMAIN_ERROR_NULL_ARGUMENT;
+    }
+    *out_snapshot = NULL;
+    if (domain == NULL)
+    {
+        return MINISNN_WORLDS_DOMAIN_ERROR_NULL_ARGUMENT;
+    }
+    if (minisnn_worlds_kernel_command_batch_active(domain->kernel))
+    {
+        return MINISNN_WORLDS_DOMAIN_ERROR_INVALID_STATE;
+    }
+    if (!validate_invariants(domain))
+    {
+        return MINISNN_WORLDS_DOMAIN_ERROR_INVARIANT_VIOLATION;
+    }
+    if (minisnn_worlds_kernel_state_hash(domain->kernel, &kernel_hash) != MINISNN_WORLDS_KERNEL_ERROR_NONE)
+    {
+        return MINISNN_WORLDS_DOMAIN_ERROR_KERNEL_FAILURE;
+    }
+    memset(&layout, 0, sizeof(layout));
+    layout.kernel_tick = minisnn_worlds_kernel_tick(domain->kernel);
+    layout.kernel_hash = kernel_hash;
+    layout.domain_tick = domain->tick;
+    layout.next_event_id = domain->next_event_id;
+    layout.species_count = domain->species_count;
+    layout.organism_count = domain->organism_count;
+    layout.food_count = domain->food_count;
+    layout.event_count = domain->event_count;
+    layout.diagnostics = domain->diagnostics;
+    if (!domain_snapshot_compute_size(&layout, &size))
+    {
+        return MINISNN_WORLDS_DOMAIN_ERROR_SNAPSHOT_SIZE_OVERFLOW;
+    }
+    snapshot = malloc(sizeof(*snapshot));
+    if (snapshot == NULL || (snapshot->data = malloc(size)) == NULL)
+    {
+        free(snapshot);
+        return MINISNN_WORLDS_DOMAIN_ERROR_ALLOCATION;
+    }
+    snapshot->size = size;
+    memcpy(snapshot->data + offset, MINISNN_WORLDS_DOMAIN_SNAPSHOT_MAGIC,
+           MINISNN_WORLDS_DOMAIN_SNAPSHOT_MAGIC_SIZE);
+    offset += MINISNN_WORLDS_DOMAIN_SNAPSHOT_MAGIC_SIZE;
+    domain_snapshot_write_u32(snapshot->data, &offset, MINISNN_WORLDS_DOMAIN_SNAPSHOT_FORMAT_VERSION_V1);
+    domain_snapshot_write_u32(snapshot->data, &offset, MINISNN_WORLDS_DOMAIN_SNAPSHOT_HEADER_SIZE);
+    domain_snapshot_write_u64(snapshot->data, &offset, (uint64_t)size);
+    domain_snapshot_write_u32(snapshot->data, &offset, MINISNN_WORLDS_KERNEL_STATE_HASH_VERSION);
+    domain_snapshot_write_u64(snapshot->data, &offset, layout.kernel_tick);
+    domain_snapshot_write_u64(snapshot->data, &offset, layout.kernel_hash);
+    domain_snapshot_write_u64(snapshot->data, &offset, 0U);
+    domain_snapshot_write_u64(snapshot->data, &offset, layout.domain_tick);
+    domain_snapshot_write_u64(snapshot->data, &offset, layout.next_event_id);
+    domain_snapshot_write_u64(snapshot->data, &offset, layout.species_count);
+    domain_snapshot_write_u64(snapshot->data, &offset, layout.organism_count);
+    domain_snapshot_write_u64(snapshot->data, &offset, layout.food_count);
+    domain_snapshot_write_u64(snapshot->data, &offset, layout.event_count);
+    domain_snapshot_write_u64(snapshot->data, &offset, layout.diagnostics.total_actions);
+    domain_snapshot_write_u64(snapshot->data, &offset, layout.diagnostics.total_actions_applied);
+    domain_snapshot_write_u64(snapshot->data, &offset, layout.diagnostics.total_actions_rejected);
+    domain_snapshot_write_u64(snapshot->data, &offset, layout.diagnostics.total_food_consumed);
+    domain_snapshot_write_u64(snapshot->data, &offset, layout.diagnostics.total_energy_gained);
+    domain_snapshot_write_u64(snapshot->data, &offset, layout.diagnostics.total_energy_spent);
+    for (index = 0U; index < domain->species_count; ++index)
+    {
+        const MiniSNNWorldsDomainSpeciesConfig *config = &domain->species[index].config;
+        domain_snapshot_write_u64(snapshot->data, &offset, config->species_id);
+        domain_snapshot_write_u64(snapshot->data, &offset, config->max_energy);
+        domain_snapshot_write_u64(snapshot->data, &offset, config->metabolism_per_tick);
+        domain_snapshot_write_u64(snapshot->data, &offset, config->move_energy_cost);
+        domain_snapshot_write_u64(snapshot->data, &offset, (uint64_t)config->eat_range);
+    }
+    for (index = 0U; index < domain->organism_count; ++index)
+    {
+        domain_snapshot_write_u64(snapshot->data, &offset, domain->organisms[index].entity_id.value);
+        domain_snapshot_write_u64(snapshot->data, &offset, domain->organisms[index].species_id);
+        domain_snapshot_write_u64(snapshot->data, &offset, domain->organisms[index].energy);
+    }
+    for (index = 0U; index < domain->food_count; ++index)
+    {
+        domain_snapshot_write_u64(snapshot->data, &offset, domain->foods[index].entity_id.value);
+        domain_snapshot_write_u64(snapshot->data, &offset, domain->foods[index].nutrition);
+    }
+    for (index = 0U; index < domain->event_count; ++index)
+    {
+        const MiniSNNWorldsDomainEvent *event = &domain->events[index];
+        domain_snapshot_write_u64(snapshot->data, &offset, event->event_id);
+        domain_snapshot_write_u64(snapshot->data, &offset, event->tick);
+        domain_snapshot_write_u32(snapshot->data, &offset, (uint32_t)event->type);
+        domain_snapshot_write_u64(snapshot->data, &offset, event->subject.value);
+        domain_snapshot_write_u64(snapshot->data, &offset, event->related.value);
+        domain_snapshot_write_u32(snapshot->data, &offset, (uint32_t)event->action_type);
+        domain_snapshot_write_u32(snapshot->data, &offset, (uint32_t)event->reason);
+        domain_snapshot_write_u64(snapshot->data, &offset, event->energy_before);
+        domain_snapshot_write_u64(snapshot->data, &offset, event->energy_after);
+    }
+    if (offset != size)
+    {
+        minisnn_worlds_domain_snapshot_destroy(snapshot);
+        return MINISNN_WORLDS_DOMAIN_ERROR_INVALID_STATE;
+    }
+    snapshot->digest = domain_snapshot_digest_bytes(snapshot->data, size);
+    domain_snapshot_store_u64(snapshot->data, MINISNN_WORLDS_DOMAIN_SNAPSHOT_DIGEST_OFFSET,
+                              snapshot->digest);
+    *out_snapshot = snapshot;
+    return MINISNN_WORLDS_DOMAIN_ERROR_NONE;
+}
+
+void minisnn_worlds_domain_snapshot_destroy(MiniSNNWorldsDomainSnapshot *snapshot)
+{
+    if (snapshot != NULL)
+    {
+        free(snapshot->data);
+        free(snapshot);
+    }
+}
+
+uint32_t minisnn_worlds_domain_snapshot_format_version(
+    const MiniSNNWorldsDomainSnapshot *snapshot)
+{
+    return snapshot == NULL ? 0U : MINISNN_WORLDS_DOMAIN_SNAPSHOT_FORMAT_VERSION_V1;
+}
+
+size_t minisnn_worlds_domain_snapshot_size(const MiniSNNWorldsDomainSnapshot *snapshot)
+{
+    return snapshot == NULL ? 0U : snapshot->size;
+}
+
+const uint8_t *minisnn_worlds_domain_snapshot_data(const MiniSNNWorldsDomainSnapshot *snapshot)
+{
+    return snapshot == NULL ? NULL : snapshot->data;
+}
+
+uint64_t minisnn_worlds_domain_snapshot_digest(const MiniSNNWorldsDomainSnapshot *snapshot)
+{
+    return snapshot == NULL ? 0U : snapshot->digest;
+}
+
+MiniSNNWorldsDomainError minisnn_worlds_domain_snapshot_from_bytes(
+    const uint8_t *data, size_t size, MiniSNNWorldsDomainSnapshot **out_snapshot)
+{
+    DomainSnapshotLayout layout;
+    MiniSNNWorldsDomainSnapshot *snapshot;
+    if (out_snapshot == NULL)
+    {
+        return MINISNN_WORLDS_DOMAIN_ERROR_NULL_ARGUMENT;
+    }
+    *out_snapshot = NULL;
+    if (data == NULL)
+    {
+        return MINISNN_WORLDS_DOMAIN_ERROR_NULL_ARGUMENT;
+    }
+    if (!domain_snapshot_validate_bytes(data, size, &layout))
+    {
+        return MINISNN_WORLDS_DOMAIN_ERROR_SNAPSHOT_INVALID_FORMAT;
+    }
+    snapshot = malloc(sizeof(*snapshot));
+    if (snapshot == NULL || (snapshot->data = malloc(size)) == NULL)
+    {
+        free(snapshot);
+        return MINISNN_WORLDS_DOMAIN_ERROR_ALLOCATION;
+    }
+    memcpy(snapshot->data, data, size);
+    snapshot->size = size;
+    snapshot->digest = layout.digest;
+    *out_snapshot = snapshot;
+    return MINISNN_WORLDS_DOMAIN_ERROR_NONE;
+}
+
+MiniSNNWorldsDomainError minisnn_worlds_domain_snapshot_restore(
+    MiniSNNWorldsDomain *domain, const MiniSNNWorldsDomainSnapshot *snapshot)
+{
+    DomainSnapshotLayout layout;
+    MiniSNNWorldsDomain candidate;
+    MiniSNNWorldsDomain old;
+    uint64_t current_hash;
+    size_t index;
+    MiniSNNWorldsDomainError result = MINISNN_WORLDS_DOMAIN_ERROR_NONE;
+
+    if (domain == NULL || snapshot == NULL)
+    {
+        set_error(domain, MINISNN_WORLDS_DOMAIN_ERROR_NULL_ARGUMENT);
+        return MINISNN_WORLDS_DOMAIN_ERROR_NULL_ARGUMENT;
+    }
+    if (domain->kernel == NULL)
+    {
+        set_error(domain, MINISNN_WORLDS_DOMAIN_ERROR_INVALID_STATE);
+        return MINISNN_WORLDS_DOMAIN_ERROR_INVALID_STATE;
+    }
+    if (minisnn_worlds_kernel_command_batch_active(domain->kernel))
+    {
+        set_error(domain, MINISNN_WORLDS_DOMAIN_ERROR_INVALID_STATE);
+        return MINISNN_WORLDS_DOMAIN_ERROR_INVALID_STATE;
+    }
+    if (!domain_snapshot_validate_bytes(snapshot->data, snapshot->size, &layout))
+    {
+        set_error(domain, MINISNN_WORLDS_DOMAIN_ERROR_SNAPSHOT_INVALID_FORMAT);
+        return MINISNN_WORLDS_DOMAIN_ERROR_SNAPSHOT_INVALID_FORMAT;
+    }
+    if (minisnn_worlds_kernel_tick(domain->kernel) != layout.kernel_tick ||
+        minisnn_worlds_kernel_state_hash(domain->kernel, &current_hash) != MINISNN_WORLDS_KERNEL_ERROR_NONE ||
+        current_hash != layout.kernel_hash)
+    {
+        set_error(domain, MINISNN_WORLDS_DOMAIN_ERROR_SNAPSHOT_INCOMPATIBLE_KERNEL);
+        return MINISNN_WORLDS_DOMAIN_ERROR_SNAPSHOT_INCOMPATIBLE_KERNEL;
+    }
+    memset(&candidate, 0, sizeof(candidate));
+    candidate.kernel = domain->kernel;
+    candidate.last_error = MINISNN_WORLDS_DOMAIN_ERROR_NONE;
+    if (!domain_snapshot_allocate_state(&candidate, &layout))
+    {
+        set_error(domain, MINISNN_WORLDS_DOMAIN_ERROR_ALLOCATION);
+        return MINISNN_WORLDS_DOMAIN_ERROR_ALLOCATION;
+    }
+    domain_snapshot_copy_payload(&candidate, snapshot->data, &layout);
+    for (index = 0U; index < candidate.organism_count; ++index)
+    {
+        if (!can_reference_entity(&candidate, candidate.organisms[index].entity_id))
+        {
+            result = MINISNN_WORLDS_DOMAIN_ERROR_KERNEL_ENTITY_UNAVAILABLE;
+            break;
+        }
+    }
+    for (index = 0U; result == MINISNN_WORLDS_DOMAIN_ERROR_NONE && index < candidate.food_count; ++index)
+    {
+        if (!can_reference_entity(&candidate, candidate.foods[index].entity_id))
+        {
+            result = MINISNN_WORLDS_DOMAIN_ERROR_KERNEL_ENTITY_UNAVAILABLE;
+        }
+    }
+    if (result == MINISNN_WORLDS_DOMAIN_ERROR_NONE && !validate_invariants(&candidate))
+    {
+        result = MINISNN_WORLDS_DOMAIN_ERROR_INVARIANT_VIOLATION;
+    }
+    if (result != MINISNN_WORLDS_DOMAIN_ERROR_NONE)
+    {
+        domain_snapshot_free_state(&candidate);
+        set_error(domain, result);
+        return result;
+    }
+    old = *domain;
+    *domain = candidate;
+    domain_snapshot_free_state(&old);
+    set_error(domain, MINISNN_WORLDS_DOMAIN_ERROR_NONE);
+    return MINISNN_WORLDS_DOMAIN_ERROR_NONE;
+}

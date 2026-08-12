@@ -16,7 +16,7 @@ shape, collision, barrier, spatial query, link, or domain semantics. Those are
 reserved for K1-B and K1-C.
 ## K1-B1 Occupancy
 
-K1-B1/B2 and K1-C1..C4 are complete; spatial links, rigid subtree translation and state hash V5 are part of completed K1. K2-A through K2-D are complete; WD0 - Worlds Domain is complete; WB0 - Brain Bridge minimo is the next Worlds block. The Worlds Kernel supports one optional fixed-point axis-aligned occupancy per
+K1-B1/B2 and K1-C1..C4 are complete; spatial links, rigid subtree translation and state hash V5 are part of completed K1. K2-A through K2-D are complete; WD0 - Worlds Domain and WB0 - Brain Bridge minimo are complete; WD1 - Domain persistence is the next Worlds block. The Worlds Kernel supports one optional fixed-point axis-aligned occupancy per
 entity, generic category bits and blocking masks, command-only set/clear,
 deterministic conflict rejection with related_entity, diagnostics, and
 canonical state hash v3. Orientation does not rotate the AABB. See

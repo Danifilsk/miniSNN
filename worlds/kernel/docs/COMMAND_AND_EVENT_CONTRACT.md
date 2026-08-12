@@ -43,13 +43,13 @@ ordem de emissao. Sorteios do PRNG nao sao eventos de dominio.
 
 ## K1-A Space And Transforms
 
-K0 and K1 are complete. K1-A through K1-C4 form the deterministic spatial foundation; K2-A through K2-D are complete; WD0 - Worlds Domain is complete; WB0 - Brain Bridge minimo is the next Worlds block. The public Worlds
+K0 and K1 are complete. K1-A through K1-C4 form the deterministic spatial foundation; K2-A through K2-D are complete; WD0 - Worlds Domain and WB0 - Brain Bridge minimo are complete; WD1 - Domain persistence is the next Worlds block. The public Worlds
 Kernel now exposes a single immutable 2D fixed-point space, optional entity
 transforms, and command-only placement/removal. See the K1-A coordinate and
-transform contracts in worlds/kernel/docs. K2-A through K2-D are complete; WD0 - Worlds Domain is complete; WB0 - Brain Bridge minimo is the next Worlds block.
+transform contracts in worlds/kernel/docs. K2-A through K2-D are complete; WD0 - Worlds Domain and WB0 - Brain Bridge minimo are complete; WD1 - Domain persistence is the next Worlds block.
 ## K1-B1 Occupancy
 
-K1-B1/B2 and K1-C1..C4 are complete; canonical spatial links, rigid subtree translation and V5 are part of completed K1. K2-A through K2-D are complete; WD0 - Worlds Domain is complete; WB0 - Brain Bridge minimo is the next Worlds block. The Worlds Kernel supports one optional fixed-point axis-aligned occupancy per
+K1-B1/B2 and K1-C1..C4 are complete; canonical spatial links, rigid subtree translation and V5 are part of completed K1. K2-A through K2-D are complete; WD0 - Worlds Domain and WB0 - Brain Bridge minimo are complete; WD1 - Domain persistence is the next Worlds block. The Worlds Kernel supports one optional fixed-point axis-aligned occupancy per
 entity, generic category bits and blocking masks, command-only set/clear,
 deterministic conflict rejection with related_entity, diagnostics, and
 canonical state hash v3. Orientation does not rotate the AABB. See

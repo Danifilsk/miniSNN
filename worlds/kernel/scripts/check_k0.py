@@ -27,7 +27,7 @@ def main() -> int:
     if "K0 e K1 estao concluidos" not in combined or "K2-A" not in combined or "K2-B" not in combined or "K2-C" not in combined or "K2-D" not in combined:
         fail("roadmap does not preserve K0/K1/K2-A/B/C/D completion")
     print("K0 Worlds Kernel deterministic foundation validation OK")
-    print("K0 complete; K1 complete; K2-A complete; K2-B complete; K2-C complete; K2-D complete; WD0 Domain complete; WB0 Brain Bridge next")
+    print("K0 complete; K1 complete; K2-A complete; K2-B complete; K2-C complete; K2-D complete; WD0 Domain complete; WB0 Brain Bridge complete; WD1 Domain persistence next")
     return 0
 
 

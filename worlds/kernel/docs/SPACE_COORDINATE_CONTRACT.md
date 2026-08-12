@@ -17,7 +17,7 @@ Arithmetic used by authoritative spatial state is checked before mutation; the
 Kernel does not rely on floating point or compiler-specific extended integers.
 ## K1-B1 Occupancy
 
-K1-B1/B2 and K1-C1..C4 are complete; canonical spatial links, rigid subtree translation and V5 are part of completed K1. K2-A through K2-D are complete; WD0 - Worlds Domain is complete; WB0 - Brain Bridge minimo is the next Worlds block. The Worlds Kernel supports one optional fixed-point axis-aligned occupancy per
+K1-B1/B2 and K1-C1..C4 are complete; canonical spatial links, rigid subtree translation and V5 are part of completed K1. K2-A through K2-D are complete; WD0 - Worlds Domain and WB0 - Brain Bridge minimo are complete; WD1 - Domain persistence is the next Worlds block. The Worlds Kernel supports one optional fixed-point axis-aligned occupancy per
 entity, generic category bits and blocking masks, command-only set/clear,
 deterministic conflict rejection with related_entity, diagnostics, and
 canonical state hash v3. Orientation does not rotate the AABB. See

@@ -659,7 +659,7 @@ def validate_docs(root: Path) -> list[str]:
         "D2 - auditoria pos-integracao",
         "miniSNN Core v1.0",
         "congelada definitivamente",
-        "K0 -> K1 -> K2-A -> K2-B -> K2-C -> K2-D -> WD0 Domain minimo -> WB0 Brain Bridge minimo -> WF0 organismo headless -> App visual minimo -> integracao predador-presa -> D2 pos-integracao",
+        "K0 -> K1 -> K2-A -> K2-B -> K2-C -> K2-D -> WD0 Domain minimo -> WB0 Brain Bridge minimo -> WD1 persistencia do Domain -> WF0 organismo headless -> App visual minimo -> integracao predador-presa -> D2 pos-integracao",
         "C8",
         "Bloco E permanece pausado",
         "Pesquisa neural futura permanece uma trilha separada",

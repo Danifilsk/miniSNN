@@ -16,7 +16,7 @@ eventos e preflight atomico. K0-C conclui PRNG por streams, hash canonico e
 observabilidade. K0-D conclui parser de cenario, runner, artefatos tecnicos,
 determinismo integrado, stress e auditoria sem levar filesystem para a
 biblioteca. O Kernel nao depende do Core, e o Core nao depende do Kernel.
-K0 e K1 estao concluidos: K1-A, K1-B1/B2 e K1-C1..C4 formam a fundacao espacial deterministica. K2-A concluiu o snapshot canonico em memoria, K2-B concluiu restore e save/load e K2-C concluiu command replay deterministico e K2-D concluiu auditoria final de persistencia; WD0 - Domain minimo esta concluido; WB0 - Brain Bridge minimo e o proximo bloco.
+K0 e K1 estao concluidos: K1-A, K1-B1/B2 e K1-C1..C4 formam a fundacao espacial deterministica. K2-A concluiu o snapshot canonico em memoria, K2-B concluiu restore e save/load e K2-C concluiu command replay deterministico e K2-D concluiu auditoria final de persistencia; WD0 - Domain minimo e WB0 - Brain Bridge minimo estao concluidos; WD1 - persistencia do Domain e o proximo bloco.
 
 ## D1-A: produtos de build e API candidata
 
@@ -85,18 +85,18 @@ matriz, ciclo de vida e long run. C7, D1, K0, K1-A, K1-B1 e K1-B2 estao concluid
 - Core nao depende de Worlds.
 - Worlds Kernel e uma biblioteca generica independente e nao depende do Core.
 - Brain Bridge sera o unico modulo que conhecera Core e Domain.
-- Worlds Domain e um produto C11 headless em `worlds/domain/` e depende somente da API publica do Worlds Kernel. Brain Bridge e Worlds App ainda nao sao implementados. O Domain nao depende do Core e ainda nao possui persistencia propria.
+- Worlds Domain e um produto C11 headless em `worlds/domain/` e depende somente da API publica do Worlds Kernel. Worlds Brain Bridge em `worlds/brain_bridge/` depende somente das APIs publicas do Core e do Domain; Core, Kernel e Domain nao dependem dele. O Domain nao depende do Core e ainda nao possui persistencia propria.
 
 ## K1-A Space And Transforms
 
-K0 and K1 are complete. K1-A through K1-C4 form the deterministic spatial foundation; K2-A through K2-D are complete; WD0 - Worlds Domain is complete; WB0 - Brain Bridge minimo is the next Worlds block. The public Worlds
+K0 and K1 are complete. K1-A through K1-C4 form the deterministic spatial foundation; K2-A through K2-D are complete; WD0 - Worlds Domain and WB0 - Brain Bridge minimo are complete; WD1 - Domain persistence is the next Worlds block. The public Worlds
 Kernel now exposes a single immutable 2D fixed-point space, optional entity
 transforms, and command-only placement/removal. See the K1-A coordinate and
 transform contracts in worlds/kernel/docs.
 
 ## K1-B1 Occupancy
 
-K1-B1/B2 and K1-C1..C4 are complete; K2-A through K2-D are complete; WD0 - Worlds Domain is complete; WB0 - Brain Bridge minimo is the next Worlds block. The Worlds
+K1-B1/B2 and K1-C1..C4 are complete; K2-A through K2-D are complete; WD0 - Worlds Domain and WB0 - Brain Bridge minimo are complete; WD1 - Domain persistence is the next Worlds block. The Worlds
 Kernel now supports one optional fixed-point axis-aligned occupancy per
 entity, generic category bits and blocking masks, command-only set/clear,
 deterministic conflict rejection with related_entity, diagnostics, and

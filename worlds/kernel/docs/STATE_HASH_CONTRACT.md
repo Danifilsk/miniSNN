@@ -27,7 +27,7 @@ Its separate scenario configuration signature is never named a state hash.
 
 ## K1-A Space And Transforms
 
-K0 and K1 are complete. K1-A through K1-C4 form the deterministic spatial foundation; K2-A through K2-D are complete; WD0 - Worlds Domain is complete; WB0 - Brain Bridge minimo is the next Worlds block. The public Worlds
+K0 and K1 are complete. K1-A through K1-C4 form the deterministic spatial foundation; K2-A through K2-D are complete; WD0 - Worlds Domain and WB0 - Brain Bridge minimo are complete; WD1 - Domain persistence is the next Worlds block. The public Worlds
 Kernel now exposes a single immutable 2D fixed-point space, optional entity
 transforms, and command-only placement/removal. See the K1-A coordinate and
 transform contracts in worlds/kernel/docs.

@@ -8,8 +8,12 @@
 #include "minisnn_worlds_kernel.h"
 
 #define MINISNN_WORLDS_DOMAIN_STATE_HASH_VERSION_V1 UINT32_C(1)
+#define MINISNN_WORLDS_DOMAIN_SNAPSHOT_FORMAT_VERSION_V1 UINT32_C(1)
+#define MINISNN_WORLDS_DOMAIN_SNAPSHOT_FORMAT_VERSION \
+    MINISNN_WORLDS_DOMAIN_SNAPSHOT_FORMAT_VERSION_V1
 
 typedef struct MiniSNNWorldsDomain MiniSNNWorldsDomain;
+typedef struct MiniSNNWorldsDomainSnapshot MiniSNNWorldsDomainSnapshot;
 
 typedef uint64_t MiniSNNWorldsDomainSpeciesId;
 typedef uint64_t MiniSNNWorldsDomainEnergy;
@@ -27,7 +31,10 @@ typedef enum
     MINISNN_WORLDS_DOMAIN_ERROR_KERNEL_ENTITY_UNAVAILABLE,
     MINISNN_WORLDS_DOMAIN_ERROR_KERNEL_FAILURE,
     MINISNN_WORLDS_DOMAIN_ERROR_TEMPORAL_DIVERGENCE,
-    MINISNN_WORLDS_DOMAIN_ERROR_INVARIANT_VIOLATION
+    MINISNN_WORLDS_DOMAIN_ERROR_INVARIANT_VIOLATION,
+    MINISNN_WORLDS_DOMAIN_ERROR_SNAPSHOT_INVALID_FORMAT,
+    MINISNN_WORLDS_DOMAIN_ERROR_SNAPSHOT_INCOMPATIBLE_KERNEL,
+    MINISNN_WORLDS_DOMAIN_ERROR_SNAPSHOT_SIZE_OVERFLOW
 } MiniSNNWorldsDomainError;
 
 typedef enum
@@ -201,6 +208,37 @@ MiniSNNWorldsDomainError minisnn_worlds_domain_step(
 MiniSNNWorldsDomainError minisnn_worlds_domain_state_hash(
     const MiniSNNWorldsDomain *domain,
     uint64_t *out_hash);
+
+/* Domain Snapshot V1 is canonical little-endian state bound to a Kernel hash/tick. */
+MiniSNNWorldsDomainError minisnn_worlds_domain_snapshot_capture(
+    const MiniSNNWorldsDomain *domain,
+    MiniSNNWorldsDomainSnapshot **out_snapshot);
+
+void minisnn_worlds_domain_snapshot_destroy(
+    MiniSNNWorldsDomainSnapshot *snapshot);
+
+uint32_t minisnn_worlds_domain_snapshot_format_version(
+    const MiniSNNWorldsDomainSnapshot *snapshot);
+
+size_t minisnn_worlds_domain_snapshot_size(
+    const MiniSNNWorldsDomainSnapshot *snapshot);
+
+const uint8_t *minisnn_worlds_domain_snapshot_data(
+    const MiniSNNWorldsDomainSnapshot *snapshot);
+
+uint64_t minisnn_worlds_domain_snapshot_digest(
+    const MiniSNNWorldsDomainSnapshot *snapshot);
+
+/* Copies and validates an immutable Domain Snapshot V1 byte sequence. */
+MiniSNNWorldsDomainError minisnn_worlds_domain_snapshot_from_bytes(
+    const uint8_t *data,
+    size_t size,
+    MiniSNNWorldsDomainSnapshot **out_snapshot);
+
+/* Restores only after Kernel binding and all Domain invariants have validated. */
+MiniSNNWorldsDomainError minisnn_worlds_domain_snapshot_restore(
+    MiniSNNWorldsDomain *domain,
+    const MiniSNNWorldsDomainSnapshot *snapshot);
 
 #ifdef MINISNN_WORLDS_DOMAIN_TESTING
 typedef enum

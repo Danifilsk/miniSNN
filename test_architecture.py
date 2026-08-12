@@ -9,6 +9,7 @@ ROOT = Path(__file__).resolve().parent
 CORE = ROOT / "core"
 WORLDS_KERNEL = ROOT / "worlds" / "kernel"
 WORLDS_DOMAIN = ROOT / "worlds" / "domain"
+WORLDS_BRAIN_BRIDGE = ROOT / "worlds" / "brain_bridge"
 EXPECTED_DIRECTORIES = (
     "include", "src", "app", "studio", "tests", "scripts", "configs", "docs",
     "examples", "experiments", "results",
@@ -37,10 +38,20 @@ def main() -> int:
                    "core-tests:", "core-studio:", "core-evolution:",
                    "worlds-kernel-lib:", "worlds-kernel:", "worlds-kernel-test:",
                    "worlds-domain-lib:", "worlds-domain:", "worlds-domain-test:",
+                   "worlds-brain-bridge-lib:", "worlds-brain-bridge:", "worlds-brain-bridge-test:",
+                   "test-wb0-encoder", "test-wb0-decoder", "test-wb0-binding",
+                   "test-wb0-core-integration", "test-wb0-cache", "test-wb0-failure-retry",
+                   "test-wb0-multi-organism", "test-wb0-invariants", "test-wb0-determinism",
+                   "test-wb0-optimization-determinism", "test-wb0-sanitize",
+                   "test-wb0-posix-smoke", "demo-wb0", "check-wb0:", "audit-wb0:",
                    "test-wd0-domain", "test-wd0-actions", "test-wd0-perception",
                    "test-wd0-invariants", "test-wd0-stress", "test-wd0-determinism",
                    "test-wd0-optimization-determinism", "test-wd0-sanitize",
                    "test-wd0-posix-smoke", "demo-wd0", "check-wd0:", "audit-wd0:",
+                   "test-wd1-snapshot", "test-wd1-restore", "test-wd1-corruption",
+                   "test-wd1-file-roundtrip", "test-wd1-determinism",
+                   "test-wd1-optimization-determinism", "test-wd1-sanitize",
+                   "test-wd1-posix-smoke", "demo-wd1", "check-wd1:", "audit-wd1:",
                    "test-k0-a-sanitize:", "audit-k0-a:",
                    "test-k0-b-entities", "test-k0-b-commands", "test-k0-b-events",
                    "test-k0-b-determinism", "test-k0-b-sanitize", "demo-k0-b",
@@ -64,6 +75,8 @@ def main() -> int:
         if path.is_dir() or path.suffix.lower() not in {".c", ".h"}:
             continue
         content = path.read_text(encoding="utf-8", errors="replace")
+        if "brain_bridge" in content.lower():
+            fail(f"Core depende do Brain Bridge: {path.relative_to(ROOT)}")
         for include in INCLUDE_PATTERN.findall(content):
             normalized = include.replace("\\", "/")
             if re.match(r"^[A-Za-z]:/", normalized) or normalized.startswith("/"):
@@ -71,6 +84,29 @@ def main() -> int:
             if "worlds/" in normalized.lower() or normalized.lower().startswith("worlds"):
                 fail(f"dependencia de Worlds em {path.relative_to(ROOT)}")
 
+    for directory in ("include", "src", "app", "tests", "docs", "scripts"):
+        if not (WORLDS_BRAIN_BRIDGE / directory).is_dir():
+            fail(f"worlds/brain_bridge/{directory}/ ausente")
+    for filename in ("Makefile", "README.md"):
+        if not (WORLDS_BRAIN_BRIDGE / filename).is_file():
+            fail(f"worlds/brain_bridge/{filename} ausente")
+    bridge_makefile = (WORLDS_BRAIN_BRIDGE / "Makefile").read_text(encoding="utf-8")
+    if "CORE_ROOT" not in bridge_makefile or "DOMAIN_ROOT" not in bridge_makefile:
+        fail("Makefile do Brain Bridge nao declara dependencias Core e Domain")
+    for path in list((WORLDS_BRAIN_BRIDGE / "include").rglob("*")) + list((WORLDS_BRAIN_BRIDGE / "src").rglob("*")):
+        if path.is_dir() or path.suffix.lower() not in {".c", ".h"}:
+            continue
+        content = path.read_text(encoding="utf-8", errors="replace")
+        for include in INCLUDE_PATTERN.findall(content):
+            normalized = include.replace("\\", "/").lower()
+            if ("minisnn_worlds_kernel_internal" in normalized or "/kernel/src/" in normalized or
+                    normalized.startswith("kernel/src/") or normalized == "minisnn_worlds_kernel.h"):
+                fail(f"Brain Bridge inclui Kernel diretamente: {path.relative_to(ROOT)}")
+        if path.parent == WORLDS_BRAIN_BRIDGE / "include":
+            allowed = {"stddef.h", "stdint.h", "minisnn.h", "minisnn_worlds_domain.h"}
+            for include in INCLUDE_PATTERN.findall(content):
+                if include.replace("\\", "/") not in allowed:
+                    fail(f"header publico do Brain Bridge inclui dependencia inesperada: {path.relative_to(ROOT)}")
     core_makefile = (CORE / "Makefile").read_text(encoding="utf-8")
     for target in ("core:", "core-lib:", "headless:", "core-test:",
                    "audit-d1-build-products:", "audit-d1-api:"):
@@ -114,7 +150,7 @@ def main() -> int:
     domain_makefile = (WORLDS_DOMAIN / "Makefile").read_text(encoding="utf-8")
     if "core/" in domain_makefile.replace("\\", "/"):
         fail("Makefile do Worlds Domain depende do Core")
-    for path in WORLDS_DOMAIN.rglob("*"):
+    for path in list((WORLDS_DOMAIN / "include").rglob("*")) + list((WORLDS_DOMAIN / "src").rglob("*")):
         if path.is_dir() or path.suffix.lower() not in {".c", ".h"}:
             continue
         content = path.read_text(encoding="utf-8", errors="replace")
@@ -123,13 +159,26 @@ def main() -> int:
             if ("core/" in normalized or "minisnn.h" == normalized or
                     "windows.h" == normalized or "minisnn_worlds_kernel_internal" in normalized or
                     "/src/" in normalized or normalized.startswith("src/")):
-                fail(f"Worlds Domain viola a fronteira publica: {path.relative_to(ROOT)}")
+                fail(f"Worlds Domain library violates the public boundary: {path.relative_to(ROOT)}")
+    wd1_file_adapter = WORLDS_DOMAIN / "app" / "wd1_domain_snapshot_file.c"
+    if wd1_file_adapter.is_file() and "windows.h" not in wd1_file_adapter.read_text(encoding="utf-8", errors="replace"):
+        fail("WD1 file adapter must keep its Win32 replacement call in app-layer")
     for path in list((WORLDS_KERNEL / "include").rglob("*")) + list((WORLDS_KERNEL / "src").rglob("*")):
         if path.is_dir() or path.suffix.lower() not in {".c", ".h"}:
             continue
         if "minisnn_worlds_domain" in path.read_text(encoding="utf-8", errors="replace").lower():
             fail(f"Worlds Kernel depende do Domain: {path.relative_to(ROOT)}")
 
+    for path in WORLDS_DOMAIN.rglob("*"):
+        if path.is_dir() or path.suffix.lower() not in {".c", ".h"}:
+            continue
+        if "brain_bridge" in path.read_text(encoding="utf-8", errors="replace").lower():
+            fail(f"Worlds Domain depende do Brain Bridge: {path.relative_to(ROOT)}")
+    for path in list((WORLDS_KERNEL / "include").rglob("*")) + list((WORLDS_KERNEL / "src").rglob("*")):
+        if path.is_dir() or path.suffix.lower() not in {".c", ".h"}:
+            continue
+        if "brain_bridge" in path.read_text(encoding="utf-8", errors="replace").lower():
+            fail(f"Worlds Kernel depende do Brain Bridge: {path.relative_to(ROOT)}")
     if (CORE / "app" / "minisnn_studio.c").exists():
         fail("Studio ainda esta misturado a core/app")
     if not (CORE / "studio" / "minisnn_studio.c").is_file():

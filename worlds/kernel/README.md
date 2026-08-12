@@ -30,18 +30,18 @@ Consulte [a arquitetura](docs/ARCHITECTURE.md), o
 [configuracao de cenarios](docs/SCENARIO_CONFIG_CONTRACT.md) e os
 [artefatos tecnicos](docs/ARTIFACT_CONTRACT.md).
 
-K0 e K1 estao concluidos como fundacoes deterministicas. K1-A, K1-B1/B2 e K1-C1..C4 cobrem espaco, occupancy, movimento e links; K2-A concluiu o snapshot canonico em memoria, K2-B concluiu restore e save/load e K2-C concluiu command replay deterministico e K2-D concluiu auditoria final de persistencia; WD0 - Domain minimo esta concluido; WB0 - Brain Bridge minimo e o proximo bloco. Veja `docs/K2_A_CANONICAL_SNAPSHOT_CONTRACT.md`, `docs/K2_B_RESTORE_AND_PERSISTENCE_CONTRACT.md`, `docs/K2_C_COMMAND_REPLAY_CONTRACT.md` e `docs/K2_D_PERSISTENCE_CLOSURE_AUDIT.md`. O Kernel continua headless e nao implementa Domain, Brain Bridge ou App.
+K0 e K1 estao concluidos como fundacoes deterministicas. K1-A, K1-B1/B2 e K1-C1..C4 cobrem espaco, occupancy, movimento e links; K2-A concluiu o snapshot canonico em memoria, K2-B concluiu restore e save/load e K2-C concluiu command replay deterministico e K2-D concluiu auditoria final de persistencia; WD0 - Domain minimo e WB0 - Brain Bridge minimo estao concluidos; WD1 - persistencia do Domain e o proximo bloco. Veja `docs/K2_A_CANONICAL_SNAPSHOT_CONTRACT.md`, `docs/K2_B_RESTORE_AND_PERSISTENCE_CONTRACT.md`, `docs/K2_C_COMMAND_REPLAY_CONTRACT.md` e `docs/K2_D_PERSISTENCE_CLOSURE_AUDIT.md`. O Kernel continua headless e nao implementa Domain, Brain Bridge ou App.
 
 ## K1-A Space And Transforms
 
-K0 and K1 are complete. K1-A through K1-C4 form the deterministic spatial foundation; K2-A through K2-D are complete; WD0 - Worlds Domain is complete; WB0 - Brain Bridge minimo is the next Worlds block. The public Worlds
+K0 and K1 are complete. K1-A through K1-C4 form the deterministic spatial foundation; K2-A through K2-D are complete; WD0 - Worlds Domain and WB0 - Brain Bridge minimo are complete; WD1 - Domain persistence is the next Worlds block. The public Worlds
 Kernel now exposes a single immutable 2D fixed-point space, optional entity
 transforms, and command-only placement/removal. See the K1-A coordinate and
 transform contracts in worlds/kernel/docs.
 
 ## K1-B1 Occupancy
 
-K1-B1/B2 e K1-C1..C4 estao concluidos; K2-A ate K2-D estao concluidos; WD0 - Domain minimo esta concluido; WB0 - Brain Bridge minimo e o proximo bloco. Nao ha Domain, Brain Bridge ou aplicacao. The Worlds
+K1-B1/B2 e K1-C1..C4 estao concluidos; K2-A ate K2-D estao concluidos; WD0 - Domain minimo e WB0 - Brain Bridge minimo estao concluidos; WD1 - persistencia do Domain e o proximo bloco. Nao ha Domain, Brain Bridge ou aplicacao. The Worlds
 Kernel now supports one optional fixed-point axis-aligned occupancy per
 entity, generic category bits and blocking masks, command-only set/clear,
 deterministic conflict rejection with related_entity, diagnostics, and
