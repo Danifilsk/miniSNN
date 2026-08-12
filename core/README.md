@@ -10,8 +10,8 @@ produtos candidatos com `mingw32-make release-all`, gere os ZIPs locais com
 
 O estado e **D1 concluido** para `miniSNN Core 1.0.0-rc.1`. A validacao manual
 do Studio foi registrada no [checklist](docs/D1_C_STUDIO_MANUAL_CHECKLIST.md).
-A API Core-Brain Bridge permanece candidata e provisoria ate D2; K0 e o proximo
-bloco planejado. Consulte
+A API Core-Brain Bridge permanece candidata e provisoria ate D2. K0 e K1 estao
+concluidos; K2-A concluiu o snapshot canonico em memoria, K2-B concluiu restore/save-load e K2-C concluiu command replay e K2-D concluiu auditoria final de persistencia; WD0 - Domain minimo e WB0 - Brain Bridge minimo estao concluidos; WD1 - persistencia do Domain e o proximo bloco. Consulte
 [instalacao e linkagem](docs/INSTALLING_AND_LINKING.md), a
 [API Core-Brain Bridge candidata](docs/CORE_BRIDGE_API_CANDIDATE.md), as
 [limitacoes conhecidas](docs/KNOWN_LIMITATIONS_1_0_0_RC1.md) e as
@@ -76,10 +76,10 @@ neuroevolução C3 serial com topologia fixa, fitness configurável e checkpoint
 O STDP do C1 também é uma regra experimental simplificada. Esses recursos não
 são verdades biológicas nem prova de aprendizado de tarefa.
 
-**Estado do Core 1.0.0-rc.1:** D1 esta concluido; Worlds ainda nao esta
-implementado. K0, a fundacao deterministica do Worlds Kernel, e o proximo
-bloco planejado. A API Core-Brain Bridge nao esta congelada definitivamente;
-isso pertence a D2 apos a primeira integracao real.
+**Estado do Core 1.0.0-rc.1:** D1 esta concluido. K0 e K1 concluem a fundacao
+deterministica e espacial do Worlds Kernel; K2-A concluiu o snapshot canonico em
+memoria, K2-B concluiu restore + save/load e K2-C concluiu command replay e K2-D concluiu auditoria final de persistencia; WD0 - Domain minimo e WB0 - Brain Bridge minimo estao concluidos; WD1 - persistencia do Domain e o proximo bloco. A API Core-Brain Bridge
+nao esta congelada definitivamente; isso pertence a D2 apos a primeira integracao real.
 
 ## Início rápido
 

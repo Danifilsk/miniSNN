@@ -3,8 +3,8 @@
 
 #include "scenario_config.h"
 
-#define TEMP_PATH "build/test_scenario_config_tmp.ini"
-#define TEMP_SAVE_PATH "build/test_scenario_config_saved.ini"
+#define TEMP_PATH "../build/test_scenario_config_tmp.ini"
+#define TEMP_SAVE_PATH "../build/test_scenario_config_saved.ini"
 
 static int double_close(double a, double b)
 {

@@ -11,8 +11,11 @@ PYTHON := python
 endif
 endif
 CORE_DIR = core
+WORLDS_KERNEL_DIR = worlds/kernel
+WORLDS_DOMAIN_DIR = worlds/domain
+WORLDS_BRAIN_BRIDGE_DIR = worlds/brain_bridge
 
-.PHONY: all help clean clean-core clean-studio clean-tests core core-lib core-headless core-test core-tests core-studio studio studio-path core-evolution test test-architecture audit-d1-build-products audit-d1-api test-d1-determinism test-d1-corruption test-d1-lifecycle-stress test-d1-optimization-determinism test-d1-posix-headless test-d1-portability test-d1-long-run test-d1-symbols benchmark-d1 scenario-d1-b audit-d1-b audit-d1 test-version test-api-baseline test-api-baseline-regressions release-core release-headless release-studio release-all test-release-build test-external-consumer package-release test-release-integrity test-release-packages test-studio-source-contracts test-studio-runtime-layout audit-d1-c-automated audit-d1-c test-working-memory test-associative-memory test-sequence-prediction test-c6-checkpoints test-c6-integration test-c6-long test-agent-io test-sensor-encoder test-action-decoder test-agent-cycle test-agent-cycle-checkpoint test-c7-integration test-c7-evolution test-c7-long-run test-c7 scenario-working-memory scenario-associative-memory scenario-sequence-prediction scenario-sequence-prediction-context scenario-c6-suite scenario-sensor-encoding scenario-action-decoding scenario-agent-cycle scenario-agent-cycle-checkpoint scenario-c7-integrated-audit check-c6 check-c7
+.PHONY: all help clean clean-core clean-studio clean-tests core core-lib core-headless core-test core-tests core-studio studio studio-path core-evolution worlds-kernel-lib worlds-kernel worlds-kernel-test test-kernel-command-batch test-k0-a-sanitize audit-k0-a test-k0-b-entities test-k0-b-commands test-k0-b-events test-k0-b-determinism test-k0-b-sanitize demo-k0-b audit-k0-b test-k0-c-random test-k0-c-hash test-k0-c-observability test-k0-c-determinism test-k0-c-optimization-determinism test-k0-c-sanitize demo-k0-c audit-k0-c demo-k0-d test-k0-d-config test-k0-d-artifacts test-k0-d-determinism test-k0-d-optimization-determinism test-k0-d-corruption test-k0-d-stress test-k0-d-long-run test-k0-d-posix-smoke test-k0-d-sanitize test-k0-external-consumer audit-k0-d audit-k0 clean-worlds-kernel test test-architecture test-docs test-analyzer audit-d1-build-products audit-d1-api test-d1-determinism test-d1-corruption test-d1-lifecycle-stress test-d1-optimization-determinism test-d1-posix-headless test-d1-portability test-d1-long-run test-d1-symbols benchmark-d1 scenario-d1-b audit-d1-b audit-d1 test-version test-api-baseline test-api-baseline-regressions release-core release-headless release-studio release-all test-release-build test-external-consumer package-release test-release-integrity test-release-packages test-studio-source-contracts test-studio-runtime-layout audit-d1-c-automated audit-d1-c test-working-memory test-associative-memory test-sequence-prediction test-c6-checkpoints test-c6-integration test-c6-long test-agent-io test-sensor-encoder test-action-decoder test-agent-cycle test-agent-cycle-checkpoint test-c7-integration test-c7-evolution test-c7-long-run test-c7 scenario-working-memory scenario-associative-memory scenario-sequence-prediction scenario-sequence-prediction-context scenario-c6-suite scenario-sensor-encoding scenario-action-decoding scenario-agent-cycle scenario-agent-cycle-checkpoint scenario-c7-integrated-audit check-c6 check-c7 test-k1-a-scalar test-k1-a-space test-k1-a-transform test-k1-a-determinism test-k1-a-optimization-determinism test-k1-a-stress test-k1-a-sanitize test-k1-a-posix-smoke demo-k1-a audit-k1-a test-k1-b1-occupancy test-k1-b1-overlap test-k1-b1-conflicts test-k1-b1-determinism test-k1-b1-optimization-determinism test-k1-b1-stress test-k1-b1-sanitizer-classification test-k1-b1-sanitize test-k1-b1-posix-smoke demo-k1-b1 audit-k1-b1 test-k1-b2-movement test-k1-b2-determinism test-k1-b2-optimization-determinism test-k1-b2-stress test-k1-b2-sanitizer-classification test-k1-b2-sanitize test-k1-b2-posix-smoke demo-k1-b2 audit-k1-b2 test-k1-c1-spatial-links test-k1-c1-hash test-k1-c1-determinism test-k1-c1-optimization-determinism test-k1-c1-sanitizer-classification test-k1-c1-sanitize test-k1-c1-posix-smoke audit-k1-c1
 
 all: test
 
@@ -20,6 +23,20 @@ help:
 	@echo Comandos do monorepo miniSNN:
 	@echo   mingw32-make core-lib         - compila somente libminisnn_core.a
 	@echo   mingw32-make core             - compila biblioteca e apps headless
+	@echo   mingw32-make demo-k1-c4       - executa o demo integrado de spatial links
+	@echo   mingw32-make audit-k1-c4      - executa a validacao completa do fechamento K1-C4
+	@echo   mingw32-make audit-k2-a       - audita snapshot canonico V1 do Worlds Kernel
+	@echo   mingw32-make demo-k2-b        - executa save/load e restore do snapshot V1
+	@echo   mingw32-make check-k2-b       - valida os artefatos do demo de persistencia V1
+	@echo   mingw32-make audit-k2-b       - audita importacao, restore e save/load K2-B
+	@echo   mingw32-make demo-k2-c        - executa command log e replay deterministico
+	@echo   mingw32-make check-k2-c       - valida os artefatos do replay K2-C
+	@echo   mingw32-make demo-k2-d        - executa a prova final A/B/C de persistencia K2-D
+	@echo   mingw32-make test-k2-d-persistence - valida 1000 ticks e checkpoints multiplos K2-D
+	@echo   mingw32-make check-k2-d       - valida state-binding e persistencia K2-D
+	@echo   mingw32-make audit-k2-d       - fecha a auditoria final K2
+	@echo   mingw32-make audit-k2         - executa a auditoria autoritativa completa de K2
+	@echo   mingw32-make audit-k2-c       - audita o fechamento K2-A/B/C
 	@echo   mingw32-make core-headless    - compila runners headless
 	@echo   mingw32-make core-test         - executa testes sem compilar Studio
 	@echo   mingw32-make core-studio      - compila o miniSNN Studio, sem abrir
@@ -27,6 +44,103 @@ help:
 	@echo   mingw32-make studio-path      - mostra o caminho do executavel do Studio
 	@echo   Abrir miniSNN Studio.cmd      - launcher clicavel para o uso normal
 	@echo   mingw32-make core-evolution   - compila o runner de neuroevolucao
+	@echo   mingw32-make worlds-kernel-lib - compila somente a biblioteca Worlds Kernel
+	@echo   mingw32-make worlds-kernel     - compila a biblioteca e o demo Worlds Kernel
+	@echo   mingw32-make worlds-kernel-test - executa os testes Worlds Kernel
+	@echo   mingw32-make test-kernel-command-batch - valida rollback provisorio no Worlds Kernel
+	@echo   mingw32-make worlds-domain      - compila o produto Worlds Domain WD0
+	@echo   mingw32-make worlds-domain-test - executa os testes do Worlds Domain
+	@echo   mingw32-make demo-wd0           - gera o demo semantico deterministico WD0
+	@echo   mingw32-make check-wd0          - valida os artefatos semanticos WD0
+	@echo   mingw32-make audit-wd0          - executa a auditoria completa do Worlds Domain
+	@echo   mingw32-make test-wd1-snapshot    - valida captura, restore, binding e corrupcao WD1
+	@echo   mingw32-make test-wd1-file-roundtrip - valida save/load atomico WD1
+	@echo   mingw32-make demo-wd1             - gera o demo de persistencia semantica WD1
+	@echo   mingw32-make check-wd1            - valida o golden do Domain Snapshot V1
+	@echo   mingw32-make test-wd1-golden-portability - valida LF e rejeicao semantica do golden WD1
+	@echo   mingw32-make audit-wd1            - executa a auditoria focada de persistencia Domain
+	@echo   mingw32-make worlds-brain-bridge - compila a biblioteca e demo WB0
+	@echo   mingw32-make test-wb0-core-integration - valida Bridge com Core real
+	@echo   mingw32-make demo-wb0           - gera artefatos deterministas do Brain Bridge
+	@echo   mingw32-make check-wb0          - valida conteudo dos artefatos WB0
+	@echo   mingw32-make audit-wb0          - executa a auditoria completa WB0
+	@echo   mingw32-make test-k0-a-sanitize - executa a regressao ASan/UBSan K0-A
+	@echo   mingw32-make audit-k0-a        - audita a fundacao K0-A do Worlds Kernel
+	@echo   mingw32-make test-k0-b-entities - valida IDs e registro K0-B
+	@echo   mingw32-make test-k0-b-commands - valida fila e ordenacao K0-B
+	@echo   mingw32-make test-k0-b-events  - valida eventos e conflitos K0-B
+	@echo   mingw32-make test-k0-b-determinism - valida determinismo K0-B
+	@echo   mingw32-make test-k0-b-sanitize - executa ASan/UBSan K0-B
+	@echo   mingw32-make demo-k0-b         - executa o demo K0-B
+	@echo   mingw32-make audit-k0-b        - audita entidades, comandos e eventos K0-B
+	@echo   mingw32-make test-k0-c-random  - valida PRNG e atomicidade K0-C
+	@echo   mingw32-make test-k0-c-hash    - valida hash canonico K0-C
+	@echo   mingw32-make test-k0-c-observability - valida diagnosticos K0-C
+	@echo   mingw32-make test-k0-c-determinism - valida determinismo K0-C
+	@echo   mingw32-make test-k0-c-optimization-determinism - compara O0/O2 K0-C
+	@echo   mingw32-make test-k0-c-sanitize - executa ASan/UBSan K0-C
+	@echo   mingw32-make demo-k0-c         - executa o demo de PRNG/hash K0-C
+	@echo   mingw32-make audit-k0-c        - audita PRNG, hash e observabilidade K0-C
+	@echo   mingw32-make demo-k0-d         - executa o cenario integrado Worlds K0-D
+	@echo   mingw32-make test-k0-d-config  - valida configuracao INI K0-D
+	@echo   mingw32-make test-k0-d-artifacts - valida artefatos e atomicidade K0-D
+	@echo   mingw32-make test-k0-d-determinism - valida processos e texto equivalente K0-D
+	@echo   mingw32-make test-k0-d-optimization-determinism - compara K0-D -O0/-O2
+	@echo   mingw32-make test-k0-d-corruption - valida corrupcao do parser K0-D
+	@echo   mingw32-make test-k0-d-stress  - executa stress deterministico K0-D
+	@echo   mingw32-make test-k0-d-long-run - executa long run K0-D
+	@echo   mingw32-make test-k0-d-posix-smoke - compila o app K0-D em POSIX quando disponivel
+	@echo   mingw32-make test-k0-d-sanitize - executa sanitizers K0-D quando disponivel
+	@echo   mingw32-make test-k0-external-consumer - valida consumidor externo Worlds
+	@echo   mingw32-make audit-k0-d        - audita entrega integrada K0-D
+	@echo   mingw32-make audit-k0          - fecha a fundacao deterministica K0
+	@echo   mingw32-make test-k1-a-space   - valida espaco fixed-point e placement K1-A
+	@echo   mingw32-make test-k1-a-transform - valida transforms, conflitos e hash K1-A
+	@echo   mingw32-make demo-k1-a         - executa o demo espacial K1-A
+	@echo   mingw32-make audit-k1-a        - audita a fundacao espacial K1-A
+	@echo   mingw32-make test-k1-b1-occupancy - valida AABB, masks e lifecycle K1-B1
+	@echo   mingw32-make test-k1-b1-overlap - valida contato e sobreposicao AABB K1-B1
+	@echo   mingw32-make test-k1-b1-conflicts - valida conflitos e related_entity K1-B1
+	@echo   mingw32-make test-k1-b1-determinism - valida determinismo K1-B1
+	@echo   mingw32-make test-k1-b1-optimization-determinism - compara K1-B1 em -O0/-O2
+	@echo   mingw32-make test-k1-b1-stress - executa stress deterministico K1-B1
+	@echo   mingw32-make test-k1-b1-sanitizer-classification - valida classificacao sanitizer K1-B1
+	@echo   mingw32-make test-k1-b1-sanitize - executa ASan/UBSan K1-B1 quando disponivel
+	@echo   mingw32-make test-k1-b1-posix-smoke - executa smoke POSIX K1-B1 quando disponivel
+	@echo   mingw32-make demo-k1-b1         - executa o demo de ocupacao e barreiras K1-B1
+	@echo   mingw32-make audit-k1-b1        - audita K0, K1-A e K1-B1
+	@echo   mingw32-make test-k1-b2-movement - valida deslocamento atomico K1-B2
+	@echo   mingw32-make test-k1-b2-determinism - repete a trajetoria K1-B2
+	@echo   mingw32-make test-k1-b2-optimization-determinism - compara K1-B2 em -O0/-O2
+	@echo   mingw32-make test-k1-b2-stress - executa stress K1-B2
+	@echo   mingw32-make test-k1-b2-sanitizer-classification - valida classificacao sanitizer K1-B2
+	@echo   mingw32-make test-k1-b2-sanitize - executa ASan/UBSan K1-B2 quando disponivel
+	@echo   mingw32-make test-k1-b2-posix-smoke - executa smoke POSIX K1-B2 quando disponivel
+	@echo   mingw32-make demo-k1-b2         - executa o demo de movimento K1-B2
+	@echo   mingw32-make audit-k1-b2        - audita K0, K1-A, K1-B1 e K1-B2
+	@echo   mingw32-make test-k1-c1-spatial-links - valida floresta e lifecycle K1-C1
+	@echo   mingw32-make test-k1-c1-hash - valida state hash V5 K1-C1
+	@echo   mingw32-make test-k1-c1-determinism - repete a trajetoria K1-C1
+	@echo   mingw32-make test-k1-c1-optimization-determinism - compara K1-C1 em -O0/-O2
+	@echo   mingw32-make test-k1-c1-sanitizer-classification - valida classificacao sanitizer K1-C1
+	@echo   mingw32-make test-k1-c1-sanitize - executa ASan/UBSan K1-C1
+	@echo   mingw32-make test-k1-c1-posix-smoke - executa smoke POSIX K1-C1
+	@echo   mingw32-make audit-k1-c1        - audita spatial links e state hash V5 K1-C1
+	@echo   mingw32-make test-k1-c2-subtree-movement - valida translacao rigida C2
+	@echo   mingw32-make audit-k1-c2        - audita translacao de subarvore C2
+	@echo   mingw32-make test-k1-c3-ordering - valida matriz de ordenacao e conflitos C3
+	@echo   mingw32-make test-k1-c3-invariants - valida corrupcao e invariantes C3
+	@echo   mingw32-make test-k1-c3-limits - valida limites e capacidades C3
+	@echo   mingw32-make test-k1-c3-failure-atomicity - valida atomicidade sob falha C3
+	@echo   mingw32-make test-k1-c3-long-run - executa long run deterministico C3
+	@echo   mingw32-make test-k1-c3-hash - valida V5 com auditoria C3
+	@echo   mingw32-make test-k1-c3-determinism - repete o long run C3
+	@echo   mingw32-make test-k1-c3-optimization-determinism - compara C3 em -O0/-O2
+	@echo   mingw32-make test-k1-c3-sanitizer-classification - valida classificacao sanitizer C3
+	@echo   mingw32-make test-k1-c3-sanitize - executa ASan/UBSan C3 quando disponivel
+	@echo   mingw32-make test-k1-c3-posix-smoke - executa smoke POSIX C3 quando disponivel
+	@echo   mingw32-make audit-k1-c3        - audita ordering e hardening C3
+	@echo   mingw32-make clean-worlds-kernel - limpa somente outputs Worlds Kernel
 	@echo   mingw32-make audit-d1-build-products - audita separacao dos produtos
 	@echo   mingw32-make audit-d1-api     - audita API publica candidata
 	@echo   mingw32-make test-d1-determinism - valida matriz deterministica D1-B
@@ -78,6 +192,8 @@ help:
 	@echo   mingw32-make check-c7          - verifica C7.1-C7.5-B e fecha C7
 	@echo   mingw32-make test             - testes do Core e arquitetura do monorepo
 	@echo   mingw32-make test-architecture - valida isolamento e estrutura M1
+	@echo   mingw32-make test-docs         - valida documentacao do Core e monorepo
+	@echo   mingw32-make test-analyzer     - executa analise estatica do Core
 	@echo   mingw32-make target-do-core - encaminha targets legados ao Core
 
 core:
@@ -106,6 +222,86 @@ studio-path:
 
 core-evolution:
 	$(MAKE) -C $(CORE_DIR) evolution-build
+
+worlds-kernel-lib:
+	$(MAKE) -C $(WORLDS_KERNEL_DIR) lib
+
+worlds-kernel:
+	$(MAKE) -C $(WORLDS_KERNEL_DIR) all
+
+worlds-kernel-test:
+	$(MAKE) -C $(WORLDS_KERNEL_DIR) test
+
+test-kernel-command-batch:
+	$(MAKE) -C $(WORLDS_KERNEL_DIR) test-kernel-command-batch
+
+worlds-domain-lib:
+	$(MAKE) -C $(WORLDS_DOMAIN_DIR) lib
+
+worlds-domain:
+	$(MAKE) -C $(WORLDS_DOMAIN_DIR) all
+
+worlds-domain-test:
+	$(MAKE) -C $(WORLDS_DOMAIN_DIR) test
+
+test-wd0-domain test-wd0-actions test-wd0-perception test-wd0-invariants test-wd0-atomicity test-wd0-stress test-wd0-determinism test-wd0-optimization-determinism test-wd0-sanitizer-classification test-wd0-sanitize test-wd0-posix-smoke demo-wd0 check-wd0:
+	$(MAKE) -C $(WORLDS_DOMAIN_DIR) $@
+
+test-wd1-snapshot test-wd1-restore test-wd1-corruption test-wd1-file-roundtrip test-wd1-golden-portability test-wd1-determinism test-wd1-optimization-determinism test-wd1-sanitizer-classification test-wd1-sanitize test-wd1-posix-smoke demo-wd1 check-wd1:
+	$(MAKE) -C $(WORLDS_DOMAIN_DIR) $@
+
+audit-wd0: test-architecture test-docs test-analyzer audit-k2 test-kernel-command-batch
+	$(MAKE) -C $(WORLDS_DOMAIN_DIR) audit-wd0
+
+audit-wd1: test-architecture test-docs test-analyzer audit-wd0 audit-wb0
+	$(MAKE) -C $(WORLDS_DOMAIN_DIR) audit-wd1
+
+clean-worlds-domain:
+	$(MAKE) -C $(WORLDS_DOMAIN_DIR) clean
+
+worlds-brain-bridge-lib:
+	$(MAKE) -C $(WORLDS_BRAIN_BRIDGE_DIR) lib
+
+worlds-brain-bridge:
+	$(MAKE) -C $(WORLDS_BRAIN_BRIDGE_DIR) all
+
+worlds-brain-bridge-test:
+	$(MAKE) -C $(WORLDS_BRAIN_BRIDGE_DIR) test
+
+test-wb0-encoder test-wb0-decoder test-wb0-binding test-wb0-core-integration test-wb0-cache test-wb0-failure-retry test-wb0-multi-organism test-wb0-invariants test-wb0-determinism test-wb0-optimization-determinism test-wb0-sanitizer-classification test-wb0-sanitize test-wb0-posix-smoke demo-wb0 check-wb0:
+	$(MAKE) -C $(WORLDS_BRAIN_BRIDGE_DIR) $@
+
+audit-wb0: test-architecture test-docs test-analyzer audit-wd0
+	$(MAKE) -C $(WORLDS_BRAIN_BRIDGE_DIR) audit-wb0
+
+test-k0-a-sanitize:
+	$(MAKE) -C $(WORLDS_KERNEL_DIR) sanitize
+
+audit-k0-a:
+	$(MAKE) -C $(WORLDS_KERNEL_DIR) audit-k0-a
+
+test-k0-b-entities test-k0-b-commands test-k0-b-events test-k0-b-determinism test-k0-b-sanitize demo-k0-b audit-k0-b test-k0-c-random test-k0-c-hash test-k0-c-observability test-k0-c-determinism test-k0-c-optimization-determinism test-k0-c-sanitize demo-k0-c audit-k0-c demo-k0-d test-k0-d-config test-k0-d-artifacts test-k0-d-determinism test-k0-d-optimization-determinism test-k0-d-corruption test-k0-d-stress test-k0-d-long-run test-k0-d-posix-smoke test-k0-d-sanitize test-k0-external-consumer audit-k0-d:
+	$(MAKE) -C $(WORLDS_KERNEL_DIR) $@
+
+audit-k0: test-architecture test-docs
+	$(MAKE) -C $(WORLDS_KERNEL_DIR) audit-k0
+
+test-k1-a-scalar test-k1-a-space test-k1-a-transform test-k1-a-determinism test-k1-a-optimization-determinism test-k1-a-stress test-k1-a-sanitize test-k1-a-posix-smoke demo-k1-a audit-k1-a test-k1-b1-occupancy test-k1-b1-overlap test-k1-b1-conflicts test-k1-b1-determinism test-k1-b1-optimization-determinism test-k1-b1-stress test-k1-b1-sanitizer-classification test-k1-b1-sanitize test-k1-b1-posix-smoke demo-k1-b1 audit-k1-b1 test-k1-b2-movement test-k1-b2-determinism test-k1-b2-optimization-determinism test-k1-b2-stress test-k1-b2-sanitizer-classification test-k1-b2-sanitize test-k1-b2-posix-smoke demo-k1-b2 audit-k1-b2 test-k1-c1-spatial-links test-k1-c1-hash test-k1-c1-determinism test-k1-c1-optimization-determinism test-k1-c1-sanitizer-classification test-k1-c1-sanitize test-k1-c1-posix-smoke:
+	$(MAKE) -C $(WORLDS_KERNEL_DIR) $@
+
+test-k1-c2-subtree-movement test-k1-c2-events test-k1-c2-hash test-k1-c2-determinism test-k1-c2-optimization-determinism test-k1-c2-sanitizer-classification test-k1-c2-sanitize test-k1-c2-posix-smoke:
+	$(MAKE) -C $(WORLDS_KERNEL_DIR) $@
+
+audit-k1-c2: test-architecture test-docs
+	$(MAKE) -C $(WORLDS_KERNEL_DIR) audit-k1-c2
+audit-k1-c1: test-architecture test-docs
+	$(MAKE) -C $(WORLDS_KERNEL_DIR) audit-k1-c1
+
+test-docs test-analyzer:
+	$(MAKE) -C $(CORE_DIR) $@
+
+clean-worlds-kernel:
+	$(MAKE) -C $(WORLDS_KERNEL_DIR) clean
 
 audit-d1-build-products:
 	$(MAKE) -C $(CORE_DIR) audit-d1-build-products
@@ -221,3 +417,59 @@ clean-tests:
 # Targets historicos, como check-c4 e scenario-random, continuam delegados ao Core.
 %:
 	$(MAKE) -C $(CORE_DIR) $@
+
+.PHONY: test-k1-c2-subtree-movement test-k1-c2-events test-k1-c2-hash test-k1-c2-determinism test-k1-c2-optimization-determinism test-k1-c2-sanitizer-classification test-k1-c2-sanitize test-k1-c2-posix-smoke audit-k1-c2
+
+.PHONY: test-k1-c3-ordering test-k1-c3-invariants test-k1-c3-limits test-k1-c3-failure-atomicity test-k1-c3-long-run test-k1-c3-hash test-k1-c3-determinism test-k1-c3-optimization-determinism test-k1-c3-sanitizer-classification test-k1-c3-sanitize test-k1-c3-posix-smoke audit-k1-c3
+
+test-k1-c3-ordering test-k1-c3-invariants test-k1-c3-limits test-k1-c3-failure-atomicity test-k1-c3-long-run test-k1-c3-hash test-k1-c3-determinism test-k1-c3-optimization-determinism test-k1-c3-sanitizer-classification test-k1-c3-sanitize test-k1-c3-posix-smoke:
+	$(MAKE) -C $(WORLDS_KERNEL_DIR) $@
+
+test-k1-c4-demo test-k1-c4-config test-k1-c4-determinism test-k1-c4-stress test-k1-c4-optimization-determinism test-k1-c4-sanitizer-classification test-k1-c4-sanitize test-k1-c4-posix-smoke demo-k1-c4 check-k1-c4 audit-k1-c4 audit-k1-c:
+	$(MAKE) -C $(WORLDS_KERNEL_DIR) $@
+
+# The Kernel chain reaches audit-k0 through K1-A/B/C. These global gates make
+# the root audit-k1 target the authoritative monorepo closure gate.
+audit-k1: test-architecture test-docs test-analyzer
+	$(MAKE) -C $(WORLDS_KERNEL_DIR) audit-k1
+audit-k1-c3: test-architecture test-docs
+	$(MAKE) -C $(WORLDS_KERNEL_DIR) audit-k1-c3
+
+.PHONY: test-k2-a-snapshot test-k2-a-format test-k2-a-canonical test-k2-a-failure-atomicity test-k2-a-long-run test-k2-a-determinism test-k2-a-optimization-determinism test-k2-a-sanitizer-classification test-k2-a-sanitize test-k2-a-posix-smoke audit-k2-a
+
+test-k2-a-snapshot test-k2-a-format test-k2-a-canonical test-k2-a-failure-atomicity test-k2-a-long-run test-k2-a-determinism test-k2-a-optimization-determinism test-k2-a-sanitizer-classification test-k2-a-sanitize test-k2-a-posix-smoke:
+	$(MAKE) -C $(WORLDS_KERNEL_DIR) $@
+
+audit-k2-a: test-architecture test-docs test-analyzer
+	$(MAKE) -C $(WORLDS_KERNEL_DIR) audit-k2-a
+.PHONY: test-k2-b-import test-k2-b-restore test-k2-b-malformed test-k2-b-truncation test-k2-b-failure-atomicity test-k2-b-roundtrip test-k2-b-continuation test-k2-b-checkpoints test-k2-b-file-roundtrip test-k2-b-determinism test-k2-b-optimization-determinism test-k2-b-sanitizer-classification test-k2-b-sanitize test-k2-b-posix-smoke demo-k2-b check-k2-b audit-k2-b
+
+test-k2-b-import test-k2-b-restore test-k2-b-malformed test-k2-b-truncation test-k2-b-failure-atomicity test-k2-b-roundtrip test-k2-b-continuation test-k2-b-checkpoints test-k2-b-file-roundtrip test-k2-b-determinism test-k2-b-optimization-determinism test-k2-b-sanitizer-classification test-k2-b-sanitize test-k2-b-posix-smoke demo-k2-b check-k2-b:
+	$(MAKE) -C $(WORLDS_KERNEL_DIR) $@
+
+audit-k2-b: test-architecture test-docs test-analyzer
+	$(MAKE) -C $(WORLDS_KERNEL_DIR) audit-k2-b
+.PHONY: test-k2-c-command-log test-k2-c-format test-k2-c-malformed test-k2-c-failure-atomicity test-k2-c-replay test-k2-c-snapshot-replay test-k2-c-long-run test-k2-c-determinism test-k2-c-optimization-determinism test-k2-c-sanitizer-classification test-k2-c-sanitize test-k2-c-posix-smoke demo-k2-c check-k2-c audit-k2-c
+
+test-k2-c-command-log test-k2-c-format test-k2-c-malformed test-k2-c-failure-atomicity test-k2-c-replay test-k2-c-snapshot-replay test-k2-c-long-run test-k2-c-determinism test-k2-c-optimization-determinism test-k2-c-sanitizer-classification test-k2-c-sanitize test-k2-c-posix-smoke demo-k2-c check-k2-c:
+	$(MAKE) -C $(WORLDS_KERNEL_DIR) $@
+
+audit-k2-c: test-architecture test-docs test-analyzer
+	$(MAKE) -C $(WORLDS_KERNEL_DIR) audit-k2-c
+.PHONY: test-k2-d-state-binding test-k2-d-negative test-k2-d-persistence test-k2-d-long-run test-k2-d-determinism test-k2-d-optimization-determinism test-k2-d-sanitizer-classification test-k2-d-sanitize test-k2-d-posix-smoke test-k2-d-integrated test-k2-d-multi-checkpoint test-k2-d-malformed test-k2-d-failure-atomicity demo-k2-d check-k2-d audit-k2-d audit-k2
+
+test-k2-d-state-binding test-k2-d-negative test-k2-d-persistence test-k2-d-long-run test-k2-d-determinism test-k2-d-optimization-determinism test-k2-d-sanitizer-classification test-k2-d-sanitize test-k2-d-posix-smoke test-k2-d-integrated test-k2-d-multi-checkpoint test-k2-d-malformed test-k2-d-failure-atomicity demo-k2-d check-k2-d:
+	$(MAKE) -C $(WORLDS_KERNEL_DIR) $@
+
+audit-k2-d: test-architecture test-docs test-analyzer
+	$(MAKE) -C $(WORLDS_KERNEL_DIR) audit-k2-d
+
+audit-k2: test-architecture test-docs test-analyzer
+	$(MAKE) -C $(WORLDS_KERNEL_DIR) audit-k2
+.PHONY: worlds-domain-lib worlds-domain worlds-domain-test clean-worlds-domain test-wd0-domain test-wd0-actions test-wd0-perception test-wd0-invariants test-wd0-atomicity test-wd0-stress test-wd0-determinism test-wd0-optimization-determinism test-wd0-sanitizer-classification test-wd0-sanitize test-wd0-posix-smoke demo-wd0 check-wd0 audit-wd0
+.PHONY: test-wd1-snapshot test-wd1-restore test-wd1-corruption test-wd1-file-roundtrip test-wd1-golden-portability test-wd1-determinism test-wd1-optimization-determinism test-wd1-sanitizer-classification test-wd1-sanitize test-wd1-posix-smoke demo-wd1 check-wd1 audit-wd1
+
+.PHONY: worlds-brain-bridge-lib worlds-brain-bridge worlds-brain-bridge-test clean-worlds-brain-bridge test-wb0-encoder test-wb0-decoder test-wb0-binding test-wb0-core-integration test-wb0-cache test-wb0-failure-retry test-wb0-multi-organism test-wb0-invariants test-wb0-determinism test-wb0-optimization-determinism test-wb0-sanitizer-classification test-wb0-sanitize test-wb0-posix-smoke demo-wb0 check-wb0 audit-wb0
+
+clean-worlds-brain-bridge:
+	$(MAKE) -C $(WORLDS_BRAIN_BRIDGE_DIR) clean

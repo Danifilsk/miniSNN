@@ -1,0 +1,6 @@
+checkpoint_tick=2
+final_tick=3
+snapshot_size=666
+snapshot_digest=0x2CAD2D920821D6A8
+checkpoint_state_hash=0x4446D85DE86FA9E0
+final_state_hash=0xF91C42B809E2E4F5
