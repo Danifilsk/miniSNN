@@ -43,6 +43,33 @@ The deterministic demo writes only below build/worlds/brain_bridge/results/wb0_d
 - decisions.csv
 - world_hashes.csv
 
+## WB1 trainable brain
+
+`MiniSNNWorldsTrainableBrain` is an optional composition layer above WB0. Its
+initial network is produced only by the public deterministic Core topology
+factory (`random`, `small_world`, or `fully_connected`); it contains no
+world-task-specific sensor-to-action wiring. Sensor and action identities remain
+an I/O schema contract, not initial connections.
+
+A Domain action result is accepted once for its pending decision. A positive
+reward queued while the brain is in `TRAINING` is drained at the completed
+boundary before `EVALUATION` disables reward and plasticity. Evaluation then
+keeps learned weights frozen; `reset_episode` clears transient cycle state and
+preserves learned weights. Saving is rejected while an external action result or
+queued internal feedback is pending. After that boundary, save/load uses the
+caller-provided relative checkpoint path plus a versioned sidecar directory; it
+does not require an absolute path and does not weaken the Core checkpoint
+contract.
+
+The generic minisnn_worlds_trainable_brain_apply_terminal_feedback adapter
+accepts a caller-supplied finite reward only after the external action result
+has been consumed. It marks an AgentCycle terminal boundary exactly once and
+knows no Domain cause, species, food, or scenario semantics.
+
+demo-wb1 records the generic topology/configuration signatures, initial and
+learned weight signatures, episode-reset and frozen-evaluation signatures, and
+the loaded signature. The demo is infrastructure evidence only: it does not
+claim a target fish-performance level.
 ## Scope and limits
 
 WB0 implements no concrete species, learning, reward, evolution, reproduction,

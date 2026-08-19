@@ -16,6 +16,7 @@
 #include "minisnn.h"
 #include "minisnn_version.h"
 #include "studio_runtime_layout.h"
+#include "studio_product_launcher.h"
 
 #define APP_TITLE "miniSNN Studio - Powered by miniSNN Core " MINISNN_VERSION_STRING
 #define TEXT_BUFFER_SIZE 128
@@ -117,6 +118,7 @@
 #define IDC_BTN_OPEN_ASSOCIATIVE_MEMORY 2035
 #define IDC_BTN_SEQUENCE_PREDICTION 2036
 #define IDC_BTN_OPEN_SEQUENCE_PREDICTION 2037
+#define IDC_BTN_WORLDS 2038
 
 #define IDC_STATUS 3001
 #define IDC_SUMMARY 3002
@@ -352,6 +354,7 @@ typedef struct
     HWND homeostasis_button;
     HWND reward_button;
     HWND evolution_button;
+    HWND worlds_button;
     HWND working_memory_button;
     HWND working_memory_report_button;
     HWND associative_memory_button;
@@ -653,6 +656,42 @@ static void show_error(const char *title, const char *message)
 static void show_info(const char *title, const char *message)
 {
     MessageBoxA(g_app.window, message, title, MB_ICONINFORMATION | MB_OK);
+}
+
+static void open_minisnn_worlds(void)
+{
+    char studio_executable_path[MAX_PATH];
+    char worlds_executable_path[MAX_PATH];
+    char error_message[STUDIO_PRODUCT_LAUNCHER_ERROR_SIZE];
+    DWORD path_length;
+
+    path_length = GetModuleFileNameA(NULL, studio_executable_path,
+                                     sizeof(studio_executable_path));
+    if (path_length == 0U || path_length >= sizeof(studio_executable_path))
+    {
+        show_error("miniSNN Worlds",
+                   "Nao foi possivel localizar o executavel do miniSNN Studio.");
+        return;
+    }
+    if (!studio_product_launcher_resolve(
+            studio_executable_path,
+            worlds_executable_path,
+            sizeof(worlds_executable_path),
+            error_message,
+            sizeof(error_message)))
+    {
+        show_error("miniSNN Worlds", error_message);
+        return;
+    }
+    if (!studio_product_launcher_launch(
+            worlds_executable_path,
+            error_message,
+            sizeof(error_message)))
+    {
+        show_error("miniSNN Worlds", error_message);
+        return;
+    }
+    set_status("MINISNN WORLDS INICIADO");
 }
 
 static int topology_uses_density(const char *topology)
@@ -8244,6 +8283,15 @@ static void create_controls(HWND hwnd)
         280,
         STUDIO_BUTTON_HEIGHT);
 
+    g_app.worlds_button = create_button(
+        hwnd,
+        "ABRIR MINISNN WORLDS",
+        IDC_BTN_WORLDS,
+        right_x,
+        50,
+        340,
+        STUDIO_BUTTON_HEIGHT);
+
     g_app.execution_section_label = create_static(
         hwnd,
         "[ EXECUCAO E RESULTADOS ]",
@@ -8344,6 +8392,10 @@ static void layout_controls(HWND hwnd)
     if (summary_height < 140)
         summary_height = 140;
 
+    /* The product launcher is an always-visible entry point beside execution controls. */
+    ShowWindow(g_app.worlds_button, SW_SHOWNA);
+    EnableWindow(g_app.worlds_button, TRUE);
+    MoveWindow(g_app.worlds_button, right_x, 50, content_width, STUDIO_BUTTON_HEIGHT, TRUE);
     MoveWindow(g_app.execution_section_label, right_x, 92, 174, 24, TRUE);
     MoveWindow(g_app.diagnostics_label, right_x + 178, 94, 54, 24, TRUE);
     MoveWindow(g_app.diagnostics_combo, right_x + 230, 90, 110, 120, TRUE);
@@ -8717,6 +8769,9 @@ static LRESULT CALLBACK window_proc(
         {
             switch (LOWORD(wparam))
             {
+            case IDC_BTN_WORLDS:
+                open_minisnn_worlds();
+                return 0;
             case IDC_BTN_NEW:
                 reset_to_default();
                 return 0;

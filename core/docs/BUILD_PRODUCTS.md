@@ -13,6 +13,12 @@ o executavel em uma automacao.
 O produto clicavel e `build/studio/bin/minisnn_studio.exe`, ligado contra a
 biblioteca neural `build/core/lib/libminisnn_core.a`.
 
+O consumidor visual Worlds G0-B usa a mesma convencao de entrada. No Makefile
+da raiz do monorepo, o alvo `worlds` gera `build/studio/bin/minisnn_studio.exe` e
+`build/studio/bin/minisnn_worlds.exe` lado a lado. O Worlds e independente do
+Studio e localiza seus sprites a partir do proprio executavel; o Studio apenas
+resolve e inicia o executavel vizinho pelo botao `ABRIR MINISNN WORLDS`.
+
 ## O que e cada produto
 
 `miniSNN Core` e a biblioteca neural headless. Sua API publica esta em
@@ -47,6 +53,7 @@ miniSNN Core library
 | `mingw32-make core-test` | Suite de testes sem GUI. |
 | `mingw32-make core-evolution` | Runner de evolucao em `build/tools/bin`. |
 | `mingw32-make core-studio` | Compila o Studio explicitamente, sem abrir. |
+| `worlds` (alvo da raiz) | Compila Studio e Worlds como executaveis vizinhos em `build/studio/bin`. |
 | `mingw32-make studio` | Compila quando necessario e abre o Studio. |
 | `mingw32-make studio-path` | Mostra `build/studio/bin/minisnn_studio.exe`. |
 | `mingw32-make clean-core` | Biblioteca e objetos do Core. |

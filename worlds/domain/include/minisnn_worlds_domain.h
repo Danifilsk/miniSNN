@@ -8,9 +8,13 @@
 #include "minisnn_worlds_kernel.h"
 
 #define MINISNN_WORLDS_DOMAIN_STATE_HASH_VERSION_V1 UINT32_C(1)
+#define MINISNN_WORLDS_DOMAIN_STATE_HASH_VERSION_V2 UINT32_C(2)
+#define MINISNN_WORLDS_DOMAIN_STATE_HASH_VERSION \
+    MINISNN_WORLDS_DOMAIN_STATE_HASH_VERSION_V2
 #define MINISNN_WORLDS_DOMAIN_SNAPSHOT_FORMAT_VERSION_V1 UINT32_C(1)
+#define MINISNN_WORLDS_DOMAIN_SNAPSHOT_FORMAT_VERSION_V2 UINT32_C(2)
 #define MINISNN_WORLDS_DOMAIN_SNAPSHOT_FORMAT_VERSION \
-    MINISNN_WORLDS_DOMAIN_SNAPSHOT_FORMAT_VERSION_V1
+    MINISNN_WORLDS_DOMAIN_SNAPSHOT_FORMAT_VERSION_V2
 
 typedef struct MiniSNNWorldsDomain MiniSNNWorldsDomain;
 typedef struct MiniSNNWorldsDomainSnapshot MiniSNNWorldsDomainSnapshot;
@@ -34,8 +38,21 @@ typedef enum
     MINISNN_WORLDS_DOMAIN_ERROR_INVARIANT_VIOLATION,
     MINISNN_WORLDS_DOMAIN_ERROR_SNAPSHOT_INVALID_FORMAT,
     MINISNN_WORLDS_DOMAIN_ERROR_SNAPSHOT_INCOMPATIBLE_KERNEL,
-    MINISNN_WORLDS_DOMAIN_ERROR_SNAPSHOT_SIZE_OVERFLOW
+    MINISNN_WORLDS_DOMAIN_ERROR_SNAPSHOT_SIZE_OVERFLOW,
+    MINISNN_WORLDS_DOMAIN_ERROR_ACTOR_DEAD
 } MiniSNNWorldsDomainError;
+
+typedef enum
+{
+    MINISNN_WORLDS_DOMAIN_LIFE_ALIVE = 1,
+    MINISNN_WORLDS_DOMAIN_LIFE_DEAD = 2
+} MiniSNNWorldsDomainLifeState;
+
+typedef enum
+{
+    MINISNN_WORLDS_DOMAIN_DEATH_CAUSE_NONE = 0,
+    MINISNN_WORLDS_DOMAIN_DEATH_CAUSE_STARVATION = 1
+} MiniSNNWorldsDomainDeathCause;
 
 typedef enum
 {
@@ -60,7 +77,8 @@ typedef enum
     MINISNN_WORLDS_DOMAIN_ACTION_REASON_INSUFFICIENT_ENERGY,
     MINISNN_WORLDS_DOMAIN_ACTION_REASON_INVALID_ACTION,
     MINISNN_WORLDS_DOMAIN_ACTION_REASON_KERNEL_REJECTED,
-    MINISNN_WORLDS_DOMAIN_ACTION_REASON_DUPLICATE_ACTOR
+    MINISNN_WORLDS_DOMAIN_ACTION_REASON_DUPLICATE_ACTOR,
+    MINISNN_WORLDS_DOMAIN_ACTION_REASON_ACTOR_DEAD
 } MiniSNNWorldsDomainActionReason;
 
 typedef enum
@@ -68,7 +86,8 @@ typedef enum
     MINISNN_WORLDS_DOMAIN_EVENT_ACTION_APPLIED = 1,
     MINISNN_WORLDS_DOMAIN_EVENT_ACTION_REJECTED = 2,
     MINISNN_WORLDS_DOMAIN_EVENT_FOOD_CONSUMED = 3,
-    MINISNN_WORLDS_DOMAIN_EVENT_ENERGY_CHANGED = 4
+    MINISNN_WORLDS_DOMAIN_EVENT_ENERGY_CHANGED = 4,
+    MINISNN_WORLDS_DOMAIN_EVENT_ORGANISM_DIED = 5
 } MiniSNNWorldsDomainEventType;
 
 typedef struct
@@ -103,6 +122,9 @@ typedef struct
     MiniSNNWorldsDomainEnergy energy;
     MiniSNNWorldsDomainEnergy max_energy;
     MiniSNNWorldsDomainEnergy hunger;
+    MiniSNNWorldsDomainLifeState life_state;
+    MiniSNNWorldsDomainDeathCause death_cause;
+    MiniSNNWorldsTick death_tick;
 } MiniSNNWorldsDomainOrganismInfo;
 
 typedef struct
@@ -133,6 +155,7 @@ typedef struct
     MiniSNNWorldsDomainActionReason reason;
     MiniSNNWorldsDomainEnergy energy_before;
     MiniSNNWorldsDomainEnergy energy_after;
+    MiniSNNWorldsDomainDeathCause death_cause;
 } MiniSNNWorldsDomainEvent;
 
 typedef struct
@@ -209,7 +232,8 @@ MiniSNNWorldsDomainError minisnn_worlds_domain_state_hash(
     const MiniSNNWorldsDomain *domain,
     uint64_t *out_hash);
 
-/* Domain Snapshot V1 is canonical little-endian state bound to a Kernel hash/tick. */
+/* Domain Snapshot V2 is canonical little-endian state bound to a Kernel hash/tick.
+ * Readers also accept V1 snapshots, whose organisms restore as ALIVE. */
 MiniSNNWorldsDomainError minisnn_worlds_domain_snapshot_capture(
     const MiniSNNWorldsDomain *domain,
     MiniSNNWorldsDomainSnapshot **out_snapshot);
@@ -229,7 +253,7 @@ const uint8_t *minisnn_worlds_domain_snapshot_data(
 uint64_t minisnn_worlds_domain_snapshot_digest(
     const MiniSNNWorldsDomainSnapshot *snapshot);
 
-/* Copies and validates an immutable Domain Snapshot V1 byte sequence. */
+/* Copies and validates an immutable Domain Snapshot V1 or V2 byte sequence. */
 MiniSNNWorldsDomainError minisnn_worlds_domain_snapshot_from_bytes(
     const uint8_t *data,
     size_t size,
@@ -251,7 +275,8 @@ typedef enum
     MINISNN_WORLDS_DOMAIN_TESTING_CORRUPTION_TICK_DIVERGENCE,
     MINISNN_WORLDS_DOMAIN_TESTING_CORRUPTION_DUPLICATE_EVENT_ID,
     MINISNN_WORLDS_DOMAIN_TESTING_CORRUPTION_COUNTER_MISMATCH,
-    MINISNN_WORLDS_DOMAIN_TESTING_CORRUPTION_INVALID_KIND
+    MINISNN_WORLDS_DOMAIN_TESTING_CORRUPTION_INVALID_KIND,
+    MINISNN_WORLDS_DOMAIN_TESTING_CORRUPTION_INVALID_LIFECYCLE
 } MiniSNNWorldsDomainTestingCorruption;
 
 MiniSNNWorldsDomainError minisnn_worlds_domain_testing_validate_invariants(

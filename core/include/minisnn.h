@@ -27,6 +27,40 @@ typedef struct
     MiniSNNAdExConfig adex;
     MiniSNNHodgkinHuxleyConfig hodgkin_huxley;
 } MiniSNNConfig;
+/* Deterministic public topology construction for integrations that must not
+ * duplicate topology algorithms in application code. The factory never adds a
+ * connection twice and assigns outgoing weight from the source neuron type. */
+typedef enum
+{
+    MINISNN_TOPOLOGY_FACTORY_RANDOM = 0,
+    MINISNN_TOPOLOGY_FACTORY_SMALL_WORLD,
+    MINISNN_TOPOLOGY_FACTORY_FULLY_CONNECTED
+} MiniSNNTopologyFactoryKind;
+
+typedef struct
+{
+    uint32_t source;
+    uint32_t target;
+    double weight;
+    uint32_t delay;
+} MiniSNNTopologyFactoryRequiredConnection;
+
+typedef struct
+{
+    MiniSNNTopologyFactoryKind kind;
+    uint64_t seed;
+    uint32_t inhibitory_count;
+    double connection_probability;
+    uint32_t small_world_neighbors;
+    double small_world_rewire_probability;
+    double excitatory_weight;
+    double inhibitory_weight;
+    uint32_t delay;
+    int allow_self_connections;
+    int allow_inhibitory_to_inhibitory;
+    const MiniSNNTopologyFactoryRequiredConnection *required_connections;
+    uint32_t required_connection_count;
+} MiniSNNTopologyFactoryConfig;
 
 /* Criacao e destruicao */
 MiniSNN *minisnn_create(int neuron_count);
@@ -66,6 +100,10 @@ int minisnn_config_is_valid(const MiniSNNConfig *config);
 const char *minisnn_neuron_integration_method(const MiniSNN *snn);
 const char *minisnn_neuron_model_integration_method(
     MiniSNNNeuronModel model);
+MiniSNNTopologyFactoryConfig minisnn_topology_factory_default(void);
+int minisnn_topology_factory_build(
+    MiniSNN *snn,
+    const MiniSNNTopologyFactoryConfig *config);
 int minisnn_get_adex_state(
     const MiniSNN *snn,
     int neuron_id,

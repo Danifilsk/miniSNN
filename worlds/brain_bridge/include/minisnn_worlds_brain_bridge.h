@@ -12,6 +12,77 @@
 #define MINISNN_WORLDS_BRAIN_BRIDGE_MAX_CORE_STEPS UINT32_C(10000)
 
 typedef struct MiniSNNWorldsBrainBridge MiniSNNWorldsBrainBridge;
+typedef struct MiniSNNWorldsTrainableBrain MiniSNNWorldsTrainableBrain;
+
+/* WB1 retains the WB0 sensor/action contract while making the neural
+ * implementation configurable and persistent. */
+#define MINISNN_WORLDS_BRAIN_CONFIG_VERSION_V1 UINT32_C(1)
+#define MINISNN_WORLDS_BRAIN_NAME_MAX 63U
+
+typedef enum
+{
+    MINISNN_WORLDS_BRAIN_TOPOLOGY_RANDOM = 0,
+    MINISNN_WORLDS_BRAIN_TOPOLOGY_SMALL_WORLD,
+    MINISNN_WORLDS_BRAIN_TOPOLOGY_FULLY_CONNECTED
+} MiniSNNWorldsBrainTopology;
+
+typedef enum
+{
+    MINISNN_WORLDS_BRAIN_MODE_TRAINING = 0,
+    MINISNN_WORLDS_BRAIN_MODE_EVALUATION
+} MiniSNNWorldsBrainMode;
+
+typedef struct
+{
+    double eat_applied_reward;
+    double rejected_action_penalty;
+} MiniSNNWorldsBrainRewardProfile;
+
+typedef struct
+{
+    uint32_t version;
+    char brain_name[MINISNN_WORLDS_BRAIN_NAME_MAX + 1U];
+    MiniSNNWorldsBrainTopology topology;
+    uint32_t neuron_count;
+    uint32_t inhibitory_count;
+    double connection_probability;
+    uint32_t small_world_neighbors;
+    double small_world_rewire_probability;
+    double excitatory_weight;
+    double inhibitory_weight;
+    uint32_t connection_delay;
+    int allow_self_connections;
+    int allow_inhibitory_to_inhibitory;
+    /* Seed controls the deterministic Core Topology Factory. WB1 enables no
+     * other stochastic Core subsystem, so all initialization randomness is
+     * derived from this one value. */
+    uint64_t seed;
+    uint32_t decision_steps_per_tick;
+    /* Uniform, schema-neutral output population size for every action. */
+    uint32_t action_population_size;
+    MiniSNNWorldsBrainMode mode;
+    int plasticity_enabled;
+    MiniSNNWorldsBrainRewardProfile reward_profile;
+    MiniSNNConfig neural_config;
+} MiniSNNWorldsBrainConfig;
+
+typedef enum
+{
+    MINISNN_WORLDS_TRAINABLE_BRAIN_ERROR_NONE = 0,
+    MINISNN_WORLDS_TRAINABLE_BRAIN_ERROR_INVALID_ARGUMENT,
+    MINISNN_WORLDS_TRAINABLE_BRAIN_ERROR_ALLOCATION,
+    MINISNN_WORLDS_TRAINABLE_BRAIN_ERROR_DOMAIN_MISMATCH,
+    MINISNN_WORLDS_TRAINABLE_BRAIN_ERROR_UNKNOWN_ACTOR,
+    MINISNN_WORLDS_TRAINABLE_BRAIN_ERROR_NOT_ORGANISM,
+    MINISNN_WORLDS_TRAINABLE_BRAIN_ERROR_CORE_FAILURE,
+    MINISNN_WORLDS_TRAINABLE_BRAIN_ERROR_IO,
+    MINISNN_WORLDS_TRAINABLE_BRAIN_ERROR_FORMAT,
+    MINISNN_WORLDS_TRAINABLE_BRAIN_ERROR_INCOMPATIBLE,
+    MINISNN_WORLDS_TRAINABLE_BRAIN_ERROR_FEEDBACK_NOT_PENDING,
+    MINISNN_WORLDS_TRAINABLE_BRAIN_ERROR_FEEDBACK_MISMATCH,
+    MINISNN_WORLDS_TRAINABLE_BRAIN_ERROR_INVALID_MODE,
+    MINISNN_WORLDS_TRAINABLE_BRAIN_ERROR_PENDING_ACTION_RESULT
+} MiniSNNWorldsTrainableBrainError;
 
 /*
  * The Bridge owns only its binding table and same-tick decision cache. A
@@ -107,6 +178,112 @@ typedef struct
     MiniSNNWorldsBrainBridgeFallback fallback;
 } MiniSNNWorldsBrainDecisionReport;
 
+typedef struct
+{
+    uint64_t domain_tick;
+    uint64_t core_tick;
+    uint64_t total_spikes;
+    MiniSNNWorldsBrainSensorFrameV1 sensor_frame;
+    uint32_t output_scores[MINISNN_WORLDS_BRAIN_BRIDGE_ACTION_COUNT_V1];
+    MiniSNNWorldsDomainAction action;
+    MiniSNNWorldsBrainActionChannel selected_channel;
+    uint32_t core_steps_executed;
+    uint8_t tie_break_used;
+    MiniSNNWorldsBrainBridgeFallback fallback;
+    double last_reward;
+    uint8_t cache_hit;
+    uint8_t plasticity_active;
+} MiniSNNWorldsTrainableBrainReport;
+
+/* WB1 trainable brain API. The object owns all public Core AgentCycle pieces.
+ * Bind it to one Domain/actor before deciding; a second Domain is rejected. */
+MiniSNNWorldsBrainConfig minisnn_worlds_trainable_brain_config_default(void);
+int minisnn_worlds_trainable_brain_config_is_valid(
+    const MiniSNNWorldsBrainConfig *config);
+const char *minisnn_worlds_brain_topology_name(MiniSNNWorldsBrainTopology topology);
+const char *minisnn_worlds_brain_mode_name(MiniSNNWorldsBrainMode mode);
+
+MiniSNNWorldsTrainableBrain *minisnn_worlds_trainable_brain_create(
+    const MiniSNNWorldsBrainConfig *config,
+    MiniSNNWorldsTrainableBrainError *out_error);
+void minisnn_worlds_trainable_brain_destroy(
+    MiniSNNWorldsTrainableBrain **brain_ptr);
+MiniSNNWorldsTrainableBrainError minisnn_worlds_trainable_brain_last_error(
+    const MiniSNNWorldsTrainableBrain *brain);
+const char *minisnn_worlds_trainable_brain_error_string(
+    MiniSNNWorldsTrainableBrainError error);
+int minisnn_worlds_trainable_brain_get_config(
+    const MiniSNNWorldsTrainableBrain *brain,
+    MiniSNNWorldsBrainConfig *out_config);
+int minisnn_worlds_trainable_brain_bind(
+    MiniSNNWorldsTrainableBrain *brain,
+    const MiniSNNWorldsDomain *domain,
+    MiniSNNWorldsKernelEntityId actor);
+/* Changes learning in place. Evaluation disables both plasticity and reward
+ * delivery while preserving the current network and learned weights. */
+int minisnn_worlds_trainable_brain_set_mode(
+    MiniSNNWorldsTrainableBrain *brain,
+    MiniSNNWorldsBrainMode mode);
+/* Changes only the existing R-STDP update magnitude. It is rejected while a
+ * decision consequence or feedback remains pending. */
+int minisnn_worlds_trainable_brain_set_reward_learning_rate(
+    MiniSNNWorldsTrainableBrain *brain,
+    double learning_rate);
+/* Changes only the temporal decay horizon for existing R-STDP eligibility.
+ * It is rejected while a decision consequence or feedback remains pending. */
+int minisnn_worlds_trainable_brain_set_reward_eligibility_tau(
+    MiniSNNWorldsTrainableBrain *brain,
+    double eligibility_tau);
+int minisnn_worlds_trainable_brain_decide(
+    MiniSNNWorldsTrainableBrain *brain,
+    const MiniSNNWorldsDomain *domain,
+    MiniSNNWorldsKernelEntityId actor,
+    MiniSNNWorldsDomainAction *out_action,
+    MiniSNNWorldsTrainableBrainReport *out_report);
+/* External action feedback is accepted exactly once for the pending decision.
+ * The caller supplies the original Domain, actor, pre-step domain tick, and
+ * action so stale or cross-episode feedback is rejected atomically. */
+int minisnn_worlds_trainable_brain_apply_action_result(
+    MiniSNNWorldsTrainableBrain *brain,
+    const MiniSNNWorldsDomain *domain,
+    MiniSNNWorldsKernelEntityId actor,
+    MiniSNNWorldsTick decision_domain_tick,
+    const MiniSNNWorldsDomainAction *action,
+    const MiniSNNWorldsDomainActionResult *result);
+/* Delivers one generic terminal reward for the already-consumed external
+ * consequence. The caller defines the terminal semantics; WB1 never knows
+ * whether it was starvation, a time limit, or another scenario boundary.
+ * The AgentCycle rejects a second terminal delivery for the same decision. */
+int minisnn_worlds_trainable_brain_apply_terminal_feedback(
+    MiniSNNWorldsTrainableBrain *brain,
+    double reward);
+int minisnn_worlds_trainable_brain_reset_episode(
+    MiniSNNWorldsTrainableBrain *brain);
+MiniSNNWorldsTrainableBrain *minisnn_worlds_trainable_brain_full_reset(
+    const MiniSNNWorldsTrainableBrain *brain,
+    MiniSNNWorldsTrainableBrainError *out_error);
+int minisnn_worlds_trainable_brain_save(
+    const MiniSNNWorldsTrainableBrain *brain,
+    const char *filename,
+    MiniSNNWorldsTrainableBrainError *out_error);
+MiniSNNWorldsTrainableBrain *minisnn_worlds_trainable_brain_load(
+    const char *filename,
+    MiniSNNWorldsTrainableBrainError *out_error);
+int minisnn_worlds_trainable_brain_core_step(
+    const MiniSNNWorldsTrainableBrain *brain);
+uint64_t minisnn_worlds_trainable_brain_weight_signature(
+    const MiniSNNWorldsTrainableBrain *brain);
+uint64_t minisnn_worlds_trainable_brain_topology_signature(
+    const MiniSNNWorldsTrainableBrain *brain);
+uint64_t minisnn_worlds_trainable_brain_config_signature(
+    const MiniSNNWorldsTrainableBrain *brain);
+double minisnn_worlds_trainable_brain_last_reward(
+    const MiniSNNWorldsTrainableBrain *brain);
+/* Delegates the existing public Core R-STDP aggregate statistics. It exposes
+ * no mutable Core object and is intended for diagnostics such as WF1-A.3. */
+int minisnn_worlds_trainable_brain_get_reward_stats(
+    const MiniSNNWorldsTrainableBrain *brain,
+    MiniSNNRewardStats *out_stats);
 MiniSNNWorldsBrainBridgeConfig minisnn_worlds_brain_bridge_config_default(void);
 int minisnn_worlds_brain_bridge_config_is_valid(
     const MiniSNNWorldsBrainBridgeConfig *config);

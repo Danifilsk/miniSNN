@@ -58,7 +58,7 @@ ANALYZER_CFLAGS = -std=c11 -Wall -Wextra -pedantic -fanalyzer -Wformat=2 -Wstric
 
 TEST_BINARIES = $(patsubst tests/%.c,$(TEST_BIN_DIR)/%.exe,$(wildcard tests/*.c))
 
-.PHONY: all core core-lib headless core-test clean-core clean-studio clean-tests help clean test test-runtime test-api test-core test-lif test-neuron-model test-adex test-hodgkin-huxley test-model-checkpoints test-model-error-propagation test-model-provenance test-adex-long test-hh-long test-models-long test-plasticity test-plasticity-long test-homeostasis test-homeostasis-long test-reward test-reward-long test-evolution test-structure test-structural-plasticity test-structure-resume test-structure-long test-evolution-runner test-evolution-resume test-evolution-long test-plot-evolution test-plot-topology test-evolution-report test-structural-html evolution-build evolution-weight-demo evolution-homeostasis-demo evolution-plasticity-demo evolution-structure-demo structural-pruning-demo structural-growth-demo evolution-structure-learning-demo plot-evolution plot-topology report-evolution report-evolution-history report-structural-events report-best-topology test-scenario test-runner test-runner-topologies test-working-memory test-associative-memory test-sequence-prediction test-c6-checkpoints test-c6-integration test-c6-long test-agent-io test-sensor-encoder test-action-decoder test-agent-cycle test-reproducibility test-regression test-memory test-long test-analyzer test-sanitize test-d1-determinism test-d1-corruption test-d1-lifecycle-stress test-d1-optimization-determinism test-d1-posix-headless test-d1-portability test-d1-long-run test-d1-symbols benchmark-d1 scenario-d1-b audit-d1-b audit-d1 benchmark-v02 benchmark-c1 benchmark-c15 benchmark-c2 benchmark-c3 benchmark-c4 benchmark-c5 check-v02 check-c1 check-c15 check-c2 check-c3 check-c4 check-c5-interface check-c5 check-c6 check-c7 compare-neuron-models test-compare-neuron-models test-version test-api-baseline test-api-baseline-regressions release-headers release-core release-headless release-studio release-all test-release-build test-external-consumer package-release test-release-integrity test-release-packages test-studio-source-contracts test-studio-runtime-layout audit-d1-c-automated audit-d1-c \
+.PHONY: all core core-lib headless core-test clean-core clean-studio clean-tests help clean test test-runtime test-api test-core test-topology-factory test-lif test-neuron-model test-adex test-hodgkin-huxley test-model-checkpoints test-model-error-propagation test-model-provenance test-adex-long test-hh-long test-models-long test-plasticity test-plasticity-long test-homeostasis test-homeostasis-long test-reward test-reward-long test-evolution test-structure test-structural-plasticity test-structure-resume test-structure-long test-evolution-runner test-evolution-resume test-evolution-long test-plot-evolution test-plot-topology test-evolution-report test-structural-html evolution-build evolution-weight-demo evolution-homeostasis-demo evolution-plasticity-demo evolution-structure-demo structural-pruning-demo structural-growth-demo evolution-structure-learning-demo plot-evolution plot-topology report-evolution report-evolution-history report-structural-events report-best-topology test-scenario test-runner test-runner-topologies test-topology-factory test-working-memory test-associative-memory test-sequence-prediction test-c6-checkpoints test-c6-integration test-c6-long test-agent-io test-sensor-encoder test-action-decoder test-agent-cycle test-reproducibility test-regression test-memory test-long test-analyzer test-sanitize test-d1-determinism test-d1-corruption test-d1-lifecycle-stress test-d1-optimization-determinism test-d1-posix-headless test-d1-portability test-d1-long-run test-d1-symbols benchmark-d1 scenario-d1-b audit-d1-b audit-d1 benchmark-v02 benchmark-c1 benchmark-c15 benchmark-c2 benchmark-c3 benchmark-c4 benchmark-c5 check-v02 check-c1 check-c15 check-c2 check-c3 check-c4 check-c5-interface check-c5 check-c6 check-c7 compare-neuron-models test-compare-neuron-models test-version test-api-baseline test-api-baseline-regressions release-headers release-core release-headless release-studio release-all test-release-build test-external-consumer package-release test-release-integrity test-release-packages test-studio-source-contracts test-studio-product-launcher test-studio-runtime-layout audit-d1-c-automated audit-d1-c \
 	test-plot-neuron test-plot-plasticity test-compare-runs test-diagnostics test-run-reports test-history-report test-docs test-agent-cycle-checkpoint \
 	test-plot-homeostasis plot-homeostasis test-plot-reward plot-reward \
 	test-c7-integration test-c7-evolution test-c7-long-run test-c7 \
@@ -111,12 +111,14 @@ help:
 	@echo   make test-release-integrity - adultera copias temporarias dos pacotes D1-C
 	@echo   make test-release-packages - valida integridade e smoke dos ZIPs de release
 	@echo   make test-studio-source-contracts - valida contratos Win32 do Studio
+	@echo   make test-studio-product-launcher - valida a resolucao do produto adjacente ao Studio
 	@echo   make test-studio-runtime-layout - valida layouts repository/package do Studio
 	@echo   make audit-d1-c         - valida gates automaticos e o checklist manual D1-C
 	@echo   make audit-d1           - executa a auditoria final D1-A/B/C
 	@echo   make ou make test      - compila e executa todos os testes
 	@echo   make test-api          - teste da API publica
 	@echo   make test-core         - teste do nucleo/topologias/estimulos/recorders
+	@echo   make test-topology-factory - valida a fabrica publica de topologias
 	@echo   make test-lif          - validacao numerica do LIF discreto
 	@echo   make test-neuron-model - validacao da interface interna de modelos neuronais
 	@echo   make test-adex         - validacao numerica do AdEx
@@ -300,8 +302,8 @@ release-headless: $(RELEASE_TOOLS_BIN_DIR)/minisnn_runner.exe $(RELEASE_TOOLS_BI
 $(RELEASE_STUDIO_OBJ_DIR)/minisnn_studio.o: studio/minisnn_studio.c include/minisnn.h include/minisnn_version.h | $(RELEASE_STUDIO_OBJ_DIR)
 	$(CC) $(RELEASE_CFLAGS) $(APP_INCLUDES) -Istudio -c $< -o $@
 
-$(RELEASE_STUDIO_BIN_DIR)/minisnn_studio.exe: $(RELEASE_STUDIO_OBJ_DIR)/minisnn_studio.o studio/studio_runtime_layout.c studio/studio_runtime_layout.h app/evolution_config.c $(SCENARIO_RUNNER_SOURCES) $(RELEASE_CORE_LIB) | $(RELEASE_STUDIO_BIN_DIR)
-	$(CC) $(RELEASE_CFLAGS) $(RELEASE_STUDIO_OBJ_DIR)/minisnn_studio.o studio/studio_runtime_layout.c app/evolution_config.c $(SCENARIO_RUNNER_SOURCES) $(RELEASE_CORE_LIB) $(APP_INCLUDES) -Istudio -o $@ -mwindows -lcomdlg32 -lshell32 -lgdi32 -luser32 -lole32
+$(RELEASE_STUDIO_BIN_DIR)/minisnn_studio.exe: $(RELEASE_STUDIO_OBJ_DIR)/minisnn_studio.o studio/studio_runtime_layout.c studio/studio_runtime_layout.h studio/studio_product_launcher.c studio/studio_product_launcher.h app/evolution_config.c $(SCENARIO_RUNNER_SOURCES) $(RELEASE_CORE_LIB) | $(RELEASE_STUDIO_BIN_DIR)
+	$(CC) $(RELEASE_CFLAGS) $(RELEASE_STUDIO_OBJ_DIR)/minisnn_studio.o studio/studio_runtime_layout.c studio/studio_product_launcher.c app/evolution_config.c $(SCENARIO_RUNNER_SOURCES) $(RELEASE_CORE_LIB) $(APP_INCLUDES) -Istudio -o $@ -mwindows -lcomdlg32 -lshell32 -lgdi32 -luser32 -lole32
 
 release-studio: $(RELEASE_STUDIO_BIN_DIR)/minisnn_studio.exe
 
@@ -343,7 +345,13 @@ $(TEST_BIN_DIR)/test_studio_runtime_layout.exe: tests/test_studio_runtime_layout
 test-studio-source-contracts:
 	$(PYTHON) tests/test_studio_source_contracts.py
 
-test-studio-runtime-layout: test-studio-source-contracts $(TEST_BIN_DIR)/test_studio_runtime_layout.exe
+$(TEST_BIN_DIR)/test_studio_product_launcher.exe: tests/test_studio_product_launcher.c studio/studio_product_launcher.c studio/studio_product_launcher.h | $(TEST_BIN_DIR)
+	$(CC) $(CFLAGS) tests/test_studio_product_launcher.c studio/studio_product_launcher.c -Istudio -o $@
+
+test-studio-product-launcher: $(TEST_BIN_DIR)/test_studio_product_launcher.exe
+	$(TEST_BIN_DIR)/test_studio_product_launcher.exe
+
+test-studio-runtime-layout: test-studio-source-contracts test-studio-product-launcher $(TEST_BIN_DIR)/test_studio_runtime_layout.exe
 	$(TEST_BIN_DIR)/test_studio_runtime_layout.exe
 
 audit-d1-c-automated: audit-d1-api audit-d1-b test-version test-api-baseline test-release-build test-external-consumer test-studio-runtime-layout package-release test-release-packages
@@ -412,6 +420,11 @@ $(BUILD_DIR)/action_decoding_demo.exe: app/action_decoding_demo.c app/action_dec
 $(TEST_BIN_DIR)/test_topology.exe: tests/test_topology.c $(CORE_LIB) | $(BUILD_DIR)
 	$(CC) $(CFLAGS) tests/test_topology.c $(CORE_LIB) $(INCLUDES) -o $@
 
+$(TEST_BIN_DIR)/test_topology_factory.exe: tests/test_topology_factory.c $(CORE_LIB) include/minisnn.h | $(BUILD_DIR)
+	$(CC) $(CFLAGS) tests/test_topology_factory.c $(CORE_LIB) $(INCLUDES) -o $@
+
+test-topology-factory: $(TEST_BIN_DIR)/test_topology_factory.exe
+	$(TEST_BIN_DIR)/test_topology_factory.exe
 $(TEST_BIN_DIR)/test_LIF.exe: tests/test_LIF.c src/neuron.c src/neuron.h src/config.h | $(BUILD_DIR)
 	$(CC) $(CFLAGS) tests/test_LIF.c src/neuron.c $(INCLUDES) -o $@
 
@@ -888,7 +901,7 @@ test-docs: | $(BUILD_DIR)
 test-runtime:
 	@if not exist build mkdir build
 
-test: test-runtime test-api test-core test-lif test-neuron-model test-adex test-hodgkin-huxley test-model-error-propagation test-plasticity test-homeostasis test-reward test-structure test-structural-plasticity test-scenario test-runner test-runner-topologies test-working-memory test-associative-memory test-sequence-prediction test-c6-checkpoints test-c6-integration test-agent-io test-sensor-encoder test-action-decoder test-agent-cycle test-agent-cycle-checkpoint test-reproducibility test-memory test-studio-runtime-layout
+test: test-runtime test-api test-core test-topology-factory test-lif test-neuron-model test-adex test-hodgkin-huxley test-model-error-propagation test-plasticity test-homeostasis test-reward test-structure test-structural-plasticity test-scenario test-runner test-runner-topologies test-topology-factory test-working-memory test-associative-memory test-sequence-prediction test-c6-checkpoints test-c6-integration test-agent-io test-sensor-encoder test-action-decoder test-agent-cycle test-agent-cycle-checkpoint test-reproducibility test-memory test-studio-runtime-layout
 	@if exist build rmdir /S /Q build
 
 $(BUILD_DIR)/example_api_single_neuron.exe: examples/api/example_api_single_neuron.c $(CORE_LIB) include/minisnn.h include/minisnn_types.h | $(BUILD_DIR)
@@ -1033,8 +1046,8 @@ report-history:
 $(STUDIO_OBJ_DIR)/minisnn_studio.o: studio/minisnn_studio.c include/minisnn.h include/minisnn_types.h app/scenario_config.h app/scenario_runner.h app/evolution_config.h | $(STUDIO_OBJ_DIR)
 	$(CC) $(CFLAGS) $(APP_INCLUDES) -Istudio -c $< -o $@
 
-$(STUDIO_BIN_DIR)/minisnn_studio.exe: $(STUDIO_OBJ_DIR)/minisnn_studio.o studio/studio_runtime_layout.c studio/studio_runtime_layout.h app/evolution_config.c $(SCENARIO_RUNNER_SOURCES) $(CORE_LIB) | $(STUDIO_BIN_DIR)
-	$(CC) $(CFLAGS) $(STUDIO_OBJ_DIR)/minisnn_studio.o studio/studio_runtime_layout.c app/evolution_config.c $(SCENARIO_RUNNER_SOURCES) $(CORE_LIB) $(APP_INCLUDES) -Istudio -o $@ -mwindows -lcomdlg32 -lshell32 -lgdi32 -luser32 -lole32
+$(STUDIO_BIN_DIR)/minisnn_studio.exe: $(STUDIO_OBJ_DIR)/minisnn_studio.o studio/studio_runtime_layout.c studio/studio_runtime_layout.h studio/studio_product_launcher.c studio/studio_product_launcher.h app/evolution_config.c $(SCENARIO_RUNNER_SOURCES) $(CORE_LIB) | $(STUDIO_BIN_DIR)
+	$(CC) $(CFLAGS) $(STUDIO_OBJ_DIR)/minisnn_studio.o studio/studio_runtime_layout.c studio/studio_product_launcher.c app/evolution_config.c $(SCENARIO_RUNNER_SOURCES) $(CORE_LIB) $(APP_INCLUDES) -Istudio -o $@ -mwindows -lcomdlg32 -lshell32 -lgdi32 -luser32 -lole32
 
 studio-build: $(STUDIO_BIN_DIR)/minisnn_studio.exe
 
