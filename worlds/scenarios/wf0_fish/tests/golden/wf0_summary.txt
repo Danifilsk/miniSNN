@@ -1,0 +1,17 @@
+format=WF0 Fish V1
+brain=Fixed deterministic LIF network, no plasticity or learning
+ticks=3
+decisions=3
+moves=1
+eats=1
+food_consumed=1
+initial_energy=50
+final_energy=60
+metabolism_per_tick=1
+move_energy_cost=2
+food_nutrition=15
+core_steps_per_decision=8
+final_core_step=24
+final_kernel_hash=7667528965066657960
+final_domain_hash=15129851369061916863
+trace_digest=12817801481689054192

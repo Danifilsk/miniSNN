@@ -615,39 +615,103 @@ static int build_ring(
         stats);
 }
 
+static void record_factory_connection(
+    const ScenarioConfig *config,
+    const int *neuron_is_inhibitory,
+    const MiniSNNConnectionInfo *connection,
+    ConnectivityStats *stats)
+{
+    int source = (int)connection->source;
+    int target = (int)connection->target;
+    double weight = connection->weight;
+    int delay = (int)connection->delay;
+
+    stats->count++;
+    stats->indegree[target]++;
+    stats->outdegree[source]++;
+    stats->weight_sum += weight;
+    stats->weight_square_sum += weight * weight;
+    stats->delay_sum += (double)delay;
+    stats->delay_square_sum += (double)delay * (double)delay;
+    if (stats->count == 1 || weight < stats->weight_min)
+        stats->weight_min = weight;
+    if (stats->count == 1 || weight > stats->weight_max)
+        stats->weight_max = weight;
+    if (stats->count == 1 || delay < stats->delay_min)
+        stats->delay_min = delay;
+    if (stats->count == 1 || delay > stats->delay_max)
+        stats->delay_max = delay;
+    if (source == target)
+        stats->self_count++;
+    if (neuron_is_inhibitory[source])
+        stats->inhibitory_count++;
+    else
+        stats->excitatory_count++;
+    if (neuron_is_inhibitory[source])
+    {
+        if (neuron_is_inhibitory[target])
+            stats->inhibitory_to_inhibitory_count++;
+        else
+            stats->inhibitory_to_excitatory_count++;
+    }
+    else if (neuron_is_inhibitory[target])
+        stats->excitatory_to_inhibitory_count++;
+    else
+        stats->excitatory_to_excitatory_count++;
+    topology_hash_connection(stats, source, target, weight, delay,
+                             neuron_is_inhibitory[source]);
+    (void)config;
+}
+
+static int build_factory_topology(
+    MiniSNN *snn,
+    const ScenarioConfig *config,
+    const int *neuron_is_inhibitory,
+    ConnectivityStats *stats,
+    MiniSNNTopologyFactoryKind kind)
+{
+    MiniSNNTopologyFactoryConfig factory = minisnn_topology_factory_default();
+    size_t index;
+
+    factory.kind = kind;
+    factory.seed = config->seed;
+    factory.inhibitory_count = 0U;
+    for (int neuron = 0; neuron < config->neurons; ++neuron)
+    {
+        if (neuron_is_inhibitory[neuron])
+            factory.inhibitory_count++;
+    }
+    factory.connection_probability = config->connection_probability;
+    factory.small_world_neighbors = (uint32_t)config->small_world_neighbors;
+    factory.small_world_rewire_probability =
+        config->small_world_rewire_probability;
+    factory.excitatory_weight = config->excitatory_weight;
+    factory.inhibitory_weight = config->inhibitory_weight;
+    factory.delay = (uint32_t)config->delay;
+    factory.allow_self_connections = config->allow_self_connections;
+    factory.allow_inhibitory_to_inhibitory = config->allow_inh_to_inh;
+    if (!minisnn_topology_factory_build(snn, &factory))
+        return 0;
+    for (index = 0U; index < minisnn_connection_count(snn); ++index)
+    {
+        MiniSNNConnectionInfo connection;
+        if (!minisnn_get_connection(snn, index, &connection))
+            return 0;
+        record_factory_connection(config, neuron_is_inhibitory,
+                                  &connection, stats);
+    }
+    return 1;
+}
+
 static int build_all_to_all(
     MiniSNN *snn,
     const ScenarioConfig *config,
     const int *neuron_is_inhibitory,
     ConnectivityStats *stats)
 {
-    for (int source = 0; source < config->neurons; source++)
-    {
-        for (int target = 0; target < config->neurons; target++)
-        {
-            if (!connection_is_allowed(
-                    config,
-                    neuron_is_inhibitory,
-                    source,
-                    target))
-            {
-                continue;
-            }
-
-            if (!connect_pair(
-                    snn,
-                    config,
-                    neuron_is_inhibitory,
-                    source,
-                    target,
-                stats))
-            {
-                return 0;
-            }
-        }
-    }
-
-    return 1;
+    return build_factory_topology(
+        snn, config, neuron_is_inhibitory, stats,
+        MINISNN_TOPOLOGY_FACTORY_FULLY_CONNECTED);
 }
 
 static int build_random_like(
@@ -656,87 +720,9 @@ static int build_random_like(
     const int *neuron_is_inhibitory,
     ConnectivityStats *stats)
 {
-    uint32_t state = config->seed;
-
-    if (state == 0U)
-        state = 1U;
-
-    for (int source = 0; source < config->neurons; source++)
-    {
-        for (int target = 0; target < config->neurons; target++)
-        {
-            if (!connection_is_allowed(
-                    config,
-                    neuron_is_inhibitory,
-                    source,
-                    target))
-            {
-                continue;
-            }
-
-            if (rng_next_unit(&state) < config->connection_probability)
-            {
-                if (!connect_pair(
-                        snn,
-                        config,
-                        neuron_is_inhibitory,
-                        source,
-                        target,
-                        stats))
-                {
-                    return 0;
-                }
-            }
-        }
-    }
-
-    return 1;
-}
-
-static int choose_rewired_target(
-    const ScenarioConfig *config,
-    const int *neuron_is_inhibitory,
-    const int *used_targets,
-    int source,
-    uint32_t *state,
-    int *out_target)
-{
-    int attempts = config->neurons * 4;
-
-    for (int i = 0; i < attempts; i++)
-    {
-        int target = (int)(rng_next_unit(state) * (double)config->neurons);
-
-        if (target >= config->neurons)
-            target = config->neurons - 1;
-
-        if (!used_targets[target] &&
-            connection_is_allowed(
-                config,
-                neuron_is_inhibitory,
-                source,
-                target))
-        {
-            *out_target = target;
-            return 1;
-        }
-    }
-
-    for (int target = 0; target < config->neurons; target++)
-    {
-        if (!used_targets[target] &&
-            connection_is_allowed(
-                config,
-                neuron_is_inhibitory,
-                source,
-                target))
-        {
-            *out_target = target;
-            return 1;
-        }
-    }
-
-    return 0;
+    return build_factory_topology(
+        snn, config, neuron_is_inhibitory, stats,
+        MINISNN_TOPOLOGY_FACTORY_RANDOM);
 }
 
 static int build_small_world(
@@ -745,72 +731,9 @@ static int build_small_world(
     const int *neuron_is_inhibitory,
     ConnectivityStats *stats)
 {
-    uint32_t state = config->seed;
-    int half_neighbors = config->small_world_neighbors / 2;
-    int used_targets[SCENARIO_MAX_NEURONS];
-
-    if (state == 0U)
-        state = 1U;
-
-    for (int source = 0; source < config->neurons; source++)
-    {
-        for (int i = 0; i < config->neurons; i++)
-            used_targets[i] = 0;
-
-        for (int offset = 1; offset <= half_neighbors; offset++)
-        {
-            int local_targets[2];
-
-            local_targets[0] = (source + offset) % config->neurons;
-            local_targets[1] =
-                (source - offset + config->neurons) % config->neurons;
-
-            for (int side = 0; side < 2; side++)
-            {
-                int target = local_targets[side];
-
-                if (rng_next_unit(&state) <
-                    config->small_world_rewire_probability)
-                {
-                    if (!choose_rewired_target(
-                            config,
-                            neuron_is_inhibitory,
-                            used_targets,
-                            source,
-                            &state,
-                            &target))
-                    {
-                        continue;
-                    }
-                }
-
-                if (used_targets[target] ||
-                    !connection_is_allowed(
-                        config,
-                        neuron_is_inhibitory,
-                        source,
-                        target))
-                {
-                    continue;
-                }
-
-                if (!connect_pair(
-                        snn,
-                        config,
-                        neuron_is_inhibitory,
-                        source,
-                        target,
-                        stats))
-                {
-                    return 0;
-                }
-
-                used_targets[target] = 1;
-            }
-        }
-    }
-
-    return 1;
+    return build_factory_topology(
+        snn, config, neuron_is_inhibitory, stats,
+        MINISNN_TOPOLOGY_FACTORY_SMALL_WORLD);
 }
 
 static int layer_start(

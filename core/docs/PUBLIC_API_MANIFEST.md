@@ -30,7 +30,7 @@ nao uma mudanca da API publica.
 
 | Header | Tipos e funcoes | Ownership/erro | Classe | Consumidores |
 |---|---|---|---|---|
-| `minisnn.h` | `MiniSNN`, `MiniSNNConfig`; `minisnn_create*`, `minisnn_destroy`, `minisnn_step`, configuracao de corrente, conexao, tipos, topologia, getters, reset, signatures e checkpoint de rede | Rede e opaca; destroy por ponteiro duplo; getters copiam ou devolvem escalar | CANDIDATE_V1 / PRODUCTION | headless, Studio, evolution, Bridge futuro |
+| `minisnn.h` | `MiniSNN`, `MiniSNNConfig`; `minisnn_create*`, `minisnn_destroy`, `minisnn_step`, configuracao de corrente, conexao, tipos, topologia, getters, reset, signatures, checkpoint e `minisnn_topology_factory_*` | Rede e opaca; destroy por ponteiro duplo; a fabrica cria topologias deterministicas sem duplicatas e valida `small_world_neighbors` par | CANDIDATE_V1 / PRODUCTION | headless, Studio, evolution, Bridge futuro |
 | `minisnn_types.h` | `MiniSNNNeuronModel`, LIF/AdEx/HH configs e states; conexao, plasticidade, reward, homeostase e estruturas de diagnostico | Structs por valor; parametros validados no create/set | CANDIDATE_V1 / PRODUCTION | todos |
 | `minisnn_version.h` | macros e `minisnn_version_*` para `1.0.0-rc.1` | strings estaticas, sem alocacao ou estado | CANDIDATE_V1 / PRODUCTION | todos |
 | `minisnn.h` | `minisnn_neuron_model_name`, `minisnn_neuron_model_from_name`, `minisnn_neuron_model_is_valid`, `minisnn_config_is_valid` | Nome e constante nao proprietaria; parser nao retencao input | CANDIDATE_V1 / PRODUCTION | runners, Studio |

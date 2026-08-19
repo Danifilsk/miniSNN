@@ -91,6 +91,20 @@ int minisnn_agent_cycle_submit_feedback(
     MiniSNNAgentCycle *cycle,
     const MiniSNNAgentFeedback *feedback);
 
+/* Applies feedback scheduled for the current completed boundary without
+ * accepting a new sensor frame or advancing the network. This is the safe
+ * transition boundary for callers that need to freeze learning after a valid
+ * external consequence has already been reported. */
+int minisnn_agent_cycle_drain_due_feedback(
+    MiniSNNAgentCycle *cycle,
+    uint32_t *out_count,
+    double *out_reward);
+
+/* Returns nonzero when externally scheduled feedback still belongs to this
+ * cycle. Checkpoints that do not serialize causal feedback must reject it. */
+int minisnn_agent_cycle_has_pending_feedback(
+    const MiniSNNAgentCycle *cycle);
+
 /* Reset transient episode state while preserving topology, learned weights, and
  * configured model parameters. A pending external action must be consumed first. */
 int minisnn_agent_cycle_reset_episode(MiniSNNAgentCycle *cycle);

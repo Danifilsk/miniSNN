@@ -14,6 +14,10 @@ CORE_DIR = core
 WORLDS_KERNEL_DIR = worlds/kernel
 WORLDS_DOMAIN_DIR = worlds/domain
 WORLDS_BRAIN_BRIDGE_DIR = worlds/brain_bridge
+WORLDS_WF0_FISH_DIR = worlds/scenarios/wf0_fish
+WORLDS_WF1_TRAINABLE_FISH_DIR = worlds/scenarios/wf1_trainable_fish
+WORLDS_TERRAIN_DIR = worlds/terrain
+WORLDS_G0_VISUALIZER_DIR = worlds/app/g0_visualizer
 
 .PHONY: all help clean clean-core clean-studio clean-tests core core-lib core-headless core-test core-tests core-studio studio studio-path core-evolution worlds-kernel-lib worlds-kernel worlds-kernel-test test-kernel-command-batch test-k0-a-sanitize audit-k0-a test-k0-b-entities test-k0-b-commands test-k0-b-events test-k0-b-determinism test-k0-b-sanitize demo-k0-b audit-k0-b test-k0-c-random test-k0-c-hash test-k0-c-observability test-k0-c-determinism test-k0-c-optimization-determinism test-k0-c-sanitize demo-k0-c audit-k0-c demo-k0-d test-k0-d-config test-k0-d-artifacts test-k0-d-determinism test-k0-d-optimization-determinism test-k0-d-corruption test-k0-d-stress test-k0-d-long-run test-k0-d-posix-smoke test-k0-d-sanitize test-k0-external-consumer audit-k0-d audit-k0 clean-worlds-kernel test test-architecture test-docs test-analyzer audit-d1-build-products audit-d1-api test-d1-determinism test-d1-corruption test-d1-lifecycle-stress test-d1-optimization-determinism test-d1-posix-headless test-d1-portability test-d1-long-run test-d1-symbols benchmark-d1 scenario-d1-b audit-d1-b audit-d1 test-version test-api-baseline test-api-baseline-regressions release-core release-headless release-studio release-all test-release-build test-external-consumer package-release test-release-integrity test-release-packages test-studio-source-contracts test-studio-runtime-layout audit-d1-c-automated audit-d1-c test-working-memory test-associative-memory test-sequence-prediction test-c6-checkpoints test-c6-integration test-c6-long test-agent-io test-sensor-encoder test-action-decoder test-agent-cycle test-agent-cycle-checkpoint test-c7-integration test-c7-evolution test-c7-long-run test-c7 scenario-working-memory scenario-associative-memory scenario-sequence-prediction scenario-sequence-prediction-context scenario-c6-suite scenario-sensor-encoding scenario-action-decoding scenario-agent-cycle scenario-agent-cycle-checkpoint scenario-c7-integrated-audit check-c6 check-c7 test-k1-a-scalar test-k1-a-space test-k1-a-transform test-k1-a-determinism test-k1-a-optimization-determinism test-k1-a-stress test-k1-a-sanitize test-k1-a-posix-smoke demo-k1-a audit-k1-a test-k1-b1-occupancy test-k1-b1-overlap test-k1-b1-conflicts test-k1-b1-determinism test-k1-b1-optimization-determinism test-k1-b1-stress test-k1-b1-sanitizer-classification test-k1-b1-sanitize test-k1-b1-posix-smoke demo-k1-b1 audit-k1-b1 test-k1-b2-movement test-k1-b2-determinism test-k1-b2-optimization-determinism test-k1-b2-stress test-k1-b2-sanitizer-classification test-k1-b2-sanitize test-k1-b2-posix-smoke demo-k1-b2 audit-k1-b2 test-k1-c1-spatial-links test-k1-c1-hash test-k1-c1-determinism test-k1-c1-optimization-determinism test-k1-c1-sanitizer-classification test-k1-c1-sanitize test-k1-c1-posix-smoke audit-k1-c1
 
@@ -59,11 +63,37 @@ help:
 	@echo   mingw32-make check-wd1            - valida o golden do Domain Snapshot V1
 	@echo   mingw32-make test-wd1-golden-portability - valida LF e rejeicao semantica do golden WD1
 	@echo   mingw32-make audit-wd1            - executa a auditoria focada de persistencia Domain
+	@echo   mingw32-make test-wd2-lifecycle      - valida starvation e terminalidade do Domain
+	@echo   mingw32-make test-wd2-persistence    - valida snapshots lifecycle V1/V2
+	@echo   mingw32-make demo-wd2                - gera o demo deterministico de morte
+	@echo   mingw32-make check-wd2               - valida os artefatos WD2
+	@echo   mingw32-make audit-wd2               - executa a auditoria focada WD2
 	@echo   mingw32-make worlds-brain-bridge - compila a biblioteca e demo WB0
 	@echo   mingw32-make test-wb0-core-integration - valida Bridge com Core real
 	@echo   mingw32-make demo-wb0           - gera artefatos deterministas do Brain Bridge
 	@echo   mingw32-make check-wb0          - valida conteudo dos artefatos WB0
 	@echo   mingw32-make audit-wb0          - executa a auditoria completa WB0
+	@echo   mingw32-make demo-wf0           - executa o primeiro organismo neural headless
+	@echo   mingw32-make check-wf0          - valida os artefatos deterministas WF0
+	@echo   mingw32-make test-wf0-neural-continuity - prova continuidade neural e reset manual
+	@echo   mingw32-make audit-wf0          - executa a auditoria focada do Fish neural
+	@echo   mingw32-make test-wt0          - valida Terrain WATER/LAND/ROCK
+	@echo   mingw32-make test-wt0-materialization-failure - valida atomicidade WT0 sob falha
+	@echo   mingw32-make test-wt0-category-mask - valida blocking generico WT0
+	@echo   mingw32-make demo-wt0          - gera o demo headless WT0
+	@echo   mingw32-make audit-wt0         - executa a auditoria focada WT0
+	@echo   mingw32-make worlds            - gera o executavel principal miniSNN Worlds
+	@echo   mingw32-make test-worlds-published-product - valida paridade binaria e smoke publicado
+	@echo   mingw32-make test-g0-d-settings-layout - valida geometria do painel Settings
+	@echo   mingw32-make test-g0-d-i         - valida startup publicado e fonte pixel
+	@echo   mingw32-make worlds-app        - gera build/studio/bin/minisnn_worlds.exe
+	@echo   mingw32-make test-g0-a         - valida o visualizador Worlds G0-A
+	@echo   mingw32-make demo-g0-a         - gera o demo headless do visualizador G0-A
+	@echo   mingw32-make audit-g0-a        - executa a auditoria enxuta G0-A
+	@echo   mingw32-make test-g0-b         - valida tempo real e orientacao G0-B
+	@echo   mingw32-make test-g0-b-runtime - valida scheduler pausavel do Worlds
+	@echo   mingw32-make test-g0-b-facing  - valida orientacao por movimento aplicado
+	@echo   mingw32-make audit-g0-b        - executa a auditoria enxuta G0-B
 	@echo   mingw32-make test-k0-a-sanitize - executa a regressao ASan/UBSan K0-A
 	@echo   mingw32-make audit-k0-a        - audita a fundacao K0-A do Worlds Kernel
 	@echo   mingw32-make test-k0-b-entities - valida IDs e registro K0-B
@@ -163,6 +193,7 @@ help:
 	@echo   mingw32-make test-release-integrity - adultera copias temporarias dos pacotes D1-C
 	@echo   mingw32-make test-release-packages - valida integridade e smoke dos ZIPs
 	@echo   mingw32-make test-studio-source-contracts - valida contratos Win32 do Studio
+	@echo   mingw32-make test-studio-worlds-launcher - valida o launcher independente do Worlds
 	@echo   mingw32-make test-studio-runtime-layout - valida os layouts repository/package do Studio
 	@echo   mingw32-make audit-d1-c - valida gates automaticos e o checklist manual D1-C
 	@echo   mingw32-make audit-d1   - executa a auditoria final pre-Worlds D1-A/B/C
@@ -196,6 +227,12 @@ help:
 	@echo   mingw32-make test-analyzer     - executa analise estatica do Core
 	@echo   mingw32-make target-do-core - encaminha targets legados ao Core
 
+	@echo   mingw32-make experiment-wf1-a - executa o experimento headless trainable fish
+	@echo   mingw32-make check-wf1-a      - valida os artefatos cientificos WF1-A
+	@echo   mingw32-make audit-wf1-a      - executa os gates focados WF1-A
+	@echo   mingw32-make experiment-wf1-a1 - executa o bootstrap exploratorio WF1-A.1
+	@echo   mingw32-make check-wf1-a1     - valida os artefatos cientificos WF1-A.1
+	@echo   mingw32-make audit-wf1-a1     - executa os gates focados WF1-A.1
 core:
 	$(MAKE) -C $(CORE_DIR) core
 
@@ -250,11 +287,17 @@ test-wd0-domain test-wd0-actions test-wd0-perception test-wd0-invariants test-wd
 test-wd1-snapshot test-wd1-restore test-wd1-corruption test-wd1-file-roundtrip test-wd1-golden-portability test-wd1-determinism test-wd1-optimization-determinism test-wd1-sanitizer-classification test-wd1-sanitize test-wd1-posix-smoke demo-wd1 check-wd1:
 	$(MAKE) -C $(WORLDS_DOMAIN_DIR) $@
 
+test-wd2-lifecycle test-wd2-starvation test-wd2-dead-actions test-wd2-persistence test-wd2-atomicity test-wd2-determinism test-wd2-optimization-determinism test-wd2-sanitize test-wd2-posix-smoke demo-wd2 check-wd2:
+	$(MAKE) -C $(WORLDS_DOMAIN_DIR) $@
+
 audit-wd0: test-architecture test-docs test-analyzer audit-k2 test-kernel-command-batch
 	$(MAKE) -C $(WORLDS_DOMAIN_DIR) audit-wd0
 
 audit-wd1: test-architecture test-docs test-analyzer audit-wd0 audit-wb0
 	$(MAKE) -C $(WORLDS_DOMAIN_DIR) audit-wd1
+
+audit-wd2: test-architecture test-docs
+	$(MAKE) -C $(WORLDS_DOMAIN_DIR) audit-wd2
 
 clean-worlds-domain:
 	$(MAKE) -C $(WORLDS_DOMAIN_DIR) clean
@@ -268,11 +311,28 @@ worlds-brain-bridge:
 worlds-brain-bridge-test:
 	$(MAKE) -C $(WORLDS_BRAIN_BRIDGE_DIR) test
 
-test-wb0-encoder test-wb0-decoder test-wb0-binding test-wb0-core-integration test-wb0-cache test-wb0-failure-retry test-wb0-multi-organism test-wb0-invariants test-wb0-determinism test-wb0-optimization-determinism test-wb0-sanitizer-classification test-wb0-sanitize test-wb0-posix-smoke demo-wb0 check-wb0:
+test-wb0-encoder test-wb0-decoder test-wb0-binding test-wb0-core-integration test-wb0-cache test-wb0-failure-retry test-wb0-multi-organism test-wb0-invariants test-wb0-determinism test-wb0-optimization-determinism test-wb0-sanitizer-classification test-wb0-sanitize test-wb0-posix-smoke demo-wb0 test-wb1-bridge test-wb1-brain-config test-wb1-brain-persistence test-wb1-reward test-wb1-episode-reset test-wb1-determinism test-wb1-optimization-determinism test-wb1-sanitize test-wb1-posix-smoke demo-wb1:
 	$(MAKE) -C $(WORLDS_BRAIN_BRIDGE_DIR) $@
 
+check-wb0:
+	$(MAKE) -C $(WORLDS_BRAIN_BRIDGE_DIR) check-wb0
+
+check-wb1:
+	$(MAKE) -C $(WORLDS_BRAIN_BRIDGE_DIR) check-wb1
+
 audit-wb0: test-architecture test-docs test-analyzer audit-wd0
-	$(MAKE) -C $(WORLDS_BRAIN_BRIDGE_DIR) audit-wb0
+
+audit-wb1: test-architecture
+	$(MAKE) -C $(WORLDS_BRAIN_BRIDGE_DIR) audit-wb1
+
+worlds-wf0:
+	$(MAKE) -C $(WORLDS_WF0_FISH_DIR) all
+
+test-wf0 test-wf0-neural-causality test-wf0-neural-continuity test-wf0-determinism test-wf0-optimization-determinism test-wf0-sanitize test-wf0-posix-smoke demo-wf0 check-wf0:
+	$(MAKE) -C $(WORLDS_WF0_FISH_DIR) $@
+
+audit-wf0: test-architecture
+	$(MAKE) -C $(WORLDS_WF0_FISH_DIR) audit-wf0
 
 test-k0-a-sanitize:
 	$(MAKE) -C $(WORLDS_KERNEL_DIR) sanitize
@@ -469,7 +529,79 @@ audit-k2: test-architecture test-docs test-analyzer
 .PHONY: worlds-domain-lib worlds-domain worlds-domain-test clean-worlds-domain test-wd0-domain test-wd0-actions test-wd0-perception test-wd0-invariants test-wd0-atomicity test-wd0-stress test-wd0-determinism test-wd0-optimization-determinism test-wd0-sanitizer-classification test-wd0-sanitize test-wd0-posix-smoke demo-wd0 check-wd0 audit-wd0
 .PHONY: test-wd1-snapshot test-wd1-restore test-wd1-corruption test-wd1-file-roundtrip test-wd1-golden-portability test-wd1-determinism test-wd1-optimization-determinism test-wd1-sanitizer-classification test-wd1-sanitize test-wd1-posix-smoke demo-wd1 check-wd1 audit-wd1
 
-.PHONY: worlds-brain-bridge-lib worlds-brain-bridge worlds-brain-bridge-test clean-worlds-brain-bridge test-wb0-encoder test-wb0-decoder test-wb0-binding test-wb0-core-integration test-wb0-cache test-wb0-failure-retry test-wb0-multi-organism test-wb0-invariants test-wb0-determinism test-wb0-optimization-determinism test-wb0-sanitizer-classification test-wb0-sanitize test-wb0-posix-smoke demo-wb0 check-wb0 audit-wb0
+.PHONY: worlds-brain-bridge-lib worlds-brain-bridge worlds-brain-bridge-test clean-worlds-brain-bridge test-wb0-encoder test-wb0-decoder test-wb0-binding test-wb0-core-integration test-wb0-cache test-wb0-failure-retry test-wb0-multi-organism test-wb0-invariants test-wb0-determinism test-wb0-optimization-determinism test-wb0-sanitizer-classification test-wb0-sanitize test-wb0-posix-smoke demo-wb0 check-wb0 check-wb1 audit-wb0 audit-wb1
 
 clean-worlds-brain-bridge:
 	$(MAKE) -C $(WORLDS_BRAIN_BRIDGE_DIR) clean
+.PHONY: worlds-wf0 test-wf0 test-wf0-neural-causality test-wf0-neural-continuity test-wf0-determinism test-wf0-optimization-determinism test-wf0-sanitize test-wf0-posix-smoke demo-wf0 check-wf0 audit-wf0
+
+.PHONY: worlds-terrain-lib worlds-terrain test-wt0 test-wt0-determinism test-wt0-optimization-determinism test-wt0-sanitize test-wt0-posix-smoke demo-wt0 check-wt0 audit-wt0
+
+worlds-terrain-lib:
+	$(MAKE) -C $(WORLDS_TERRAIN_DIR) lib
+
+worlds-terrain:
+	$(MAKE) -C $(WORLDS_TERRAIN_DIR) all
+
+test-wt0 test-wt0-materialization-failure test-wt0-category-mask test-wt0-determinism test-wt0-optimization-determinism test-wt0-sanitize test-wt0-posix-smoke demo-wt0 check-wt0:
+	$(MAKE) -C $(WORLDS_TERRAIN_DIR) $@
+
+audit-wt0: test-architecture
+	$(MAKE) -C $(WORLDS_TERRAIN_DIR) audit-wt0
+.PHONY: test-wt0-materialization-failure test-wt0-category-mask
+.PHONY: worlds worlds-app publish-worlds publish-worlds-products test-studio-worlds-launcher test-worlds-published-product
+
+worlds publish-worlds: publish-worlds-products
+
+publish-worlds-products: core-studio worlds-app
+	copy /Y "build\studio\bin\minisnn_studio.exe" "minisnn_studio.exe" >nul
+	copy /Y "build\studio\bin\minisnn_worlds.exe" "minisnn_worlds.exe" >nul
+
+test-studio-worlds-launcher:
+	$(MAKE) -C $(CORE_DIR) test-studio-product-launcher
+
+worlds-app:
+	$(MAKE) -C $(WORLDS_G0_VISUALIZER_DIR) worlds-app
+
+test-worlds-published-product: worlds
+	$(PYTHON) -B worlds/app/g0_visualizer/scripts/test_worlds_published_product.py --repository-root "." --internal-worlds "build/studio/bin/minisnn_worlds.exe" --published-worlds "minisnn_worlds.exe" --internal-studio "build/studio/bin/minisnn_studio.exe" --published-studio "minisnn_studio.exe"
+.PHONY: test-g0-a test-g0-a-determinism test-g0-a-optimization-determinism test-g0-a-sanitize test-g0-a-posix-smoke demo-g0-a check-g0-a audit-g0-a test-g0-b test-g0-b-runtime test-g0-b-facing test-g0-b-determinism test-g0-b-optimization-determinism test-g0-b-sanitize test-g0-b-posix-smoke demo-g0-b check-g0-b audit-g0-b
+.PHONY: test-g0-c test-g0-c-editor test-g0-c-camera test-g0-c-runtime test-g0-c-determinism test-g0-c-sanitize test-g0-c-posix-smoke demo-g0-c check-g0-c audit-g0-c test-g0-d test-g0-d-world-save-load test-g0-d-log test-g0-d-reset test-g0-d-menu-settings test-g0-d-settings test-g0-d-h test-g0-d-i test-g0-d-settings-layout test-g0-d-ui-resize test-g0-d-new-world-cancel test-g0-d-header-layout test-g0-d-determinism test-g0-d-sanitize test-g0-d-posix-smoke demo-g0-d check-g0-d audit-g0-d
+
+test-g0-a test-g0-a-determinism test-g0-a-optimization-determinism test-g0-a-sanitize test-g0-a-posix-smoke demo-g0-a check-g0-a audit-g0-a test-g0-b test-g0-b-runtime test-g0-b-facing test-g0-b-determinism test-g0-b-optimization-determinism test-g0-b-sanitize test-g0-b-posix-smoke demo-g0-b check-g0-b audit-g0-b:
+	$(MAKE) -C $(WORLDS_G0_VISUALIZER_DIR) $@
+
+
+test-g0-c test-g0-c-editor test-g0-c-camera test-g0-c-runtime test-g0-c-determinism test-g0-c-sanitize test-g0-c-posix-smoke demo-g0-c check-g0-c audit-g0-c test-g0-d test-g0-d-world-save-load test-g0-d-log test-g0-d-reset test-g0-d-menu-settings test-g0-d-settings test-g0-d-h test-g0-d-i test-g0-d-settings-layout test-g0-d-ui-resize test-g0-d-new-world-cancel test-g0-d-header-layout test-g0-d-determinism test-g0-d-sanitize test-g0-d-posix-smoke demo-g0-d check-g0-d audit-g0-d:
+	$(MAKE) -C $(WORLDS_G0_VISUALIZER_DIR) $@
+
+.PHONY: test-wd2-lifecycle test-wd2-starvation test-wd2-dead-actions test-wd2-persistence test-wd2-atomicity test-wd2-determinism test-wd2-optimization-determinism test-wd2-sanitize test-wd2-posix-smoke demo-wd2 check-wd2 audit-wd2
+
+worlds-wf1:
+	$(MAKE) -C $(WORLDS_WF1_TRAINABLE_FISH_DIR) all
+
+test-wf1-a-episode test-wf1-a-terminal-feedback test-wf1-a-evaluation-freeze test-wf1-a-save-load test-wf1-a-no-scripted-policy test-wf1-a-determinism test-wf1-a-posix-smoke experiment-wf1-a demo-wf1-a check-wf1-a test-wf1-a1-metrics test-wf1-a1-no-scripted-policy test-wf1-a1-determinism experiment-wf1-a1 demo-wf1-a1 check-wf1-a1:
+	$(MAKE) -C $(WORLDS_WF1_TRAINABLE_FISH_DIR) $@
+
+audit-wf1-a: test-architecture
+	$(MAKE) -C $(WORLDS_WF1_TRAINABLE_FISH_DIR) audit-wf1-a
+
+audit-wf1-a1: test-architecture
+	$(MAKE) -C $(WORLDS_WF1_TRAINABLE_FISH_DIR) audit-wf1-a1
+.PHONY: worlds-wf1 test-wf1-a-episode test-wf1-a-terminal-feedback \
+        test-wf1-a-evaluation-freeze test-wf1-a-save-load \
+        test-wf1-a-no-scripted-policy test-wf1-a-determinism test-wf1-a-posix-smoke \
+        experiment-wf1-a demo-wf1-a check-wf1-a audit-wf1-a \
+        test-wf1-a1-metrics test-wf1-a1-no-scripted-policy test-wf1-a1-determinism \
+        experiment-wf1-a1 demo-wf1-a1 check-wf1-a1 audit-wf1-a1
+test-wf1-a2-determinism test-wf1-a2-no-scripted-policy experiment-wf1-a2 demo-wf1-a2 check-wf1-a2 probe-wf1-a3 check-wf1-a3 test-wf1-a3-determinism test-wf1-a3-no-scripted-policy probe-wf1-a4 check-wf1-a4 test-wf1-a4-determinism pilot-wf1-a4 check-wf1-a4-pilot probe-wf1-a5 check-wf1-a5 test-wf1-a5-determinism:
+	$(MAKE) -C $(WORLDS_WF1_TRAINABLE_FISH_DIR) $@
+
+audit-wf1-a2: test-architecture
+	$(MAKE) -C $(WORLDS_WF1_TRAINABLE_FISH_DIR) audit-wf1-a2
+
+.PHONY: test-wf1-a2-determinism test-wf1-a2-no-scripted-policy experiment-wf1-a2 demo-wf1-a2 check-wf1-a2 audit-wf1-a2
+.PHONY: probe-wf1-a3 check-wf1-a3 test-wf1-a3-determinism test-wf1-a3-no-scripted-policy
+.PHONY: probe-wf1-a4 check-wf1-a4 test-wf1-a4-determinism
+.PHONY: pilot-wf1-a4 check-wf1-a4-pilot
+.PHONY: probe-wf1-a5 check-wf1-a5 test-wf1-a5-determinism

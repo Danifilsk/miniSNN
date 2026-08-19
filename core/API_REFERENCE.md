@@ -100,6 +100,38 @@ MiniSNNConfig minisnn_default_config(void);
 
 **Erros importantes:** nao retorna erro.
 
+## MiniSNNTopologyFactoryConfig
+
+**Objetivo:** descrever uma topologia inicial deterministica para uma rede ja
+criada. Os tipos neuronais sao definidos pela fabrica: os ultimos
+`inhibitory_count` neuronios sao inibitorios; o peso de cada conexao segue o
+tipo da origem. A fabrica nao cria pares duplicados.
+
+`small_world_neighbors` so se aplica a `MINISNN_TOPOLOGY_FACTORY_SMALL_WORLD` e
+deve ser par. `random` e `fully_connected` ignoram esse campo. A mesma
+configuracao e seed produzem a mesma topologia no mesmo codigo.
+
+## minisnn_topology_factory_default
+
+```c
+MiniSNNTopologyFactoryConfig minisnn_topology_factory_default(void);
+```
+
+**Objetivo:** obter parametros deterministas e validos para a fabrica de
+topologias.
+
+## minisnn_topology_factory_build
+
+```c
+int minisnn_topology_factory_build(
+    MiniSNN *snn,
+    const MiniSNNTopologyFactoryConfig *config);
+```
+
+**Objetivo:** construir `random`, `small_world` ou `fully_connected` usando
+somente a API publica da rede. Retorna `0` para argumentos invalidos, pares
+obrigatorios invalidos ou `small_world_neighbors` impar; em falha nao publica
+uma topologia parcial.
 ## minisnn_create
 
 ```c
@@ -115,6 +147,38 @@ MiniSNN *minisnn_create(int neuron_count);
 **Erros importantes:** retorna `NULL` se `neuron_count <= 0` ou se houver
 falha de alocacao/inicializacao.
 
+## MiniSNNTopologyFactoryConfig
+
+**Objetivo:** descrever uma topologia inicial deterministica para uma rede ja
+criada. Os tipos neuronais sao definidos pela fabrica: os ultimos
+`inhibitory_count` neuronios sao inibitorios; o peso de cada conexao segue o
+tipo da origem. A fabrica nao cria pares duplicados.
+
+`small_world_neighbors` so se aplica a `MINISNN_TOPOLOGY_FACTORY_SMALL_WORLD` e
+deve ser par. `random` e `fully_connected` ignoram esse campo. A mesma
+configuracao e seed produzem a mesma topologia no mesmo codigo.
+
+## minisnn_topology_factory_default
+
+```c
+MiniSNNTopologyFactoryConfig minisnn_topology_factory_default(void);
+```
+
+**Objetivo:** obter parametros deterministas e validos para a fabrica de
+topologias.
+
+## minisnn_topology_factory_build
+
+```c
+int minisnn_topology_factory_build(
+    MiniSNN *snn,
+    const MiniSNNTopologyFactoryConfig *config);
+```
+
+**Objetivo:** construir `random`, `small_world` ou `fully_connected` usando
+somente a API publica da rede. Retorna `0` para argumentos invalidos, pares
+obrigatorios invalidos ou `small_world_neighbors` impar; em falha nao publica
+uma topologia parcial.
 ## minisnn_create_with_config
 
 ```c

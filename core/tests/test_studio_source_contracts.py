@@ -5,6 +5,7 @@ import sys
 
 
 SOURCE = Path(__file__).resolve().parents[1] / "studio" / "minisnn_studio.c"
+LAUNCHER_SOURCE = Path(__file__).resolve().parents[1] / "studio" / "studio_product_launcher.c"
 
 
 def function_body(source: str, declaration: str) -> str:
@@ -88,11 +89,36 @@ def verify_evolution_dialog_contracts(source: str) -> None:
             )
 
 
+def verify_worlds_launcher_contract(source: str, launcher: str) -> None:
+    button_handler = function_body(source, "static void open_minisnn_worlds(void)")
+
+    require('#include "studio_product_launcher.h"' in source,
+            "Studio deve usar somente o helper de launcher do Worlds")
+    require("IDC_BTN_WORLDS" in source and "ABRIR MINISNN WORLDS" in source,
+            "Studio deve expor o botao principal do Worlds")
+    require("case IDC_BTN_WORLDS:" in source and "open_minisnn_worlds();" in source,
+            "botao Worlds deve acionar o launcher")
+    require("ShowWindow(g_app.worlds_button, SW_SHOWNA);" in source and
+            "MoveWindow(g_app.worlds_button" in source,
+            "botao Worlds deve permanecer visivel no layout principal")
+    require("GetModuleFileNameA" in button_handler,
+            "launcher deve resolver o executavel do proprio Studio")
+    require("studio_product_launcher_resolve" in button_handler and
+            "studio_product_launcher_launch" in button_handler,
+            "Studio deve resolver e iniciar Worlds pelo helper")
+    require("minisnn_worlds_" not in source and '"wf0_' not in source and
+            '"minisnn_worlds_' not in launcher,
+            "Studio launcher nao pode incluir APIs internas do Worlds")
+    require("minisnn_worlds.exe" in launcher and "CreateProcessA" in launcher,
+            "helper deve localizar e iniciar o produto Worlds separado")
+
 def main() -> int:
     try:
         source = SOURCE.read_text(encoding="utf-8")
+        launcher = LAUNCHER_SOURCE.read_text(encoding="utf-8")
         verify_visual_ownership(source)
         verify_evolution_dialog_contracts(source)
+        verify_worlds_launcher_contract(source, launcher)
     except (OSError, AssertionError) as error:
         print(f"Studio source contracts validation FAILED: {error}")
         return 1

@@ -8,9 +8,9 @@
 #define WD1_HEADER_SIZE 148U
 #define WD1_DIGEST_OFFSET 44U
 #define WD1_SPECIES_SIZE 40U
-#define WD1_ORGANISM_SIZE 24U
+#define WD1_ORGANISM_SIZE 40U
 #define WD1_FOOD_SIZE 16U
-#define WD1_EVENT_SIZE 60U
+#define WD1_EVENT_SIZE 64U
 
 #define WD1_CHECK(condition) do { if (!(condition)) { \
     fprintf(stderr, "WD1 snapshot test failed: %s at line %d\n", #condition, __LINE__); \
@@ -425,7 +425,7 @@ static int test_corruption_and_atomicity(void)
     copy[0] ^= 1U;
     if (!malformed_snapshot_rejected(copy, size)) { status = 0; goto cleanup; }
     memcpy(copy, minisnn_worlds_domain_snapshot_data(snapshot), size);
-    write_u32(copy, 8U, 2U); refresh_digest(copy, size);
+    write_u32(copy, 8U, 3U); refresh_digest(copy, size);
     if (!malformed_snapshot_rejected(copy, size)) { status = 0; goto cleanup; }
     if (!malformed_snapshot_rejected(minisnn_worlds_domain_snapshot_data(snapshot), size - 1U)) { status = 0; goto cleanup; }
     memcpy(copy, minisnn_worlds_domain_snapshot_data(snapshot), size);

@@ -45,6 +45,12 @@ MiniSNNWorldsKernelError minisnn_worlds_kernel_create_from_snapshot(
     const MiniSNNWorldsKernelSnapshot *snapshot,
     MiniSNNWorldsKernel **out_kernel);
 
+/* Replaces a stable Kernel instance only after a complete transactional restore.
+ * On failure, the destination Kernel is left unchanged. */
+MiniSNNWorldsKernelError minisnn_worlds_kernel_snapshot_restore(
+    MiniSNNWorldsKernel *kernel,
+    const MiniSNNWorldsKernelSnapshot *snapshot);
+
 #ifdef MINISNN_WORLDS_KERNEL_TESTING
 /* Test-only checked arithmetic hooks; no decode or restore API is exposed. */
 int minisnn_worlds_kernel_snapshot_testing_size_add(

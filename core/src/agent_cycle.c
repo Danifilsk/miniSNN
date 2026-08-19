@@ -538,6 +538,64 @@ int minisnn_agent_cycle_submit_feedback(MiniSNNAgentCycle *cycle,
     return 1;
 }
 
+int minisnn_agent_cycle_has_pending_feedback(const MiniSNNAgentCycle *cycle)
+{
+    return cycle != NULL && cycle->feedback_count != 0U;
+}
+
+int minisnn_agent_cycle_drain_due_feedback(
+    MiniSNNAgentCycle *cycle,
+    uint32_t *out_count,
+    double *out_reward)
+{
+    MiniSNNAgentCycleError error = MINISNN_AGENT_CYCLE_ERROR_NONE;
+    uint64_t pending_tick;
+    uint32_t delivered_count = 0U;
+    double delivered_reward = 0.0;
+    size_t index;
+
+    if (cycle == NULL || out_count == NULL || out_reward == NULL)
+    {
+        cycle_error(cycle, MINISNN_AGENT_CYCLE_ERROR_INVALID_ARGUMENT);
+        return 0;
+    }
+    if (cycle->state == MINISNN_AGENT_CYCLE_STATE_RUNNING ||
+        cycle->state == MINISNN_AGENT_CYCLE_STATE_FAULTED ||
+        minisnn_agent_io_action_pending(cycle->agent_io) ||
+        minisnn_agent_io_pending_sensor_tick(cycle->agent_io, &pending_tick) ||
+        !contracts_match(cycle, &error))
+    {
+        cycle_error(cycle, error != MINISNN_AGENT_CYCLE_ERROR_NONE ? error :
+                    (cycle->state == MINISNN_AGENT_CYCLE_STATE_FAULTED ?
+                     MINISNN_AGENT_CYCLE_ERROR_FAULTED :
+                     MINISNN_AGENT_CYCLE_ERROR_INVALID_STATE));
+        return 0;
+    }
+    for (index = 0U; index < cycle->feedback_count; ++index)
+    {
+        if (cycle->feedback_queue[index].delivery_tick != cycle->global_tick)
+        {
+            cycle_error(cycle, MINISNN_AGENT_CYCLE_ERROR_INVALID_STATE);
+            return 0;
+        }
+    }
+    if (!feedback_events_are_deliverable(cycle, NULL, &delivered_reward) ||
+        !deliver_due_feedback(cycle, &delivered_count, &delivered_reward) ||
+        (delivered_count != 0U &&
+         !minisnn_apply_pending_reward_now(cycle->network)))
+    {
+        cycle_error(cycle, MINISNN_AGENT_CYCLE_ERROR_REWARD_UNAVAILABLE);
+        return 0;
+    }
+    if (cycle->state == MINISNN_AGENT_CYCLE_STATE_ACTION_PENDING)
+        cycle->state = MINISNN_AGENT_CYCLE_STATE_READY;
+    cycle->total_reward += delivered_reward;
+    cycle->last_error = MINISNN_AGENT_CYCLE_ERROR_NONE;
+    *out_count = delivered_count;
+    *out_reward = delivered_reward;
+    return 1;
+}
+
 int minisnn_agent_cycle_run_tick(MiniSNNAgentCycle *cycle,
                                  MiniSNNAgentCycleDiagnostics *diagnostics)
 {

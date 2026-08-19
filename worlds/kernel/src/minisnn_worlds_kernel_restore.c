@@ -629,6 +629,15 @@ static void restore_candidate_destroy(MiniSNNWorldsKernel *kernel)
 {
     minisnn_worlds_kernel_destroy(kernel);
 }
+
+static void restore_kernel_contents_destroy(MiniSNNWorldsKernel *kernel)
+{
+    free(kernel->entities);
+    free(kernel->spatial_links);
+    free(kernel->pending_commands);
+    free(kernel->last_tick_events);
+    free(kernel->random_streams);
+}
 static MiniSNNWorldsKernelError restore_from_v1_bytes(
     const uint8_t *data,
     size_t size,
@@ -986,4 +995,31 @@ MiniSNNWorldsKernelError minisnn_worlds_kernel_create_from_snapshot(
         return MINISNN_WORLDS_KERNEL_ERROR_NULL_ARGUMENT;
     }
     return restore_from_v1_bytes(snapshot->data, snapshot->size, out_kernel);
+}
+MiniSNNWorldsKernelError minisnn_worlds_kernel_snapshot_restore(
+    MiniSNNWorldsKernel *kernel,
+    const MiniSNNWorldsKernelSnapshot *snapshot)
+{
+    MiniSNNWorldsKernel *candidate = NULL;
+    MiniSNNWorldsKernel previous;
+    MiniSNNWorldsKernelError error;
+
+    if (kernel == NULL || snapshot == NULL)
+    {
+        return MINISNN_WORLDS_KERNEL_ERROR_NULL_ARGUMENT;
+    }
+    if (minisnn_worlds_kernel_command_batch_active(kernel))
+    {
+        return MINISNN_WORLDS_KERNEL_ERROR_INVALID_STATE;
+    }
+    error = minisnn_worlds_kernel_create_from_snapshot(snapshot, &candidate);
+    if (error != MINISNN_WORLDS_KERNEL_ERROR_NONE)
+    {
+        return error;
+    }
+    previous = *kernel;
+    *kernel = *candidate;
+    free(candidate);
+    restore_kernel_contents_destroy(&previous);
+    return MINISNN_WORLDS_KERNEL_ERROR_NONE;
 }

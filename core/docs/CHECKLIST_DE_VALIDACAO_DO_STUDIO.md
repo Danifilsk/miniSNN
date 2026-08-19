@@ -173,3 +173,14 @@ Status C1.5: **VALIDAÇÃO MANUAL PENDENTE**.
 - [ ] Nenhum artefato é criado na raiz.
 
 Status C3: **VALIDAÇÃO MANUAL PENDENTE**.
+
+## G0-B - entrada Worlds
+
+Status: **VALIDACAO MANUAL PENDENTE**.
+
+- [ ] Abrir `build/studio/bin/minisnn_studio.exe`.
+- [ ] Confirmar que `ABRIR MINISNN WORLDS` esta visivel no painel principal.
+- [ ] Clicar no botao e confirmar que `minisnn_worlds.exe` abre.
+- [ ] Confirmar que o Studio continua aberto.
+- [ ] Fechar Worlds e confirmar que o Studio continua aberto.
+- [ ] Confirmar a mensagem clara quando `minisnn_worlds.exe` estiver ausente.
